@@ -41,13 +41,13 @@ func TestVerifyPassword(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !VerifyPassword(h, "hunter2") {
+	if ok, err := VerifyPassword(h, "hunter2"); !ok || err != nil {
 		t.Fatal("right password rejected")
 	}
-	if VerifyPassword(h, "hunter3") {
+	if ok, _ := VerifyPassword(h, "hunter3"); ok {
 		t.Fatal("wrong password accepted")
 	}
-	if VerifyPassword("garbage", "x") {
+	if ok, _ := VerifyPassword("garbage", "x"); ok {
 		t.Fatal("garbage hash accepted")
 	}
 }

@@ -18,13 +18,15 @@ const sessionTTL = 30 * 24 * time.Hour
 type server struct {
 	db      *sql.DB
 	dataDir string
-	limiter *auth.Limiter
+	limiter *auth.Limiter // per email|IP (and per user|IP for password changes)
+	ipLimit *auth.Limiter // per client IP across all emails
 	uploads *uploads.Uploads
 }
 
 // New returns the API handler. dataDir is the (already checked) volume.
 func New(db *sql.DB, dataDir string) http.Handler {
-	s := &server{db: db, dataDir: dataDir, limiter: auth.NewLimiter(5, 15*time.Minute), uploads: uploads.New(db, dataDir)}
+	s := &server{db: db, dataDir: dataDir, limiter: auth.NewLimiter(5, 15*time.Minute),
+		ipLimit: auth.NewLimiter(30, 15*time.Minute), uploads: uploads.New(db, dataDir)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]string{"status": "ok"})
@@ -70,28 +72,34 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 		Password string `json:"password"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&in); err != nil {
-		writeJSON(w, 400, map[string]string{"error": "bad request"})
+		errJSON(w, 400, "bad_request")
 		return
 	}
-	key := strings.ToLower(strings.TrimSpace(in.Email)) + "|" + ClientIP(r)
-	if !s.limiter.Attempt(key) {
+	ip := ClientIP(r)
+	ipKey := "ip|" + ip
+	key := strings.ToLower(strings.TrimSpace(in.Email)) + "|" + ip
+	if !s.ipLimit.Attempt(ipKey) || !s.limiter.Attempt(key) {
 		w.Header().Set("Retry-After", "900")
-		writeJSON(w, 429, map[string]string{"error": "too many attempts, try again later"})
+		errJSON(w, 429, "too_many_attempts")
 		return
 	}
 	u, err := auth.Authenticate(r.Context(), s.db, in.Email, in.Password)
 	if err != nil {
-		if errors.Is(err, auth.ErrInvalidCredentials) {
-			writeJSON(w, 401, map[string]string{"error": "invalid email or password"})
-			return
+		switch {
+		case errors.Is(err, auth.ErrInvalidCredentials):
+			errJSON(w, 401, "invalid_credentials")
+		case errors.Is(err, auth.ErrBusy):
+			busy(w)
+		default:
+			errJSON(w, 500, "internal")
 		}
-		writeJSON(w, 500, map[string]string{"error": "internal error"})
 		return
 	}
 	s.limiter.Reset(key)
+	s.ipLimit.Forgive(ipKey)
 	tok, err := auth.NewSession(r.Context(), s.db, u.ID, sessionTTL)
 	if err != nil {
-		writeJSON(w, 500, map[string]string{"error": "internal error"})
+		errJSON(w, 500, "internal")
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
@@ -100,6 +108,21 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 		Expires: time.Now().Add(sessionTTL),
 	})
 	writeJSON(w, 200, u)
+}
+
+// busy answers a request that found the password-hash pool saturated.
+func busy(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "2")
+	errJSON(w, 503, "busy")
+}
+
+// hashErr maps a password hashing failure to its HTTP error.
+func hashErr(w http.ResponseWriter, err error) {
+	if errors.Is(err, auth.ErrBusy) {
+		busy(w)
+		return
+	}
+	errJSON(w, 500, "internal")
 }
 
 func (s *server) logout(w http.ResponseWriter, r *http.Request) {
