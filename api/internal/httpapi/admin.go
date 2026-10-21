@@ -51,21 +51,37 @@ func validEmail(e string) bool {
 	return err == nil && a.Address == e && a.Name == "" && len(e) <= 254
 }
 
+// usedSQL is quota.Used for the user u (files they uploaded, trashed
+// included, plus open uploads), so admin views match each user's meter.
+const usedSQL = `COALESCE((SELECT SUM(size) FROM nodes WHERE uploader=u.id AND is_dir=0),0) +
+  COALESCE((SELECT SUM(size) FROM uploads WHERE user_id=u.id),0)`
+
+type userRow struct {
+	users.User
+	UsedBytes int64 `json:"used_bytes"`
+	CreatedAt int64 `json:"created_at"`
+}
+
 func (s *server) listUsers(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.db.QueryContext(r.Context(), `SELECT id,email,role,quota_bytes FROM users ORDER BY email`)
+	rows, err := s.db.QueryContext(r.Context(), `SELECT u.id,u.email,u.role,u.quota_bytes,u.created_at,`+usedSQL+`
+		FROM users u ORDER BY u.email`)
 	if err != nil {
 		errJSON(w, 500, "internal")
 		return
 	}
 	defer rows.Close()
-	out := []users.User{}
+	out := []userRow{}
 	for rows.Next() {
-		var u users.User
-		if err := rows.Scan(&u.ID, &u.Email, &u.Role, &u.QuotaBytes); err != nil {
+		var u userRow
+		if err := rows.Scan(&u.ID, &u.Email, &u.Role, &u.QuotaBytes, &u.CreatedAt, &u.UsedBytes); err != nil {
 			errJSON(w, 500, "internal")
 			return
 		}
 		out = append(out, u)
+	}
+	if rows.Err() != nil {
+		errJSON(w, 500, "internal")
+		return
 	}
 	writeJSON(w, 200, out)
 }
@@ -486,11 +502,11 @@ func toStr(v any) string {
 	return string(b)
 }
 
+// usage reports per-user used/quota (counted like quota.Used, so shared-space
+// uploads count against the uploader). It never exposes file names.
 func (s *server) usage(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.db.QueryContext(r.Context(), `
-SELECT u.id,u.email,u.quota_bytes,COALESCE(SUM(n.size),0)
-FROM users u LEFT JOIN nodes n ON n.space_owner=u.id AND n.is_dir=0
-GROUP BY u.id ORDER BY u.email`)
+	rows, err := s.db.QueryContext(r.Context(), `SELECT u.id,u.email,u.quota_bytes,`+usedSQL+`
+		FROM users u ORDER BY u.email`)
 	if err != nil {
 		errJSON(w, 500, "internal")
 		return
