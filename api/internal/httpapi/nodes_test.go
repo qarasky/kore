@@ -175,4 +175,17 @@ func TestListReportsFolderSizes(t *testing.T) {
 	if sizes["dir"] != 33 || sizes["loose.txt"] != 5 {
 		t.Fatalf("sizes %v", sizes)
 	}
+	// sizes=0 skips the folder totals; the shape is unchanged.
+	rec = e.do(t, &e.user, "GET", "/api/nodes?space=personal&sizes=0", "")
+	if rec.Code != 200 {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	list = nil
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 2 || list[0]["name"] != "dir" || list[0]["size"] != float64(0) || list[0]["is_dir"] != true ||
+		list[1]["size"] != float64(5) || list[1]["id"] == nil || list[1]["updated_at"] == nil {
+		t.Fatalf("sizes=0: %v", list)
+	}
 }
