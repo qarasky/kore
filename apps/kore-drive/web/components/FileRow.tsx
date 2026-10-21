@@ -3,6 +3,7 @@
 import { type DragEvent, type MouseEvent, type ReactNode, type Ref } from "react";
 import { useDropTarget } from "@/hooks/useDropTarget";
 import { formatBytes } from "@/lib/format";
+import { t } from "@/lib/i18n";
 import { fileKind, type ApiNode } from "@/lib/nodes";
 import { NodeIcon } from "./icons";
 import { RelativeTime } from "./RelativeTime";
@@ -89,8 +90,13 @@ export function FileRow({
       <div className="truncate text-muted">
         <RelativeTime unixSeconds={node.updated_at} />
       </div>
-      <div className="text-right text-muted tabular-nums">
-        {node.is_dir ? <span aria-hidden="true">—</span> : formatBytes(node.size)}
+      {/* A folder's size is the API's total of the live files inside it. */}
+      <div
+        data-testid="row-size"
+        title={node.is_dir ? t("list.folderSizeTitle") : undefined}
+        className="truncate text-right text-muted tabular-nums"
+      >
+        {formatBytes(node.size)}
       </div>
     </div>
   );

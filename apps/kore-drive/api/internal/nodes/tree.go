@@ -183,15 +183,32 @@ func CreateFolder(ctx context.Context, db *sql.DB, actor users.User, sp Space, p
 	return n, nil
 }
 
+// listSQL selects the live children of a space/parent (args: owner, parent;
+// NULL = shared space / root). A folder's size is the total size of the live
+// files below it: one recursive descent from all listed folders at once,
+// walking nodes_parent and grouped by the listed folder it started from.
+// Trashed nodes and everything under them are skipped (a trashed subtree is
+// never descended into), and rows of another space are never counted.
+var listSQL = `WITH RECURSIVE kids AS (
+		SELECT ` + cols + ` FROM nodes
+		WHERE space_owner IS ?1 AND parent_id IS ?2 AND ` + liveSQL + `),
+	d(root,id,owner,is_dir,size) AS (
+		SELECT id,id,space_owner,1,0 FROM kids WHERE is_dir=1
+		UNION ALL
+		SELECT d.root,n.id,n.space_owner,n.is_dir,n.size FROM nodes n JOIN d ON n.parent_id=d.id
+		WHERE d.is_dir=1 AND n.space_owner IS d.owner AND n.trashed_at IS NULL AND n.trash_root IS NULL),
+	totals(root,total) AS (SELECT root,SUM(size) FROM d WHERE is_dir=0 GROUP BY root)
+	SELECT ` + strings.Replace(prefixed("k", cols), "k.size", "CASE WHEN k.is_dir=1 THEN COALESCE(t.total,0) ELSE k.size END", 1) + `
+	FROM kids k LEFT JOIN totals t ON t.root=k.id`
+
 // List returns the live children of parentID (nil = space root): folders
-// first, then by natural, case-insensitive name order.
+// first, then by natural, case-insensitive name order. A folder's Size is the
+// total size of the live files anywhere below it.
 func List(ctx context.Context, db *sql.DB, actor users.User, sp Space, parentID *string) ([]Node, error) {
 	if err := checkParent(ctx, db, actor, sp, parentID); err != nil {
 		return nil, err
 	}
-	rows, err := db.QueryContext(ctx, `SELECT `+cols+` FROM nodes
-		WHERE COALESCE(space_owner,'')=COALESCE(?,'') AND COALESCE(parent_id,'')=COALESCE(?,'') AND `+liveSQL,
-		sp.Owner, parentID)
+	rows, err := db.QueryContext(ctx, listSQL, sp.Owner, parentID)
 	if err != nil {
 		return nil, err
 	}

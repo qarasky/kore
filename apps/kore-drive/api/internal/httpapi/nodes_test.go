@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -143,5 +144,35 @@ func TestMoveIntoPersonalChargesMover(t *testing.T) {
 	}
 	if got := e.usedBy(t, e.user); got != 30 {
 		t.Fatalf("user used %v, want 30", got)
+	}
+}
+
+func TestListReportsFolderSizes(t *testing.T) {
+	e := newEnv(t)
+	rec := e.do(t, &e.user, "POST", "/api/nodes", `{"space":"personal","name":"dir"}`)
+	dir := jsonBody(t, rec)["id"].(string)
+	e.putFileIn(t, e.user, nodes.Personal(e.user.ID), "loose.txt", make([]byte, 5))
+	ctx := context.Background()
+	// Two files inside dir.
+	for i, n := range []int{11, 22} {
+		if _, err := e.db.ExecContext(ctx, `INSERT INTO nodes(id,space_owner,uploader,parent_id,name,is_dir,size,mime,created_at,updated_at) VALUES(?,?,?,?,?,0,?,'',1,1)`,
+			users.NewID(), e.user.ID, e.user.ID, dir, string(rune('a'+i)), n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rec = e.do(t, &e.user, "GET", "/api/nodes?space=personal", "")
+	if rec.Code != 200 {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	var list []map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatal(err)
+	}
+	sizes := map[string]float64{}
+	for _, n := range list {
+		sizes[n["name"].(string)] = n["size"].(float64)
+	}
+	if sizes["dir"] != 33 || sizes["loose.txt"] != 5 {
+		t.Fatalf("sizes %v", sizes)
 	}
 }
