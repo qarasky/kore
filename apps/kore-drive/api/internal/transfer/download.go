@@ -27,7 +27,12 @@ func writeErr(w http.ResponseWriter, code int, msg string) {
 
 // contentDisposition builds an attachment header with an ASCII fallback and
 // an RFC 5987 filename* parameter.
-func contentDisposition(name string) string {
+func contentDisposition(name string) string { return disposition("attachment", name) }
+
+// disposition builds a Content-Disposition header of the given type
+// ("attachment" or "inline") with an ASCII fallback filename and an RFC 5987
+// filename* parameter.
+func disposition(kind, name string) string {
 	var fb strings.Builder
 	for _, r := range name {
 		if r < 0x20 || r > 0x7e || r == '"' || r == '\\' || r == '%' {
@@ -46,7 +51,7 @@ func contentDisposition(name string) string {
 			fmt.Fprintf(&enc, "%%%02X", c)
 		}
 	}
-	return `attachment; filename="` + fb.String() + `"; filename*=UTF-8''` + enc.String()
+	return kind + `; filename="` + fb.String() + `"; filename*=UTF-8''` + enc.String()
 }
 
 func setDownloadHeaders(w http.ResponseWriter, name string) {
@@ -59,38 +64,8 @@ func setDownloadHeaders(w http.ResponseWriter, name string) {
 // Download serves a single file node (with Range support). The node lookup
 // is done and finished before any bytes are streamed.
 func Download(w http.ResponseWriter, r *http.Request, db *sql.DB, dataDir string, actor users.User, id string) {
-	n, err := nodes.Get(r.Context(), db, actor, id)
-	if errors.Is(err, nodes.ErrNotFound) {
-		writeErr(w, 404, "not_found")
-		return
-	}
-	if err != nil {
-		log.Printf("download: lookup %s: %v", id, err)
-		writeErr(w, 500, "internal")
-		return
-	}
-	if n.IsDir {
-		writeErr(w, 400, "is_directory")
-		return
-	}
-	if n.BlobID == nil {
-		writeErr(w, 404, "not_found")
-		return
-	}
-	p, err := volume.BlobPath(dataDir, *n.BlobID)
-	if err != nil {
-		log.Printf("download: node %s: %v", n.ID, err)
-		writeErr(w, 500, "internal")
-		return
-	}
-	f, err := os.Open(p)
-	if err != nil {
-		log.Printf("download: node %s blob missing: %v", n.ID, err)
-		if errors.Is(err, os.ErrNotExist) {
-			writeErr(w, 404, "not_found")
-		} else {
-			writeErr(w, 500, "internal")
-		}
+	n, f, ok := openFile(w, r, db, dataDir, actor, id, "download")
+	if !ok {
 		return
 	}
 	defer f.Close()
@@ -98,4 +73,44 @@ func Download(w http.ResponseWriter, r *http.Request, db *sql.DB, dataDir string
 	h.Set("Content-Type", "application/octet-stream")
 	setDownloadHeaders(w, n.Name)
 	http.ServeContent(&jsonErrorWriter{ResponseWriter: w}, r, n.Name, time.Unix(n.UpdatedAt, 0), f)
+}
+
+// openFile looks up a live file node the actor may access and opens its
+// blob; on failure it has written the JSON error and returns ok=false.
+func openFile(w http.ResponseWriter, r *http.Request, db *sql.DB, dataDir string, actor users.User, id, tag string) (nodes.Node, *os.File, bool) {
+	n, err := nodes.Get(r.Context(), db, actor, id)
+	if errors.Is(err, nodes.ErrNotFound) {
+		writeErr(w, 404, "not_found")
+		return n, nil, false
+	}
+	if err != nil {
+		log.Printf("%s: lookup %s: %v", tag, id, err)
+		writeErr(w, 500, "internal")
+		return n, nil, false
+	}
+	if n.IsDir {
+		writeErr(w, 400, "is_directory")
+		return n, nil, false
+	}
+	if n.BlobID == nil {
+		writeErr(w, 404, "not_found")
+		return n, nil, false
+	}
+	p, err := volume.BlobPath(dataDir, *n.BlobID)
+	if err != nil {
+		log.Printf("%s: node %s: %v", tag, n.ID, err)
+		writeErr(w, 500, "internal")
+		return n, nil, false
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		log.Printf("%s: node %s blob missing: %v", tag, n.ID, err)
+		if errors.Is(err, os.ErrNotExist) {
+			writeErr(w, 404, "not_found")
+		} else {
+			writeErr(w, 500, "internal")
+		}
+		return n, nil, false
+	}
+	return n, f, true
 }

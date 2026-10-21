@@ -1,9 +1,11 @@
 /**
- * Which files the preview pane opens. The list mirrors `textExts` /
- * `textNames` in `api/internal/httpapi/preview.go` so obviously binary files
- * download without a wasted request. The API stays the source of truth: a
- * name listed here can still answer 415 (e.g. a NUL byte), and the pane then
- * falls back to downloading.
+ * Which files the preview pane opens, and with which viewer. The text list
+ * mirrors `textExts` / `textNames` in `api/internal/httpapi/preview.go`, the
+ * image/PDF list `viewExts` in `api/internal/transfer/view.go`, so other
+ * files download without a wasted request. The API stays the source of
+ * truth: a name listed here can still answer 415 (a NUL byte in a .txt, a
+ * .png that is not a PNG), and the pane then falls back to downloading.
+ * SVG is never previewed (it can carry script); it downloads.
  */
 
 /** Same as the server's limit (`previewMax`), shown in the truncated notice. */
@@ -18,14 +20,39 @@ const TEXT_EXTS = new Set(
 );
 const TEXT_NAMES = new Set(["Dockerfile", "Makefile", "README", "LICENSE", ".gitignore", ".env"]);
 
+/** Shown with `<img>` / the browser's PDF viewer via `GET /api/nodes/{id}/view`. */
+const VIEW_EXTS: Record<string, "image" | "pdf"> = {
+  png: "image",
+  jpg: "image",
+  jpeg: "image",
+  gif: "image",
+  webp: "image",
+  avif: "image",
+  bmp: "image",
+  pdf: "pdf",
+};
+
+export type PreviewKind = "text" | "image" | "pdf";
+
 /** Lowercased extension like Go's `path.Ext` (".gitignore" → "gitignore"). */
 function ext(name: string): string {
   const dot = name.lastIndexOf(".");
   return dot >= 0 ? name.slice(dot + 1).toLowerCase() : "";
 }
 
+/** The viewer for a file name, or null when it downloads instead. */
+export function previewKind(name: string): PreviewKind | null {
+  if (TEXT_NAMES.has(name) || TEXT_EXTS.has(ext(name))) return "text";
+  return Object.hasOwn(VIEW_EXTS, ext(name)) ? VIEW_EXTS[ext(name)] : null;
+}
+
 export function isPreviewable(name: string): boolean {
-  return TEXT_NAMES.has(name) || TEXT_EXTS.has(ext(name));
+  return previewKind(name) !== null;
+}
+
+/** The inline (image/PDF) endpoint for a node. */
+export function viewHref(id: string): string {
+  return `/api/nodes/${encodeURIComponent(id)}/view`;
 }
 
 export function isMarkdown(name: string): boolean {
@@ -46,7 +73,7 @@ export function splitLines(text: string): string[] {
   return lines;
 }
 
-/** Previewable entries of `nodes` (files only), in order, for prev/next. */
+/** Previewable entries of `nodes` (files only: text, images, PDF), in order, for prev/next. */
 export function previewable<T extends { is_dir: boolean; name: string }>(nodes: readonly T[]): T[] {
   return nodes.filter((n) => !n.is_dir && isPreviewable(n.name));
 }

@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { defaultLineNumbers, isMarkdown, isPreviewable, previewable, safeLinkHref, splitLines } from "../preview";
+import {
+  defaultLineNumbers,
+  isMarkdown,
+  isPreviewable,
+  previewable,
+  previewKind,
+  safeLinkHref,
+  splitLines,
+  viewHref,
+} from "../preview";
 
 describe("isPreviewable (mirrors api/internal/httpapi/preview.go)", () => {
   it.each(["a.txt", "A.TXT", "notes.md", "x.markdown", "main.go", "app.tsx", "data.json", "Dockerfile", "Makefile",
@@ -7,7 +16,7 @@ describe("isPreviewable (mirrors api/internal/httpapi/preview.go)", () => {
     expect(isPreviewable(n)).toBe(true);
   });
 
-  it.each(["photo.jpg", "doc.pdf", "a.zip", "noext", "readme", "file.", "report.docx", "a.txt.exe", ""])(
+  it.each(["logo.svg", "a.zip", "noext", "readme", "file.", "report.docx", "a.txt.exe", "photo.heic", "a.tiff", ""])(
     "%s is not",
     (n) => {
       expect(isPreviewable(n)).toBe(false);
@@ -23,6 +32,47 @@ describe("isPreviewable (mirrors api/internal/httpapi/preview.go)", () => {
     expect(names.length).toBeGreaterThan(3);
     for (const e of exts) expect(isPreviewable(`f.${e}`), e).toBe(true);
     for (const n of names) expect(isPreviewable(n), n).toBe(true);
+  });
+});
+
+describe("previewKind (images and PDF mirror api/internal/transfer/view.go)", () => {
+  it.each([
+    ["a.txt", "text"],
+    ["Dockerfile", "text"],
+    ["photo.jpg", "image"],
+    ["PHOTO.JPEG", "image"],
+    ["a.png", "image"],
+    ["a.gif", "image"],
+    ["a.webp", "image"],
+    ["a.avif", "image"],
+    ["a.bmp", "image"],
+    ["doc.pdf", "pdf"],
+    ["DOC.PDF", "pdf"],
+  ] as const)("%s is %s", (n, kind) => {
+    expect(previewKind(n)).toBe(kind);
+    expect(isPreviewable(n)).toBe(true);
+  });
+
+  it.each(["logo.svg", "LOGO.SVG", "x.svgz", "a.heic", "a.ico", "a.zip", "a.png.exe"])("%s has no viewer", (n) => {
+    expect(previewKind(n)).toBeNull();
+  });
+
+  it("keeps the same image/PDF list as the Go server, without SVG", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const src = await readFile(new URL("../../../api/internal/transfer/view.go", import.meta.url), "utf8");
+    const block = /var viewExts = map\[string\]string\{([^}]*)\}/.exec(src)?.[1] ?? "";
+    const pairs = [...block.matchAll(/"(\w+)":\s*"(\w+)"/g)].map((m) => [m[1], m[2]] as const);
+    expect(pairs.length).toBe(8);
+    for (const [ext, family] of pairs) expect(previewKind(`f.${ext}`), ext).toBe(family === "pdf" ? "pdf" : "image");
+    expect(pairs.map(([e]) => e)).not.toContain("svg");
+    // And nothing previewable here as an image/PDF that the server would refuse.
+    for (const ext of ["png", "jpg", "jpeg", "gif", "webp", "avif", "bmp", "pdf"]) {
+      expect(pairs.map(([e]) => e), ext).toContain(ext);
+    }
+  });
+
+  it("viewHref points at the inline endpoint", () => {
+    expect(viewHref("a b")).toBe("/api/nodes/a%20b/view");
   });
 });
 
@@ -52,14 +102,17 @@ describe("splitLines", () => {
 });
 
 describe("previewable", () => {
-  it("keeps text files in order and drops folders", () => {
+  it("keeps text, image and PDF files in order and drops folders and others", () => {
     const nodes = [
       { id: "1", is_dir: true, name: "docs.md" },
       { id: "2", is_dir: false, name: "b.txt" },
       { id: "3", is_dir: false, name: "c.png" },
       { id: "4", is_dir: false, name: "a.md" },
+      { id: "5", is_dir: false, name: "d.svg" },
+      { id: "6", is_dir: false, name: "e.pdf" },
+      { id: "7", is_dir: false, name: "f.zip" },
     ];
-    expect(previewable(nodes).map((n) => n.id)).toEqual(["2", "4"]);
+    expect(previewable(nodes).map((n) => n.id)).toEqual(["2", "3", "4", "6"]);
   });
 });
 

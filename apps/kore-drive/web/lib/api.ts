@@ -165,3 +165,13 @@ export async function apiText(path: string, init: RequestInit = {}): Promise<Tex
   }
   return { text, truncated: res.headers.get("x-truncated")?.toLowerCase() === "true" };
 }
+
+/**
+ * `HEAD` request: resolves when the API answers 2xx, else throws the
+ * {@link ApiError} (status kept; a HEAD error has no body, so its code is
+ * `http_<status>`). The preview uses it to ask `/view` whether a file can
+ * be shown before pointing an `<img>`/`<iframe>` at it.
+ */
+export async function apiHead(path: string, init: RequestInit = {}): Promise<void> {
+  await send(path, { ...init, method: "HEAD" }, "*/*", "apiHead");
+}

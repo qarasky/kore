@@ -22,8 +22,8 @@ const GRID_UPLOADER =
 /**
  * Search hits as a `role="listbox"` (same selection model as the file list).
  * Clicking a name opens a folder, or a file's folder with the file selected.
- * Enter / double-click: folders open, text files preview, other files show
- * in their folder. Space quick-looks a text file.
+ * Enter / double-click: folders open, text, image and PDF files preview,
+ * other files show in their folder. Space quick-looks a previewable file.
  */
 export function SearchResults({ hits }: { hits: SearchHit[] }) {
   const router = useRouter();

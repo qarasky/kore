@@ -11,12 +11,19 @@ import (
 
 func (s *server) registerTransfer(mux *http.ServeMux) {
 	mux.Handle("GET /api/nodes/{id}/download", auth.RequireUser(http.HandlerFunc(s.download)))
+	mux.Handle("GET /api/nodes/{id}/view", auth.RequireUser(http.HandlerFunc(s.view)))
 	mux.Handle("POST /api/download/zip", auth.RequireUser(http.HandlerFunc(s.downloadZip)))
 }
 
 func (s *server) download(w http.ResponseWriter, r *http.Request) {
 	me, _ := auth.FromContext(r.Context())
 	transfer.Download(w, r, s.db, s.dataDir, me, r.PathValue("id"))
+}
+
+// view serves an image or PDF inline for the preview pane (transfer.View).
+func (s *server) view(w http.ResponseWriter, r *http.Request) {
+	me, _ := auth.FromContext(r.Context())
+	transfer.View(w, r, s.db, s.dataDir, me, r.PathValue("id"))
 }
 
 // downloadZip takes {"ids":[...]} as JSON, or repeated ids=... form fields

@@ -201,6 +201,13 @@ const en = {
   "preview.content": "File content",
   "preview.imageBlocked": "Image not loaded: {alt}",
   "preview.imageBlockedNoAlt": "Image not loaded",
+  "preview.actualSize": "Actual size",
+  "preview.zoomHint": "Click the image or press Z to switch between fit and actual size",
+  "preview.imageError": "Could not show this image.",
+  "preview.pdfFrame": "PDF preview of {name}",
+  "preview.pdfFallback": "PDF not showing?",
+  "preview.pdfFallbackDownload": "Download it instead",
+  "preview.pdfNoViewer": "This browser can't show PDFs inside the page.",
 
   "dialog.cancel": "Cancel",
 

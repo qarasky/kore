@@ -5,9 +5,19 @@ import { apiText, isApiError } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { fileKind, type ApiNode } from "@/lib/nodes";
-import { defaultLineNumbers, isMarkdown, PREVIEW_MAX_BYTES } from "@/lib/preview";
-import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, DownloadIcon, ListNumbersIcon, NodeIcon, WrapIcon } from "./icons";
+import { defaultLineNumbers, isMarkdown, PREVIEW_MAX_BYTES, previewKind } from "@/lib/preview";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  CloseIcon,
+  DownloadIcon,
+  ExpandIcon,
+  ListNumbersIcon,
+  NodeIcon,
+  WrapIcon,
+} from "./icons";
 import { MarkdownView } from "./MarkdownView";
+import { ImageView, PdfView } from "./MediaView";
 import { Modal } from "./Modal";
 import { TextView } from "./TextView";
 
@@ -21,10 +31,12 @@ type Loaded =
 const isControl = (el: EventTarget) => (el as Element).closest?.("button, a, input, textarea, select") != null;
 
 /**
- * Quick-look preview of a text-like file in a modal: name, size, Download,
- * Close (Escape or Space), and ←/→ through `items` (the previewable
- * siblings). Content comes from `GET /api/nodes/{id}/preview`; a 415 means
- * the server disagrees that it is text, and `onNotText` takes over (download).
+ * Quick-look preview in a modal: name, size, Download, Close (Escape or
+ * Space), and ←/→ through `items` (the previewable siblings: text, images
+ * and PDFs alike). Text comes from `GET /api/nodes/{id}/preview`; images
+ * (fit or actual size: click or Z) and PDFs (the browser's viewer in a
+ * frame) from `GET /api/nodes/{id}/view`. A 415 means the server disagrees
+ * that the file can be shown, and `onNotText` takes over (download).
  */
 export function PreviewPane({
   items,
@@ -48,8 +60,12 @@ export function PreviewPane({
   const bodyRef = useRef<HTMLDivElement>(null);
   const [wrap, setWrap] = useState(false);
   const [numbers, setNumbers] = useState<Record<string, boolean>>({});
+  const [actualSize, setActualSize] = useState<string | null>(null);
   const lineNumbers = numbers[node.id] ?? defaultLineNumbers(node.name);
+  const kind = previewKind(node.name) ?? "text";
   const markdown = isMarkdown(node.name);
+  const actual = actualSize === node.id; // zoom resets on every file
+  const toggleZoom = () => setActualSize((id) => (id === node.id ? null : node.id));
   const hasPrev = index > 0;
   const hasNext = index < items.length - 1;
 
@@ -71,6 +87,9 @@ export function PreviewPane({
     } else if (e.key === "ArrowRight" && hasNext) {
       e.preventDefault();
       go(1);
+    } else if ((e.key === "z" || e.key === "Z") && kind === "image" && !isControl(e.target)) {
+      e.preventDefault();
+      toggleZoom();
     }
   }
 
@@ -111,7 +130,13 @@ export function PreviewPane({
               </button>
             </div>
           )}
-          {!markdown && (
+          {kind === "image" && (
+            <button type="button" className={toolButton} aria-pressed={actual} aria-keyshortcuts="Z" title={t("preview.zoomHint")} onClick={toggleZoom}>
+              <ExpandIcon />
+              {t("preview.actualSize")}
+            </button>
+          )}
+          {kind === "text" && !markdown && (
             <div className="flex items-center gap-0.5">
               <button type="button" className={toolButton} aria-pressed={wrap} onClick={() => setWrap((w) => !w)}>
                 <WrapIcon />
@@ -145,9 +170,18 @@ export function PreviewPane({
           tabIndex={0}
           role="region"
           aria-label={t("preview.content")}
-          className="min-h-0 flex-1 overflow-auto bg-surface outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-inset"
+          className={
+            "min-h-0 flex-1 bg-surface outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-inset " +
+            (kind === "text" ? "overflow-auto" : "overflow-hidden")
+          }
         >
-          <PreviewBody key={node.id} node={node} markdown={markdown} wrap={wrap} lineNumbers={lineNumbers} onNotText={onNotText} onDownload={onDownload} />
+          {kind === "image" ? (
+            <ImageView key={node.id} node={node} actual={actual} onToggleZoom={toggleZoom} onUnavailable={onNotText} onDownload={onDownload} />
+          ) : kind === "pdf" ? (
+            <PdfView key={node.id} node={node} onUnavailable={onNotText} onDownload={onDownload} />
+          ) : (
+            <PreviewBody key={node.id} node={node} markdown={markdown} wrap={wrap} lineNumbers={lineNumbers} onNotText={onNotText} onDownload={onDownload} />
+          )}
         </div>
       </div>
     </Modal>
