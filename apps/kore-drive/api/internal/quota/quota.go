@@ -1,8 +1,10 @@
 // Package quota computes per-user storage usage and enforces limits.
 //
 // Usage counts every file node a user uploaded (trashed included, until
-// purged) plus the full declared size of their open uploads. Nodes keep their
-// uploader across moves, so shared-space files count against the uploader.
+// purged) plus the full declared size of their open uploads. Shared-space
+// files count against their uploader; a move into a personal space
+// re-attributes the moved subtree to that space's owner (checked with
+// Reserve in the move's transaction), a move into the shared space keeps it.
 package quota
 
 import (

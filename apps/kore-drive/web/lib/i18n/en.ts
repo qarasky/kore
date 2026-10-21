@@ -127,6 +127,7 @@ const en = {
   "move.error.nameTaken": "A file with that name already exists in the destination",
   "move.error.intoItself": "A folder can't be moved into itself",
   "move.error.notFound": "The item or the destination no longer exists",
+  "move.error.quota": "Not enough storage space left in My files for this item",
   "move.error.generic": "Could not move. Try again.",
   "move.dragCount": "{count} items",
 
