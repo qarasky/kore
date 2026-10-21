@@ -51,6 +51,10 @@ func normalizeName(name string) (string, error) {
 	return name, nil
 }
 
+// liveSQL selects live nodes. Descendants of a trashed folder keep
+// trashed_at NULL but carry trash_root, so both must be NULL.
+const liveSQL = `trashed_at IS NULL AND trash_root IS NULL`
+
 const cols = `id,space_owner,uploader,parent_id,name,is_dir,size,blob_id,mime,created_at,updated_at`
 
 // Queryer is satisfied by *sql.DB and *sql.Tx. Inside a transaction always
@@ -87,7 +91,7 @@ func scan(r scanner) (Node, error) {
 
 // get returns a live node the actor may access, else ErrNotFound.
 func get(ctx context.Context, q queryer, actor users.User, id string) (Node, error) {
-	n, err := scan(q.QueryRowContext(ctx, `SELECT `+cols+` FROM nodes WHERE id=? AND trashed_at IS NULL`, id))
+	n, err := scan(q.QueryRowContext(ctx, `SELECT `+cols+` FROM nodes WHERE id=? AND `+liveSQL, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return n, ErrNotFound
 	}
@@ -165,7 +169,7 @@ func List(ctx context.Context, db *sql.DB, actor users.User, sp Space, parentID 
 		return nil, err
 	}
 	rows, err := db.QueryContext(ctx, `SELECT `+cols+` FROM nodes
-		WHERE COALESCE(space_owner,'')=COALESCE(?,'') AND COALESCE(parent_id,'')=COALESCE(?,'') AND trashed_at IS NULL`,
+		WHERE COALESCE(space_owner,'')=COALESCE(?,'') AND COALESCE(parent_id,'')=COALESCE(?,'') AND `+liveSQL,
 		sp.Owner, parentID)
 	if err != nil {
 		return nil, err
@@ -377,7 +381,7 @@ func Path(ctx context.Context, db *sql.DB, actor users.User, id string) ([]Node,
 		SELECT id,parent_id,0 FROM nodes WHERE id=?
 		UNION ALL SELECT n.id,n.parent_id,a.depth+1 FROM nodes n JOIN a ON n.id=a.parent_id)
 		SELECT `+prefixed("n", cols)+` FROM a JOIN nodes n ON n.id=a.id
-		WHERE n.trashed_at IS NULL ORDER BY a.depth DESC`, id)
+		WHERE n.trashed_at IS NULL AND n.trash_root IS NULL ORDER BY a.depth DESC`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -484,7 +488,7 @@ func Get(ctx context.Context, q Queryer, actor users.User, id string) (Node, err
 // callers must already have verified access to the parent. Rows are fully
 // read and closed before returning.
 func LiveChildren(ctx context.Context, q Queryer, parentID string) ([]Node, error) {
-	rows, err := q.QueryContext(ctx, `SELECT `+cols+` FROM nodes WHERE parent_id=? AND trashed_at IS NULL AND trash_root IS NULL ORDER BY name`, parentID)
+	rows, err := q.QueryContext(ctx, `SELECT `+cols+` FROM nodes WHERE parent_id=? AND `+liveSQL+` ORDER BY name`, parentID)
 	if err != nil {
 		return nil, err
 	}

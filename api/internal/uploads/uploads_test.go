@@ -531,3 +531,35 @@ func TestCompleteIntoTrashedParentFails(t *testing.T) {
 		t.Fatal("blob left after cancel")
 	}
 }
+
+func TestUploadIntoTrashedSubtreeRejected(t *testing.T) {
+	f := setup(t, 1<<30)
+	up := New(f.db, f.dataDir)
+	sp := nodes.Personal(f.a.ID)
+	top, _ := nodes.CreateFolder(ctx, f.db, f.a, sp, nil, "top")
+	sub, _ := nodes.CreateFolder(ctx, f.db, f.a, sp, &top.ID, "sub")
+	if err := nodes.Trash(ctx, f.db, f.a, top.ID); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{top.ID, sub.ID} {
+		if _, err := up.Create(ctx, f.a, sp, &id, "x.bin", kib, kib); !errors.Is(err, nodes.ErrNotFound) {
+			t.Fatalf("create into %s: %v", id, err)
+		}
+	}
+	// A file inside the trashed folder is no parent either (not a dir, but also not live).
+	ff := insertFileNode(t, f, &sub.ID)
+	if _, err := up.Create(ctx, f.a, sp, &ff, "x.bin", kib, kib); !errors.Is(err, nodes.ErrNotFound) {
+		t.Fatalf("create into file in trash: %v", err)
+	}
+}
+
+func insertFileNode(t *testing.T, f *fixture, parent *string) string {
+	t.Helper()
+	id := users.NewID()
+	_, err := f.db.Exec(`INSERT INTO nodes(id,space_owner,uploader,parent_id,name,is_dir,size,mime,created_at,updated_at,trash_root) VALUES(?,?,?,?,?,0,1,'',1,1,(SELECT trash_root FROM nodes WHERE id=?))`,
+		id, f.a.ID, f.a.ID, parent, "ff", parent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}

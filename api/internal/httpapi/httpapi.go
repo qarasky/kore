@@ -34,6 +34,7 @@ func New(db *sql.DB, dataDir string) http.Handler {
 	mux.Handle("GET /api/auth/me", auth.RequireUser(http.HandlerFunc(s.me)))
 	s.registerAdmin(mux)
 	s.registerNodes(mux)
+	s.registerTrash(mux)
 	s.registerUploads(mux)
 	s.registerTransfer(mux)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
