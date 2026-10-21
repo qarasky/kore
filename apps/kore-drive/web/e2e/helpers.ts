@@ -58,3 +58,34 @@ export async function createFolder(
   expect(res.status(), `create folder ${name}`).toBe(201);
   return (await res.json()).id;
 }
+
+/** Uploads a small file in one chunk (personal root or `parent`); returns the node id. */
+export async function uploadFile(
+  api: APIRequestContext,
+  name: string,
+  content: string,
+  opts: { space?: "personal" | "shared"; parent?: string } = {},
+): Promise<string> {
+  const data = Buffer.from(content);
+  const created = await api.post("/api/uploads", {
+    data: {
+      space: opts.space ?? "personal",
+      parent: opts.parent ?? null,
+      name,
+      size: data.length,
+      chunk_size: 1 << 20,
+    },
+  });
+  expect(created.status(), `create upload ${name}`).toBe(201);
+  const { id } = await created.json();
+  if (data.length > 0) {
+    const chunk = await api.patch(`/api/uploads/${id}`, {
+      data,
+      headers: { "Upload-Offset": "0", "Content-Type": "application/offset+octet-stream" },
+    });
+    expect(chunk.status(), `upload chunk ${name}`).toBeLessThan(300);
+  }
+  const done = await api.post(`/api/uploads/${id}/complete`);
+  expect(done.ok(), `complete upload ${name}`).toBe(true);
+  return (await done.json()).id;
+}
