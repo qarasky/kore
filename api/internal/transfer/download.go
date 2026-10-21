@@ -53,6 +53,7 @@ func setDownloadHeaders(w http.ResponseWriter, name string) {
 	h := w.Header()
 	h.Set("Content-Disposition", contentDisposition(name))
 	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("Cache-Control", "private, no-store")
 }
 
 // Download serves a single file node (with Range support). The node lookup
@@ -96,5 +97,5 @@ func Download(w http.ResponseWriter, r *http.Request, db *sql.DB, dataDir string
 	h := w.Header()
 	h.Set("Content-Type", "application/octet-stream")
 	setDownloadHeaders(w, n.Name)
-	http.ServeContent(w, r, n.Name, time.Unix(n.UpdatedAt, 0), f)
+	http.ServeContent(&jsonErrorWriter{ResponseWriter: w}, r, n.Name, time.Unix(n.UpdatedAt, 0), f)
 }
