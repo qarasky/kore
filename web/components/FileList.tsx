@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { useFileActions } from "@/hooks/useFileActions";
 import { useMoveNodes } from "@/hooks/useMoveNodes";
+import { usePreview } from "@/hooks/usePreview";
 import { useSelection } from "@/hooks/useSelection";
 import { collectDataTransfer } from "@/lib/dropEntries";
 import { t, type MessageKey } from "@/lib/i18n";
 import { activeMove, beginMove, endMove, isFileDrag, isNoopMove } from "@/lib/moveDrag";
 import { folderHref, type ApiNode, type Space } from "@/lib/nodes";
+import { isPreviewable } from "@/lib/preview";
 import { useRegisterBrowser } from "./BrowserContext";
 import { ContextMenu } from "./ContextMenu";
 import { DropZone } from "./DropZone";
@@ -27,23 +29,29 @@ const isOnRow = (e: { target: EventTarget }) => (e.target as Element).closest('[
 /**
  * The folder listing: a `role="listbox"` of dense rows with file-manager
  * selection (click, shift/ctrl-click, arrows, Ctrl/Cmd+A), inline rename
- * (F2), trash (Delete), open (Enter / double-click) and a context menu.
+ * (F2), trash (Delete), open (Enter / double-click: folders navigate, text
+ * files preview, other files download), quick look (Space) and a context
+ * menu. `select` (from `?select=<id>`) starts with that row selected and
+ * scrolled into view.
  */
 export function FileList({
   space,
   parentId,
   nodes,
   header,
+  select = null,
 }: {
   space: Space;
   parentId: string | null;
   nodes: ApiNode[];
   /** Breadcrumbs, rendered on the server. */
   header: ReactNode;
+  /** A row to start selected (and scrolled to), e.g. from a search result. */
+  select?: string | null;
 }) {
   const ids = useMemo(() => nodes.map((n) => n.id), [nodes]);
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
-  const sel = useSelection(ids);
+  const sel = useSelection(ids, select);
   const actions = useFileActions({ space, parentId, byId });
   const [editing, setEditing] = useState<Editing>(null);
   const [menu, setMenu] = useState<MenuState>(null);
@@ -55,6 +63,19 @@ export function FileList({
   const toast = useToast();
   const uploads = useUploads();
   const moveNodes = useMoveNodes();
+  const preview = usePreview({
+    onShow: (n) => sel.only(n.id),
+    returnFocus: (n) => rowEls.current.get(n.id),
+  });
+
+  // Scroll to and focus the `select` row once, after mount.
+  const selectRef = useRef(select);
+  useEffect(() => {
+    const el = selectRef.current ? rowEls.current.get(selectRef.current) : undefined;
+    if (!el) return;
+    el.scrollIntoView({ block: "center" });
+    el.focus({ preventScroll: true });
+  }, []);
 
   useEffect(() => {
     registerBrowser({
@@ -89,7 +110,7 @@ export function FileList({
     const n = byId.get(id);
     if (!n) return;
     if (n.is_dir) actions.navigate(folderHref(space, n.id));
-    else actions.download([n.id]); // preview arrives in task 15
+    else preview.openFile(n, nodes);
   }
 
   function trashSelected() {
@@ -228,10 +249,16 @@ export function FileList({
       case "Escape":
         sel.clear();
         return;
-      case " ":
+      case " ": {
+        // Space: select the cursor row and quick-look it; Ctrl/Cmd+Space toggles it.
         e.preventDefault();
-        if (sel.selection.focus) sel.click(sel.selection.focus, { toggle: mod });
+        const id = sel.selection.focus;
+        if (!id) return;
+        sel.click(id, { toggle: mod });
+        const n = byId.get(id);
+        if (!mod && n && !n.is_dir && isPreviewable(n.name)) preview.openFile(n, nodes);
         return;
+      }
       case "ContextMenu":
       case "F10":
         if (e.key === "F10" && !e.shiftKey) return;
@@ -340,6 +367,7 @@ export function FileList({
         </div>
       </DropZone>
 
+      {preview.element}
       {menu && (
         <ContextMenu x={menu.x} y={menu.y} label={t("list.contextMenu")} items={menuItems} onClose={closeMenu} />
       )}

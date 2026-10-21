@@ -63,10 +63,10 @@ export async function createFolder(
 export async function uploadFile(
   api: APIRequestContext,
   name: string,
-  content: string,
+  content: string | Buffer,
   opts: { space?: "personal" | "shared"; parent?: string } = {},
 ): Promise<string> {
-  const data = Buffer.from(content);
+  const data = typeof content === "string" ? Buffer.from(content) : content;
   const created = await api.post("/api/uploads", {
     data: {
       space: opts.space ?? "personal",

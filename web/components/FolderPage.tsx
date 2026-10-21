@@ -9,14 +9,24 @@ import { FileList } from "./FileList";
 const sectionTitle = (space: Space) => (space === "shared" ? t("shared.title") : t("files.title"));
 
 /** Shared server body of /files/[[...folder]] and /shared/[[...folder]]. */
-export async function FolderPage({ space, segments }: { space: Space; segments: string[] | undefined }) {
+export async function FolderPage({
+  space,
+  segments,
+  select,
+}: {
+  space: Space;
+  segments: string[] | undefined;
+  /** `?select=<id>`: a row to start selected. */
+  select?: string | string[];
+}) {
   const id = folderIdFrom(segments);
   await requireUser();
   const folder = await loadFolder(space, id);
   return (
     <FileList
-      key={id ?? "root"}
+      key={`${id ?? "root"}:${typeof select === "string" ? select : ""}`}
       space={space}
+      select={typeof select === "string" && select !== "" ? select : null}
       parentId={id}
       nodes={folder.children}
       header={<Breadcrumbs space={space} path={folder.path} />}

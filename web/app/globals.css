@@ -48,3 +48,122 @@
     outline-offset: 2px;
   }
 }
+
+/* Rendered markdown in the preview pane (react-markdown output). */
+@layer components {
+  .kore-md {
+    font-size: 14px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+  }
+  .kore-md > * + * {
+    margin-top: 0.85em;
+  }
+  .kore-md h1,
+  .kore-md h2,
+  .kore-md h3,
+  .kore-md h4,
+  .kore-md h5,
+  .kore-md h6 {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+    margin-top: 1.4em;
+  }
+  .kore-md > :first-child {
+    margin-top: 0;
+  }
+  .kore-md h1 {
+    font-size: 1.7em;
+    padding-bottom: 0.25em;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .kore-md h2 {
+    font-size: 1.35em;
+    padding-bottom: 0.2em;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .kore-md h3 {
+    font-size: 1.15em;
+  }
+  .kore-md a {
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .kore-md ul {
+    list-style: disc;
+    padding-left: 1.5em;
+  }
+  .kore-md ol {
+    list-style: decimal;
+    padding-left: 1.5em;
+  }
+  .kore-md li + li {
+    margin-top: 0.25em;
+  }
+  .kore-md li > input[type="checkbox"] {
+    margin-right: 0.4em;
+  }
+  .kore-md blockquote {
+    border-left: 3px solid var(--color-border-strong);
+    padding-left: 1em;
+    color: var(--color-muted);
+  }
+  .kore-md code {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 0.1em 0.35em;
+  }
+  .kore-md pre {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-ui);
+    padding: 0.8em 1em;
+    overflow-x: auto;
+  }
+  .kore-md pre code {
+    background: none;
+    border: 0;
+    padding: 0;
+    white-space: pre;
+  }
+  .kore-md hr {
+    border: 0;
+    border-top: 1px solid var(--color-border);
+  }
+  .kore-md table {
+    border-collapse: collapse;
+    display: block;
+    overflow-x: auto;
+  }
+  .kore-md th,
+  .kore-md td {
+    border: 1px solid var(--color-border);
+    padding: 0.35em 0.7em;
+  }
+  .kore-md th {
+    background: var(--color-surface);
+    font-weight: 600;
+  }
+  .kore-md-image {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius-ui);
+    padding: 0.15em 0.55em;
+    color: var(--color-muted);
+    font-size: 0.9em;
+  }
+}
+
+@layer components {
+  .kore-md ul.contains-task-list {
+    list-style: none;
+    padding-left: 0.2em;
+  }
+}

@@ -9,7 +9,7 @@ vi.mock("next/headers", () => ({
   }),
 }));
 
-import { api, API_TIMEOUT_MS, API_UNREACHABLE_DIGEST, ApiError } from "../api";
+import { api, API_TIMEOUT_MS, API_UNREACHABLE_DIGEST, ApiError, apiText } from "../api";
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -202,6 +202,121 @@ describe("api()", () => {
 
   it("rejects paths outside /api/", async () => {
     await expect(api("https://evil.com/api/x")).rejects.toThrow(TypeError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("apiText()", () => {
+  const fetchMock = vi.fn<typeof fetch>();
+
+  function textResponse(body: string, headers: Record<string, string> = {}, status = 200): Response {
+    return new Response(body, { status, headers: { "Content-Type": "text/plain; charset=utf-8", ...headers } });
+  }
+
+  beforeEach(() => {
+    cookieStore.clear();
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+    delete process.env.API_URL;
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("returns the body as text and asks for text/plain", async () => {
+    fetchMock.mockResolvedValue(textResponse("<script>x</script>\nline 2"));
+
+    const got = await apiText("/api/nodes/n1/preview");
+
+    expect(got).toEqual({ text: "<script>x</script>\nline 2", truncated: false });
+    const [, init] = fetchMock.mock.calls[0];
+    expect(new Headers(init?.headers).get("accept")).toBe("text/plain");
+  });
+
+  it("reports X-Truncated", async () => {
+    fetchMock.mockResolvedValue(textResponse("abc", { "X-Truncated": "true" }));
+
+    await expect(apiText("/api/nodes/n1/preview")).resolves.toEqual({ text: "abc", truncated: true });
+  });
+
+  it("returns an empty file as empty text", async () => {
+    fetchMock.mockResolvedValue(textResponse(""));
+
+    await expect(apiText("/api/nodes/n1/preview")).resolves.toEqual({ text: "", truncated: false });
+  });
+
+  it("forwards the session cookie and uses API_URL on the server", async () => {
+    process.env.API_URL = "http://api.internal:9000/";
+    cookieStore.set("kore_session", "tok123");
+    fetchMock.mockResolvedValue(textResponse("hi"));
+
+    await apiText("/api/nodes/n1/preview");
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe("http://api.internal:9000/api/nodes/n1/preview");
+    expect(new Headers(init?.headers).get("cookie")).toBe("kore_session=tok123");
+    expect(init?.cache).toBe("no-store");
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("calls same-origin from the browser", async () => {
+    vi.stubGlobal("window", {});
+    fetchMock.mockResolvedValue(textResponse("hi"));
+
+    await apiText("/api/nodes/n1/preview");
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe("/api/nodes/n1/preview");
+    expect(init?.credentials).toBe("same-origin");
+  });
+
+  it("maps JSON errors (415 not_text, 404) to ApiError", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(415, { error: "not_text" }));
+    fetchMock.mockResolvedValueOnce(jsonResponse(404, { error: "not_found" }));
+
+    const e1 = await apiText("/api/nodes/n1/preview").catch((e: unknown) => e);
+    const e2 = await apiText("/api/nodes/n1/preview").catch((e: unknown) => e);
+
+    expect(e1).toBeInstanceOf(ApiError);
+    expect((e1 as ApiError).status).toBe(415);
+    expect((e1 as ApiError).code).toBe("not_text");
+    expect((e2 as ApiError).status).toBe(404);
+  });
+
+  it("throws ApiError(502, bad_response) for a 2xx that is not text/plain", async () => {
+    fetchMock.mockResolvedValue(new Response("<html>proxy</html>", { status: 200, headers: { "Content-Type": "text/html" } }));
+
+    const err = await apiText("/api/x").catch((e: unknown) => e);
+
+    expect((err as ApiError).status).toBe(502);
+    expect((err as ApiError).code).toBe("bad_response");
+  });
+
+  it("wraps network failures and rethrows caller aborts", async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError("fetch failed"));
+    const err = await apiText("/api/x").catch((e: unknown) => e);
+    expect((err as ApiError).status).toBe(503);
+    expect((err as ApiError).code).toBe("unreachable");
+
+    const ctrl = new AbortController();
+    fetchMock.mockImplementationOnce(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          const signal = init?.signal;
+          if (signal?.aborted) return reject(signal.reason);
+          signal?.addEventListener("abort", () => reject(signal.reason));
+        }),
+    );
+    const pending = apiText("/api/x", { signal: ctrl.signal }).catch((e: unknown) => e);
+    ctrl.abort();
+    const aborted = await pending;
+    expect(aborted).not.toBeInstanceOf(ApiError);
+    expect((aborted as Error).name).toBe("AbortError");
+  });
+
+  it("rejects paths outside /api/", async () => {
+    await expect(apiText("/nodes/x")).rejects.toThrow(TypeError);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

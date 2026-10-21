@@ -33,8 +33,7 @@ async function setup(page: Page, folders: string[] = []): Promise<{ user: Create
 test("shell: sidebar, storage meter, account menu, search box", async ({ page }) => {
   const errors: string[] = [];
   page.on("console", (m) => {
-    // Network failures are logged too (e.g. prefetches of /trash and /search,
-    // pages that arrive in task 15); only runtime/hydration errors count here.
+    // Network failures are logged too; only runtime/hydration errors count here.
     if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) errors.push(m.text());
   });
   page.on("pageerror", (e) => errors.push(e.message));
@@ -348,25 +347,26 @@ test("download: single selection of a folder and multi-select stream as zip", as
   expect(await download.failure()).toBeNull();
 });
 
-test("files show size and type; Enter downloads a single file", async ({ page }) => {
+test("files show size and type; Enter downloads a single non-text file", async ({ page }) => {
   const user = await createUser();
   const api = await apiAs(user.email, user.password);
   await createFolder(api, "zz folder");
-  await uploadFile(api, "notes.txt", "x".repeat(2048));
+  // .docx: a "text" icon, but not previewable, so opening it downloads.
+  await uploadFile(api, "notes.docx", "x".repeat(2048));
   await api.dispose();
   await loginAs(page, user.email, user.password);
   await page.goto("/files");
 
   // Folders first even when they sort after files by name.
   await expect(list(page).getByRole("option").first()).toHaveAccessibleName("zz folder");
-  const file = row(page, "notes.txt");
+  const file = row(page, "notes.docx");
   await expect(file).toContainText("2 KB");
   await expect(file).toContainText(/Today \d{1,2}:\d{2}/);
   await expect(file).toHaveAttribute("data-kind", "text");
 
   await file.click();
   const [download] = await Promise.all([page.waitForEvent("download"), page.keyboard.press("Enter")]);
-  expect(download.suggestedFilename()).toBe("notes.txt");
+  expect(download.suggestedFilename()).toBe("notes.docx");
   expect(await download.failure()).toBeNull();
   await expect(page).toHaveURL("/files");
 });
@@ -374,14 +374,14 @@ test("files show size and type; Enter downloads a single file", async ({ page })
 test("a failed download shows an error toast and keeps the page", async ({ page }) => {
   const user = await createUser();
   const api = await apiAs(user.email, user.password);
-  const id = await uploadFile(api, "vanishing.txt", "bye");
+  const id = await uploadFile(api, "vanishing.bin", "bye");
   await loginAs(page, user.email, user.password);
   await page.goto("/files");
-  await expect(row(page, "vanishing.txt")).toBeVisible();
+  await expect(row(page, "vanishing.bin")).toBeVisible();
   expect((await api.delete(`/api/nodes/${id}`)).status()).toBe(204); // gone behind the page's back
   await api.dispose();
 
-  await row(page, "vanishing.txt").click();
+  await row(page, "vanishing.bin").click();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("status")).toContainText(en["toast.downloadFailed"]);
   await expect(page).toHaveURL("/files");
