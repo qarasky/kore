@@ -25,7 +25,7 @@ func setup(t *testing.T) http.Handler {
 	if _, err := users.Create(context.Background(), db, "a@b.c", h, "user", 0); err != nil {
 		t.Fatal(err)
 	}
-	return New(db)
+	return New(db, t.TempDir())
 }
 
 func login(h http.Handler, email, pw string, hdr map[string]string) *httptest.ResponseRecorder {

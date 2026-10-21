@@ -34,6 +34,9 @@ func ValidateName(name string) error {
 	return err
 }
 
+// NormalizeName returns the NFC-normalized name, or ErrInvalidName.
+func NormalizeName(name string) (string, error) { return normalizeName(name) }
+
 // normalizeName NFC-normalizes name and validates it.
 func normalizeName(name string) (string, error) {
 	name = norm.NFC.String(name)
@@ -50,10 +53,14 @@ func normalizeName(name string) (string, error) {
 
 const cols = `id,space_owner,uploader,parent_id,name,is_dir,size,blob_id,mime,created_at,updated_at`
 
-type queryer interface {
+// Queryer is satisfied by *sql.DB and *sql.Tx. Inside a transaction always
+// pass the *sql.Tx (never the pool) to avoid self-deadlocking on the write lock.
+type Queryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
+
+type queryer = Queryer
 
 type scanner interface{ Scan(...any) error }
 
@@ -112,6 +119,13 @@ func checkParent(ctx context.Context, q queryer, actor users.User, sp Space, par
 		return ErrNotDir
 	}
 	return nil
+}
+
+// CheckParent verifies that actor may access sp and that parent (nil = space
+// root) is a live folder in sp. Inaccessible spaces/parents are ErrNotFound;
+// a non-folder parent is ErrNotDir.
+func CheckParent(ctx context.Context, q Queryer, actor users.User, sp Space, parent *string) error {
+	return checkParent(ctx, q, actor, sp, parent)
 }
 
 func sameSpace(a, b Space) bool {
@@ -389,7 +403,8 @@ func prefixed(p, list string) string {
 
 // UniqueName returns name, or "stem (N).ext" for the smallest N>=1, such that
 // no live sibling in sp/parent has that name.
-func UniqueName(ctx context.Context, db *sql.DB, sp Space, parent *string, name string) (string, error) {
+// Pass the *sql.Tx when called inside a transaction.
+func UniqueName(ctx context.Context, db Queryer, sp Space, parent *string, name string) (string, error) {
 	name = norm.NFC.String(name)
 	stem, ext := name, ""
 	if i := strings.LastIndex(name, "."); i > 0 {
@@ -416,4 +431,44 @@ func UniqueName(ctx context.Context, db *sql.DB, sp Space, parent *string, name 
 			return "", err
 		}
 	}
+}
+
+// FileSpec describes a file node to create from a completed upload.
+type FileSpec struct {
+	Space  Space
+	Parent *string
+	Name   string // desired name; a unique variant is chosen if taken
+	Size   int64
+	BlobID string
+	Mime   string
+}
+
+// CreateFileTx inserts a file node inside tx. It re-checks the parent with
+// the actor's access rules and picks the final name with UniqueName in the
+// same tx, so concurrent same-name creations all succeed.
+func CreateFileTx(ctx context.Context, tx *sql.Tx, actor users.User, f FileSpec) (Node, error) {
+	name, err := normalizeName(f.Name)
+	if err != nil {
+		return Node{}, err
+	}
+	if err := checkParent(ctx, tx, actor, f.Space, f.Parent); err != nil {
+		return Node{}, err
+	}
+	if name, err = UniqueName(ctx, tx, f.Space, f.Parent, name); err != nil {
+		return Node{}, err
+	}
+	now := time.Now().Unix()
+	blob := f.BlobID
+	n := Node{ID: users.NewID(), SpaceOwner: f.Space.Owner, Uploader: actor.ID, ParentID: f.Parent,
+		Name: name, Size: f.Size, BlobID: &blob, Mime: f.Mime, CreatedAt: now, UpdatedAt: now}
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO nodes(id,space_owner,uploader,parent_id,name,is_dir,size,blob_id,mime,created_at,updated_at) VALUES(?,?,?,?,?,0,?,?,?,?,?)`,
+		n.ID, n.SpaceOwner, n.Uploader, n.ParentID, n.Name, n.Size, blob, n.Mime, now, now)
+	if isUnique(err) {
+		return Node{}, ErrNameTaken
+	}
+	if err != nil {
+		return Node{}, err
+	}
+	return n, nil
 }
