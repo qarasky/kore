@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { useFileActions } from "@/hooks/useFileActions";
 import { useSelection } from "@/hooks/useSelection";
-import { t } from "@/lib/i18n";
+import { t, type MessageKey } from "@/lib/i18n";
 import { folderHref, type ApiNode, type Space } from "@/lib/nodes";
 import { useRegisterBrowser } from "./BrowserContext";
 import { ContextMenu } from "./ContextMenu";
@@ -11,7 +11,8 @@ import { EmptyState } from "./EmptyState";
 import { FileRow, ROW_GRID, type RowHandlers } from "./FileRow";
 import { DownloadIcon, FolderPlusIcon, NodeIcon, OpenIcon, PencilIcon, TrashIcon } from "./icons";
 import type { CloseReason, MenuAction } from "./Menu";
-import { NameEditor } from "./NameEditor";
+import { NameEditor, type EditEnd } from "./NameEditor";
+import { useToast } from "./Toast";
 
 type Editing = { kind: "rename"; id: string } | { kind: "new" } | null;
 type MenuState = { x: number; y: number; target: "rows" | "empty" } | null;
@@ -46,6 +47,7 @@ export function FileList({
   /** A row to focus once it shows up (after create/rename refreshes). */
   const focusWhenShown = useRef<string | null>(null);
   const registerBrowser = useRegisterBrowser();
+  const toast = useToast();
 
   useEffect(() => {
     registerBrowser({
@@ -73,12 +75,8 @@ export function FileList({
     (el ?? listRef.current)?.focus();
   };
 
-  /** The row an action on "it" applies to: the focused row if selected, else a lone selection. */
-  const single = (): string | null => {
-    const { focus } = sel.selection;
-    if (focus && sel.isSelected(focus)) return focus;
-    return sel.selectedIds.length === 1 ? sel.selectedIds[0] : null;
-  };
+  /** The row Enter/F2/Open/Rename act on: only ever a lone selection. */
+  const single = (): string | null => (sel.selectedIds.length === 1 ? sel.selectedIds[0] : null);
 
   function open(id: string) {
     const n = byId.get(id);
@@ -89,7 +87,9 @@ export function FileList({
 
   function trashSelected() {
     listRef.current?.focus(); // keep keyboard focus in the list as rows vanish
-    void actions.trash(sel.selectedIds);
+    // Trashed rows leave the selection at once, so a second Delete before the
+    // refresh lands has nothing to (re-)trash.
+    void actions.trash(sel.selectedIds, () => sel.clear());
   }
 
   function startRename(id: string) {
@@ -97,10 +97,14 @@ export function FileList({
     setEditing({ kind: "rename", id });
   }
 
-  function cancelEdit() {
+  /** Ends an edit without saving. After Escape focus returns to the row; after
+   *  a blur it stays wherever the user moved it. An error from an abandoned
+   *  blur-submit is reported in a toast since the inline message goes away. */
+  function cancelEdit(how: EditEnd, error?: MessageKey) {
     const id = editing?.kind === "rename" ? editing.id : sel.selection.focus;
     setEditing(null);
-    focusRow(id);
+    if (how === "escape") focusRow(id);
+    if (error) toast.show({ message: t(error), tone: "error" });
   }
 
   async function submitRename(id: string, name: string) {
@@ -129,7 +133,9 @@ export function FileList({
 
   function closeMenu(reason: CloseReason) {
     setMenu(null);
-    if (reason === "escape" || reason === "tab") focusRow(sel.selection.focus);
+    // Back to the list so arrows keep working; an action that moves focus
+    // itself (inline rename's input, navigation) runs after this and wins.
+    if (reason !== "outside") focusRow(sel.selection.focus);
   }
 
   const handlers: RowHandlers = {
@@ -184,7 +190,6 @@ export function FileList({
         if (target) open(target);
         return;
       case "Delete":
-      case "Backspace":
         e.preventDefault();
         trashSelected();
         return;
