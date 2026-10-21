@@ -30,6 +30,22 @@ func New(db *sql.DB) http.Handler {
 	mux.HandleFunc("POST /api/auth/logout", s.logout)
 	mux.Handle("GET /api/auth/me", auth.RequireUser(http.HandlerFunc(s.me)))
 	s.registerAdmin(mux)
+	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+		var allow []string
+		for _, m := range []string{"GET", "POST", "PATCH", "PUT", "DELETE"} {
+			r2 := r.Clone(r.Context())
+			r2.Method = m
+			if _, pat := mux.Handler(r2); pat != "" && pat != "/api/" {
+				allow = append(allow, m)
+			}
+		}
+		if len(allow) > 0 {
+			w.Header().Set("Allow", strings.Join(allow, ", "))
+			writeJSON(w, 405, map[string]string{"error": "method_not_allowed"})
+			return
+		}
+		writeJSON(w, 404, map[string]string{"error": "not_found"})
+	})
 	return auth.Middleware(db)(mux)
 }
 

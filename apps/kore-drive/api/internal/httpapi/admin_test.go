@@ -235,3 +235,100 @@ func TestUsageHasNoFileNames(t *testing.T) {
 		}
 	}
 }
+
+func (e *env) doTok(method, path, body, tok string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: tok})
+	rec := httptest.NewRecorder()
+	e.h.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestPasswordChangeRevokesSessions(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	old, _ := auth.NewSession(ctx, e.db, e.user.ID, 3600e9)
+	if rec := e.doTok("GET", "/api/auth/me", "", old); rec.Code != 200 {
+		t.Fatalf("pre: %d", rec.Code)
+	}
+	rec := e.doTok("POST", "/api/me/password", `{"current_password":"password-1","new_password":"newpassword"}`, old)
+	if rec.Code != 204 {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	if rec := e.doTok("GET", "/api/auth/me", "", old); rec.Code != 401 {
+		t.Fatalf("old token after change: %d", rec.Code)
+	}
+	var fresh string
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == auth.CookieName {
+			fresh = c.Value
+		}
+	}
+	if fresh == "" || fresh == old {
+		t.Fatal("no fresh cookie")
+	}
+	if rec := e.doTok("GET", "/api/auth/me", "", fresh); rec.Code != 200 {
+		t.Fatalf("fresh token: %d", rec.Code)
+	}
+	// admin reset revokes too
+	if rec := e.do(t, &e.admin, "POST", "/api/admin/users/"+e.user.ID+"/password", `{"new_password":"resetpass1"}`); rec.Code != 204 {
+		t.Fatalf("reset: %d", rec.Code)
+	}
+	if rec := e.doTok("GET", "/api/auth/me", "", fresh); rec.Code != 401 {
+		t.Fatalf("after reset: %d", rec.Code)
+	}
+	if rec := e.do(t, &e.admin, "POST", "/api/admin/users/nope/password", `{"new_password":"resetpass1"}`); rec.Code != 404 {
+		t.Fatalf("reset missing: %d", rec.Code)
+	}
+}
+
+func TestJSONNotFoundAndUnauthorized(t *testing.T) {
+	e := newEnv(t)
+	check := func(rec *httptest.ResponseRecorder, code int, errc string) {
+		t.Helper()
+		if rec.Code != code || !strings.HasPrefix(rec.Header().Get("Content-Type"), "application/json") {
+			t.Fatalf("%d %q", rec.Code, rec.Header().Get("Content-Type"))
+		}
+		if jsonBody(t, rec)["error"] != errc {
+			t.Fatalf("%s", rec.Body)
+		}
+	}
+	check(e.do(t, nil, "GET", "/api/nope", ""), 404, "not_found")
+	check(e.do(t, nil, "GET", "/api/auth/me", ""), 401, "unauthorized")
+	check(e.do(t, nil, "POST", "/api/healthz", ""), 405, "method_not_allowed")
+}
+
+func TestPasswordTooLong(t *testing.T) {
+	e := newEnv(t)
+	long := strings.Repeat("a", 1025)
+	if rec := e.do(t, &e.admin, "POST", "/api/admin/users", `{"email":"l@x.io","password":"`+long+`","role":"user"}`); rec.Code != 400 || jsonBody(t, rec)["error"] != "password_too_long" {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body)
+	}
+	if rec := e.do(t, &e.admin, "POST", "/api/admin/users/"+e.user.ID+"/password", `{"new_password":"`+long+`"}`); rec.Code != 400 || jsonBody(t, rec)["error"] != "password_too_long" {
+		t.Fatalf("reset: %d %s", rec.Code, rec.Body)
+	}
+	if rec := e.do(t, &e.user, "POST", "/api/me/password", `{"current_password":"password-1","new_password":"`+long+`"}`); rec.Code != 400 || jsonBody(t, rec)["error"] != "password_too_long" {
+		t.Fatalf("self: %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestPatchUserQuotaEmailCollision(t *testing.T) {
+	e := newEnv(t)
+	path := "/api/admin/users/" + e.user.ID
+	rec := e.do(t, &e.admin, "PATCH", path, `{"quota_bytes":4242}`)
+	if rec.Code != 200 || jsonBody(t, rec)["quota_bytes"].(float64) != 4242 {
+		t.Fatalf("quota: %d %s", rec.Code, rec.Body)
+	}
+	rec = e.do(t, &e.admin, "PATCH", path, `{"email":"new@x.io"}`)
+	m := jsonBody(t, rec)
+	if rec.Code != 200 || m["email"] != "new@x.io" || m["quota_bytes"].(float64) != 4242 {
+		t.Fatalf("email: %d %s", rec.Code, rec.Body)
+	}
+	rec = e.do(t, &e.admin, "PATCH", path, `{"email":"ADMIN@x.io"}`)
+	if rec.Code != 409 || jsonBody(t, rec)["error"] != "email_in_use" {
+		t.Fatalf("collision: %d %s", rec.Code, rec.Body)
+	}
+	if rec := e.do(t, &e.admin, "PATCH", "/api/admin/users/nope", `{"quota_bytes":1}`); rec.Code != 404 {
+		t.Fatalf("missing: %d", rec.Code)
+	}
+}
