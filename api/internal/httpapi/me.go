@@ -5,10 +5,18 @@ import (
 
 	"github.com/artchsh/kore/api/internal/auth"
 	"github.com/artchsh/kore/api/internal/quota"
+	"github.com/artchsh/kore/api/internal/settings"
 )
 
 func (s *server) registerMe(mux *http.ServeMux) {
 	mux.Handle("GET /api/me/usage", auth.RequireUser(http.HandlerFunc(s.myUsage)))
+	mux.Handle("GET /api/me/settings", auth.RequireUser(http.HandlerFunc(s.mySettings)))
+}
+
+// mySettings exposes the instance settings every user may see (the trash
+// retention shown on the trash page); the full set stays admin-only.
+func (s *server) mySettings(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, 200, map[string]int{"trash_retention_days": settings.TrashRetentionDays(r.Context(), s.db)})
 }
 
 // myUsage reports the caller's storage use (as counted by quota.Used: files
