@@ -70,30 +70,18 @@ func ListTrash(ctx context.Context, db *sql.DB, actor users.User, sp Space) ([]T
 	if !CanSpace(actor, sp) {
 		return nil, ErrNotFound
 	}
-	rows, err := db.QueryContext(ctx, `SELECT `+cols+`,trashed_at FROM nodes
-		WHERE COALESCE(space_owner,'')=COALESCE(?,'') AND `+rootSQL+` ORDER BY trashed_at DESC, id`, sp.Owner)
+	rows, err := db.QueryContext(ctx, `SELECT `+prefixed("n", cols)+emailCol+`,n.trashed_at FROM nodes n`+emailJoin+`
+		WHERE COALESCE(n.space_owner,'')=COALESCE(?,'') AND `+prefixedWhere("n", rootSQL)+` ORDER BY n.trashed_at DESC, n.id`, sp.Owner)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := []TrashedNode{}
 	for rows.Next() {
-		var n Node
-		var owner, parent, blob sql.NullString
-		var dir int
 		var ta int64
-		if err := rows.Scan(&n.ID, &owner, &n.Uploader, &parent, &n.Name, &dir, &n.Size, &blob, &n.Mime, &n.CreatedAt, &n.UpdatedAt, &ta); err != nil {
+		n, err := scanEmail(rows, &ta)
+		if err != nil {
 			return nil, err
-		}
-		n.IsDir = dir != 0
-		if owner.Valid {
-			n.SpaceOwner = &owner.String
-		}
-		if parent.Valid {
-			n.ParentID = &parent.String
-		}
-		if blob.Valid {
-			n.BlobID = &blob.String
 		}
 		out = append(out, TrashedNode{n, ta})
 	}

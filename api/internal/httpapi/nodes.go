@@ -26,14 +26,19 @@ type nodeJSON struct {
 	ParentID  *string `json:"parent_id"`
 	Space     string  `json:"space"`
 	UpdatedAt int64   `json:"updated_at"`
+	// UploaderEmail: who uploaded a file (or created a folder), for
+	// shared-space nodes in listings, search and trash only.
+	UploaderEmail string `json:"uploader_email,omitempty"`
 }
 
 func toJSON(n nodes.Node) nodeJSON {
 	sp := "shared"
+	email := n.UploaderEmail
 	if n.SpaceOwner != nil {
 		sp = "personal"
+		email = "" // never exposed outside the shared space
 	}
-	return nodeJSON{n.ID, n.Name, n.IsDir, n.Size, n.Mime, n.ParentID, sp, n.UpdatedAt}
+	return nodeJSON{n.ID, n.Name, n.IsDir, n.Size, n.Mime, n.ParentID, sp, n.UpdatedAt, email}
 }
 
 func nodeErr(w http.ResponseWriter, err error) {

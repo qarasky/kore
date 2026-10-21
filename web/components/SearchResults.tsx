@@ -12,8 +12,12 @@ import { isPreviewable } from "@/lib/preview";
 import { locationHref, resultHref, type SearchHit } from "@/lib/search";
 import { ChevronRightIcon, NodeIcon } from "./icons";
 import { RelativeTime } from "./RelativeTime";
+import { UploaderCell, UploaderHeader } from "./UploaderCell";
 
 const GRID = "grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_150px_90px] items-center gap-3 px-3";
+/** With "Uploaded by" (some hit is in the shared space), shown from `lg` up. */
+const GRID_UPLOADER =
+  "grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_150px_90px] lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,200px)_150px_90px] items-center gap-3 px-3";
 
 /**
  * Search hits as a `role="listbox"` (same selection model as the file list).
@@ -85,12 +89,15 @@ export function SearchResults({ hits }: { hits: SearchHit[] }) {
   }
 
   const tabbable = sel.selection.focus ?? ids[0] ?? null;
+  const showUploader = hits.some((h) => h.space === "shared");
+  const grid = showUploader ? GRID_UPLOADER : GRID;
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-auto" aria-busy={navigating || undefined}>
-      <div className={`${GRID} sticky top-0 z-10 h-8 shrink-0 border-b border-border bg-surface text-[12px] font-medium text-muted`}>
+      <div className={`${grid} sticky top-0 z-10 h-8 shrink-0 border-b border-border bg-surface text-[12px] font-medium text-muted`}>
         <span className="pl-[26px]">{t("list.name")}</span>
         <span>{t("search.location")}</span>
+        {showUploader && <UploaderHeader label={t("list.uploadedBy")} />}
         <span>{t("list.modified")}</span>
         <span className="text-right">{t("list.size")}</span>
       </div>
@@ -121,7 +128,7 @@ export function SearchResults({ hits }: { hits: SearchHit[] }) {
               onClick={(e) => sel.click(hit.id, { shift: e.shiftKey, toggle: e.metaKey || e.ctrlKey })}
               onDoubleClick={() => open(hit.id)}
               className={
-                `${GRID} h-9 cursor-default border-b border-border/60 select-none outline-none ` +
+                `${grid} h-9 cursor-default border-b border-border/60 select-none outline-none ` +
                 "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset " +
                 (selected ? "bg-accent/15 text-text" : "hover:bg-white/[0.03]")
               }
@@ -160,6 +167,7 @@ export function SearchResults({ hits }: { hits: SearchHit[] }) {
                   </span>
                 ))}
               </Link>
+              {showUploader && <UploaderCell email={hit.uploader_email} />}
               <div className="truncate text-muted">
                 <RelativeTime unixSeconds={hit.updated_at} />
               </div>

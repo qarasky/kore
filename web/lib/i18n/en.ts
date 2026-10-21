@@ -68,6 +68,7 @@ const en = {
   "list.contextMenu": "Actions",
   "list.selectedCount": "{count} selected",
   "list.folderSizeTitle": "Total size of everything inside",
+  "list.uploadedBy": "Uploaded by",
 
   "empty.folder": "Drop files here or use + New",
   "empty.folderTitle": "This folder is empty",

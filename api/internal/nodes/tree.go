@@ -69,6 +69,34 @@ type queryer = Queryer
 
 type scanner interface{ Scan(...any) error }
 
+// emailJoin joins a listed node (alias n) to its uploader's account, only in
+// the shared space: personal-space rows get no email (nothing extra leaks).
+// Followed by emailCol in the select list and scanned with scanEmail.
+const emailJoin = ` LEFT JOIN users u ON u.id=n.uploader AND n.space_owner IS NULL`
+const emailCol = `,COALESCE(u.email,'')`
+
+// scanEmail scans cols followed by emailCol.
+func scanEmail(r scanner, extra ...any) (Node, error) {
+	var n Node
+	var owner, parent, blob sql.NullString
+	var dir int
+	dest := append([]any{&n.ID, &owner, &n.Uploader, &parent, &n.Name, &dir, &n.Size, &blob, &n.Mime, &n.CreatedAt, &n.UpdatedAt, &n.UploaderEmail}, extra...)
+	if err := r.Scan(dest...); err != nil {
+		return n, err
+	}
+	n.IsDir = dir != 0
+	if owner.Valid {
+		n.SpaceOwner = &owner.String
+	}
+	if parent.Valid {
+		n.ParentID = &parent.String
+	}
+	if blob.Valid {
+		n.BlobID = &blob.String
+	}
+	return n, nil
+}
+
 func scan(r scanner) (Node, error) {
 	var n Node
 	var owner, parent, blob sql.NullString
@@ -201,11 +229,11 @@ var listSQL = `WITH RECURSIVE kids AS (
 		SELECT d.root,n.id,n.space_owner,n.is_dir,n.size FROM nodes n JOIN d ON n.parent_id=d.id
 		WHERE d.is_dir=1 AND n.space_owner IS d.owner AND n.trashed_at IS NULL AND n.trash_root IS NULL),
 	totals(root,total) AS (SELECT root,SUM(size) FROM d WHERE is_dir=0 GROUP BY root)
-	SELECT ` + strings.Replace(prefixed("k", cols), "k.size", "CASE WHEN k.is_dir=1 THEN COALESCE(t.total,0) ELSE k.size END", 1) + `
-	FROM kids k LEFT JOIN totals t ON t.root=k.id`
+	SELECT ` + strings.Replace(prefixed("n", cols), "n.size", "CASE WHEN n.is_dir=1 THEN COALESCE(t.total,0) ELSE n.size END", 1) + emailCol + `
+	FROM kids n LEFT JOIN totals t ON t.root=n.id` + emailJoin
 
 // listPlainSQL is listSQL without the folder totals (folders report 0).
-var listPlainSQL = `SELECT ` + cols + ` FROM nodes WHERE ` + childrenWhere
+var listPlainSQL = `SELECT ` + prefixed("n", cols) + emailCol + ` FROM nodes n` + emailJoin + ` WHERE ` + prefixedWhere("n", childrenWhere)
 
 // List returns the live children of parentID (nil = space root): folders
 // first, then by natural, case-insensitive name order. A folder's Size is the
@@ -231,7 +259,7 @@ func list(ctx context.Context, db *sql.DB, actor users.User, sp Space, parentID 
 	defer rows.Close()
 	out := []Node{}
 	for rows.Next() {
-		n, err := scan(rows)
+		n, err := scanEmail(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -478,6 +506,16 @@ func Path(ctx context.Context, db *sql.DB, actor users.User, id string) ([]Node,
 		out = append(out, n)
 	}
 	return out, rows.Err()
+}
+
+// prefixedWhere qualifies the node columns used in childrenWhere/liveSQL
+// with alias p (users, joined for emailCol, shares no such column names, but
+// qualifying keeps the query unambiguous).
+func prefixedWhere(p, where string) string {
+	for _, c := range []string{"space_owner", "parent_id", "trashed_at", "trash_root"} {
+		where = strings.ReplaceAll(where, c, p+"."+c)
+	}
+	return where
 }
 
 func prefixed(p, list string) string {
