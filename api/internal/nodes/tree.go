@@ -142,25 +142,45 @@ func sameSpace(a, b Space) bool {
 
 func isUnique(err error) bool { return err != nil && strings.Contains(err.Error(), "UNIQUE") }
 
+// createFolderHook, if set (tests only), runs between the parent check and
+// the INSERT.
+var createFolderHook func()
+
 // CreateFolder creates a folder; a live name collision yields ErrNameTaken.
+// The parent check and the INSERT share one transaction, so a concurrent
+// Trash of the parent either sees the new child or makes the check fail.
 func CreateFolder(ctx context.Context, db *sql.DB, actor users.User, sp Space, parentID *string, name string) (Node, error) {
 	name, err := normalizeName(name)
 	if err != nil {
 		return Node{}, err
 	}
-	if err := checkParent(ctx, db, actor, sp, parentID); err != nil {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
 		return Node{}, err
+	}
+	defer tx.Rollback()
+	if err := checkParent(ctx, tx, actor, sp, parentID); err != nil {
+		return Node{}, err
+	}
+	if createFolderHook != nil {
+		createFolderHook()
 	}
 	now := time.Now().Unix()
 	n := Node{ID: users.NewID(), SpaceOwner: sp.Owner, Uploader: actor.ID, ParentID: parentID,
 		Name: name, IsDir: true, CreatedAt: now, UpdatedAt: now}
-	_, err = db.ExecContext(ctx,
+	_, err = tx.ExecContext(ctx,
 		`INSERT INTO nodes(id,space_owner,uploader,parent_id,name,is_dir,size,mime,created_at,updated_at) VALUES(?,?,?,?,?,1,0,'',?,?)`,
 		n.ID, n.SpaceOwner, n.Uploader, n.ParentID, n.Name, now, now)
 	if isUnique(err) {
 		return Node{}, ErrNameTaken
 	}
-	return n, err
+	if err != nil {
+		return Node{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Node{}, err
+	}
+	return n, nil
 }
 
 // List returns the live children of parentID (nil = space root): folders
