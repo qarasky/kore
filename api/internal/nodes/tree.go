@@ -472,3 +472,30 @@ func CreateFileTx(ctx context.Context, tx *sql.Tx, actor users.User, f FileSpec)
 	}
 	return n, nil
 }
+
+// Get returns a live node the actor may access, else ErrNotFound
+// (inaccessible looks identical to missing).
+func Get(ctx context.Context, q Queryer, actor users.User, id string) (Node, error) {
+	return get(ctx, q, actor, id)
+}
+
+// LiveChildren returns the live (not trashed, not in a trashed subtree)
+// children of folder parentID ordered by name. It performs no access check;
+// callers must already have verified access to the parent. Rows are fully
+// read and closed before returning.
+func LiveChildren(ctx context.Context, q Queryer, parentID string) ([]Node, error) {
+	rows, err := q.QueryContext(ctx, `SELECT `+cols+` FROM nodes WHERE parent_id=? AND trashed_at IS NULL AND trash_root IS NULL ORDER BY name`, parentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Node{}
+	for rows.Next() {
+		n, err := scan(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
