@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -169,5 +170,49 @@ func TestDeleteSelfAndLastAdminGuards(t *testing.T) {
 	e.user.Role = "admin"
 	if rec := e.do(t, &e.user, "DELETE", self+"?files=purge", ""); rec.Code != 204 {
 		t.Fatalf("other admin: %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestAdminUsageMatchesQuota(t *testing.T) {
+	e := newEnv(t)
+	e.db.Exec(`UPDATE users SET quota_bytes=? WHERE id=?`, 1<<20, e.user.ID)
+	e.putFileIn(t, e.user, nodes.Personal(e.user.ID), "a.txt", make([]byte, 5))
+	e.putFileIn(t, e.user, nodes.Space{}, "b.txt", make([]byte, 7))
+	if rec := e.do(t, &e.user, "POST", "/api/uploads", `{"space":"shared","parent":null,"name":"u.bin","size":11,"chunk_size":1024}`); rec.Code != 201 {
+		t.Fatalf("upload: %d %s", rec.Code, rec.Body)
+	}
+	want := e.usedBy(t, e.user)
+	if want != 23 {
+		t.Fatalf("me/usage %v", want)
+	}
+	var usage []struct {
+		UserID    string  `json:"user_id"`
+		UsedBytes float64 `json:"used_bytes"`
+	}
+	rec := e.do(t, &e.admin, "GET", "/api/admin/usage", "")
+	if err := json.Unmarshal(rec.Body.Bytes(), &usage); err != nil {
+		t.Fatal(err)
+	}
+	var list []struct {
+		ID        string  `json:"id"`
+		UsedBytes float64 `json:"used_bytes"`
+		CreatedAt float64 `json:"created_at"`
+	}
+	rec = e.do(t, &e.admin, "GET", "/api/admin/users", "")
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil || len(list) != 2 {
+		t.Fatalf("%v %s", err, rec.Body)
+	}
+	for _, u := range usage {
+		if u.UserID == e.user.ID && u.UsedBytes != want {
+			t.Fatalf("admin usage %v, want %v", u.UsedBytes, want)
+		}
+	}
+	for _, u := range list {
+		if u.CreatedAt <= 0 {
+			t.Fatalf("created_at %v", u.CreatedAt)
+		}
+		if u.ID == e.user.ID && u.UsedBytes != want {
+			t.Fatalf("list used %v, want %v", u.UsedBytes, want)
+		}
 	}
 }
