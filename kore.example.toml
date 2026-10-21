@@ -1,4 +1,5 @@
-# Kore configuration. Copy to kore.toml and edit.
+# Kore configuration for running the binary directly (`kore -config kore.toml`).
+# Copy to kore.toml and edit. For Docker Compose use kore.docker.example.toml.
 
 # Port to listen on (default 8080).
 # port = 8080
