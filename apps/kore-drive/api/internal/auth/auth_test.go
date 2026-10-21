@@ -150,21 +150,31 @@ func TestBootstrapRefusesPlaceholder(t *testing.T) {
 }
 
 func TestLimiter(t *testing.T) {
-	l := NewLimiter(5, time.Minute)
+	now := time.Unix(1000, 0)
+	l := NewLimiterClock(5, time.Minute, func() time.Time { return now })
 	for i := 0; i < 5; i++ {
-		if !l.Allow("k") {
+		if !l.Attempt("k") {
 			t.Fatalf("blocked early at %d", i)
 		}
-		l.Fail("k")
 	}
-	if l.Allow("k") {
-		t.Fatal("not blocked after 5 failures")
+	if l.Attempt("k") {
+		t.Fatal("not blocked after 5 attempts")
 	}
-	if !l.Allow("other") {
+	if !l.Attempt("other") {
 		t.Fatal("other key blocked")
 	}
+	now = now.Add(59 * time.Second)
+	if l.Attempt("k") {
+		t.Fatal("expired too early")
+	}
+	now = now.Add(2 * time.Second)
+	if !l.Attempt("k") {
+		t.Fatal("failures did not expire after window")
+	}
 	l.Reset("k")
-	if !l.Allow("k") {
-		t.Fatal("reset failed")
+	for i := 0; i < 5; i++ {
+		if !l.Attempt("k") {
+			t.Fatal("reset failed")
+		}
 	}
 }

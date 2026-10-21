@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/artchsh/kore/api/internal/config"
@@ -22,15 +23,29 @@ var ErrPlaceholderPassword = errors.New(`admin_password is still the placeholder
 
 const placeholderPassword = "change-me"
 
-// dummyHash is verified against when the email is unknown, to equalize timing.
-var dummyHash, _ = HashPassword("kore-dummy-password")
+var (
+	dummyOnce sync.Once
+	dummyHash string
+)
+
+// dummy returns a hash verified against when the email is unknown, to equalize timing.
+func dummy() string {
+	dummyOnce.Do(func() {
+		h, err := HashPassword("kore-dummy-password")
+		if err != nil {
+			panic("auth: cannot compute dummy hash: " + err.Error())
+		}
+		dummyHash = h
+	})
+	return dummyHash
+}
 
 // Authenticate verifies credentials. Failure is always ErrInvalidCredentials.
 func Authenticate(ctx context.Context, db *sql.DB, email, pw string) (users.User, error) {
 	u, hash, err := users.GetByEmail(ctx, db, email)
 	if err != nil {
 		if errors.Is(err, users.ErrNotFound) {
-			VerifyPassword(dummyHash, pw)
+			VerifyPassword(dummy(), pw)
 			return users.User{}, ErrInvalidCredentials
 		}
 		return users.User{}, err
