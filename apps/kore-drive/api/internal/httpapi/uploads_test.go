@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -142,7 +143,7 @@ func TestUploadHTTPLimits(t *testing.T) {
 // same offset succeeds.
 func TestStalledChunkReleasesLock(t *testing.T) {
 	old := chunkIdleTimeout
-	chunkIdleTimeout = 300 * time.Millisecond
+	chunkIdleTimeout = time.Second
 	t.Cleanup(func() { chunkIdleTimeout = old })
 
 	e := newEnv(t)
@@ -168,9 +169,9 @@ func TestStalledChunkReleasesLock(t *testing.T) {
 	fmt.Fprintf(conn, "PATCH /api/uploads/%s HTTP/1.1\r\nHost: x\r\nCookie: %s=%s\r\nUpload-Offset: 0\r\nContent-Length: 2048\r\n\r\n0123456789",
 		id, auth.CookieName, tok)
 
-	patch := func(body []byte) *http.Response {
+	patch := func(offset string, body []byte) *http.Response {
 		req, _ := http.NewRequest("PATCH", srv.URL+"/api/uploads/"+id, bytes.NewReader(body))
-		req.Header.Set("Upload-Offset", "0")
+		req.Header.Set("Upload-Offset", offset)
 		req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: tok})
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {
@@ -179,14 +180,23 @@ func TestStalledChunkReleasesLock(t *testing.T) {
 		res.Body.Close()
 		return res
 	}
-	// While the stalled request holds the lock, a retry is busy.
-	time.Sleep(100 * time.Millisecond)
-	if res := patch(bytes.Repeat([]byte("a"), 2048)); res.StatusCode != 423 {
-		t.Fatalf("retry during stall: %d, want 423", res.StatusCode)
-	}
-	deadline := time.Now().Add(5 * time.Second)
+	// Wait until the stalled request holds the lock. A probe with a wrong
+	// offset changes nothing: 409 while the lock is free, 423 once taken.
+	start := time.Now()
 	for {
-		res := patch(bytes.Repeat([]byte("a"), 2048))
+		code := patch("1", []byte("x")).StatusCode
+		if code == 423 {
+			break
+		}
+		if code != 409 || time.Since(start) > chunkIdleTimeout/2 {
+			t.Fatalf("probe: %d after %v, want 423 while the stalled chunk holds the lock", code, time.Since(start))
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	// After the idle timeout the lock is released and the retry succeeds.
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		res := patch("0", bytes.Repeat([]byte("a"), 2048))
 		if res.StatusCode == 204 {
 			if got := res.Header.Get("Upload-Offset"); got != "2048" {
 				t.Fatalf("offset %q", got)
@@ -197,5 +207,45 @@ func TestStalledChunkReleasesLock(t *testing.T) {
 			t.Fatalf("retry after stall: %d", res.StatusCode)
 		}
 		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// Once the chunk body is fully read, its idle deadline is cleared and not
+// re-armed by later reads: net/http's background read of the connection
+// starts at EOF, and a deadline firing under it cancels the request context
+// in the middle of the fsync and DB update that follow.
+func TestChunkBodyClearsDeadlineAtEOF(t *testing.T) {
+	old := chunkIdleTimeout
+	chunkIdleTimeout = 100 * time.Millisecond
+	t.Cleanup(func() { chunkIdleTimeout = old })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body := chunkBody(w, r)
+		b, err := io.ReadAll(body)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		// Like Append's overflow probe: one more read after EOF.
+		if n, err := body.Read(make([]byte, 1)); n != 0 || err != io.EOF {
+			http.Error(w, fmt.Sprintf("read after EOF: %d %v", n, err), 500)
+			return
+		}
+		time.Sleep(5 * chunkIdleTimeout) // slow post-read work
+		if err := r.Context().Err(); err != nil {
+			http.Error(w, "context cancelled after body read: "+err.Error(), 500)
+			return
+		}
+		fmt.Fprintf(w, "%d", len(b))
+	}))
+	t.Cleanup(srv.Close)
+	res, err := http.Post(srv.URL, "application/octet-stream", bytes.NewReader(make([]byte, 4096)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	if res.StatusCode != 200 || string(body) != "4096" {
+		t.Fatalf("%d %s", res.StatusCode, body)
 	}
 }
