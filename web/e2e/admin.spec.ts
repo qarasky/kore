@@ -169,7 +169,8 @@ test("deleting a user with files explains why; the purge keeps their shared uplo
   await createFolder(api, "Private folder");
   const shared = "shared content, 1234567890";
   const sharedId = await uploadFile(api, `handed-over-${Date.now()}.txt`, shared, { space: "shared" });
-  // Another user moves one of their shared uploads into their own space.
+  // Another user moves one of their shared uploads into their own space:
+  // the file becomes theirs (uploader and quota) right away.
   const holder = await createUser();
   const holderApi = await apiAs(holder.email, holder.password);
   const movedContent = "moved by the holder";
@@ -177,7 +178,7 @@ test("deleting a user with files explains why; the purge keeps their shared uplo
   expect(
     (await holderApi.patch(`/api/nodes/${movedId}`, { data: { parent_id: null, space: "personal" } })).status(),
   ).toBe(200);
-  expect(await usedBytes(holderApi)).toBe(0);
+  expect(await usedBytes(holderApi)).toBe(Buffer.byteLength(movedContent));
   const admin = await apiAs(ADMIN.email, ADMIN.password);
   const before = await usedBytes(admin);
 
@@ -195,11 +196,10 @@ test("deleting a user with files explains why; the purge keeps their shared uplo
     await expect(explain.getByTestId("has-files-counts").getByRole("listitem")).toHaveText([
       tt("admin.delete.personalMany", { count: 2 }),
       en["admin.delete.sharedOne"],
-      en["admin.delete.otherOne"],
     ]);
     await expect(explain).toContainText(tt("admin.delete.purgeMany", { count: 2 }));
     await expect(explain).toContainText(en["admin.delete.toYouOne"]);
-    await expect(explain).toContainText(en["admin.delete.toHoldersOne"]);
+    await expect(explain).not.toContainText(en["admin.delete.toHoldersOne"]);
     const purge = explain.getByRole("button", { name: en["admin.delete.purgeConfirm"] });
     await expect(purge).toBeDisabled();
     const typed = explain.getByLabel(tt("admin.delete.typeEmail", { email: user.email }));
@@ -218,7 +218,7 @@ test("deleting a user with files explains why; the purge keeps their shared uplo
     const list = await (await admin.get("/api/nodes?space=shared")).json();
     expect(list.map((n: { id: string }) => n.id)).toContain(sharedId);
     expect(await usedBytes(admin)).toBe(before + Buffer.byteLength(shared));
-    // The moved file stays with the user who holds it, on their quota.
+    // The moved file stays with the user who holds it, still on their quota.
     expect(await usedBytes(holderApi)).toBe(Buffer.byteLength(movedContent));
     const held = await (await holderApi.get("/api/nodes?space=personal")).json();
     expect(held.map((n: { id: string }) => n.id)).toContain(movedId);
