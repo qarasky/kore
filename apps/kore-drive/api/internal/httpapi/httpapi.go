@@ -32,6 +32,7 @@ func New(db *sql.DB, dataDir string) http.Handler {
 	mux.HandleFunc("POST /api/auth/login", s.login)
 	mux.HandleFunc("POST /api/auth/logout", s.logout)
 	mux.Handle("GET /api/auth/me", auth.RequireUser(http.HandlerFunc(s.me)))
+	s.registerMe(mux)
 	s.registerAdmin(mux)
 	s.registerNodes(mux)
 	s.registerTrash(mux)
