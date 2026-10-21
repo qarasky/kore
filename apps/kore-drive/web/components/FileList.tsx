@@ -2,17 +2,22 @@
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { useFileActions } from "@/hooks/useFileActions";
+import { useMoveNodes } from "@/hooks/useMoveNodes";
 import { useSelection } from "@/hooks/useSelection";
+import { collectDataTransfer } from "@/lib/dropEntries";
 import { t, type MessageKey } from "@/lib/i18n";
+import { activeMove, beginMove, endMove, isFileDrag, isNoopMove } from "@/lib/moveDrag";
 import { folderHref, type ApiNode, type Space } from "@/lib/nodes";
 import { useRegisterBrowser } from "./BrowserContext";
 import { ContextMenu } from "./ContextMenu";
+import { DropZone } from "./DropZone";
 import { EmptyState } from "./EmptyState";
 import { FileRow, ROW_GRID, type RowHandlers } from "./FileRow";
 import { DownloadIcon, FolderPlusIcon, NodeIcon, OpenIcon, PencilIcon, TrashIcon } from "./icons";
 import type { CloseReason, MenuAction } from "./Menu";
 import { NameEditor, type EditEnd } from "./NameEditor";
 import { useToast } from "./Toast";
+import { useUploads } from "./UploadContext";
 
 type Editing = { kind: "rename"; id: string } | { kind: "new" } | null;
 type MenuState = { x: number; y: number; target: "rows" | "empty" } | null;
@@ -48,6 +53,8 @@ export function FileList({
   const focusWhenShown = useRef<string | null>(null);
   const registerBrowser = useRegisterBrowser();
   const toast = useToast();
+  const uploads = useUploads();
+  const moveNodes = useMoveNodes();
 
   useEffect(() => {
     registerBrowser({
@@ -153,6 +160,27 @@ export function FileList({
       if (!sel.isSelected(id)) sel.click(id);
       openMenuAt(e.clientX, e.clientY, "rows");
     },
+    // Dragging a selected row drags the whole selection; any other row drags alone.
+    onDragStart: (id, e) => {
+      const dragged = sel.isSelected(id) ? sel.selectedIds : [id];
+      const names = Object.fromEntries(dragged.map((d) => [d, byId.get(d)?.name ?? ""]));
+      beginMove(e, { ids: dragged, names, space, parentId });
+    },
+    onDragEnd: endMove,
+    acceptsDrop: (node, e) => {
+      if (isFileDrag(e)) return true;
+      const p = activeMove(e);
+      return p !== null && !isNoopMove(p, { space, parentId: node.id });
+    },
+    onDrop: (node, e) => {
+      if (isFileDrag(e)) {
+        void collectDataTransfer(e.dataTransfer).then((set) => uploads.upload(set, { space, parent: node.id }));
+        return;
+      }
+      const p = activeMove(e);
+      endMove();
+      if (p) void moveNodes(p, { space, parentId: node.id });
+    },
   };
 
   function onAreaClick(e: MouseEvent) {
@@ -257,58 +285,60 @@ export function FileList({
         </div>
       </div>
 
-      <div
-        data-testid="list-area"
-        className="relative flex min-h-0 flex-1 flex-col overflow-auto"
-        onClick={onAreaClick}
-        onContextMenu={onAreaContextMenu}
-      >
+      <DropZone target={{ space, parent: parentId }}>
         <div
-          className={`${ROW_GRID} sticky top-0 z-10 h-8 shrink-0 border-b border-border bg-surface text-[12px] font-medium text-muted`}
+          data-testid="list-area"
+          className="relative flex min-h-0 flex-1 flex-col overflow-auto"
+          onClick={onAreaClick}
+          onContextMenu={onAreaContextMenu}
         >
-          <span className="pl-[26px]">{t("list.name")}</span>
-          <span>{t("list.modified")}</span>
-          <span className="text-right">{t("list.size")}</span>
-        </div>
-        <div
-          ref={listRef}
-          role="listbox"
-          aria-label={t("list.label")}
-          aria-multiselectable="true"
-          aria-busy={actions.working || undefined}
-          tabIndex={-1}
-          onKeyDown={onKeyDown}
-          className="flex-1 pb-10 outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-inset"
-        >
-          {editing?.kind === "new" && (
-            <div role="option" aria-selected="true" aria-label={t("new.folder")} className={`${ROW_GRID} h-8 border-b border-border/60 bg-accent/15`}>
-              <div className="flex min-w-0 items-center gap-2.5">
-                <NodeIcon kind="folder" />
-                <NameEditor initial={t("new.folderDefault")} onSubmit={submitNew} onCancel={cancelEdit} />
+          <div
+            className={`${ROW_GRID} sticky top-0 z-10 h-8 shrink-0 border-b border-border bg-surface text-[12px] font-medium text-muted`}
+          >
+            <span className="pl-[26px]">{t("list.name")}</span>
+            <span>{t("list.modified")}</span>
+            <span className="text-right">{t("list.size")}</span>
+          </div>
+          <div
+            ref={listRef}
+            role="listbox"
+            aria-label={t("list.label")}
+            aria-multiselectable="true"
+            aria-busy={actions.working || undefined}
+            tabIndex={-1}
+            onKeyDown={onKeyDown}
+            className="flex-1 pb-10 outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-inset"
+          >
+            {editing?.kind === "new" && (
+              <div role="option" aria-selected="true" aria-label={t("new.folder")} className={`${ROW_GRID} h-8 border-b border-border/60 bg-accent/15`}>
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <NodeIcon kind="folder" />
+                  <NameEditor initial={t("new.folderDefault")} onSubmit={submitNew} onCancel={cancelEdit} />
+                </div>
               </div>
-            </div>
-          )}
-          {nodes.map((node) => (
-            <FileRow
-              key={node.id}
-              node={node}
-              selected={sel.isSelected(node.id)}
-              tabbable={node.id === tabbable}
-              handlers={handlers}
-              rowRef={(el) => {
-                if (el) rowEls.current.set(node.id, el);
-                else rowEls.current.delete(node.id);
-              }}
-              editor={
-                editing?.kind === "rename" && editing.id === node.id ? (
-                  <NameEditor initial={node.name} onSubmit={(name) => submitRename(node.id, name)} onCancel={cancelEdit} />
-                ) : undefined
-              }
-            />
-          ))}
+            )}
+            {nodes.map((node) => (
+              <FileRow
+                key={node.id}
+                node={node}
+                selected={sel.isSelected(node.id)}
+                tabbable={node.id === tabbable}
+                handlers={handlers}
+                rowRef={(el) => {
+                  if (el) rowEls.current.set(node.id, el);
+                  else rowEls.current.delete(node.id);
+                }}
+                editor={
+                  editing?.kind === "rename" && editing.id === node.id ? (
+                    <NameEditor initial={node.name} onSubmit={(name) => submitRename(node.id, name)} onCancel={cancelEdit} />
+                  ) : undefined
+                }
+              />
+            ))}
+          </div>
+          {empty && <EmptyState sharedRoot={sharedRoot} />}
         </div>
-        {empty && <EmptyState sharedRoot={sharedRoot} />}
-      </div>
+      </DropZone>
 
       {menu && (
         <ContextMenu x={menu.x} y={menu.y} label={t("list.contextMenu")} items={menuItems} onClose={closeMenu} />

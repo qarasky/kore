@@ -13,6 +13,10 @@ that fetches from the Go API with the user's `kore_session` cookie.
 | `components/FolderPage.tsx`, `lib/folder.ts` | Server side of a folder view: loads path + children, 404 only on API 404, redirects ids from the other space |
 | `components/FileList.tsx` | Client listbox: selection, keyboard, inline rename, context menu (`FileRow`, `NameEditor`, `ContextMenu`, `Menu`) |
 | `hooks/useFileActions.ts`, `hooks/useSelection.ts` | Mutations (API call, then `router.refresh()`) and selection state over the pure `lib/selection.ts` |
+| `lib/upload.ts` | `uploadFile()`: chunked (8 MiB default), resumable upload over `/api/uploads` with retries, abort and a localStorage resume key |
+| `lib/uploadQueue.ts`, `components/UploadContext.tsx`, `components/UploadTray.tsx` | App-wide upload queue (3 files at a time), the bottom-right tray, `router.refresh()` when it drains, leave-page warning |
+| `lib/dropEntries.ts`, `components/DropZone.tsx` | OS file/folder drops and folder `<input>` picks: walks directory trees, recreates folders (`POST /api/nodes`), queues files |
+| `lib/moveDrag.ts`, `hooks/useMoveNodes.ts`, `hooks/useDropTarget.ts` | Row drag-to-move onto folder rows, breadcrumbs and the sidebar's My files / Shared space |
 | `lib/download.ts` | Downloads via a hidden form into a hidden iframe (browser streams to disk; errors become a toast) |
 | `lib/format.ts`, `lib/nodes.ts` | Size/date formatting, node types, hrefs, file kinds |
 | `app/globals.css` | Design tokens (`@theme`) and base styles; dark only |
@@ -77,5 +81,9 @@ limiter). Helpers in `e2e/helpers.ts`:
 - `apiAs(email, password)`: an API request context logged in as that user.
 - `createFolder(api, name, { space?, parent_id? })`: creates a folder, returns its id.
 - `uploadFile(api, name, content, { space?, parent? })`: uploads a small (< 1 MiB) file in one chunk, returns its id.
+
+Upload chunk size can be overridden per browser with
+`localStorage.koreChunkBytes` (clamped to 256 KiB to 64 MiB); `e2e/dnd.spec.ts`
+uses it to upload in 1 MiB chunks.
 
 Note: the e2e build overwrites `.next`; don't run it alongside `npm run dev`.
