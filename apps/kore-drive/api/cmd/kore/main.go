@@ -15,6 +15,8 @@ import (
 	"github.com/artchsh/kore/api/internal/auth"
 	"github.com/artchsh/kore/api/internal/config"
 	"github.com/artchsh/kore/api/internal/httpapi"
+	"github.com/artchsh/kore/api/internal/nodes"
+	"github.com/artchsh/kore/api/internal/settings"
 	"github.com/artchsh/kore/api/internal/store"
 	"github.com/artchsh/kore/api/internal/uploads"
 	"github.com/artchsh/kore/api/internal/volume"
@@ -56,6 +58,7 @@ func main() {
 	}
 	handler := httpapi.New(db, cfg.DataDir)
 	go sweepUploads(db, cfg.DataDir)
+	go sweepTrash(db, cfg.DataDir)
 
 	addr := net.JoinHostPort(cfg.Bind, strconv.Itoa(cfg.Port))
 	log.Printf("kore listening on %s", addr)
@@ -76,6 +79,30 @@ func sweepUploads(db *sql.DB, dataDir string) {
 	}
 	run()
 	for range time.Tick(time.Hour) {
+		run()
+	}
+}
+
+// sweepTrash purges expired trash and reclaims orphan blobs, once at startup
+// and then daily.
+func sweepTrash(db *sql.DB, dataDir string) {
+	run := func() {
+		ctx := context.Background()
+		n, err := nodes.PurgeExpired(ctx, db, dataDir, settings.TrashRetentionDays(ctx, db))
+		if err != nil {
+			log.Printf("trash purge: %v", err)
+		} else if n > 0 {
+			log.Printf("trash purge: removed %d expired items", n)
+		}
+		o, err := nodes.SweepOrphanBlobs(ctx, db, dataDir)
+		if err != nil {
+			log.Printf("orphan blob sweep: %v", err)
+		} else if o > 0 {
+			log.Printf("orphan blob sweep: removed %d blobs", o)
+		}
+	}
+	run()
+	for range time.Tick(24 * time.Hour) {
 		run()
 	}
 }

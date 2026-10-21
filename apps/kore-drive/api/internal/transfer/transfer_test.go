@@ -273,3 +273,26 @@ func TestZipMissingBlobAborts(t *testing.T) {
 	}()
 	e.zip(e.a, f.ID)
 }
+
+func TestTrashedSubtreeNotDownloadable(t *testing.T) {
+	e := setup(t)
+	sp := nodes.Personal(e.a.ID)
+	top := e.folder(t, e.a, sp, nil, "top")
+	sub := e.folder(t, e.a, sp, &top.ID, "sub")
+	f := e.file(t, e.a, sp, &sub.ID, "f.txt", "text/plain", []byte("hi"))
+	live := e.file(t, e.a, sp, nil, "live.txt", "text/plain", []byte("ok"))
+	if err := nodes.Trash(ctx, e.db, e.a, top.ID); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{top.ID, sub.ID, f.ID} {
+		if rec := e.dl(e.a, id, nil); rec.Code != 404 {
+			t.Fatalf("download %s: %d", id, rec.Code)
+		}
+		if rec := e.zip(e.a, id); rec.Code != 404 {
+			t.Fatalf("zip %s: %d", id, rec.Code)
+		}
+		if rec := e.zip(e.a, live.ID, id); rec.Code != 404 {
+			t.Fatalf("zip mixed %s: %d", id, rec.Code)
+		}
+	}
+}
