@@ -37,13 +37,16 @@ export function Modal({
   const ref = useRef<HTMLDialogElement>(null);
   const close = useEffectEvent(onClose);
   const target = useEffectEvent(() => returnFocus?.());
+  // An effect event, so a dialog that swaps its content (and its
+  // `initialFocus`) is not closed and re-opened.
+  const focusInitial = useEffectEvent(() => initialFocus?.current?.focus());
 
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     if (!dialog.open) dialog.showModal();
-    initialFocus?.current?.focus();
+    focusInitial();
     // Escape fires `cancel`; React state decides whether the dialog closes.
     const onCancel = (e: Event) => {
       e.preventDefault();
@@ -59,7 +62,7 @@ export function Modal({
       requestAnimationFrame(() => {
         if (mounted && !dialog.open && dialog.isConnected) {
           dialog.showModal();
-          initialFocus?.current?.focus();
+          focusInitial();
         }
       });
     };
@@ -73,8 +76,8 @@ export function Modal({
       const back = target() ?? opener;
       if (back?.isConnected) back.focus();
     };
-    // Runs once per mount; `initialFocus` is a stable ref.
-  }, [initialFocus]);
+    // Runs once per mount.
+  }, []);
 
   return (
     <dialog

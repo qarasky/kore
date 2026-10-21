@@ -85,6 +85,15 @@ describe("api()", () => {
     expect((err as ApiError).code).toBe("unauthorized");
   });
 
+  it("keeps the rest of a JSON error body as details", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(409, { error: "user_has_files", file_count: 4, shared_count: 1 }));
+
+    const err = await api("/api/admin/users/x", { method: "DELETE" }).catch((e: unknown) => e);
+
+    expect((err as ApiError).code).toBe("user_has_files");
+    expect((err as ApiError).details).toMatchObject({ file_count: 4, shared_count: 1 });
+  });
+
   it("falls back to an http_<status> code when the body is not JSON", async () => {
     fetchMock.mockResolvedValue(new Response("bad gateway", { status: 502 }));
 
