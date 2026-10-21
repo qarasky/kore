@@ -1,0 +1,75 @@
+<h2>Main file view: which feel is closer to what you want?</h2>
+<p class="subtitle">Both keep the Google Drive layout: sidebar, breadcrumbs, grid of folders and files. They differ in look only.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Light, close to Drive</h3>
+      <p>White surfaces, soft blue accent, rounded pill buttons</p>
+      <div style="background:#f6f8fc;border-radius:12px;padding:10px;font-family:system-ui;font-size:12px;color:#1f1f1f;margin-top:8px">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <b style="font-size:14px">Kore</b>
+          <div style="flex:1;background:#e9eef6;border-radius:20px;padding:6px 12px;color:#666">Search files</div>
+          <div style="background:#c2e7ff;border-radius:50%;width:24px;height:24px"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <div style="width:120px">
+            <div style="background:#c2e7ff;border-radius:14px;padding:8px 12px;margin-bottom:6px">+ New</div>
+            <div style="background:#d3e3fd;border-radius:16px;padding:5px 10px;margin-bottom:2px">My files</div>
+            <div style="padding:5px 10px">Shared space</div>
+            <div style="padding:5px 10px">Trash</div>
+            <div style="padding:10px 10px 2px;color:#666">Storage</div>
+            <div style="margin:0 10px;height:4px;background:#d3d9e3;border-radius:2px"><div style="width:35%;height:4px;background:#0b57d0;border-radius:2px"></div></div>
+          </div>
+          <div style="flex:1;background:#fff;border-radius:14px;padding:10px">
+            <div style="color:#444;margin-bottom:8px">My files &rsaquo; Contracts</div>
+            <div style="display:flex;gap:6px;margin-bottom:8px">
+              <div style="flex:1;background:#f0f4f9;border-radius:10px;padding:8px">&#128193; 2024</div>
+              <div style="flex:1;background:#f0f4f9;border-radius:10px;padding:8px">&#128193; Clients</div>
+              <div style="flex:1;background:#f0f4f9;border-radius:10px;padding:8px">&#128193; Video</div>
+            </div>
+            <div style="display:flex;gap:6px">
+              <div style="flex:1;border:1px solid #dde3ea;border-radius:10px;height:50px;padding:6px;color:#666">report.pdf</div>
+              <div style="flex:1;border:1px solid #dde3ea;border-radius:10px;height:50px;padding:6px;color:#666">notes.md</div>
+              <div style="flex:1;border:1px solid #dde3ea;border-radius:10px;height:50px;padding:6px;color:#666">demo.mp4</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Dark, more modern and compact</h3>
+      <p>Dark surfaces, sharper corners, a list view by default, denser rows</p>
+      <div style="background:#16181d;border-radius:8px;padding:10px;font-family:system-ui;font-size:12px;color:#e6e8ee;margin-top:8px">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <b style="font-size:14px">Kore</b>
+          <div style="flex:1;background:#23262d;border-radius:6px;padding:6px 12px;color:#8a8f9a">Search files</div>
+          <div style="background:#5b8def;border-radius:50%;width:24px;height:24px"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <div style="width:120px">
+            <div style="background:#5b8def;color:#fff;border-radius:6px;padding:8px 12px;margin-bottom:6px">+ New</div>
+            <div style="background:#23262d;border-radius:6px;padding:5px 10px;margin-bottom:2px">My files</div>
+            <div style="padding:5px 10px">Shared space</div>
+            <div style="padding:5px 10px">Trash</div>
+            <div style="padding:10px 10px 2px;color:#8a8f9a">Storage</div>
+            <div style="margin:0 10px;height:4px;background:#2c3038;border-radius:2px"><div style="width:35%;height:4px;background:#5b8def;border-radius:2px"></div></div>
+          </div>
+          <div style="flex:1;background:#1d2026;border-radius:8px;padding:10px">
+            <div style="color:#8a8f9a;margin-bottom:8px">My files &rsaquo; Contracts</div>
+            <div style="border-bottom:1px solid #2c3038;padding:6px 0;display:flex;justify-content:space-between"><span>&#128193; 2024</span><span style="color:#8a8f9a">12 items</span></div>
+            <div style="border-bottom:1px solid #2c3038;padding:6px 0;display:flex;justify-content:space-between"><span>&#128193; Clients</span><span style="color:#8a8f9a">4 items</span></div>
+            <div style="border-bottom:1px solid #2c3038;padding:6px 0;display:flex;justify-content:space-between"><span>&#128196; report.pdf</span><span style="color:#8a8f9a">2.1 MB</span></div>
+            <div style="border-bottom:1px solid #2c3038;padding:6px 0;display:flex;justify-content:space-between"><span>&#128196; notes.md</span><span style="color:#8a8f9a">4 KB</span></div>
+            <div style="padding:6px 0;display:flex;justify-content:space-between"><span>&#127916; demo.mp4</span><span style="color:#8a8f9a">380 MB</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
