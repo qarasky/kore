@@ -22,6 +22,9 @@ services:
         read_only: true
         bind:
           create_host_path: false
+    environment:
+      # Trusted proxy range in the Caddyfile: must match networks.edge.
+      KORE_SUBNET: ${KORE_SUBNET:-172.31.255.0/24}
     tmpfs:
       - /data
       - /config
@@ -100,8 +103,14 @@ services:
     logging: *logging
 
 networks:
-  # Only Caddy is on a network with a published port.
-  edge: {}
+  # Only Caddy is on a network with a published port. Its fixed subnet is
+  # what the Caddyfile trusts (connections from the Docker host arrive from
+  # its gateway); change KORE_SUBNET in .env if it collides with a network
+  # you already use.
+  edge:
+    ipam:
+      config:
+        - subnet: ${KORE_SUBNET:-172.31.255.0/24}
   # api and web: no published ports and no outbound internet access.
   internal:
     internal: true
