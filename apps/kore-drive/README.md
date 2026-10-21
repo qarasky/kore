@@ -59,15 +59,30 @@ KORE_BIND=0.0.0.0     # or one address, e.g. the Tailscale IP
 and run `docker compose up -d`. Kore is then at `http://<server>:8080`. This is
 plain HTTP; use it only on networks you trust.
 
+With `KORE_BIND=0.0.0.0`, check what Docker actually published:
+
+```sh
+docker port "$(docker compose ps -q caddy)"
+```
+
+It must list IPv4 only (`80/tcp -> 0.0.0.0:8080`). If it also shows
+`[::]:8080`, IPv6 clients are forwarded by Docker's userland proxy and arrive
+at Caddy from the gateway of its network, i.e. they look like the Docker host
+and their `CF-Connecting-IP`/`X-Forwarded-*` headers are trusted (see below).
+To publish on IPv4 only, set `KORE_BIND` to the server's IPv4 LAN or Tailscale
+address (e.g. `KORE_BIND=192.168.1.10`) instead of `0.0.0.0`, run
+`docker compose up -d`, and check `docker port` again.
+
 ## Cloudflare Tunnel (`files.example.com`)
 
 `cloudflared` is not part of the stack. With `cloudflared` running on the same
 host, add a public hostname to the tunnel:
 
 - Hostname: `files.example.com`
-- Service: `http://localhost:8080` (the `KORE_BIND:KORE_PORT` from `.env`; if
-  `cloudflared` runs in a container, use an address it can reach and set
-  `KORE_BIND` accordingly)
+- Service: `http://127.0.0.1:8080` (the `KORE_BIND:KORE_PORT` from `.env`).
+  Use `127.0.0.1`, not `localhost`, which may resolve to `::1`, where nothing
+  is published by default. If `cloudflared` runs in a container, use an
+  address it can reach and set `KORE_BIND` accordingly.
 
 ### Which proxy headers are trusted
 
@@ -83,6 +98,20 @@ and their `X-Forwarded-*` headers are replaced with what Caddy actually sees:
 they cannot pick a fresh "client IP" per login attempt or fake HTTPS. Note
 that containers on other Docker networks of the same host also count as the
 host.
+
+This model only holds when LAN clients really reach Caddy with their own
+address. In these setups every client arrives from the gateway or another
+trusted address and is therefore trusted, so do not expose Kore to the LAN
+with them (or put your own proxy in front that strips those headers):
+
+- IPv6 published by Docker's userland proxy (see "LAN / Tailscale" above).
+- Rootless Docker (its port forwarder, RootlessKit/slirp4netns, hides the
+  client address).
+- Docker with `"iptables": false` in `daemon.json` (all published traffic goes
+  through the userland proxy).
+- A front proxy container attached to Caddy's `edge` network: everything it
+  forwards comes from inside `KORE_SUBNET`, so it must itself overwrite
+  `CF-Connecting-IP` and `X-Forwarded-*` with the real client's values.
 
 Without Docker (`kore -config kore.toml`), the API itself trusts
 `CF-Connecting-IP`/`X-Forwarded-For` from any loopback or private peer. Keep
