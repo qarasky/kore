@@ -15,44 +15,25 @@ import (
 	"github.com/artchsh/kore/api/internal/users"
 )
 
-const minPasswordLen = 8
+const (
+	minPasswordLen = 8
+	maxPasswordLen = 1024
+)
 
 func errJSON(w http.ResponseWriter, code int, msg string) {
 	writeJSON(w, code, map[string]string{"error": msg})
 }
 
-// adminOnly is like auth.RequireAdmin but always answers with JSON.
-func adminOnly(h http.HandlerFunc) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.FromContext(r.Context())
-		if !ok {
-			errJSON(w, 401, "unauthorized")
-			return
-		}
-		if u.Role != "admin" {
-			errJSON(w, 403, "forbidden")
-			return
-		}
-		h(w, r)
-	})
-}
-
 func (s *server) registerAdmin(mux *http.ServeMux) {
-	mux.Handle("GET /api/admin/users", adminOnly(s.listUsers))
-	mux.Handle("POST /api/admin/users", adminOnly(s.createUser))
-	mux.Handle("PATCH /api/admin/users/{id}", adminOnly(s.patchUser))
-	mux.Handle("POST /api/admin/users/{id}/password", adminOnly(s.resetPassword))
-	mux.Handle("DELETE /api/admin/users/{id}", adminOnly(s.deleteUser))
-	mux.Handle("GET /api/admin/settings", adminOnly(s.getSettings))
-	mux.Handle("PATCH /api/admin/settings", adminOnly(s.patchSettings))
-	mux.Handle("GET /api/admin/usage", adminOnly(s.usage))
-	mux.HandleFunc("POST /api/me/password", func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := auth.FromContext(r.Context()); !ok {
-			errJSON(w, 401, "unauthorized")
-			return
-		}
-		s.changeOwnPassword(w, r)
-	})
+	mux.Handle("GET /api/admin/users", auth.RequireAdmin(http.HandlerFunc(s.listUsers)))
+	mux.Handle("POST /api/admin/users", auth.RequireAdmin(http.HandlerFunc(s.createUser)))
+	mux.Handle("PATCH /api/admin/users/{id}", auth.RequireAdmin(http.HandlerFunc(s.patchUser)))
+	mux.Handle("POST /api/admin/users/{id}/password", auth.RequireAdmin(http.HandlerFunc(s.resetPassword)))
+	mux.Handle("DELETE /api/admin/users/{id}", auth.RequireAdmin(http.HandlerFunc(s.deleteUser)))
+	mux.Handle("GET /api/admin/settings", auth.RequireAdmin(http.HandlerFunc(s.getSettings)))
+	mux.Handle("PATCH /api/admin/settings", auth.RequireAdmin(http.HandlerFunc(s.patchSettings)))
+	mux.Handle("GET /api/admin/usage", auth.RequireAdmin(http.HandlerFunc(s.usage)))
+	mux.Handle("POST /api/me/password", auth.RequireUser(http.HandlerFunc(s.changeOwnPassword)))
 }
 
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {
@@ -107,6 +88,9 @@ func (s *server) createUser(w http.ResponseWriter, r *http.Request) {
 		return
 	case len(in.Password) < minPasswordLen:
 		errJSON(w, 400, "password_too_short")
+		return
+	case len(in.Password) > maxPasswordLen:
+		errJSON(w, 400, "password_too_long")
 		return
 	case in.Role != "admin" && in.Role != "user":
 		errJSON(w, 400, "invalid_role")
@@ -214,7 +198,7 @@ func (s *server) patchUser(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE users SET email=?,role=?,quota_bytes=? WHERE id=?`,
 		u.Email, u.Role, u.QuotaBytes, id); err != nil {
-		if strings.Contains(err.Error(), "UNIQUE") {
+		if isUnique(err) {
 			errJSON(w, 409, "email_in_use")
 			return
 		}
@@ -263,6 +247,10 @@ func (s *server) resetPassword(w http.ResponseWriter, r *http.Request) {
 		errJSON(w, 400, "password_too_short")
 		return
 	}
+	if len(in.NewPassword) > maxPasswordLen {
+		errJSON(w, 400, "password_too_long")
+		return
+	}
 	ok, err := s.setPassword(r.Context(), r.PathValue("id"), in.NewPassword)
 	if err != nil {
 		errJSON(w, 500, "internal")
@@ -297,18 +285,30 @@ func (s *server) changeOwnPassword(w http.ResponseWriter, r *http.Request) {
 		errJSON(w, 400, "password_too_short")
 		return
 	}
-	if ok, err := s.setPassword(r.Context(), me.ID, in.New); err != nil || !ok {
+	if len(in.New) > maxPasswordLen {
+		errJSON(w, 400, "password_too_long")
+		return
+	}
+	ok, err := s.setPassword(r.Context(), me.ID, in.New)
+	if err != nil {
 		errJSON(w, 500, "internal")
 		return
 	}
-	// All sessions were revoked; keep the caller signed in with a fresh one.
-	if tok, err := auth.NewSession(r.Context(), s.db, me.ID, sessionTTL); err == nil {
-		http.SetCookie(w, &http.Cookie{
-			Name: auth.CookieName, Value: tok, Path: "/", HttpOnly: true,
-			SameSite: http.SameSiteLaxMode, Secure: auth.IsHTTPS(r),
-			Expires: time.Now().Add(sessionTTL),
-		})
+	if !ok {
+		errJSON(w, 404, "not_found")
+		return
 	}
+	// All sessions were revoked; keep the caller signed in with a fresh one.
+	tok, err := auth.NewSession(r.Context(), s.db, me.ID, sessionTTL)
+	if err != nil {
+		errJSON(w, 500, "internal")
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name: auth.CookieName, Value: tok, Path: "/", HttpOnly: true,
+		SameSite: http.SameSiteLaxMode, Secure: auth.IsHTTPS(r),
+		Expires: time.Now().Add(sessionTTL),
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -407,20 +407,29 @@ func (s *server) patchSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	set := func(k string, v any) bool {
-		if err := settings.Set(ctx, s.db, k, toStr(v)); err != nil {
-			errJSON(w, 500, "internal")
-			return false
-		}
-		return true
-	}
-	if in.TrashRetentionDays != nil && !set(settings.KeyTrashRetentionDays, int64(*in.TrashRetentionDays)) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		errJSON(w, 500, "internal")
 		return
 	}
-	if in.MaxFileBytes != nil && !set(settings.KeyMaxFileBytes, *in.MaxFileBytes) {
-		return
+	defer tx.Rollback()
+	put := func(k string, v any) error {
+		_, err := tx.ExecContext(ctx,
+			`INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, k, toStr(v))
+		return err
 	}
-	if in.DefaultQuotaBytes != nil && !set(settings.KeyDefaultQuotaBytes, *in.DefaultQuotaBytes) {
+	var werr error
+	if in.TrashRetentionDays != nil {
+		werr = put(settings.KeyTrashRetentionDays, *in.TrashRetentionDays)
+	}
+	if werr == nil && in.MaxFileBytes != nil {
+		werr = put(settings.KeyMaxFileBytes, *in.MaxFileBytes)
+	}
+	if werr == nil && in.DefaultQuotaBytes != nil {
+		werr = put(settings.KeyDefaultQuotaBytes, *in.DefaultQuotaBytes)
+	}
+	if werr != nil || tx.Commit() != nil {
+		errJSON(w, 500, "internal")
 		return
 	}
 	writeJSON(w, 200, s.currentSettings(ctx))
@@ -457,4 +466,10 @@ GROUP BY u.id ORDER BY u.email`)
 		out = append(out, x)
 	}
 	writeJSON(w, 200, out)
+}
+
+// isUnique reports a UNIQUE constraint violation (the same test users.Create
+// uses to produce users.ErrExists).
+func isUnique(err error) bool {
+	return errors.Is(err, users.ErrExists) || strings.Contains(err.Error(), "UNIQUE")
 }
