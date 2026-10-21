@@ -33,6 +33,43 @@ func TestCheckPassesAfterInit(t *testing.T) {
 	}
 }
 
+func TestCheckRejectsMarkerDirectory(t *testing.T) {
+	d := t.TempDir()
+	if err := os.Mkdir(filepath.Join(d, ".kore-volume"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := Check(d); err == nil || !strings.Contains(err.Error(), "not a regular file") {
+		t.Fatalf("marker directory accepted: %v", err)
+	}
+	if err := Init(d); err == nil {
+		t.Fatal("init accepted a marker directory")
+	}
+}
+
+func TestInitCreatesDataDirOnlyUnderExistingParent(t *testing.T) {
+	parent := t.TempDir()
+	d := filepath.Join(parent, "kore")
+	if err := Init(d); err != nil {
+		t.Fatalf("init with existing parent: %v", err)
+	}
+	if err := Check(d); err != nil {
+		t.Fatal(err)
+	}
+	missing := filepath.Join(parent, "not-mounted", "kore")
+	err := Init(missing)
+	if err == nil || !strings.Contains(err.Error(), "does not exist") {
+		t.Fatalf("want parent-missing error, got %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(parent, "not-mounted")); !os.IsNotExist(err) {
+		t.Fatalf("init created the missing parent: %v", err)
+	}
+	f := filepath.Join(parent, "file")
+	os.WriteFile(f, nil, 0o644)
+	if err := Init(f); err == nil {
+		t.Fatal("init accepted a regular file as data dir")
+	}
+}
+
 func TestBlobPathShardsByPrefix(t *testing.T) {
 	id := NewBlobID()
 	if !regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`).MatchString(id) {

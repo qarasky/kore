@@ -2,8 +2,10 @@ package httpapi
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/artchsh/kore/api/internal/auth"
 	"github.com/artchsh/kore/api/internal/quota"
@@ -112,7 +114,15 @@ func (s *server) patchUpload(w http.ResponseWriter, r *http.Request) {
 		errJSON(w, 413, "chunk_too_large")
 		return
 	}
-	next, err := s.uploads.Append(r.Context(), me, id, off, r.Body)
+	// The server has no global read timeout (uploads and downloads stream),
+	// so bound how long a chunk body may stall: a dead client would
+	// otherwise hold the upload's lock (423 upload_busy on resume) until TCP
+	// gives up.
+	body := io.Reader(r.Body)
+	if rc := http.NewResponseController(w); rc.SetReadDeadline(time.Now().Add(chunkIdleTimeout)) == nil {
+		body = &idleDeadlineReader{r: r.Body, rc: rc}
+	}
+	next, err := s.uploads.Append(r.Context(), me, id, off, body)
 	if err != nil {
 		uploadErr(w, err)
 		return
@@ -138,4 +148,23 @@ func (s *server) cancelUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// chunkIdleTimeout is how long a chunk body may go without delivering any
+// bytes before the read fails and the upload's lock is released.
+var chunkIdleTimeout = time.Minute
+
+// idleDeadlineReader pushes the connection's read deadline forward before
+// every read, so a slow but progressing chunk is never cut off while a
+// stalled one fails after chunkIdleTimeout.
+type idleDeadlineReader struct {
+	r  io.Reader
+	rc *http.ResponseController
+}
+
+func (d *idleDeadlineReader) Read(p []byte) (int, error) {
+	if err := d.rc.SetReadDeadline(time.Now().Add(chunkIdleTimeout)); err != nil {
+		return 0, err
+	}
+	return d.r.Read(p)
 }

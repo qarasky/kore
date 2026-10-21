@@ -3,10 +3,13 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/artchsh/kore/api/internal/auth"
 	"github.com/artchsh/kore/api/internal/users"
@@ -131,5 +134,68 @@ func TestUploadHTTPLimits(t *testing.T) {
 	}
 	if rec := e.do(t, &e.user, "DELETE", "/api/uploads/"+id, ``); rec.Code != 404 {
 		t.Fatalf("cancel twice %d", rec.Code)
+	}
+}
+
+// A chunk whose body stalls must not hold the upload's lock forever: after
+// chunkIdleTimeout the read fails, the lock is released and a retry of the
+// same offset succeeds.
+func TestStalledChunkReleasesLock(t *testing.T) {
+	old := chunkIdleTimeout
+	chunkIdleTimeout = 300 * time.Millisecond
+	t.Cleanup(func() { chunkIdleTimeout = old })
+
+	e := newEnv(t)
+	e.db.Exec(`UPDATE users SET quota_bytes=? WHERE id=?`, 1<<20, e.user.ID)
+	rec := e.do(t, &e.user, "POST", "/api/uploads", `{"space":"personal","parent":null,"name":"s.bin","size":2048,"chunk_size":2048}`)
+	if rec.Code != 201 {
+		t.Fatalf("create %d %s", rec.Code, rec.Body)
+	}
+	id := jsonBody(t, rec)["id"].(string)
+	srv := httptest.NewServer(e.h)
+	t.Cleanup(srv.Close)
+	tok, err := auth.NewSession(context.Background(), e.db, e.user.ID, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A client that announces 2048 bytes, sends 10 and then goes silent.
+	conn, err := net.Dial("tcp", srv.Listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	fmt.Fprintf(conn, "PATCH /api/uploads/%s HTTP/1.1\r\nHost: x\r\nCookie: %s=%s\r\nUpload-Offset: 0\r\nContent-Length: 2048\r\n\r\n0123456789",
+		id, auth.CookieName, tok)
+
+	patch := func(body []byte) *http.Response {
+		req, _ := http.NewRequest("PATCH", srv.URL+"/api/uploads/"+id, bytes.NewReader(body))
+		req.Header.Set("Upload-Offset", "0")
+		req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: tok})
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		return res
+	}
+	// While the stalled request holds the lock, a retry is busy.
+	time.Sleep(100 * time.Millisecond)
+	if res := patch(bytes.Repeat([]byte("a"), 2048)); res.StatusCode != 423 {
+		t.Fatalf("retry during stall: %d, want 423", res.StatusCode)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		res := patch(bytes.Repeat([]byte("a"), 2048))
+		if res.StatusCode == 204 {
+			if got := res.Header.Get("Upload-Offset"); got != "2048" {
+				t.Fatalf("offset %q", got)
+			}
+			break
+		}
+		if res.StatusCode != 423 || time.Now().After(deadline) {
+			t.Fatalf("retry after stall: %d", res.StatusCode)
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
 }
