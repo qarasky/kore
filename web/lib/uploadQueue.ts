@@ -6,7 +6,7 @@
  */
 import { isApiError } from "./api";
 import type { MessageKey } from "./i18n";
-import { uploadFile, type UploadOptions, type UploadTarget } from "./upload";
+import { discardUpload, uploadFile, type UploadOptions, type UploadTarget } from "./upload";
 
 export type UploadState = "queued" | "uploading" | "done" | "error" | "canceled";
 
@@ -19,10 +19,11 @@ export type UploadItem = {
   readonly loaded: number;
   /** Plain-language reason when `state === "error"`. */
   readonly error?: MessageKey;
+  /** The created node; may be unknown when the completion response was lost. */
   readonly nodeId?: string;
 };
 
-type Uploader = (file: File, target: UploadTarget, opts: UploadOptions) => Promise<{ nodeId: string }>;
+type Uploader = (file: File, target: UploadTarget, opts: UploadOptions) => Promise<{ nodeId?: string }>;
 
 /** The tray message for a failed upload. */
 export function uploadErrorKey(e: unknown): MessageKey {
@@ -47,6 +48,8 @@ export class UploadQueue {
     private readonly opts: {
       concurrency?: number;
       upload?: Uploader;
+      /** Releases a failed item's kept server session (see `discardUpload`). */
+      discard?: (file: File, target: UploadTarget) => Promise<void>;
       /** Read per file, so a `localStorage` override applies without a reload. */
       chunkBytes?: () => number | undefined;
       /** Called once each time the last running/queued item settles. */
@@ -102,8 +105,16 @@ export class UploadQueue {
     this.pump();
   }
 
-  /** Removes finished items (done, error, canceled) from the list. */
+  /**
+   * Removes finished items (done, error, canceled) from the list. Failed
+   * items may still hold a resumable server session (and its quota
+   * reservation); those are discarded.
+   */
   clearFinished(): void {
+    const discard = this.opts.discard ?? discardUpload;
+    for (const i of this.items) {
+      if (i.state === "error") void discard(i.file, i.target).catch(() => {});
+    }
     this.items = this.items.filter((i) => i.state === "queued" || i.state === "uploading");
     this.emit();
   }

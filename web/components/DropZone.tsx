@@ -66,7 +66,7 @@ export function DropZone({ target, children }: { target: UploadTarget; children:
         setOver(null);
         if (!isFileDrag(e) || e.nativeEvent.defaultPrevented) return;
         e.preventDefault();
-        void collectDataTransfer(e.dataTransfer).then((set) => uploads.upload(set, target));
+        void uploads.upload(collectDataTransfer(e.dataTransfer), target);
       }}
     >
       {children}

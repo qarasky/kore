@@ -18,11 +18,17 @@ function json(status: number, body: unknown, headers: Record<string, string> = {
 function fakeServer() {
   const sessions = new Map<string, Sess>();
   const calls: Call[] = [];
-  const nodes: { id: string; name: string; data: Uint8Array }[] = [];
+  const nodes: { id: string; name: string; data: Uint8Array; updated_at: number }[] = [];
   let fault: Fault | undefined;
   let seq = 0;
 
   async function handle(path: string, method: string, init: RequestInit): Promise<Response> {
+    if (path.startsWith("/api/nodes?") && method === "GET") {
+      return json(
+        200,
+        nodes.map((n) => ({ id: n.id, name: n.name, is_dir: false, size: n.data.length, updated_at: n.updated_at })),
+      );
+    }
     if (path === "/api/uploads" && method === "POST") {
       const b = JSON.parse(String(init.body)) as { name: string; size: number; chunk_size: number };
       const id = `up-${++seq}`;
@@ -35,7 +41,8 @@ function fakeServer() {
     if (m[2] && method === "POST") {
       if (s.received !== s.size) return json(409, { error: "incomplete" });
       sessions.delete(s.id);
-      const node = { id: `node-${s.id}`, name: s.name, data: s.data };
+      const taken = nodes.some((n) => n.name === s.name);
+      const node = { id: `node-${s.id}`, name: taken ? s.name.replace(/(\.[^.]*)?$/, " (1)$1") : s.name, data: s.data, updated_at: seq };
       nodes.push(node);
       return json(201, { id: node.id, name: s.name, is_dir: false, size: s.size });
     }
@@ -358,5 +365,96 @@ describe("uploadFile", () => {
     expect(chunkBytesOverride()).toBe(64 << 20);
     store.setItem("koreChunkBytes", "nope");
     expect(chunkBytesOverride()).toBeUndefined();
+  });
+
+  it("a lost completion response counts as done, without a duplicate", async () => {
+    const { uploadFile, resumeKey } = await load();
+    const data = bytes(5000);
+    const file = new File([data], "a.bin");
+    // An earlier, unrelated file of the same name (different size) is already there.
+    srv.nodes.push({ id: "older", name: "a.bin", data: bytes(10), updated_at: 0 });
+    // n counts every POST: 1 is the create, 2 the first completion.
+    srv.setFault((c, n) => (c.method === "POST" && c.path.endsWith("/complete") && n === 2 ? "after" : undefined));
+    const res = await uploadFile(file, target, { chunkBytes: KB4, onProgress: () => {}, retryDelayMs: 0 });
+
+    expect(srv.count("POST", "/complete")).toBe(2); // the lost one, then the 404
+    expect(srv.count("HEAD")).toBe(1);
+    expect(srv.nodes).toHaveLength(2); // exactly one created by this upload
+    expect(res.nodeId).toBe(srv.nodes[1].id);
+    expect(srv.nodes[1].name).toBe("a (1).bin");
+    expect(srv.count("POST", "/api/uploads")).toBe(1);
+    expect(srv.count("DELETE")).toBe(0);
+    expect(store.getItem(resumeKey(file, target))).toBeNull();
+  });
+
+  it("a completion 404 with the session still there means the destination is gone", async () => {
+    const { uploadFile } = await load();
+    srv.setFault((c, n) =>
+      c.method === "POST" && c.path.endsWith("/complete")
+        ? n === 2
+          ? json(503, { error: "unavailable" })
+          : json(404, { error: "not_found" }) // the folder was trashed; the session survives
+        : undefined,
+    );
+    await expect(
+      uploadFile(new File([bytes(100)], "a.bin"), target, { onProgress: () => {}, retryDelayMs: 0 }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(srv.nodes).toHaveLength(0);
+    expect(srv.count("HEAD")).toBe(1);
+    expect(srv.count("DELETE")).toBe(1); // reservation released
+  });
+
+  it("a cancel that races a successful completion is not reported as canceled", async () => {
+    const { uploadFile } = await load();
+    const ctl = new AbortController();
+    srv.setFault((c) => {
+      if (c.method === "POST" && c.path.endsWith("/complete")) {
+        ctl.abort(); // the user hits cancel while the server finishes
+        return "after";
+      }
+      return undefined;
+    });
+    const res = await uploadFile(new File([bytes(100)], "a.bin"), target, { signal: ctl.signal, onProgress: () => {} });
+    expect(res.nodeId).toBe(srv.nodes[0].id);
+    expect(srv.count("DELETE")).toBe(0);
+  });
+
+  it("keeps the session after a 401 so signing in again resumes it", async () => {
+    const { uploadFile, resumeKey, discardUpload } = await load();
+    const data = bytes(10_000);
+    const file = () => new File([data], "a.bin", { lastModified: 9 });
+    srv.setFault((c, n) => (c.method === "PATCH" && n === 2 ? json(401, { error: "unauthorized" }) : undefined));
+    await expect(uploadFile(file(), target, { chunkBytes: KB4, onProgress: () => {}, retryDelayMs: 0 })).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(srv.patches()).toHaveLength(2); // not retried
+    expect(srv.count("DELETE")).toBe(0);
+    expect(store.getItem(resumeKey(file(), target))).toContain("up-1");
+
+    srv.setFault(undefined);
+    await uploadFile(file(), target, { chunkBytes: KB4, onProgress: () => {}, retryDelayMs: 0 });
+    expect(srv.count("POST", "/api/uploads")).toBe(1);
+    expect(srv.nodes[0].data).toEqual(data);
+
+    // discardUpload releases a kept session.
+    srv.setFault((c) => (c.method === "PATCH" ? json(401, { error: "unauthorized" }) : undefined));
+    const other = new File([data], "b.bin");
+    await expect(uploadFile(other, target, { chunkBytes: KB4, onProgress: () => {} })).rejects.toMatchObject({ status: 401 });
+    expect(srv.sessions.size).toBe(1);
+    await discardUpload(other, target);
+    expect(srv.sessions.size).toBe(0);
+    expect(store.getItem(resumeKey(other, target))).toBeNull();
+  });
+
+  it("sends no empty chunk when a re-sync shows the server has everything", async () => {
+    const { uploadFile } = await load();
+    srv.setFault((c, n) => (c.method === "PATCH" && n === 2 ? "after" : undefined));
+    await uploadFile(new File([bytes(8192)], "a.bin"), target, { chunkBytes: KB4, onProgress: () => {}, retryDelayMs: 0 });
+    expect(srv.patches().map((p) => [p.offset, p.bytes])).toEqual([
+      [0, 4096],
+      [4096, 4096],
+    ]);
+    expect(srv.count("HEAD")).toBe(1);
+    expect(srv.nodes).toHaveLength(1);
   });
 });

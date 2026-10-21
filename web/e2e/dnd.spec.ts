@@ -108,13 +108,24 @@ test("dropping a file onto a folder row uploads into that folder", async ({ page
 
 test("in-page row drags don't trigger the upload overlay", async ({ page }) => {
   const { api } = await setup(page);
+  await createFolder(api, "Box");
   await uploadFile(api, "a.txt", "a");
   await page.goto("/files");
   await row(page, "a.txt").hover();
   await page.mouse.down();
-  await page.mouse.move(400, 400, { steps: 5 });
+  const box = (await row(page, "Box").boundingBox())!;
+  await page.mouse.move(box.x + 60, box.y + box.height / 2, { steps: 8 });
+  // A real drag is under way: the folder row accepts it...
+  await expect(row(page, "Box")).toHaveAttribute("data-drop-target", "true");
+  // ...but it is not a file drag, so there is no upload overlay.
   await expect(page.getByTestId("drop-overlay")).toHaveCount(0);
+  // Release over empty list space: nothing happens.
+  const area = (await page.getByTestId("list-area").boundingBox())!;
+  await page.mouse.move(area.x + area.width / 2, area.y + area.height - 40, { steps: 5 });
+  await expect(row(page, "Box")).not.toHaveAttribute("data-drop-target");
   await page.mouse.up();
+  await expect(row(page, "a.txt")).toBeVisible();
+  expect(names(await children(api, "personal"))).toEqual(["Box", "a.txt"]);
   await api.dispose();
 });
 

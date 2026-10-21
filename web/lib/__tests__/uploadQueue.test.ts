@@ -63,4 +63,19 @@ describe("UploadQueue", () => {
     expect(q.getSnapshot()[0].state).toBe("uploading");
     expect(upload).toHaveBeenCalledTimes(4);
   });
+
+  it("clearing finished items discards the sessions of failed ones", async () => {
+    const { upload, pending } = controlledUploader();
+    const discard = vi.fn(async () => {});
+    const q = new UploadQueue({ upload, discard });
+    q.add(files("ok", "bad"));
+    await tick();
+    pending[0].resolve();
+    pending[1].reject(new ApiError(503, "unreachable"));
+    await tick();
+    q.clearFinished();
+    expect(discard).toHaveBeenCalledTimes(1);
+    expect((discard.mock.calls[0] as unknown[])[0]).toMatchObject({ name: "bad" });
+    expect(q.getSnapshot()).toEqual([]);
+  });
 });

@@ -6,8 +6,8 @@ type FakeEntry = {
   isFile: boolean;
   isDirectory: boolean;
   name: string;
-  file?: (ok: (f: File) => void) => void;
-  createReader?: () => { readEntries: (ok: (es: FakeEntry[]) => void) => void };
+  file?: (ok: (f: File) => void, err?: (e: unknown) => void) => void;
+  createReader?: () => { readEntries: (ok: (es: FakeEntry[]) => void, err?: (e: unknown) => void) => void };
 };
 
 const fileEntry = (name: string): FakeEntry => ({
@@ -64,6 +64,19 @@ describe("dropEntries", () => {
       ["loose.txt", "photos/.hidden", "photos/2024/b.jpg", "photos/a.jpg"].sort(),
     );
     expect(set.dirs.map((d) => d.join("/")).sort()).toEqual(["photos", "photos/2024", "photos/empty"]);
+  });
+
+  it("counts unreadable entries and keeps the rest", async () => {
+    const broken: FakeEntry = { isFile: true, isDirectory: false, name: "locked.txt", file: (_ok, err) => err?.(new Error("denied")) };
+    const unlistable: FakeEntry = {
+      isFile: false,
+      isDirectory: true,
+      name: "noperm",
+      createReader: () => ({ readEntries: (_ok, err) => err?.(new Error("denied")) }),
+    };
+    const set = await collectDataTransfer(dataTransfer([dirEntry("d", [fileEntry("fine.txt"), broken]), unlistable]));
+    expect(set.files.map((f) => f.file.name)).toEqual(["fine.txt"]);
+    expect(set.unreadable).toBe(2);
   });
 
   it("reads folder input paths", () => {
