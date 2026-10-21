@@ -40,3 +40,28 @@ func TestMyUsage(t *testing.T) {
 	e.db.Exec(`UPDATE users SET quota_bytes=? WHERE id=?`, 1<<20, e.user.ID)
 	check(50, 1<<20)
 }
+
+func TestMySettings(t *testing.T) {
+	e := newEnv(t)
+	if rec := e.do(t, nil, "GET", "/api/me/settings", ""); rec.Code != 401 {
+		t.Fatalf("anon: %d", rec.Code)
+	}
+	get := func() map[string]any {
+		t.Helper()
+		rec := e.do(t, &e.user, "GET", "/api/me/settings", "")
+		if rec.Code != 200 {
+			t.Fatalf("settings: %d %s", rec.Code, rec.Body)
+		}
+		return jsonBody(t, rec)
+	}
+	b := get()
+	if b["trash_retention_days"] != float64(30) || len(b) != 1 {
+		t.Fatalf("default: %v", b)
+	}
+	if rec := e.do(t, &e.admin, "PATCH", "/api/admin/settings", `{"trash_retention_days":7}`); rec.Code != 200 {
+		t.Fatalf("patch: %d %s", rec.Code, rec.Body)
+	}
+	if b := get(); b["trash_retention_days"] != float64(7) {
+		t.Fatalf("after patch: %v", b)
+	}
+}
