@@ -14,6 +14,7 @@ that fetches from the Go API with the user's `kore_session` cookie.
 | `lib/session.ts` | `requireUser()`: validates the session via `/api/auth/me`, redirects to login on 401 |
 | `lib/safe-next.ts` | Sanitizes the post-login `next` redirect (same-origin relative paths only) |
 | `lib/i18n/` | `en.ts` holds every UI string; `t(key, vars?)` reads from `index.ts` |
+| `app/error.tsx`, `app/global-error.tsx` | Styled error pages (API unreachable vs. generic) with a retry button |
 | `proxy.ts` | Next 16 "proxy" (formerly `middleware.ts`): cookie-presence auth gate |
 
 ## Development
@@ -57,7 +58,10 @@ One-time setup for e2e: `npx playwright install chromium`. Go must be on `PATH`.
   then serves the production standalone server (`.next/standalone/server.js`)
   on 127.0.0.1:13000. A production build is used instead of `next dev` so tests
   exercise what ships and are not slowed or flaked by on-demand compilation.
-  `E2E_SKIP_BUILD=1 npm run e2e` reuses the previous e2e build.
+  `E2E_SKIP_BUILD=1 npm run e2e` reuses the previous e2e build. A second
+  instance of the same build runs on 127.0.0.1:13001 with its runtime
+  `API_URL` pointed at a closed port, for API-outage tests (`E2E.webDownUrl`;
+  cookies are per host, so a session from :13000 works there).
 
 Tests run with one worker because they share one API (and its login rate
 limiter). Helpers in `e2e/helpers.ts`:

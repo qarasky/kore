@@ -9,7 +9,7 @@ vi.mock("next/headers", () => ({
   }),
 }));
 
-import { api, ApiError } from "../api";
+import { api, API_TIMEOUT_MS, API_UNREACHABLE_DIGEST, ApiError } from "../api";
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -113,6 +113,91 @@ describe("api()", () => {
     expect(String(url)).toBe("/api/auth/me");
     expect(new Headers(init?.headers).has("cookie")).toBe(false);
     expect(init?.credentials).toBe("same-origin");
+  });
+
+  it("wraps network failures as ApiError(503, unreachable)", async () => {
+    fetchMock.mockRejectedValue(new TypeError("fetch failed"));
+
+    const err = await api("/api/auth/me").catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(503);
+    expect((err as ApiError).code).toBe("unreachable");
+    expect((err as ApiError).digest).toBe(API_UNREACHABLE_DIGEST);
+  });
+
+  it("times out server calls after API_TIMEOUT_MS as ApiError(503, unreachable)", async () => {
+    const realTimeout = AbortSignal.timeout.bind(AbortSignal);
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout").mockImplementation(() => realTimeout(20));
+    // A fetch that hangs until its signal aborts, like a stalled API.
+    fetchMock.mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          const signal = init?.signal;
+          if (signal?.aborted) return reject(signal.reason);
+          signal?.addEventListener("abort", () => reject(signal.reason));
+        }),
+    );
+
+    const err = await api("/api/auth/me").catch((e: unknown) => e);
+
+    expect(timeoutSpy).toHaveBeenCalledWith(API_TIMEOUT_MS);
+    expect(API_TIMEOUT_MS).toBe(10_000);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(503);
+    expect((err as ApiError).code).toBe("unreachable");
+    timeoutSpy.mockRestore();
+  });
+
+  it("composes the timeout with the caller's signal and rethrows a caller abort", async () => {
+    const ctrl = new AbortController();
+    fetchMock.mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          const signal = init?.signal;
+          if (signal?.aborted) return reject(signal.reason);
+          signal?.addEventListener("abort", () => reject(signal.reason));
+        }),
+    );
+
+    const pending = api("/api/auth/me", { signal: ctrl.signal }).catch((e: unknown) => e);
+    ctrl.abort();
+    const err = await pending;
+
+    expect(err).not.toBeInstanceOf(ApiError);
+    expect((err as Error).name).toBe("AbortError");
+  });
+
+  it("returns undefined for an empty 200 body", async () => {
+    fetchMock.mockResolvedValue(new Response("", { status: 200 }));
+
+    await expect(api("/api/x")).resolves.toBeUndefined();
+  });
+
+  it("throws ApiError(502, bad_response) for a non-empty non-JSON 2xx body", async () => {
+    fetchMock.mockResolvedValue(
+      new Response("<html>proxy page</html>", {
+        status: 200,
+        headers: { "Content-Type": "text/html" },
+      }),
+    );
+
+    const err = await api("/api/x").catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(502);
+    expect((err as ApiError).code).toBe("bad_response");
+  });
+
+  it("throws ApiError(502, bad_response) for malformed JSON", async () => {
+    fetchMock.mockResolvedValue(
+      new Response("{not json", { status: 200, headers: { "Content-Type": "application/json" } }),
+    );
+
+    const err = await api("/api/x").catch((e: unknown) => e);
+
+    expect((err as ApiError).status).toBe(502);
+    expect((err as ApiError).code).toBe("bad_response");
   });
 
   it("rejects paths outside /api/", async () => {

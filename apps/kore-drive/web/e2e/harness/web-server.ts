@@ -1,7 +1,9 @@
 /**
  * Builds the web app and serves the production standalone server
  * (`.next/standalone/server.js`, the artifact we ship) on 127.0.0.1:13000,
- * talking to the e2e API at 127.0.0.1:18080.
+ * talking to the e2e API at 127.0.0.1:18080. A second instance of the same
+ * build on 127.0.0.1:13001 has its runtime API_URL pointed at a closed port,
+ * for API-outage tests.
  *
  * API_URL is needed at build time (the /api rewrite in next.config.ts is
  * baked into the build) and at runtime (server-side api() calls).
@@ -14,7 +16,7 @@ import { cpSync, existsSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { E2E } from "./env.ts";
-import { serve } from "./proc.ts";
+import { serve, type Proc } from "./proc.ts";
 
 const webDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const standalone = path.join(webDir, ".next/standalone");
@@ -37,10 +39,10 @@ if (existsSync(path.join(webDir, "public"))) {
   cpSync(path.join(webDir, "public"), path.join(standalone, "public"), { recursive: true });
 }
 
-console.log(`[e2e web] starting on ${E2E.webUrl}`);
-serve(process.execPath, [path.join(standalone, "server.js")], {
-  ...env,
-  NODE_ENV: "production",
-  PORT: String(E2E.webPort),
-  HOSTNAME: "127.0.0.1",
+console.log(`[e2e web] starting on ${E2E.webUrl} and (API down) ${E2E.webDownUrl}`);
+const server = (port: number, apiUrl: string): Proc => ({
+  cmd: process.execPath,
+  args: [path.join(standalone, "server.js")],
+  env: { ...env, API_URL: apiUrl, NODE_ENV: "production" as const, PORT: String(port), HOSTNAME: "127.0.0.1" },
 });
+serve([server(E2E.webPort, E2E.apiUrl), server(E2E.webDownPort, E2E.deadApiUrl)]);

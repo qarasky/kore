@@ -73,3 +73,23 @@ test("a stale session cookie shows the login page instead of looping", async ({ 
   await fillLogin(page, ADMIN.email, ADMIN.password);
   await expect(page).toHaveURL("/files");
 });
+
+test("redirects use relative Location headers (safe behind Caddy)", async ({ request }) => {
+  // Simulate the public origin Caddy forwards; the internal URL differs.
+  const behindProxy = {
+    Host: "kore.example.com",
+    "X-Forwarded-Host": "kore.example.com",
+    "X-Forwarded-Proto": "https",
+  };
+  const fromProxy = await request.get("/files/abc", { headers: behindProxy, maxRedirects: 0 });
+  expect(fromProxy.status()).toBe(307);
+  expect(fromProxy.headers()["location"]).toBe(`/login?next=${encodeURIComponent("/files/abc")}`);
+
+  // Server Component redirect (stale session -> requireUser -> 401).
+  const fromPage = await request.get("/files", {
+    headers: { ...behindProxy, Cookie: "kore_session=stale" },
+    maxRedirects: 0,
+  });
+  expect(fromPage.status()).toBe(307);
+  expect(fromPage.headers()["location"]).toBe("/login?next=%2Ffiles&expired=1");
+});

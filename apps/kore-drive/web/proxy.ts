@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE } from "@/lib/api";
+import { redirectTo } from "@/lib/redirect";
 import { loginUrl, PATH_HEADER } from "@/lib/routes";
 import { safeNext } from "@/lib/safe-next";
 
@@ -16,13 +17,13 @@ export function proxy(req: NextRequest) {
   if (pathname === "/login") {
     // `expired` means the API rejected the cookie; let the user sign in again.
     if (hasSession && !searchParams.has("expired")) {
-      return NextResponse.redirect(new URL(safeNext(searchParams.get("next")), req.url));
+      return redirectTo(req, safeNext(searchParams.get("next")));
     }
     return NextResponse.next();
   }
 
   if (!hasSession) {
-    return NextResponse.redirect(new URL(loginUrl(pathname + search), req.url));
+    return redirectTo(req, loginUrl(pathname + search));
   }
 
   const headers = new Headers(req.headers);
