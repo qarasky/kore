@@ -1,0 +1,105 @@
+# Kore: Caddy (the only published service) -> web (Next.js) and api (Go).
+# Configure with .env (see .env.example) and kore.toml (see
+# kore.docker.example.toml). Install steps: README.md.
+name: kore
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  caddy:
+    image: caddy:2.11-alpine
+    restart: unless-stopped
+    ports:
+      - "${KORE_BIND:-127.0.0.1}:${KORE_PORT:-8080}:80"
+    volumes:
+      - type: bind
+        source: ./Caddyfile
+        target: /etc/caddy/Caddyfile
+        read_only: true
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /data
+      - /config
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    networks: [edge, internal]
+    depends_on:
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/api/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    logging: *logging
+
+  web:
+    build:
+      context: ./web
+      args:
+        API_URL: http://api:8080
+    image: kore-web:local
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:8080
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    networks: [internal]
+    depends_on:
+      api:
+        condition: service_healthy
+    logging: *logging
+
+  api:
+    build: ./api
+    image: kore-api:local
+    restart: unless-stopped
+    # Files in the data dir are created as this host user (e.g. `office`).
+    user: "${KORE_UID:-1000}:${KORE_GID:-1000}"
+    volumes:
+      - type: bind
+        source: ./kore.toml
+        target: /etc/kore/kore.toml
+        read_only: true
+        bind:
+          create_host_path: false
+      # Never auto-created: if the volume is not mounted, compose fails
+      # instead of writing into an empty directory on the root disk.
+      - type: bind
+        source: ${KORE_DATA_DIR:-/mnt/mirror/kore}
+        target: /data
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /tmp
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    networks: [internal]
+    # In-flight requests get 30 s to finish on `docker compose stop/down`.
+    stop_grace_period: 40s
+    logging: *logging
+
+networks:
+  # Only Caddy is on a network with a published port.
+  edge: {}
+  # api and web: no published ports and no outbound internet access.
+  internal:
+    internal: true
