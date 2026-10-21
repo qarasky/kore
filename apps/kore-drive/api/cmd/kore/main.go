@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"flag"
 	"log"
 	"net"
@@ -9,11 +10,13 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/artchsh/kore/api/internal/auth"
 	"github.com/artchsh/kore/api/internal/config"
 	"github.com/artchsh/kore/api/internal/httpapi"
 	"github.com/artchsh/kore/api/internal/store"
+	"github.com/artchsh/kore/api/internal/uploads"
 	"github.com/artchsh/kore/api/internal/volume"
 )
 
@@ -51,9 +54,28 @@ func main() {
 	if err := auth.Bootstrap(context.Background(), db, cfg); err != nil {
 		log.Fatalf("bootstrap: %v", err)
 	}
-	handler := httpapi.New(db)
+	handler := httpapi.New(db, cfg.DataDir)
+	go sweepUploads(db, cfg.DataDir)
 
 	addr := net.JoinHostPort(cfg.Bind, strconv.Itoa(cfg.Port))
 	log.Printf("kore listening on %s", addr)
 	log.Fatal(http.ListenAndServe(addr, handler))
+}
+
+// sweepUploads deletes upload sessions idle for 24h (freeing their quota
+// reservations), once at startup and then hourly.
+func sweepUploads(db *sql.DB, dataDir string) {
+	const idle = 24 * time.Hour
+	run := func() {
+		n, err := uploads.Sweep(context.Background(), db, dataDir, idle)
+		if err != nil {
+			log.Printf("upload sweep: %v", err)
+		} else if n > 0 {
+			log.Printf("upload sweep: removed %d abandoned uploads", n)
+		}
+	}
+	run()
+	for range time.Tick(time.Hour) {
+		run()
+	}
 }

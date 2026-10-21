@@ -13,18 +13,24 @@ import (
 	"github.com/artchsh/kore/api/internal/auth"
 	"github.com/artchsh/kore/api/internal/store"
 	"github.com/artchsh/kore/api/internal/users"
+	"github.com/artchsh/kore/api/internal/volume"
 )
 
 type env struct {
-	h     http.Handler
-	db    *sql.DB
-	admin users.User
-	user  users.User
+	h       http.Handler
+	db      *sql.DB
+	dataDir string
+	admin   users.User
+	user    users.User
 }
 
 func newEnv(t *testing.T) *env {
 	t.Helper()
-	db, err := store.Open(filepath.Join(t.TempDir(), "k.db"))
+	dir := t.TempDir()
+	if err := volume.Init(dir); err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.Open(filepath.Join(dir, "k.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +44,7 @@ func newEnv(t *testing.T) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &env{h: New(db), db: db, admin: a, user: u}
+	return &env{h: New(db, dir), db: db, dataDir: dir, admin: a, user: u}
 }
 
 func (e *env) do(t *testing.T, as *users.User, method, path, body string) *httptest.ResponseRecorder {

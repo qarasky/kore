@@ -10,18 +10,21 @@ import (
 	"time"
 
 	"github.com/artchsh/kore/api/internal/auth"
+	"github.com/artchsh/kore/api/internal/uploads"
 )
 
 const sessionTTL = 30 * 24 * time.Hour
 
 type server struct {
 	db      *sql.DB
+	dataDir string
 	limiter *auth.Limiter
+	uploads *uploads.Uploads
 }
 
-// New returns the API handler.
-func New(db *sql.DB) http.Handler {
-	s := &server{db: db, limiter: auth.NewLimiter(5, 15*time.Minute)}
+// New returns the API handler. dataDir is the (already checked) volume.
+func New(db *sql.DB, dataDir string) http.Handler {
+	s := &server{db: db, dataDir: dataDir, limiter: auth.NewLimiter(5, 15*time.Minute), uploads: uploads.New(db, dataDir)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]string{"status": "ok"})
@@ -31,9 +34,10 @@ func New(db *sql.DB) http.Handler {
 	mux.Handle("GET /api/auth/me", auth.RequireUser(http.HandlerFunc(s.me)))
 	s.registerAdmin(mux)
 	s.registerNodes(mux)
+	s.registerUploads(mux)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		var allow []string
-		for _, m := range []string{"GET", "POST", "PATCH", "PUT", "DELETE"} {
+		for _, m := range []string{"GET", "HEAD", "POST", "PATCH", "PUT", "DELETE"} {
 			r2 := r.Clone(r.Context())
 			r2.Method = m
 			if _, pat := mux.Handler(r2); pat != "" && pat != "/api/" {
