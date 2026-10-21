@@ -4,6 +4,9 @@
 {
 	admin off
 	auto_https off
+	# On stop, let in-flight uploads/downloads finish (docker-compose.yml
+	# allows 40 s before SIGKILL).
+	grace_period 30s
 	servers {
 		# cloudflared (and the Docker host) reach Caddy from private
 		# addresses; trust their X-Forwarded-* so an upstream
