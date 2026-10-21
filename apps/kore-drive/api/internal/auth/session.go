@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/artchsh/kore/api/internal/config"
+	"github.com/artchsh/kore/api/internal/settings"
 	"github.com/artchsh/kore/api/internal/users"
 )
 
@@ -111,6 +112,6 @@ func Bootstrap(ctx context.Context, db *sql.DB, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	_, err = users.Create(ctx, db, cfg.AdminEmail, h, "admin", 0)
+	_, err = users.Create(ctx, db, cfg.AdminEmail, h, "admin", settings.DefaultQuotaBytes(ctx, db))
 	return err
 }
