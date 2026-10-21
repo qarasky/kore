@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/artchsh/kore/api/internal/config"
+	"github.com/artchsh/kore/api/internal/settings"
 	"github.com/artchsh/kore/api/internal/store"
 	"github.com/artchsh/kore/api/internal/users"
 )
@@ -130,6 +131,21 @@ func TestBootstrapOnlyWhenEmpty(t *testing.T) {
 	n, _ := users.Count(ctx, db)
 	if n != 1 {
 		t.Fatalf("users=%d", n)
+	}
+}
+
+func TestBootstrapAdminGetsDefaultQuota(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	if err := Bootstrap(ctx, db, config.Config{AdminEmail: "root@x.y", AdminPassword: "s3cret-pass"}); err != nil {
+		t.Fatal(err)
+	}
+	u, err := Authenticate(ctx, db, "root@x.y", "s3cret-pass")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.QuotaBytes != settings.DefaultQuotaBytes(ctx, db) || u.QuotaBytes != 50<<30 {
+		t.Fatalf("quota=%d", u.QuotaBytes)
 	}
 }
 
