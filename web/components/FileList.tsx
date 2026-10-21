@@ -7,7 +7,8 @@ import { usePreview } from "@/hooks/usePreview";
 import { useSelection } from "@/hooks/useSelection";
 import { collectDataTransfer } from "@/lib/dropEntries";
 import { t, type MessageKey } from "@/lib/i18n";
-import { activeMove, beginMove, endMove, isFileDrag, isNoopMove } from "@/lib/moveDrag";
+import { activeMove, beginMove, endMove, isFileDrag, isNoopMove, type MovePayload } from "@/lib/moveDrag";
+import { otherSpace, spaceLabel } from "@/lib/moveTo";
 import { folderHref, type ApiNode, type Space } from "@/lib/nodes";
 import { isPreviewable } from "@/lib/preview";
 import { useRegisterBrowser } from "./BrowserContext";
@@ -15,8 +16,19 @@ import { ContextMenu } from "./ContextMenu";
 import { DropZone } from "./DropZone";
 import { EmptyState } from "./EmptyState";
 import { FileRow, ROW_GRID, type RowHandlers } from "./FileRow";
-import { DownloadIcon, FolderPlusIcon, NodeIcon, OpenIcon, PencilIcon, TrashIcon } from "./icons";
+import {
+  DownloadIcon,
+  DriveIcon,
+  FolderMoveIcon,
+  FolderPlusIcon,
+  NodeIcon,
+  OpenIcon,
+  PencilIcon,
+  TrashIcon,
+  UsersIcon,
+} from "./icons";
 import type { CloseReason, MenuAction } from "./Menu";
+import { MoveDialog } from "./MoveDialog";
 import { NameEditor, type EditEnd } from "./NameEditor";
 import { useToast } from "./Toast";
 import { useUploads } from "./UploadContext";
@@ -30,8 +42,10 @@ const isOnRow = (e: { target: EventTarget }) => (e.target as Element).closest('[
  * The folder listing: a `role="listbox"` of dense rows with file-manager
  * selection (click, shift/ctrl-click, arrows, Ctrl/Cmd+A), inline rename
  * (F2), trash (Delete), open (Enter / double-click: folders navigate, text
- * files preview, other files download), quick look (Space) and a context
- * menu. `select` (from `?select=<id>`) starts with that row selected and
+ * files preview, other files download), quick look (Space), move (to the
+ * other space's root, or anywhere via the Move to… dialog: M, the context
+ * menu or the toolbar button shown while something is selected) and a
+ * context menu. `select` (from `?select=<id>`) starts with that row selected and
  * scrolled into view.
  */
 export function FileList({
@@ -55,6 +69,7 @@ export function FileList({
   const actions = useFileActions({ space, parentId, byId });
   const [editing, setEditing] = useState<Editing>(null);
   const [menu, setMenu] = useState<MenuState>(null);
+  const [moving, setMoving] = useState<MovePayload | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const rowEls = useRef(new Map<string, HTMLDivElement>());
   /** A row to focus once it shows up (after create/rename refreshes). */
@@ -118,6 +133,26 @@ export function FileList({
     // Trashed rows leave the selection at once, so a second Delete before the
     // refresh lands has nothing to (re-)trash.
     void actions.trash(sel.selectedIds, () => sel.clear());
+  }
+
+  /** The selection as a move payload (null when nothing is selected). */
+  function selectionPayload(): MovePayload | null {
+    const ids = sel.selectedIds;
+    if (ids.length === 0) return null;
+    return { ids, names: Object.fromEntries(ids.map((d) => [d, byId.get(d)?.name ?? ""])), space, parentId };
+  }
+
+  /** Moves the selection to the root of the other space. */
+  function moveToOtherSpace() {
+    const p = selectionPayload();
+    if (!p) return;
+    const to = otherSpace(space);
+    void moveNodes(p, { space: to, parentId: null }, { destLabel: spaceLabel(to) });
+  }
+
+  function openMoveDialog() {
+    const p = selectionPayload();
+    if (p) setMoving(p);
   }
 
   function startRename(id: string) {
@@ -249,6 +284,12 @@ export function FileList({
       case "Escape":
         sel.clear();
         return;
+      case "m":
+      case "M":
+        if (mod || e.altKey) return;
+        e.preventDefault();
+        openMoveDialog();
+        return;
       case " ": {
         // Space: select the cursor row and quick-look it; Ctrl/Cmd+Space toggles it.
         e.preventDefault();
@@ -287,6 +328,14 @@ export function FileList({
           { id: "open", label: t("action.open"), icon: <OpenIcon />, disabled: count !== 1, onSelect: () => target1 && open(target1) },
           { id: "rename", label: t("action.rename"), icon: <PencilIcon />, disabled: count !== 1, onSelect: () => target1 && startRename(target1) },
           { id: "download", label: t("action.download"), icon: <DownloadIcon />, onSelect: () => actions.download(sel.selectedIds) },
+          {
+            id: "move-space",
+            label: space === "personal" ? t("action.moveToShared") : t("action.moveToMine"),
+            icon: space === "personal" ? <UsersIcon /> : <DriveIcon />,
+            separated: true,
+            onSelect: moveToOtherSpace,
+          },
+          { id: "move-to", label: t("action.moveTo"), icon: <FolderMoveIcon />, onSelect: openMoveDialog },
           { id: "trash", label: t("action.trash"), icon: <TrashIcon />, danger: true, separated: true, onSelect: trashSelected },
         ]
       : [
@@ -300,15 +349,32 @@ export function FileList({
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-border px-4">
         {header}
-        <div aria-live="polite" className="flex shrink-0 items-center gap-2 text-[12px] text-muted">
-          {actions.working ? (
-            <>
-              <span aria-hidden="true" className="size-3 animate-spin rounded-full border-[1.5px] border-muted border-t-transparent" />
-              {t("list.working")}
-            </>
-          ) : count > 1 ? (
-            t("list.selectedCount", { count })
-          ) : null}
+        <div className="flex shrink-0 items-center gap-3">
+          <div aria-live="polite" className="flex items-center gap-2 text-[12px] text-muted">
+            {actions.working ? (
+              <>
+                <span aria-hidden="true" className="size-3 animate-spin rounded-full border-[1.5px] border-muted border-t-transparent" />
+                {t("list.working")}
+              </>
+            ) : count > 1 ? (
+              t("list.selectedCount", { count })
+            ) : null}
+          </div>
+          {count > 0 && (
+            <button
+              type="button"
+              onClick={openMoveDialog}
+              aria-keyshortcuts="M"
+              title={t("action.moveToShortcut")}
+              className={
+                "flex items-center gap-1.5 rounded-ui border border-border px-2 py-1 text-[12px] font-medium text-muted " +
+                "transition-colors hover:border-border-strong hover:text-text"
+              }
+            >
+              <FolderMoveIcon className="size-3.5" />
+              {t("action.moveTo")}
+            </button>
+          )}
         </div>
       </div>
 
@@ -368,6 +434,16 @@ export function FileList({
       </DropZone>
 
       {preview.element}
+      {moving && (
+        <MoveDialog
+          payload={moving}
+          onClose={() => setMoving(null)}
+          onMove={(dest, destLabel) => {
+            setMoving(null);
+            void moveNodes(moving, dest, { destLabel });
+          }}
+        />
+      )}
       {menu && (
         <ContextMenu x={menu.x} y={menu.y} label={t("list.contextMenu")} items={menuItems} onClose={closeMenu} />
       )}
