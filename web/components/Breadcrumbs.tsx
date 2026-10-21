@@ -1,12 +1,22 @@
+"use client";
+
 import Link from "next/link";
+import { useDropTarget } from "@/hooks/useDropTarget";
+import { useMoveNodes } from "@/hooks/useMoveNodes";
 import { t } from "@/lib/i18n";
+import { activeMove, endMove, isNoopMove } from "@/lib/moveDrag";
 import { folderHref, type ApiNode, type Space } from "@/lib/nodes";
 import { ChevronRightIcon } from "./icons";
 
-/** Section root, then each folder from `GET /api/nodes/{id}/path`; the last is the current page. */
+type Crumb = { id: string | null; name: string };
+
+/**
+ * Section root, then each folder from `GET /api/nodes/{id}/path`; the last is
+ * the current page. Ancestor crumbs accept dragged rows (moving them there).
+ */
 export function Breadcrumbs({ space, path }: { space: Space; path: ApiNode[] }) {
-  const crumbs = [
-    { id: null as string | null, name: space === "shared" ? t("nav.shared") : t("nav.myFiles") },
+  const crumbs: Crumb[] = [
+    { id: null, name: space === "shared" ? t("nav.shared") : t("nav.myFiles") },
     ...path.map((n) => ({ id: n.id as string | null, name: n.name })),
   ];
   return (
@@ -27,18 +37,42 @@ export function Breadcrumbs({ space, path }: { space: Space; path: ApiNode[] }) 
                   {c.name}
                 </span>
               ) : (
-                <Link
-                  href={folderHref(space, c.id)}
-                  title={c.name}
-                  className="max-w-[200px] truncate rounded-ui px-1.5 py-0.5 text-muted transition-colors hover:bg-white/5 hover:text-text"
-                >
-                  {c.name}
-                </Link>
+                <CrumbLink space={space} crumb={c} />
               )}
             </li>
           );
         })}
       </ol>
     </nav>
+  );
+}
+
+function CrumbLink({ space, crumb }: { space: Space; crumb: Crumb }) {
+  const move = useMoveNodes();
+  const dest = { space, parentId: crumb.id };
+  const drop = useDropTarget<HTMLAnchorElement>({
+    accepts: (e) => {
+      const p = activeMove(e);
+      return p !== null && !isNoopMove(p, dest);
+    },
+    onDrop: (e) => {
+      const p = activeMove(e);
+      endMove();
+      if (p) void move(p, dest);
+    },
+  });
+  return (
+    <Link
+      href={folderHref(space, crumb.id)}
+      title={crumb.name}
+      {...drop.props}
+      data-drop-target={drop.active || undefined}
+      className={
+        "max-w-[200px] truncate rounded-ui px-1.5 py-0.5 transition-colors " +
+        (drop.active ? "bg-accent/25 text-text ring-2 ring-accent" : "text-muted hover:bg-white/5 hover:text-text")
+      }
+    >
+      {crumb.name}
+    </Link>
   );
 }

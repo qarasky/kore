@@ -5,8 +5,8 @@ import type { Space } from "@/lib/nodes";
 
 /**
  * What the currently mounted file list offers to the app shell (the + New
- * menu, and in task 14 the upload entries): where new things go and how to
- * start creating them. `null` when no folder view is on screen.
+ * menu and its upload entries): where new things go and how to start
+ * creating them. `null` when no folder view is on screen.
  */
 export type BrowserHandle = {
   space: Space;

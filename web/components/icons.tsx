@@ -81,6 +81,20 @@ export const FolderPlusIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const FileUploadIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M9 2H4.5C3.7 2 3 2.7 3 3.5v9c0 .8.7 1.5 1.5 1.5h7c.8 0 1.5-.7 1.5-1.5V6L9 2Z" />
+    <path d="M8 12V8M6.2 9.8 8 8l1.8 1.8" />
+  </Svg>
+);
+
+export const FolderUploadIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M2 4.5c0-.8.7-1.5 1.5-1.5h3l1.5 1.5h4.5c.8 0 1.5.7 1.5 1.5v5.5c0 .8-.7 1.5-1.5 1.5h-9c-.8 0-1.5-.7-1.5-1.5v-7Z" />
+    <path d="M8 11V7.5M6.3 9.2 8 7.5l1.7 1.7" />
+  </Svg>
+);
+
 export const OpenIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M9 3h4v4M13 3 7.5 8.5M11 9.5V13H3V5h3.5" />

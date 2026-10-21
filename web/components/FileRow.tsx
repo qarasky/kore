@@ -1,6 +1,7 @@
 "use client";
 
-import { type MouseEvent, type ReactNode, type Ref } from "react";
+import { type DragEvent, type MouseEvent, type ReactNode, type Ref } from "react";
+import { useDropTarget } from "@/hooks/useDropTarget";
 import { formatBytes } from "@/lib/format";
 import { fileKind, type ApiNode } from "@/lib/nodes";
 import { NodeIcon } from "./icons";
@@ -13,6 +14,11 @@ export type RowHandlers = {
   onClick: (id: string, e: MouseEvent) => void;
   onDoubleClick: (id: string) => void;
   onContextMenu: (id: string, e: MouseEvent) => void;
+  onDragStart: (id: string, e: DragEvent) => void;
+  onDragEnd: () => void;
+  /** Whether a drag hovering folder row `node` can be dropped there. */
+  acceptsDrop: (node: ApiNode, e: DragEvent) => boolean;
+  onDrop: (node: ApiNode, e: DragEvent) => void;
 };
 
 /** One dense `role="option"` row: icon, name (or the inline editor), modified, size. */
@@ -34,9 +40,20 @@ export function FileRow({
 }) {
   const kind = fileKind(node);
   const nameId = `row-name-${node.id}`;
+  const drop = useDropTarget<HTMLDivElement>({
+    accepts: (e) => node.is_dir && handlers.acceptsDrop(node, e),
+    onDrop: (e) => handlers.onDrop(node, e),
+    effect: (e) => ([...e.dataTransfer.types].includes("Files") ? "copy" : "move"),
+  });
   return (
     <div
       ref={rowRef}
+      {...drop.props}
+      draggable={!editor}
+      onDragStart={(e) => handlers.onDragStart(node.id, e)}
+      onDragEnd={handlers.onDragEnd}
+      data-name={node.name}
+      data-drop-target={drop.active || undefined}
       role="option"
       aria-selected={selected}
       aria-labelledby={nameId}
@@ -49,7 +66,11 @@ export function FileRow({
       className={
         `${ROW_GRID} h-8 cursor-default border-b border-border/60 select-none outline-none ` +
         "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset " +
-        (selected ? "bg-accent/15 text-text" : "hover:bg-white/[0.03]")
+        (drop.active
+          ? "bg-accent/25 text-text ring-2 ring-accent ring-inset"
+          : selected
+            ? "bg-accent/15 text-text"
+            : "hover:bg-white/[0.03]")
       }
     >
       <div className="flex min-w-0 items-center gap-2.5">
