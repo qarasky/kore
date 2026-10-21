@@ -62,6 +62,7 @@ const ERRORS: Record<string, MessageKey> = {
   not_found: "admin.error.userNotFound",
   wrong_password: "account.error.wrongPassword",
   too_many_attempts: "account.error.rateLimited",
+  busy: "admin.error.busy",
   invalid_trash_retention_days: "settings.error.retention",
   invalid_max_file_bytes: "settings.error.maxFileSize",
   invalid_default_quota_bytes: "settings.error.defaultQuota",

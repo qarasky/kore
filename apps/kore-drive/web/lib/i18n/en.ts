@@ -20,6 +20,7 @@ const en = {
   "login.error.invalid": "Wrong email or password.",
   "login.error.rateLimited": "Too many attempts. Try again in a few minutes.",
   "login.error.generic": "Could not sign in. Please try again.",
+  "login.error.busy": "The server is busy. Try again in a few seconds.",
   "login.error.unreachable": "The file server is not responding. Try again in a moment.",
   "login.expired": "Your session has ended. Please sign in again.",
 
@@ -307,6 +308,7 @@ const en = {
   "admin.error.userNotFound": "This user no longer exists. Reload the page.",
   "admin.error.forbidden": "You are no longer an admin.",
   "admin.error.signedOut": "Your session has ended. Sign in again.",
+  "admin.error.busy": "The server is busy. Try again in a few seconds.",
   "admin.error.unreachable": "The file server is not responding. Try again in a moment.",
   "admin.error.generic": "Something went wrong. Try again.",
 

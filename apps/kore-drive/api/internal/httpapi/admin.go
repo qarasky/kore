@@ -123,7 +123,7 @@ func (s *server) createUser(w http.ResponseWriter, r *http.Request) {
 	}
 	hash, err := auth.HashPassword(in.Password)
 	if err != nil {
-		errJSON(w, 500, "internal")
+		hashErr(w, err)
 		return
 	}
 	u, err := users.Create(r.Context(), s.db, in.Email, hash, in.Role, quota)
@@ -271,7 +271,7 @@ func (s *server) resetPassword(w http.ResponseWriter, r *http.Request) {
 	}
 	ok, err := s.setPassword(r.Context(), r.PathValue("id"), in.NewPassword)
 	if err != nil {
-		errJSON(w, 500, "internal")
+		hashErr(w, err)
 		return
 	}
 	if !ok {
@@ -308,7 +308,12 @@ func (s *server) changeOwnPassword(w http.ResponseWriter, r *http.Request) {
 		errJSON(w, 500, "internal")
 		return
 	}
-	if !auth.VerifyPassword(hash, in.Current) {
+	match, err := auth.VerifyPassword(hash, in.Current)
+	if err != nil {
+		hashErr(w, err)
+		return
+	}
+	if !match {
 		errJSON(w, 403, "wrong_password")
 		return
 	}
@@ -323,7 +328,7 @@ func (s *server) changeOwnPassword(w http.ResponseWriter, r *http.Request) {
 	}
 	ok, err = s.setPassword(r.Context(), me.ID, in.New)
 	if err != nil {
-		errJSON(w, 500, "internal")
+		hashErr(w, err)
 		return
 	}
 	if !ok {

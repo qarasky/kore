@@ -14,6 +14,7 @@ import (
 	"github.com/artchsh/kore/api/internal/config"
 	"github.com/artchsh/kore/api/internal/settings"
 	"github.com/artchsh/kore/api/internal/users"
+	"golang.org/x/crypto/argon2"
 )
 
 // ErrInvalidCredentials is returned for both unknown email and wrong password.
@@ -29,29 +30,35 @@ var (
 	dummyHash string
 )
 
-// dummy returns a hash verified against when the email is unknown, to equalize timing.
+// dummy returns a hash verified against when the email is unknown, to
+// equalize timing. It is computed once, outside the slot pool, so a busy
+// pool can never make it fail.
 func dummy() string {
 	dummyOnce.Do(func() {
-		h, err := HashPassword("kore-dummy-password")
-		if err != nil {
-			panic("auth: cannot compute dummy hash: " + err.Error())
-		}
-		dummyHash = h
+		salt := []byte("kore-dummy-salt!")
+		dummyHash = encodeHash(salt, argon2.IDKey([]byte("kore-dummy-password"), salt, argonTime, argonMemory, argonThreads, argonKeyLen))
 	})
 	return dummyHash
 }
 
-// Authenticate verifies credentials. Failure is always ErrInvalidCredentials.
+// Authenticate verifies credentials. Failure is ErrInvalidCredentials, or
+// ErrBusy when the password-hash pool is saturated.
 func Authenticate(ctx context.Context, db *sql.DB, email, pw string) (users.User, error) {
 	u, hash, err := users.GetByEmail(ctx, db, email)
 	if err != nil {
 		if errors.Is(err, users.ErrNotFound) {
-			VerifyPassword(dummy(), pw)
+			if _, err := VerifyPassword(dummy(), pw); err != nil {
+				return users.User{}, err
+			}
 			return users.User{}, ErrInvalidCredentials
 		}
 		return users.User{}, err
 	}
-	if !VerifyPassword(hash, pw) {
+	ok, err := VerifyPassword(hash, pw)
+	if err != nil {
+		return users.User{}, err
+	}
+	if !ok {
 		return users.User{}, ErrInvalidCredentials
 	}
 	return u, nil

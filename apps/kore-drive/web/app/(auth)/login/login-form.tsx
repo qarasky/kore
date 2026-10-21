@@ -7,6 +7,7 @@ import { t, type MessageKey } from "@/lib/i18n";
 function errorKey(e: unknown): MessageKey {
   if (isApiError(e, 401)) return "login.error.invalid";
   if (isApiError(e, 429)) return "login.error.rateLimited";
+  if (isApiError(e, 503) && e.code === "busy") return "login.error.busy";
   // 503 from api() itself; 502/504 from Caddy or the dev rewrite when the API is down.
   if (isApiError(e) && [502, 503, 504].includes(e.status)) return "login.error.unreachable";
   return "login.error.generic";
