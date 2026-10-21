@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -39,14 +38,6 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-func clientIP(r *http.Request) string {
-	h, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return h
-}
-
 func (s *server) login(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Email    string `json:"email"`
@@ -56,8 +47,8 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]string{"error": "bad request"})
 		return
 	}
-	key := strings.ToLower(strings.TrimSpace(in.Email)) + "|" + clientIP(r)
-	if !s.limiter.Allow(key) {
+	key := strings.ToLower(strings.TrimSpace(in.Email)) + "|" + ClientIP(r)
+	if !s.limiter.Attempt(key) {
 		w.Header().Set("Retry-After", "900")
 		writeJSON(w, 429, map[string]string{"error": "too many attempts, try again later"})
 		return
@@ -65,7 +56,6 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 	u, err := auth.Authenticate(r.Context(), s.db, in.Email, in.Password)
 	if err != nil {
 		if errors.Is(err, auth.ErrInvalidCredentials) {
-			s.limiter.Fail(key)
 			writeJSON(w, 401, map[string]string{"error": "invalid email or password"})
 			return
 		}
