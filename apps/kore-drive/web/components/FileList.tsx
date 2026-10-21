@@ -174,7 +174,7 @@ export function FileList({
     },
     onDrop: (node, e) => {
       if (isFileDrag(e)) {
-        void collectDataTransfer(e.dataTransfer).then((set) => uploads.upload(set, { space, parent: node.id }));
+        void uploads.upload(collectDataTransfer(e.dataTransfer), { space, parent: node.id });
         return;
       }
       const p = activeMove(e);

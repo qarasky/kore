@@ -198,6 +198,58 @@ async function head(id: string, signal?: AbortSignal): Promise<Session | null> {
   }
 }
 
+/** Escapes `s` for use inside a RegExp. */
+const reEscape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * The node a completed upload of `file` most likely became: a file in
+ * `target` named `file.name` or its unique-name variant (`stem (N).ext`, see
+ * nodes.UniqueName) with the same size, newest first. Used when the completion
+ * response was lost; undefined if it can't be found.
+ */
+async function findCompletedNode(file: File, target: UploadTarget): Promise<string | undefined> {
+  const name = file.name.normalize("NFC");
+  const dot = name.lastIndexOf(".");
+  const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+  const variant = new RegExp(`^${reEscape(stem)} \\(\\d+\\)${reEscape(ext)}$`);
+  const q = new URLSearchParams({ space: target.space });
+  if (target.parent) q.set("parent", target.parent);
+  try {
+    const res = await send(`/api/nodes?${q}`, { method: "GET", headers: { accept: "application/json" } });
+    const list = (await res.json()) as { id: string; name: string; is_dir: boolean; size: number; updated_at: number }[];
+    const hits = list
+      .filter((n) => !n.is_dir && n.size === file.size && (n.name.normalize("NFC") === name || variant.test(n.name.normalize("NFC"))))
+      .sort((x, y) => y.updated_at - x.updated_at);
+    return hits[0]?.id;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Not worth giving up the session for: transient, or signed out (sign in again, then resume). */
+function resumable(e: unknown): boolean {
+  return transient(e) || (e instanceof ApiError && e.status === 401);
+}
+
+/**
+ * Forgets a stored, unfinished upload of `file` to `target` (e.g. when its
+ * failed item is cleared from the tray): deletes the server session, which
+ * releases its quota reservation, and removes the resume key. Does nothing
+ * while an upload of the same file to the same target is running.
+ */
+export async function discardUpload(file: File, target: UploadTarget): Promise<void> {
+  const key = resumeKey(file, target);
+  if (activeKeys.has(key)) return;
+  const id = readStored(key);
+  removeStored(key);
+  if (!id) return;
+  try {
+    await fetch(uploadPath(id), { method: "DELETE", credentials: "same-origin" });
+  } catch {
+    // The server sweeps abandoned sessions.
+  }
+}
+
 /**
  * Uploads `file` into `target` and resolves with the new node's id (the
  * server picks the final, unique name). See the module comment for the
@@ -211,10 +263,21 @@ async function head(id: string, signal?: AbortSignal): Promise<Session | null> {
  * - The session id is kept in localStorage under {@link resumeKey}, so after a
  *   reload (or a retry) the same file to the same folder resumes from the
  *   server's offset. The key is removed on completion, cancel and fatal
- *   errors; when retries run out it is kept so a later attempt resumes.
+ *   errors; when retries run out, or the session expired (401), the key and
+ *   the server session are kept so a later attempt resumes.
  * - Aborting `signal` stops the transfer and deletes the server session.
+ * - A completion whose response was lost (network error, 5xx, 423) is
+ *   detected by the next attempt's 404 plus a HEAD 404 (a successful
+ *   Complete deletes the session; a failed one keeps it). The upload then
+ *   counts as done; `nodeId` is the node found in `target`, or undefined if
+ *   it can't be identified. The same check runs when a cancel races a
+ *   completion, so a finished file is never reported as canceled.
  */
-export async function uploadFile(file: File, target: UploadTarget, opts: UploadOptions): Promise<{ nodeId: string }> {
+export async function uploadFile(
+  file: File,
+  target: UploadTarget,
+  opts: UploadOptions,
+): Promise<{ nodeId?: string }> {
   const { signal, onProgress } = opts;
   const baseDelay = opts.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
   const wantChunk = Math.min(SERVER_MAX_CHUNK, Math.max(SERVER_MIN_CHUNK, Math.floor(opts.chunkBytes ?? DEFAULT_CHUNK_BYTES)));
@@ -228,6 +291,18 @@ export async function uploadFile(file: File, target: UploadTarget, opts: UploadO
 
   /** The server session in use, once known; deleted on cancel or a fatal error. */
   let sessionId: string | null = null;
+  /** A completion request was sent; it may have succeeded even if we saw no response. */
+  let completeSent = false;
+  /** A completion attempt failed without a definite answer (network, 5xx, 423). */
+  let completeAmbiguous = false;
+
+  /** The upload finished on the server: forget the session and resolve with its node. */
+  const finished = async (): Promise<{ nodeId?: string }> => {
+    if (persist) removeStored(key);
+    sessionId = null;
+    return { nodeId: await findCompletedNode(file, target) };
+  };
+
   try {
     /**
      * Runs `op`; a failure that `canRetry` accepts is retried up to
@@ -301,6 +376,7 @@ export async function uploadFile(file: File, target: UploadTarget, opts: UploadO
     for (;;) {
       while (s.offset < file.size) {
         await withRetry(async () => {
+          if (s.offset >= file.size) return; // a re-sync showed the server has it all
           const end = Math.min(file.size, s.offset + s.chunk);
           const res = await send(uploadPath(s.id), {
             method: "PATCH",
@@ -313,7 +389,15 @@ export async function uploadFile(file: File, target: UploadTarget, opts: UploadO
         onProgress(s.offset);
       }
       try {
-        const res = await withRetry(() => send(`${uploadPath(s.id)}/complete`, { method: "POST", signal, headers: { accept: "application/json" } }));
+        const res = await withRetry(async () => {
+          completeSent = true;
+          try {
+            return await send(`${uploadPath(s.id)}/complete`, { method: "POST", signal, headers: { accept: "application/json" } });
+          } catch (e) {
+            if (transient(e)) completeAmbiguous = true;
+            throw e;
+          }
+        });
         const node = (await res.json()) as { id: string };
         if (persist) removeStored(key);
         sessionId = null;
@@ -324,12 +408,23 @@ export async function uploadFile(file: File, target: UploadTarget, opts: UploadO
           await resync(e);
           if (s.offset < file.size) continue;
         }
+        // 404 after an attempt with no definite answer: if the session is gone
+        // too, that attempt completed the upload. (A missing destination
+        // folder also gives 404, but leaves the session in place.)
+        if (e instanceof ApiError && e.status === 404 && completeAmbiguous && (await head(s.id, signal)) === null) {
+          return await finished();
+        }
         throw e;
       }
     }
   } catch (e) {
     const aborted = signal?.aborted || (e instanceof DOMException && e.name === "AbortError");
-    const fatal = aborted || !transient(e);
+    if (aborted && completeSent && sessionId) {
+      // Canceled while completing: if the session is gone, the file is done.
+      const now = await head(sessionId).catch(() => undefined);
+      if (now === null) return await finished();
+    }
+    const fatal = aborted || !resumable(e);
     if (fatal && persist) removeStored(key);
     if (fatal && sessionId) {
       // Cancel or fatal error: drop the session so its quota reservation is released.

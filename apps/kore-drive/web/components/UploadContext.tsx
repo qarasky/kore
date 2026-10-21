@@ -12,8 +12,11 @@ import { UploadTray } from "./UploadTray";
 
 type Uploads = {
   queue: UploadQueue;
-  /** Recreates the folders of `set` under `root`, then queues its files. */
-  upload: (set: DropSet, root: UploadTarget) => Promise<void>;
+  /**
+   * Recreates the folders of `set` under `root`, then queues its files. A
+   * set that fails to load, or has unreadable entries, shows an error toast.
+   */
+  upload: (set: DropSet | Promise<DropSet>, root: UploadTarget) => Promise<void>;
 };
 
 const UploadContext = createContext<Uploads | null>(null);
@@ -58,10 +61,12 @@ export function UploadProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Uploads>(
     () => ({
       queue,
-      upload: async (set, root) => {
-        if (set.files.length === 0 && set.dirs.length === 0) return;
+      upload: async (pending, root) => {
         let plan;
         try {
+          const set = await pending;
+          if (set.unreadable) toast.show({ message: t("upload.error.generic"), tone: "error" });
+          if (set.files.length === 0 && set.dirs.length === 0) return;
           plan = await planUploads(set, root);
         } catch {
           toast.show({ message: t("upload.error.generic"), tone: "error" });

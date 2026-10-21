@@ -18,8 +18,11 @@ export function isJunk(name: string): boolean {
 
 /** A file and the folder path it sits in, relative to the drop target. */
 export type DroppedFile = { file: File; dirs: string[] };
-/** Files plus every directory seen (so empty folders are recreated too). */
-export type DropSet = { files: DroppedFile[]; dirs: string[][] };
+/**
+ * Files plus every directory seen (so empty folders are recreated too).
+ * `unreadable` counts dropped entries the browser failed to read (skipped).
+ */
+export type DropSet = { files: DroppedFile[]; dirs: string[][]; unreadable?: number };
 
 /** The subset of the File and Directory Entries API used here. */
 type Entry = {
@@ -30,11 +33,17 @@ type Entry = {
   createReader?: () => { readEntries: (ok: (es: Entry[]) => void, err: (e: unknown) => void) => void };
 };
 
+/** Walks `entry` into `out`; entries that fail to read are counted in `out.unreadable` and skipped. */
 async function walk(entry: Entry, prefix: string[], out: DropSet): Promise<void> {
+  const failed = () => (out.unreadable = (out.unreadable ?? 0) + 1);
   if (entry.isFile && entry.file) {
     if (isJunk(entry.name)) return;
-    const file = await new Promise<File>((ok, err) => entry.file!(ok, err));
-    out.files.push({ file, dirs: prefix });
+    try {
+      const file = await new Promise<File>((ok, err) => entry.file!(ok, err));
+      out.files.push({ file, dirs: prefix });
+    } catch {
+      failed();
+    }
     return;
   }
   if (entry.isDirectory && entry.createReader) {
@@ -43,7 +52,13 @@ async function walk(entry: Entry, prefix: string[], out: DropSet): Promise<void>
     const reader = entry.createReader();
     // readEntries returns at most ~100 entries per call; read until empty.
     for (;;) {
-      const batch = await new Promise<Entry[]>((ok, err) => reader.readEntries(ok, err));
+      let batch: Entry[];
+      try {
+        batch = await new Promise<Entry[]>((ok, err) => reader.readEntries(ok, err));
+      } catch {
+        failed(); // the rest of this directory can't be listed
+        return;
+      }
       if (batch.length === 0) break;
       for (const child of batch) await walk(child, path, out);
     }
