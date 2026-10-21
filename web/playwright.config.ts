@@ -6,6 +6,9 @@ import { E2E } from "./e2e/harness/env";
  * (e2e/harness/api-server.ts) and the production standalone Next server
  * (e2e/harness/web-server.ts). Servers are never reused, so every run starts
  * from a wiped data dir.
+ *
+ * With E2E_BASE_URL set (see e2e/harness/env.ts) no servers are started and
+ * the suite runs against that deployment, which should have a fresh data dir.
  */
 export default defineConfig({
   testDir: "./e2e",
@@ -21,7 +24,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: [
+  webServer: E2E.external ? undefined : [
     {
       name: "api",
       command: "node e2e/harness/api-server.ts",

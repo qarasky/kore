@@ -388,6 +388,7 @@ test("a failed download shows an error toast and keeps the page", async ({ page 
 });
 
 test("API outage on a folder URL shows the error page, not a 404", async ({ page, request }) => {
+  test.skip(E2E.external, "needs the harness's API-down web instance");
   await expect(async () => {
     expect((await request.get(`${E2E.webDownUrl}/login`)).status()).toBe(200);
   }).toPass();
