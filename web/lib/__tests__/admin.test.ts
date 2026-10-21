@@ -19,6 +19,7 @@ describe("adminErrorKey", () => {
     expect(adminErrorKey(new ApiError(409, "cannot_delete_self"))).toBe("admin.error.cannotDeleteSelf");
     expect(adminErrorKey(new ApiError(409, "email_in_use"))).toBe("admin.error.emailInUse");
     expect(adminErrorKey(new ApiError(403, "wrong_password"))).toBe("account.error.wrongPassword");
+    expect(adminErrorKey(new ApiError(429, "too_many_attempts"))).toBe("account.error.rateLimited");
     expect(adminErrorKey(new ApiError(400, "invalid_trash_retention_days"))).toBe("settings.error.retention");
   });
   it("falls back for outages and unknown errors", () => {

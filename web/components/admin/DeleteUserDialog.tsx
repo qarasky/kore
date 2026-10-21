@@ -52,7 +52,7 @@ export function DeleteUserDialog({
         const d = e.details ?? {};
         // Older servers only send file_count (the personal-space count).
         const personal = "personal_count" in d ? count(d.personal_count) : count(d.file_count);
-        setFiles({ personal_count: personal, shared_count: count(d.shared_count) });
+        setFiles({ personal_count: personal, shared_count: count(d.shared_count), other_count: count(d.other_count) });
       } else {
         setError(adminErrorKey(e));
       }
@@ -109,7 +109,8 @@ export function DeleteUserDialog({
     );
   }
 
-  const { personal_count: personal, shared_count: shared } = files;
+  const { personal_count: personal, shared_count: shared, other_count: other } = files;
+  const plural = (n: number, one: MessageKey, many: MessageKey) => (n === 1 ? t(one) : t(many, { count: n }));
   const ids = fieldIds(inputId, false, typed !== "" && !matches);
   return (
     <Modal
@@ -131,28 +132,17 @@ export function DeleteUserDialog({
           {t("admin.delete.hasFilesTitle", { email: user.email })}
         </h2>
         <div id={messageId} className="space-y-2 text-muted">
-          <p>
-            {personal > 0
-              ? personal === 1
-                ? t("admin.delete.hasFilesOne")
-                : t("admin.delete.hasFilesMany", { count: personal })
-              : shared === 1
-                ? t("admin.delete.hasSharedOne")
-                : t("admin.delete.hasSharedMany", { count: shared })}
-          </p>
+          <p>{t("admin.delete.refused")}</p>
+          <ul data-testid="has-files-counts" className="list-disc space-y-0.5 pl-5">
+            {personal > 0 && <li>{plural(personal, "admin.delete.personalOne", "admin.delete.personalMany")}</li>}
+            {shared > 0 && <li>{plural(shared, "admin.delete.sharedOne", "admin.delete.sharedMany")}</li>}
+            {other > 0 && <li>{plural(other, "admin.delete.otherOne", "admin.delete.otherMany")}</li>}
+          </ul>
           <p>{t("admin.delete.privacy")}</p>
           <p className="rounded-ui border border-danger/40 bg-danger/[0.06] px-3 py-2 text-text">
-            {personal === 0
-              ? t("admin.delete.transferOnly")
-              : personal === 1
-                ? t("admin.delete.purgeOne")
-                : t("admin.delete.purgeMany", { count: personal })}
-            {shared > 0 && (
-              <>
-                {" "}
-                {shared === 1 ? t("admin.delete.sharedOne") : t("admin.delete.sharedMany", { count: shared })}
-              </>
-            )}
+            {personal === 0 ? t("admin.delete.transferOnly") : plural(personal, "admin.delete.purgeOne", "admin.delete.purgeMany")}
+            {shared > 0 && <> {plural(shared, "admin.delete.toYouOne", "admin.delete.toYouMany")}</>}
+            {other > 0 && <> {plural(other, "admin.delete.toHoldersOne", "admin.delete.toHoldersMany")}</>}
           </p>
         </div>
         <div className="space-y-1.5 pt-1">

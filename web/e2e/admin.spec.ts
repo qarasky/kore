@@ -169,6 +169,15 @@ test("deleting a user with files explains why; the purge keeps their shared uplo
   await createFolder(api, "Private folder");
   const shared = "shared content, 1234567890";
   const sharedId = await uploadFile(api, `handed-over-${Date.now()}.txt`, shared, { space: "shared" });
+  // Another user moves one of their shared uploads into their own space.
+  const holder = await createUser();
+  const holderApi = await apiAs(holder.email, holder.password);
+  const movedContent = "moved by the holder";
+  const movedId = await uploadFile(api, `moved-${Date.now()}.txt`, movedContent, { space: "shared" });
+  expect(
+    (await holderApi.patch(`/api/nodes/${movedId}`, { data: { parent_id: null, space: "personal" } })).status(),
+  ).toBe(200);
+  expect(await usedBytes(holderApi)).toBe(0);
   const admin = await apiAs(ADMIN.email, ADMIN.password);
   const before = await usedBytes(admin);
 
@@ -182,9 +191,15 @@ test("deleting a user with files explains why; the purge keeps their shared uplo
 
     const explain = page.getByRole("alertdialog", { name: tt("admin.delete.hasFilesTitle", { email: user.email }) });
     await expect(explain).toBeVisible();
-    await expect(explain).toContainText(tt("admin.delete.hasFilesMany", { count: 2 }));
+    await expect(explain).toContainText(en["admin.delete.refused"]);
+    await expect(explain.getByTestId("has-files-counts").getByRole("listitem")).toHaveText([
+      tt("admin.delete.personalMany", { count: 2 }),
+      en["admin.delete.sharedOne"],
+      en["admin.delete.otherOne"],
+    ]);
     await expect(explain).toContainText(tt("admin.delete.purgeMany", { count: 2 }));
-    await expect(explain).toContainText(en["admin.delete.sharedOne"]);
+    await expect(explain).toContainText(en["admin.delete.toYouOne"]);
+    await expect(explain).toContainText(en["admin.delete.toHoldersOne"]);
     const purge = explain.getByRole("button", { name: en["admin.delete.purgeConfirm"] });
     await expect(purge).toBeDisabled();
     const typed = explain.getByLabel(tt("admin.delete.typeEmail", { email: user.email }));
@@ -203,6 +218,10 @@ test("deleting a user with files explains why; the purge keeps their shared uplo
     const list = await (await admin.get("/api/nodes?space=shared")).json();
     expect(list.map((n: { id: string }) => n.id)).toContain(sharedId);
     expect(await usedBytes(admin)).toBe(before + Buffer.byteLength(shared));
+    // The moved file stays with the user who holds it, on their quota.
+    expect(await usedBytes(holderApi)).toBe(Buffer.byteLength(movedContent));
+    const held = await (await holderApi.get("/api/nodes?space=personal")).json();
+    expect(held.map((n: { id: string }) => n.id)).toContain(movedId);
 
     // Other specs expect an empty shared space: the admin owns the file now and removes it.
     expect((await admin.delete(`/api/nodes/${sharedId}`)).status()).toBe(204);
@@ -210,6 +229,7 @@ test("deleting a user with files explains why; the purge keeps their shared uplo
     expect(await usedBytes(admin)).toBe(before);
   } finally {
     await api.dispose();
+    await holderApi.dispose();
     await admin.dispose();
   }
 });
@@ -426,11 +446,14 @@ test("changing your own password keeps this session; the old password stops work
 test("deleting the last admin or your own account shows why it is refused", async ({ page }) => {
   const admin = await apiAs(ADMIN.email, ADMIN.password);
   const me: UserRow = await (await admin.get("/api/auth/me")).json();
-  // Make the bootstrap admin the only admin (other specs create admins).
+  // The last-admin refusal needs the bootstrap admin to be the only admin.
+  // This spec creates no lasting admins and runs on a fresh data dir, so
+  // that holds; if it ever doesn't, fail loudly instead of deleting anyone.
   const all: UserRow[] = await (await admin.get("/api/admin/users")).json();
-  for (const u of all.filter((u) => u.role === "admin" && u.id !== me.id)) {
-    expect((await admin.delete(`/api/admin/users/${u.id}?files=purge`)).status()).toBe(204);
-  }
+  expect(
+    all.filter((u) => u.role === "admin" && u.id !== me.id).map((u) => u.email),
+    "other admins exist; run admin.spec.ts on a fresh stack",
+  ).toEqual([]);
   let second: { id: string } | null = null;
   try {
     await adminLogin(page);
