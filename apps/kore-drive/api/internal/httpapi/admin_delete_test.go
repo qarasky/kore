@@ -84,8 +84,8 @@ func TestDeleteUserPurgeFiles(t *testing.T) {
 	// Without ?files=purge: refused, with the counts.
 	rec = e.do(t, &e.admin, "DELETE", path, "")
 	m := jsonBody(t, rec)
-	if rec.Code != 409 || m["error"] != "user_has_files" || m["file_count"].(float64) != 3 ||
-		m["personal_count"].(float64) != 3 || m["shared_count"].(float64) != 1 {
+	if rec.Code != 409 || m["error"] != "user_has_files" || m["file_count"].(float64) != 4 ||
+		m["personal_count"].(float64) != 3 || m["shared_count"].(float64) != 1 || m["other_count"].(float64) != 0 {
 		t.Fatalf("no purge: %d %v", rec.Code, m)
 	}
 	if rec := e.do(t, &e.admin, "DELETE", path+"?files=keep", ""); rec.Code != 400 {
@@ -213,6 +213,98 @@ func TestAdminUsageMatchesQuota(t *testing.T) {
 		}
 		if u.ID == e.user.ID && u.UsedBytes != want {
 			t.Fatalf("list used %v, want %v", u.UsedBytes, want)
+		}
+	}
+}
+
+func TestDeleteUserUploaderInOtherPersonalSpace(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	e.db.Exec(`UPDATE users SET quota_bytes=? WHERE id=?`, 1<<20, e.user.ID)
+	ph, _ := auth.HashPassword("password-1")
+	y, err := users.Create(ctx, e.db, "y@x.io", ph, "user", 1<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// X (e.user) uploads two files to the shared space; Y moves one into
+	// Y's personal space (the node keeps uploader=X).
+	moved, movedPath := e.putFileIn(t, e.user, nodes.Space{}, "moved.txt", make([]byte, 19))
+	if rec := e.do(t, &y, "PATCH", "/api/nodes/"+moved.ID, `{"parent_id":null,"space":"personal"}`); rec.Code != 200 {
+		t.Fatalf("move: %d %s", rec.Code, rec.Body)
+	}
+	path := "/api/admin/users/" + e.user.ID
+	// Their only file is in Y's space: refused (it used to hit the FK and 500).
+	rec := e.do(t, &e.admin, "DELETE", path, "")
+	m := jsonBody(t, rec)
+	if rec.Code != 409 || m["file_count"].(float64) != 1 || m["other_count"].(float64) != 1 || m["shared_count"].(float64) != 0 {
+		t.Fatalf("other only: %d %v", rec.Code, m)
+	}
+	kept, keptPath := e.putFileIn(t, e.user, nodes.Space{}, "kept.txt", make([]byte, 23))
+	if got := e.usedBy(t, y); got != 0 {
+		t.Fatalf("y used before %v", got)
+	}
+	adminBefore := e.usedBy(t, e.admin)
+
+	rec = e.do(t, &e.admin, "DELETE", path, "")
+	m = jsonBody(t, rec)
+	if rec.Code != 409 || m["error"] != "user_has_files" || m["file_count"].(float64) != 2 ||
+		m["personal_count"].(float64) != 0 || m["shared_count"].(float64) != 1 || m["other_count"].(float64) != 1 {
+		t.Fatalf("no purge: %d %v", rec.Code, m)
+	}
+
+	if rec := e.do(t, &e.admin, "DELETE", path+"?files=purge", ""); rec.Code != 204 {
+		t.Fatalf("purge: %d %s", rec.Code, rec.Body)
+	}
+	var owner, uploader string
+	if err := e.db.QueryRow(`SELECT space_owner,uploader FROM nodes WHERE id=?`, moved.ID).Scan(&owner, &uploader); err != nil {
+		t.Fatal(err)
+	}
+	if owner != y.ID || uploader != y.ID {
+		t.Fatalf("moved node owner=%q uploader=%q", owner, uploader)
+	}
+	if err := e.db.QueryRow(`SELECT uploader FROM nodes WHERE id=?`, kept.ID).Scan(&uploader); err != nil || uploader != e.admin.ID {
+		t.Fatalf("shared node uploader=%q %v", uploader, err)
+	}
+	if !exists(movedPath) || !exists(keptPath) {
+		t.Fatal("blob removed")
+	}
+	if got := e.usedBy(t, y); got != 19 {
+		t.Fatalf("y used %v, want 19", got)
+	}
+	if got := e.usedBy(t, e.admin); got != adminBefore+23 {
+		t.Fatalf("admin used %v, want %v", got, adminBefore+23)
+	}
+	var n int
+	e.db.QueryRow(`SELECT count(*) FROM users WHERE id=?`, e.user.ID).Scan(&n)
+	if n != 0 {
+		t.Fatal("user still exists")
+	}
+}
+
+func TestChangeOwnPasswordRateLimited(t *testing.T) {
+	e := newEnv(t)
+	for i := 0; i < 5; i++ {
+		if rec := e.do(t, &e.user, "POST", "/api/me/password", `{"current_password":"wrong","new_password":"newpassword"}`); rec.Code != 403 {
+			t.Fatalf("attempt %d: %d", i+1, rec.Code)
+		}
+	}
+	rec := e.do(t, &e.user, "POST", "/api/me/password", `{"current_password":"password-1","new_password":"newpassword"}`)
+	if rec.Code != 429 || jsonBody(t, rec)["error"] != "too_many_attempts" || rec.Header().Get("Retry-After") == "" {
+		t.Fatalf("6th: %d %s %q", rec.Code, rec.Body, rec.Header().Get("Retry-After"))
+	}
+	if _, err := auth.Authenticate(context.Background(), e.db, "user@x.io", "password-1"); err != nil {
+		t.Fatal("password changed despite the limit")
+	}
+	// Per user: another account is unaffected, and success clears its count.
+	for i := 0; i < 4; i++ {
+		e.do(t, &e.admin, "POST", "/api/me/password", `{"current_password":"wrong","new_password":"newpassword"}`)
+	}
+	if rec := e.do(t, &e.admin, "POST", "/api/me/password", `{"current_password":"password-1","new_password":"newpassword"}`); rec.Code != 204 {
+		t.Fatalf("admin: %d %s", rec.Code, rec.Body)
+	}
+	for i := 0; i < 5; i++ {
+		if rec := e.do(t, &e.admin, "POST", "/api/me/password", `{"current_password":"wrong","new_password":"x"}`); rec.Code != 403 {
+			t.Fatalf("after reset, attempt %d: %d", i+1, rec.Code)
 		}
 	}
 }

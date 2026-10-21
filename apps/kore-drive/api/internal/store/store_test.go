@@ -26,6 +26,12 @@ func TestOpenAppliesMigrationsTwice(t *testing.T) {
 	if fk != 1 {
 		t.Fatalf("foreign_keys=%d", fk)
 	}
+	for _, idx := range []string{"nodes_uploader", "nodes_blob"} {
+		var x int
+		if err := db.QueryRow(`SELECT 1 FROM sqlite_master WHERE type='index' AND name=?`, idx).Scan(&x); err != nil {
+			t.Fatalf("index %s: %v", idx, err)
+		}
+	}
 }
 
 func TestUniqueNameInFolder(t *testing.T) {

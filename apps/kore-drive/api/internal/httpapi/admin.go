@@ -281,13 +281,26 @@ func (s *server) resetPassword(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// changeOwnPassword checks the current password (rate-limited like login,
+// per user and client IP, so a stolen session can't be used to guess it),
+// sets the new one, revokes every session and issues a fresh cookie.
 func (s *server) changeOwnPassword(w http.ResponseWriter, r *http.Request) {
-	me, _ := auth.FromContext(r.Context())
+	me, ok := auth.FromContext(r.Context())
+	if !ok {
+		errJSON(w, 401, "unauthorized")
+		return
+	}
 	var in struct {
 		Current string `json:"current_password"`
 		New     string `json:"new_password"`
 	}
 	if !decode(w, r, &in) {
+		return
+	}
+	key := "pw|" + me.ID + "|" + ClientIP(r)
+	if !s.limiter.Attempt(key) {
+		w.Header().Set("Retry-After", "900")
+		errJSON(w, 429, "too_many_attempts")
 		return
 	}
 	_, hash, err := users.GetByEmail(r.Context(), s.db, me.Email)
@@ -299,6 +312,7 @@ func (s *server) changeOwnPassword(w http.ResponseWriter, r *http.Request) {
 		errJSON(w, 403, "wrong_password")
 		return
 	}
+	s.limiter.Reset(key)
 	if len(in.New) < minPasswordLen {
 		errJSON(w, 400, "password_too_short")
 		return
@@ -307,7 +321,7 @@ func (s *server) changeOwnPassword(w http.ResponseWriter, r *http.Request) {
 		errJSON(w, 400, "password_too_long")
 		return
 	}
-	ok, err := s.setPassword(r.Context(), me.ID, in.New)
+	ok, err = s.setPassword(r.Context(), me.ID, in.New)
 	if err != nil {
 		errJSON(w, 500, "internal")
 		return
@@ -379,23 +393,21 @@ func (s *server) deleteUser(w http.ResponseWriter, r *http.Request) {
 		errJSON(w, 409, "cannot_delete_self")
 		return
 	}
-	var personal, shared int
+	// personal: in their own space; shared: uploaded by them, now in the
+	// shared space; other: uploaded by them, now in someone else's space.
+	var personal, shared, other int
 	if err := tx.QueryRowContext(ctx, `SELECT
 		(SELECT count(*) FROM nodes WHERE space_owner=?1),
-		(SELECT count(*) FROM nodes WHERE uploader=?1 AND space_owner IS NULL)`, id).Scan(&personal, &shared); err != nil {
+		(SELECT count(*) FROM nodes WHERE uploader=?1 AND space_owner IS NULL),
+		(SELECT count(*) FROM nodes WHERE uploader=?1 AND space_owner IS NOT NULL AND space_owner<>?1)`, id).
+		Scan(&personal, &shared, &other); err != nil {
 		errJSON(w, 500, "internal")
 		return
 	}
-	if !purge && personal+shared > 0 {
-		// file_count keeps its original meaning: the personal-space count,
-		// or (if that is empty) the number of shared-space uploads.
-		count := personal
-		if count == 0 {
-			count = shared
-		}
+	if !purge && personal+shared+other > 0 {
 		writeJSON(w, 409, map[string]any{
-			"error": "user_has_files", "file_count": count,
-			"personal_count": personal, "shared_count": shared,
+			"error": "user_has_files", "file_count": personal + shared + other,
+			"personal_count": personal, "shared_count": shared, "other_count": other,
 		})
 		return
 	}
@@ -410,9 +422,15 @@ func (s *server) deleteUser(w http.ResponseWriter, r *http.Request) {
 			errJSON(w, 500, "internal")
 			return
 		}
-		// Only shared-space nodes can remain with this uploader (a personal
-		// space is writable by its owner alone, and it was just emptied).
-		if _, err := tx.ExecContext(ctx, `UPDATE nodes SET uploader=? WHERE uploader=?`, me.ID, id); err != nil {
+		// Their own space is gone; what remains with this uploader sits in
+		// someone else's personal space (charge its owner) or in the shared
+		// space (charge the acting admin).
+		if _, err := tx.ExecContext(ctx, `UPDATE nodes SET uploader=space_owner
+			WHERE uploader=? AND space_owner IS NOT NULL`, id); err != nil {
+			errJSON(w, 500, "internal")
+			return
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE nodes SET uploader=? WHERE uploader=? AND space_owner IS NULL`, me.ID, id); err != nil {
 			errJSON(w, 500, "internal")
 			return
 		}
