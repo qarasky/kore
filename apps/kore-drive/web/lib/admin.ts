@@ -45,6 +45,9 @@ export type UserHasFiles = {
   personal_count: number;
   /** Items they uploaded to the shared space (kept, handed to the admin). */
   shared_count: number;
+  /** Items they uploaded that now sit in other users' personal spaces
+   *  (kept, charged to those users). */
+  other_count: number;
 };
 
 const ERRORS: Record<string, MessageKey> = {
@@ -58,6 +61,7 @@ const ERRORS: Record<string, MessageKey> = {
   cannot_delete_self: "admin.error.cannotDeleteSelf",
   not_found: "admin.error.userNotFound",
   wrong_password: "account.error.wrongPassword",
+  too_many_attempts: "account.error.rateLimited",
   invalid_trash_retention_days: "settings.error.retention",
   invalid_max_file_bytes: "settings.error.maxFileSize",
   invalid_default_quota_bytes: "settings.error.defaultQuota",
