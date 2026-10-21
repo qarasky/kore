@@ -20,7 +20,14 @@ const en = {
   "login.error.invalid": "Wrong email or password.",
   "login.error.rateLimited": "Too many attempts. Try again in a few minutes.",
   "login.error.generic": "Could not sign in. Please try again.",
+  "login.error.unreachable": "The file server is not responding. Try again in a moment.",
   "login.expired": "Your session has ended. Please sign in again.",
+
+  "error.title": "Something went wrong",
+  "error.description": "This page could not be loaded. Try again; if it keeps happening, tell your administrator.",
+  "error.unreachableTitle": "Can't reach the file server",
+  "error.unreachable": "The file server is not responding. It may be restarting; try again in a moment.",
+  "error.retry": "Try again",
 
   "files.title": "My files",
   "files.signedInAs": "Signed in as {email}",

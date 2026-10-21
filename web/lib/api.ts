@@ -13,16 +13,28 @@
 
 export const SESSION_COOKIE = "kore_session";
 export const DEFAULT_API_URL = "http://127.0.0.1:8080";
+/** Server-side calls give up after this long and report the API unreachable. */
+export const API_TIMEOUT_MS = 10_000;
+/**
+ * Digest stamped on "API unreachable" errors. Next keeps an existing `digest`
+ * when a Server Component throws, and it is the only error detail that
+ * reaches error boundaries in production, so `app/error.tsx` keys off it.
+ */
+export const API_UNREACHABLE_DIGEST = "kore:api-unreachable";
 
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
+  readonly digest?: string;
 
   constructor(status: number, code: string) {
     super(`API ${status}: ${code}`);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
+    if (status === 503 && code === "unreachable") {
+      this.digest = API_UNREACHABLE_DIGEST;
+    }
   }
 }
 
@@ -78,21 +90,41 @@ export async function api<T = unknown>(path: string, init: RequestInit = {}): Pr
       headers.set("cookie", `${SESSION_COOKIE}=${tok}`);
     }
     req.cache = "no-store";
+    const timeout = AbortSignal.timeout(API_TIMEOUT_MS);
+    req.signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
   } else {
     url = path;
     req.credentials = "same-origin";
   }
 
-  const res = await fetch(url, req);
+  let res: Response;
+  try {
+    res = await fetch(url, req);
+  } catch (e) {
+    // A caller-initiated abort is not an outage; let it propagate as-is.
+    if (init.signal?.aborted) throw e;
+    // Connection refused/reset, DNS failure, or our timeout.
+    throw new ApiError(503, "unreachable");
+  }
   if (!res.ok) {
     throw new ApiError(res.status, await errorCode(res));
   }
-  if (res.status === 204 || res.headers.get("content-length") === "0") {
+
+  let text: string;
+  try {
+    text = res.status === 204 ? "" : await res.text();
+  } catch {
+    throw new ApiError(503, "unreachable");
+  }
+  if (text === "") {
     return undefined as T;
   }
-  const type = res.headers.get("content-type") ?? "";
-  if (!type.includes("application/json")) {
-    return (await res.text()) as T;
+  if (!(res.headers.get("content-type") ?? "").includes("application/json")) {
+    throw new ApiError(502, "bad_response");
   }
-  return (await res.json()) as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new ApiError(502, "bad_response");
+  }
 }

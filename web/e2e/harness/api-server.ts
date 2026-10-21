@@ -44,4 +44,4 @@ writeFileSync(
 execFileSync(bin, ["init", "-config", config], { stdio: "inherit" });
 
 console.log(`[e2e api] starting on ${E2E.apiUrl} (data: ${dataDir})`);
-serve(bin, ["-config", config], process.env, wipe);
+serve([{ cmd: bin, args: ["-config", config], env: process.env }], wipe);
