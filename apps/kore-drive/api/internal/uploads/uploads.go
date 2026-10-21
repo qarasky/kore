@@ -464,6 +464,51 @@ func removeFiles(dataDir, id string) {
 	}
 }
 
+// DeleteUserSessionsTx deletes every upload session of userID inside tx
+// (releasing their reservations) and returns their ids; pass them to
+// RemoveSessionFiles after the transaction commits.
+func DeleteUserSessionsTx(ctx context.Context, tx *sql.Tx, userID string) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT id FROM uploads WHERE user_id=?`, userID)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM uploads WHERE user_id=?`, userID); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+// RemoveSessionFiles deletes the staged bytes of upload sessions whose rows
+// are already gone. Sessions with an operation in progress are skipped; that
+// operation fails on the missing row, and Sweep / SweepOrphanBlobs reclaim
+// what it leaves behind.
+func RemoveSessionFiles(dataDir string, ids []string) {
+	for _, id := range ids {
+		if !validID(id) {
+			continue
+		}
+		unlock, ok := tryLock(id)
+		if !ok {
+			continue
+		}
+		removeFiles(dataDir, id)
+		unlock()
+	}
+}
+
 // Sweep deletes upload sessions with no activity for olderThan (freeing
 // their reservations) and their staged bytes, plus staging dirs that have
 // no session and have not been modified for olderThan. It returns the number
