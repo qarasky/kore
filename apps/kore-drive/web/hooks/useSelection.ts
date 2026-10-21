@@ -17,9 +17,12 @@ import {
  * React state around the pure model in `lib/selection`. `ids` is the current
  * row order; ids that disappear (after a refresh) are dropped at render time,
  * so the selection can never point at rows that are not on screen.
+ * `initial` starts with that one row selected (e.g. `?select=<id>`).
  */
-export function useSelection(ids: readonly string[]) {
-  const [raw, setRaw] = useState<Selection>(EMPTY_SELECTION);
+export function useSelection(ids: readonly string[], initial: string | null = null) {
+  const [raw, setRaw] = useState<Selection>(() =>
+    initial === null ? EMPTY_SELECTION : { selected: new Set([initial]), anchor: initial, focus: initial },
+  );
   const selection = pruneSelection(raw, ids);
   const update = (fn: (s: Selection) => Selection) => setRaw((prev) => fn(pruneSelection(prev, ids)));
 

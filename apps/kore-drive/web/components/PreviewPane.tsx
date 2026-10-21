@@ -1,0 +1,243 @@
+"use client";
+
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { apiText, isApiError } from "@/lib/api";
+import { formatBytes } from "@/lib/format";
+import { t } from "@/lib/i18n";
+import { fileKind, type ApiNode } from "@/lib/nodes";
+import { defaultLineNumbers, isMarkdown, PREVIEW_MAX_BYTES } from "@/lib/preview";
+import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, DownloadIcon, ListNumbersIcon, NodeIcon, WrapIcon } from "./icons";
+import { MarkdownView } from "./MarkdownView";
+import { Modal } from "./Modal";
+import { TextView } from "./TextView";
+
+type Loaded =
+  | { status: "loading" }
+  | { status: "ok"; text: string; truncated: boolean }
+  | { status: "notFound" }
+  | { status: "error" };
+
+/** Keys that keep their own meaning on these elements (Space presses a button). */
+const isControl = (el: EventTarget) => (el as Element).closest?.("button, a, input, textarea, select") != null;
+
+/**
+ * Quick-look preview of a text-like file in a modal: name, size, Download,
+ * Close (Escape or Space), and ←/→ through `items` (the previewable
+ * siblings). Content comes from `GET /api/nodes/{id}/preview`; a 415 means
+ * the server disagrees that it is text, and `onNotText` takes over (download).
+ */
+export function PreviewPane({
+  items,
+  index,
+  onIndex,
+  onClose,
+  onNotText,
+  onDownload,
+  returnFocus,
+}: {
+  items: readonly ApiNode[];
+  index: number;
+  onIndex: (i: number) => void;
+  onClose: () => void;
+  onNotText: (node: ApiNode) => void;
+  onDownload: (node: ApiNode) => void;
+  returnFocus?: () => HTMLElement | null | undefined;
+}) {
+  const node = items[index];
+  const titleId = useId();
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [wrap, setWrap] = useState(false);
+  const [numbers, setNumbers] = useState<Record<string, boolean>>({});
+  const lineNumbers = numbers[node.id] ?? defaultLineNumbers(node.name);
+  const markdown = isMarkdown(node.name);
+  const hasPrev = index > 0;
+  const hasNext = index < items.length - 1;
+
+  function go(delta: number) {
+    const next = index + delta;
+    if (next < 0 || next >= items.length) return;
+    onIndex(next);
+    bodyRef.current?.focus();
+  }
+
+  function onKeyDown(e: KeyboardEvent<HTMLDialogElement>) {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.key === " " && !isControl(e.target)) {
+      e.preventDefault();
+      onClose();
+    } else if (e.key === "ArrowLeft" && hasPrev) {
+      e.preventDefault();
+      go(-1);
+    } else if (e.key === "ArrowRight" && hasNext) {
+      e.preventDefault();
+      go(1);
+    }
+  }
+
+  const toolButton =
+    "inline-flex items-center gap-1.5 rounded-ui px-2 py-1 text-muted hover:bg-white/5 hover:text-text " +
+    "disabled:pointer-events-none disabled:opacity-40 aria-pressed:bg-accent/15 aria-pressed:text-text";
+
+  return (
+    <Modal
+      labelledBy={titleId}
+      onClose={onClose}
+      initialFocus={bodyRef}
+      returnFocus={returnFocus}
+      onKeyDown={onKeyDown}
+      className="h-[min(88vh,960px)] w-[min(1100px,calc(100vw-48px))] max-w-none"
+    >
+      <div data-testid="preview" data-node-id={node.id} className="flex h-full flex-col">
+        <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border pr-2 pl-4">
+          <NodeIcon kind={fileKind(node)} />
+          <div className="flex min-w-0 flex-1 items-baseline gap-2.5">
+            <h2 id={titleId} className="truncate text-[14px] font-semibold" title={node.name}>
+              {node.name}
+            </h2>
+            <span className="shrink-0 text-muted tabular-nums">{formatBytes(node.size)}</span>
+            {items.length > 1 && (
+              <span className="shrink-0 text-[12px] text-muted tabular-nums">
+                {t("preview.position", { index: index + 1, count: items.length })}
+              </span>
+            )}
+          </div>
+          {items.length > 1 && (
+            <div className="flex items-center">
+              <button type="button" className={toolButton} onClick={() => go(-1)} disabled={!hasPrev} aria-label={t("preview.prev")} title={t("preview.prev")}>
+                <ChevronLeftIcon />
+              </button>
+              <button type="button" className={toolButton} onClick={() => go(1)} disabled={!hasNext} aria-label={t("preview.next")} title={t("preview.next")}>
+                <ChevronRightIcon />
+              </button>
+            </div>
+          )}
+          {!markdown && (
+            <div className="flex items-center gap-0.5">
+              <button type="button" className={toolButton} aria-pressed={wrap} onClick={() => setWrap((w) => !w)}>
+                <WrapIcon />
+                {t("preview.wrap")}
+              </button>
+              <button
+                type="button"
+                className={toolButton}
+                aria-pressed={lineNumbers}
+                onClick={() => setNumbers((m) => ({ ...m, [node.id]: !lineNumbers }))}
+              >
+                <ListNumbersIcon />
+                {t("preview.lineNumbers")}
+              </button>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => onDownload(node)}
+            className="inline-flex items-center gap-1.5 rounded-ui border border-border-strong px-2.5 py-1 font-medium hover:bg-white/5"
+          >
+            <DownloadIcon />
+            {t("preview.download")}
+          </button>
+          <button type="button" onClick={onClose} aria-label={t("preview.close")} title={t("preview.close")} className={toolButton}>
+            <CloseIcon />
+          </button>
+        </header>
+        <div
+          ref={bodyRef}
+          tabIndex={0}
+          role="region"
+          aria-label={t("preview.content")}
+          className="min-h-0 flex-1 overflow-auto bg-surface outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-inset"
+        >
+          <PreviewBody key={node.id} node={node} markdown={markdown} wrap={wrap} lineNumbers={lineNumbers} onNotText={onNotText} onDownload={onDownload} />
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/** Loads and shows one file's content; keyed by node id so state resets per file. */
+function PreviewBody({
+  node,
+  markdown,
+  wrap,
+  lineNumbers,
+  onNotText,
+  onDownload,
+}: {
+  node: ApiNode;
+  markdown: boolean;
+  wrap: boolean;
+  lineNumbers: boolean;
+  onNotText: (node: ApiNode) => void;
+  onDownload: (node: ApiNode) => void;
+}) {
+  const [loaded, setLoaded] = useState<Loaded>({ status: "loading" });
+  const [attempt, setAttempt] = useState(0);
+  const notText = useRef(onNotText);
+  useEffect(() => {
+    notText.current = onNotText;
+  });
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    apiText(`/api/nodes/${encodeURIComponent(node.id)}/preview`, { signal: ctrl.signal }).then(
+      (body) => setLoaded({ status: "ok", ...body }),
+      (e: unknown) => {
+        if (ctrl.signal.aborted) return;
+        if (isApiError(e, 415)) notText.current(node);
+        else if (isApiError(e, 404)) setLoaded({ status: "notFound" });
+        else setLoaded({ status: "error" });
+      },
+    );
+    return () => ctrl.abort();
+  }, [node, attempt]);
+
+  if (loaded.status === "loading") {
+    return (
+      <div role="status" className="flex h-full items-center justify-center gap-2 text-muted">
+        <span aria-hidden="true" className="size-3.5 animate-spin rounded-full border-[1.5px] border-muted border-t-transparent" />
+        {t("preview.loading")}
+      </div>
+    );
+  }
+  if (loaded.status !== "ok") {
+    return (
+      <div role="alert" className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+        <p>{loaded.status === "notFound" ? t("preview.notFound") : t("preview.error")}</p>
+        {loaded.status === "error" && (
+          <button
+            type="button"
+            onClick={() => {
+              setLoaded({ status: "loading" });
+              setAttempt((a) => a + 1);
+            }}
+            className="rounded-ui border border-border-strong px-3 py-1.5 font-medium hover:bg-white/5"
+          >
+            {t("preview.retry")}
+          </button>
+        )}
+      </div>
+    );
+  }
+  return (
+    <>
+      {loaded.truncated && (
+        <div
+          data-testid="preview-truncated"
+          className="sticky top-0 left-0 z-10 flex items-center gap-2 border-b border-border bg-raised px-4 py-2 text-[12.5px]"
+        >
+          <span>{t("preview.truncated", { size: formatBytes(PREVIEW_MAX_BYTES) })}</span>
+          <button type="button" onClick={() => onDownload(node)} className="font-medium text-accent hover:underline">
+            {t("preview.truncatedDownload")}
+          </button>
+        </div>
+      )}
+      {loaded.text === "" ? (
+        <p className="px-4 py-3 text-muted">{t("preview.empty")}</p>
+      ) : markdown ? (
+        <MarkdownView text={loaded.text} />
+      ) : (
+        <TextView text={loaded.text} wrap={wrap} lineNumbers={lineNumbers} />
+      )}
+    </>
+  );
+}

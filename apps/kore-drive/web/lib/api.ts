@@ -68,9 +68,11 @@ async function errorCode(res: Response): Promise<string> {
   return `http_${res.status}`;
 }
 
-export async function api<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
+/** Sends the request (cookie, timeout, same-origin rules) and returns a 2xx
+ *  response; anything else becomes an {@link ApiError}. */
+async function send(path: string, init: RequestInit, accept: string, fn: string): Promise<Response> {
   if (!path.startsWith("/api/")) {
-    throw new TypeError(`api(): path must start with /api/, got ${JSON.stringify(path)}`);
+    throw new TypeError(`${fn}(): path must start with /api/, got ${JSON.stringify(path)}`);
   }
 
   const headers = new Headers(init.headers);
@@ -78,7 +80,7 @@ export async function api<T = unknown>(path: string, init: RequestInit = {}): Pr
     headers.set("content-type", "application/json");
   }
   if (!headers.has("accept")) {
-    headers.set("accept", "application/json");
+    headers.set("accept", accept);
   }
 
   let url: string;
@@ -109,13 +111,23 @@ export async function api<T = unknown>(path: string, init: RequestInit = {}): Pr
   if (!res.ok) {
     throw new ApiError(res.status, await errorCode(res));
   }
+  return res;
+}
 
-  let text: string;
+/** Reads the body; a connection dropped mid-body counts as unreachable
+ *  (unless the caller aborted). */
+async function readText(res: Response, signal?: AbortSignal | null): Promise<string> {
   try {
-    text = res.status === 204 ? "" : await res.text();
-  } catch {
+    return res.status === 204 ? "" : await res.text();
+  } catch (e) {
+    if (signal?.aborted) throw e;
     throw new ApiError(503, "unreachable");
   }
+}
+
+export async function api<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await send(path, init, "application/json", "api");
+  const text = await readText(res, init.signal);
   if (text === "") {
     return undefined as T;
   }
@@ -127,4 +139,25 @@ export async function api<T = unknown>(path: string, init: RequestInit = {}): Pr
   } catch {
     throw new ApiError(502, "bad_response");
   }
+}
+
+export type TextBody = {
+  text: string;
+  /** The server cut the body short (`X-Truncated: true`). */
+  truncated: boolean;
+};
+
+/**
+ * Like {@link api} for endpoints that answer `text/plain` (the file preview).
+ * Same cookie, timeout and error handling; a 2xx that is not `text/plain`
+ * is a `502 bad_response`.
+ */
+export async function apiText(path: string, init: RequestInit = {}): Promise<TextBody> {
+  const res = await send(path, init, "text/plain", "apiText");
+  const text = await readText(res, init.signal);
+  const type = (res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+  if (type !== "text/plain") {
+    throw new ApiError(502, "bad_response");
+  }
+  return { text, truncated: res.headers.get("x-truncated")?.toLowerCase() === "true" };
 }

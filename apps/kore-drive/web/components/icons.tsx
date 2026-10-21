@@ -113,6 +113,36 @@ export const DownloadIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const CloseIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m4 4 8 8M12 4l-8 8" />
+  </Svg>
+);
+
+export const ChevronLeftIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M10 3.5 5.5 8l4.5 4.5" />
+  </Svg>
+);
+
+export const WrapIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M2.5 4h11M2.5 8h9a2 2 0 0 1 0 4H8M9.5 10.5 8 12l1.5 1.5M2.5 12h3" />
+  </Svg>
+);
+
+export const ListNumbersIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6.5 4h7M6.5 8h7M6.5 12h7M2.5 3l1-.5V5.5M2.3 9.8c.2-.5.6-.8 1.1-.8.6 0 1 .4 1 .9 0 .8-2.1 1.6-2.1 2.6h2.2" />
+  </Svg>
+);
+
+export const RestoreIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 8a5 5 0 1 0 1.5-3.5M3 2.5v2.5h2.5" />
+  </Svg>
+);
+
 export const KeyIcon = (p: IconProps) => (
   <Svg {...p}>
     <circle cx="5.5" cy="10.5" r="3" />

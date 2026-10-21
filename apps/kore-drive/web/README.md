@@ -17,10 +17,15 @@ that fetches from the Go API with the user's `kore_session` cookie.
 | `lib/uploadQueue.ts`, `components/UploadContext.tsx`, `components/UploadTray.tsx` | App-wide upload queue (3 files at a time), the bottom-right tray, `router.refresh()` when it drains, leave-page warning |
 | `lib/dropEntries.ts`, `components/DropZone.tsx` | OS file/folder drops and folder `<input>` picks: walks directory trees, recreates folders (`POST /api/nodes`), queues files |
 | `lib/moveDrag.ts`, `hooks/useMoveNodes.ts`, `hooks/useDropTarget.ts` | Row drag-to-move onto folder rows, breadcrumbs and the sidebar's My files / Shared space |
+| `components/PreviewPane.tsx`, `hooks/usePreview.tsx`, `lib/preview.ts` | Quick look for text files (Enter / double-click / Space; Esc or Space closes; ←/→ between text siblings). `lib/preview.ts` mirrors the server's text allowlist so binaries download without a request; a 415 from `/preview` still falls back to download |
+| `components/TextView.tsx`, `components/MarkdownView.tsx` | Plain text with optional line numbers/wrap (chunked with `content-visibility`); markdown via `react-markdown` + GFM, no raw HTML, links limited to http(s)/mailto/`#` (`safeLinkHref`), images never loaded |
+| `components/Modal.tsx`, `components/ConfirmDialog.tsx` | Native `<dialog>` modal (inert background, Esc, focus returns to the opener) and a yes/no confirmation on top of it |
+| `app/(app)/trash/`, `components/TrashList.tsx` | My trash / Shared trash (`?space=shared`): restore, delete forever, empty trash (confirmed), retention note from `GET /api/me/settings` |
+| `app/(app)/search/`, `components/SearchResults.tsx`, `lib/search.ts` | `/search?q=`: hits with their location; a file opens its folder with `?select=<id>` (folder pages select and scroll to that row) |
 | `lib/download.ts` | Downloads via a hidden form into a hidden iframe (browser streams to disk; errors become a toast) |
 | `lib/format.ts`, `lib/nodes.ts` | Size/date formatting, node types, hrefs, file kinds |
 | `app/globals.css` | Design tokens (`@theme`) and base styles; dark only |
-| `lib/api.ts` | `api<T>(path, init)`: server calls go to `API_URL` with the cookie, browser calls go to same-origin `/api`; errors throw `ApiError{status, code}` |
+| `lib/api.ts` | `api<T>(path, init)`: server calls go to `API_URL` with the cookie, browser calls go to same-origin `/api`; errors throw `ApiError{status, code}`. `apiText()` is the same for `text/plain` endpoints (the preview) and returns `{text, truncated}` |
 | `lib/session.ts` | `requireUser()`: validates the session via `/api/auth/me`, redirects to login on 401 |
 | `lib/safe-next.ts` | Sanitizes the post-login `next` redirect (same-origin relative paths only) |
 | `lib/i18n/` | `en.ts` holds every UI string; `t(key, vars?)` reads from `index.ts` |
@@ -80,7 +85,7 @@ limiter). Helpers in `e2e/helpers.ts`:
 - `createUser({ email?, password?, role?, quota_bytes? })`: creates a user via the admin API.
 - `apiAs(email, password)`: an API request context logged in as that user.
 - `createFolder(api, name, { space?, parent_id? })`: creates a folder, returns its id.
-- `uploadFile(api, name, content, { space?, parent? })`: uploads a small (< 1 MiB) file in one chunk, returns its id.
+- `uploadFile(api, name, content, { space?, parent? })`: uploads a small (< 1 MiB) file (string or `Buffer`) in one chunk, returns its id.
 
 Upload chunk size can be overridden per browser with
 `localStorage.koreChunkBytes` (clamped to 256 KiB to 64 MiB); `e2e/dnd.spec.ts`
