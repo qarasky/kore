@@ -1,14 +1,19 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 
+	"github.com/artchsh/kore/api/internal/auth"
 	"github.com/artchsh/kore/api/internal/config"
+	"github.com/artchsh/kore/api/internal/httpapi"
+	"github.com/artchsh/kore/api/internal/store"
 	"github.com/artchsh/kore/api/internal/volume"
 )
 
@@ -38,13 +43,17 @@ func main() {
 		log.Fatalf("volume: %v", err)
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"ok"}`))
-	})
+	db, err := store.Open(filepath.Join(cfg.DataDir, "kore.db"))
+	if err != nil {
+		log.Fatalf("store: %v", err)
+	}
+	defer db.Close()
+	if err := auth.Bootstrap(context.Background(), db, cfg); err != nil {
+		log.Fatalf("bootstrap: %v", err)
+	}
+	handler := httpapi.New(db)
 
 	addr := net.JoinHostPort(cfg.Bind, strconv.Itoa(cfg.Port))
 	log.Printf("kore listening on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, mux))
+	log.Fatal(http.ListenAndServe(addr, handler))
 }
