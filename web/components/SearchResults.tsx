@@ -134,9 +134,9 @@ export function SearchResults({ hits }: { hits: SearchHit[] }) {
                   tabIndex={-1}
                   title={hit.name}
                   onClick={(e) => {
-                    if (e.metaKey || e.ctrlKey || e.shiftKey) return; // new tab / range select
-                    e.preventDefault();
-                    go(resultHref(hit));
+                    if (e.metaKey || e.ctrlKey) return; // the browser opens a new tab
+                    e.preventDefault(); // shift: range select only, no new window
+                    if (!e.shiftKey) go(resultHref(hit));
                   }}
                   className="truncate hover:underline"
                 >
@@ -146,6 +146,9 @@ export function SearchResults({ hits }: { hits: SearchHit[] }) {
               <Link
                 href={locationHref(hit)}
                 tabIndex={-1}
+                onClick={(e) => {
+                  if (e.shiftKey) e.preventDefault();
+                }}
                 title={`${t("search.showInFolder")}: ${crumbs.join(" / ")}`}
                 data-testid="hit-path"
                 className="flex min-w-0 items-center gap-0.5 truncate text-muted hover:text-text"

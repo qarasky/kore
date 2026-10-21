@@ -49,9 +49,26 @@ export function Modal({
       e.preventDefault();
       close();
     };
+    // The browser can still close the dialog on its own (e.g. a repeated
+    // Escape the anti-abuse rules won't let us cancel). React state is the
+    // truth: report it, and re-open if the owner keeps us mounted.
+    let mounted = true;
+    const onNativeClose = () => {
+      if (!mounted) return;
+      close();
+      requestAnimationFrame(() => {
+        if (mounted && !dialog.open && dialog.isConnected) {
+          dialog.showModal();
+          initialFocus?.current?.focus();
+        }
+      });
+    };
     dialog.addEventListener("cancel", onCancel);
+    dialog.addEventListener("close", onNativeClose);
     return () => {
+      mounted = false;
       dialog.removeEventListener("cancel", onCancel);
+      dialog.removeEventListener("close", onNativeClose);
       if (dialog.open) dialog.close();
       const back = target() ?? opener;
       if (back?.isConnected) back.focus();

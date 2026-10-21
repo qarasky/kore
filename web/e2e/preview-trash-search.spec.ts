@@ -59,6 +59,10 @@ test.describe("preview", () => {
       "",
       "[evil link](javascript:window.__mdPwned=3) and [data link](data:text/html,<b>x</b>) and [good link](https://example.com/page)",
       "",
+      "[tab link](java&#x09;script:window.__mdPwned=4) and [ref link][evil] and [upper link](JaVaScRiPt:window.__mdPwned=6)",
+      "",
+      "[evil]: javascript:window.__mdPwned=5",
+      "",
       "![tracking pixel](http://127.0.0.1:18999/tracker.png)",
       "",
       "| a | b |",
@@ -87,6 +91,11 @@ test.describe("preview", () => {
     // javascript:/data: links lose their href; http(s) ones open safely in a new tab.
     await expect(body.getByRole("link", { name: "evil link" })).toHaveCount(0);
     await expect(body.getByRole("link", { name: "data link" })).toHaveCount(0);
+    for (const name of ["tab link", "ref link", "upper link"]) {
+      await expect(body.getByRole("link", { name })).toHaveCount(0);
+      await expect(body.getByText(name)).toBeVisible();
+    }
+    await body.getByText("tab link").click(); // inert text, nothing runs
     await expect(body.getByText("evil link")).toBeVisible();
     await expect(body.locator('a[href^="javascript"], a[href^="data"]')).toHaveCount(0);
     const good = body.getByRole("link", { name: "good link" });
@@ -283,6 +292,7 @@ test.describe("trash", () => {
     await expect(dialog).toBeHidden();
     await expect(trashRow(page, "report.txt")).toHaveCount(0);
     await expect(page.getByRole("status")).toContainText(fill("trash.deletedOne", { name: "report.txt" }));
+    await expect(page.getByTestId("trash-section")).toBeFocused(); // nothing left: the section keeps focus
     expect((await page.request.get(`/api/nodes/${id}/download`)).status()).toBe(404);
 
     // Empty trash: the dialog states the count and that it's permanent.
@@ -298,6 +308,8 @@ test.describe("trash", () => {
     await expect(empty).toContainText("permanently");
     await empty.getByRole("button", { name: en["trash.empty"] }).click();
     await expect(page.getByTestId("trash-empty")).toBeVisible();
+    await expect(page.getByRole("status")).toContainText(en["trash.emptied"]);
+    await expect(page.getByTestId("trash-section")).toBeFocused();
     const left = await api.get("/api/trash?space=personal");
     expect(await left.json()).toEqual([]);
     await api.dispose();
@@ -305,13 +317,23 @@ test.describe("trash", () => {
 
   test("multi-select restore with the list's selection model", async ({ page }) => {
     const { api } = await setup(page);
-    for (const name of ["m1.txt", "m2.txt", "m3.txt"]) {
+    for (const name of ["m1.txt", "m2.txt", "m3.txt", "m4.txt"]) {
       const id = await uploadFile(api, name, name);
       expect((await api.delete(`/api/nodes/${id}`)).status()).toBe(204);
     }
     await page.goto("/trash");
     const rows = trashList(page).getByRole("option");
+    await expect(rows).toHaveCount(4);
+
+    // Delete key → confirm → focus goes back to the list (rows remain).
+    await rows.nth(3).click();
+    await page.keyboard.press("Delete");
+    const dialog = page.getByRole("alertdialog", { name: en["trash.deleteTitle"] });
+    await dialog.getByRole("button", { name: en["trash.deleteForever"] }).click();
+    await expect(dialog).toBeHidden();
     await expect(rows).toHaveCount(3);
+    await expect(trashList(page)).toBeFocused();
+
     await rows.nth(0).click();
     await rows.nth(1).click({ modifiers: ["Shift"] });
     await expect(page.getByText(fill("list.selectedCount", { count: 2 }))).toBeVisible();
@@ -344,6 +366,48 @@ test.describe("trash", () => {
     await page.getByRole("button", { name: fill("trash.restoreItem", { name }) }).click();
     await expect(page.getByRole("status")).toContainText(fill("trash.restoredTo", { folder: en["nav.shared"] }));
   });
+});
+
+test("empty shared trash purges exactly the items its dialog listed", async ({ page }) => {
+  const trashRow = (p: Page, name: string) => list(p, en["trash.list"]).getByRole("option", { name, exact: true });
+  const a = await createUser();
+  const b = await createUser();
+  const aApi = await apiAs(a.email, a.password);
+  const bApi = await apiAs(b.email, b.password);
+  const tag = Date.now();
+  const trash = async (api: APIRequestContext, name: string) => {
+    const id = await uploadFile(api, name, name, { space: "shared" });
+    expect((await api.delete(`/api/nodes/${id}`)).status()).toBe(204);
+  };
+  const sharedTrash = async () =>
+    ((await (await bApi.get("/api/trash?space=shared")).json()) as { name: string }[]).map((n) => n.name);
+
+  await trash(aApi, `listed-${tag}.txt`);
+  await loginAs(page, a.email, a.password);
+  await page.goto("/trash?space=shared");
+  await expect(trashRow(page, `listed-${tag}.txt`)).toBeVisible();
+
+  // Trashed after the page loaded but before the dialog opened: the dialog re-reads, so it is listed.
+  await trash(bApi, `before-${tag}.txt`);
+  await page.getByRole("button", { name: en["trash.empty"] }).click();
+  const dialog = page.getByRole("alertdialog", { name: en["trash.emptyTitle"] });
+  const count = (await sharedTrash()).length;
+  await expect(dialog).toContainText(fill("trash.emptyMessageMany", { count, section: en["trash.shared"] }));
+  const confirm = dialog.getByRole("button", { name: en["trash.empty"] });
+  await expect(confirm).toBeEnabled();
+  await expect(trashRow(page, `before-${tag}.txt`)).toBeVisible(); // the list refreshed too
+
+  // Trashed while the dialog is open: never listed, so it must survive.
+  await trash(bApi, `after-${tag}.txt`);
+  await confirm.click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("status")).toContainText(en["trash.emptied"]);
+
+  expect(await sharedTrash()).toEqual([`after-${tag}.txt`]);
+  await expect(trashRow(page, `after-${tag}.txt`)).toBeVisible();
+  await expect(trashRow(page, `listed-${tag}.txt`)).toHaveCount(0);
+  await aApi.dispose();
+  await bApi.dispose();
 });
 
 test.describe("search", () => {
@@ -391,6 +455,17 @@ test.describe("search", () => {
     const options = list(page, en["search.results"]).getByRole("option");
     await expect(options).toHaveCount(2);
     await expect(options.first()).toHaveAccessibleName("plan folder");
+
+    // Shift-clicking a name range-selects; it doesn't navigate or open a window.
+    const pages: unknown[] = [];
+    page.context().on("page", (p) => pages.push(p));
+    await options.first().click({ position: { x: 4, y: 4 } });
+    await options.nth(1).getByRole("link", { name: "plan-a.txt" }).click({ modifiers: ["Shift"] });
+    await expect(options.nth(1)).toHaveAttribute("aria-selected", "true");
+    await expect(options.first()).toHaveAttribute("aria-selected", "true");
+    await expect(page).toHaveURL("/search?q=plan");
+    expect(pages).toEqual([]);
+
     await options.first().dblclick();
     await expect(page).toHaveURL(`/files/${folder}`);
   });
