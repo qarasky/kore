@@ -37,6 +37,7 @@ func New(db *sql.DB, dataDir string) http.Handler {
 	s.registerTrash(mux)
 	s.registerUploads(mux)
 	s.registerTransfer(mux)
+	s.registerPreview(mux)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		var allow []string
 		for _, m := range []string{"GET", "HEAD", "POST", "PATCH", "PUT", "DELETE"} {
