@@ -26,8 +26,9 @@ docker compose up -d
 Before running the last two commands:
 
 - In `kore.toml` set `admin_email` and a real `admin_password` of at least 8
-  characters (Kore refuses to start with `change-me` or a shorter password). Leave `bind = "0.0.0.0"`, `port = 8080` and
-  `data_dir = "/data"`: those are inside the container.
+  characters (Kore refuses to start with `change-me` or a shorter password).
+  Leave `bind = "0.0.0.0"`, `port = 8080` and `data_dir = "/data"`: those are
+  inside the container.
 - In `.env` set `KORE_DATA_DIR` (host path of the data dir) and
   `KORE_UID`/`KORE_GID` (the host user that should own the files; `id -u` and
   `id -g` of e.g. `office`).
