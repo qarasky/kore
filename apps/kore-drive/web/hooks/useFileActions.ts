@@ -46,12 +46,17 @@ export function useFileActions({ space, parentId, byId }: { space: Space; parent
     }
   }
 
-  async function trash(ids: string[]) {
-    if (ids.length === 0 || busy) return;
+  /** Trashes `ids`; `onSettled` runs once the requests are done, before the
+   *  refresh. Ignored while a previous mutation or its refresh is running. */
+  async function trash(ids: string[], onSettled?: () => void) {
+    if (ids.length === 0 || busy || transitioning) return;
     setBusy(true);
     const results = await Promise.allSettled(ids.map((id) => api(nodePath(id), { method: "DELETE" })));
-    setBusy(false);
     const done = ids.filter((_, i) => results[i].status === "fulfilled");
+    // Cleared together with the refresh starting, so `transitioning` takes
+    // over as the guard with no gap in between.
+    setBusy(false);
+    onSettled?.();
     refresh();
     if (done.length === 0) {
       toast.show({ message: t("toast.trashFailed"), tone: "error" });

@@ -396,3 +396,115 @@ test("API outage on a folder URL shows the error page, not a 404", async ({ page
   expect(res?.status()).toBe(500);
   await expect(page.getByTestId("error-page")).toHaveAttribute("data-error-kind", "unreachable");
 });
+
+test("a rename that fails on blur is abandoned with a toast; the list stays usable", async ({ page }) => {
+  await setup(page, ["Alpha", "Beta", "Gamma"]);
+  await page.goto("/files");
+
+  await row(page, "Alpha").click();
+  await page.keyboard.press("F2");
+  const input = list(page).getByRole("textbox", { name: en["rename.label"] });
+  await input.fill("Beta");
+  await row(page, "Gamma").click(); // blur -> submit -> 409
+
+  await expect(page.getByRole("status")).toContainText(en["rename.error.nameTaken"]);
+  await expect(input).toHaveCount(0);
+  await expect(row(page, "Alpha")).toBeVisible();
+  await expect(row(page, "Gamma")).toHaveAttribute("aria-selected", "true");
+
+  // Keyboard, context menu and Delete all work again.
+  await page.keyboard.press("ArrowUp");
+  await expect(row(page, "Beta")).toHaveAttribute("aria-selected", "true");
+  await row(page, "Beta").click({ button: "right" });
+  await expect(page.getByRole("menu")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toBeHidden();
+  await page.keyboard.press("Delete");
+  await expect(row(page, "Beta")).toHaveCount(0);
+  expect(await trashNames(page)).toEqual(["Beta"]);
+});
+
+test("pressing Delete twice quickly trashes once with a single Undo toast", async ({ page }) => {
+  await setup(page, ["Twice", "Stays"]);
+  await page.goto("/files");
+
+  await row(page, "Twice").click();
+  await page.keyboard.press("Delete");
+  await page.keyboard.press("Delete");
+
+  await expect(row(page, "Twice")).toHaveCount(0);
+  const toast = page.getByRole("status");
+  await expect(toast).toContainText(en["toast.trashedOne"].replace("{name}", "Twice"));
+  await expect(toast.getByRole("button", { name: en["toast.undo"] })).toBeVisible();
+  await page.waitForTimeout(500); // give a stray second request time to fail
+  await expect(toast).not.toContainText(en["toast.trashFailed"]);
+  await expect(toast.getByRole("button", { name: en["toast.undo"] })).toBeVisible();
+  await expect(row(page, "Stays")).toBeVisible();
+  expect(await trashNames(page)).toEqual(["Twice"]);
+});
+
+test("Backspace does not trash; Delete typed in the rename input does not trash", async ({ page }) => {
+  await setup(page, ["Safe"]);
+  await page.goto("/files");
+
+  await row(page, "Safe").click();
+  await page.keyboard.press("Backspace");
+  await page.keyboard.press("F2");
+  const input = list(page).getByRole("textbox", { name: en["rename.label"] });
+  await expect(input).toBeFocused();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Delete");
+  await page.keyboard.press("Backspace");
+  await expect(input).toHaveValue("Saf");
+  await input.press("Escape");
+
+  await expect(row(page, "Safe")).toBeVisible();
+  expect(await trashNames(page)).toEqual([]);
+});
+
+test("with several rows selected, Enter and F2 do nothing", async ({ page }) => {
+  await setup(page, ["M1", "M2"]);
+  await page.goto("/files");
+
+  await row(page, "M1").click();
+  await row(page, "M2").click({ modifiers: ["Shift"] });
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("F2");
+
+  await expect(page).toHaveURL("/files");
+  await expect(list(page).getByRole("textbox")).toHaveCount(0);
+  await expect(list(page).locator('[aria-selected="true"]')).toHaveCount(2);
+});
+
+test("a new folder left with the default name on blur is not created", async ({ page }) => {
+  await setup(page, ["Existing"]);
+  await page.goto("/files");
+
+  await page.getByRole("button", { name: en["new.button"] }).click();
+  await page.getByRole("menuitem", { name: en["new.folder"] }).click();
+  const input = list(page).getByRole("textbox", { name: en["rename.label"] });
+  await expect(input).toBeFocused();
+  await row(page, "Existing").click(); // blur with the name untouched
+
+  await expect(input).toHaveCount(0);
+  await expect(list(page).getByRole("option")).toHaveCount(1);
+  await page.reload();
+  await expect(list(page).getByRole("option")).toHaveCount(1);
+  await expect(row(page, en["new.folderDefault"])).toHaveCount(0);
+});
+
+test("after a context-menu action, arrow keys keep working", async ({ page }) => {
+  await setup(page, ["N1", "N2", "N3"]);
+  await page.goto("/files");
+
+  await row(page, "N1").click({ button: "right" });
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("menuitem", { name: en["action.download"] }).click(),
+  ]);
+  expect(download.suggestedFilename()).toBe("N1.zip");
+  await expect(row(page, "N1")).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(row(page, "N2")).toHaveAttribute("aria-selected", "true");
+  await expect(row(page, "N2")).toBeFocused();
+});

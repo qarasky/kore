@@ -3,11 +3,20 @@
 import { useId, useRef, useState } from "react";
 import { t, type MessageKey } from "@/lib/i18n";
 
+export type EditEnd = "escape" | "blur";
+
 /**
- * Inline name input for rename and new folder. Enter (or blur) submits,
- * Escape cancels. `onSubmit` resolves to an error key to stay open showing
- * it, or null when done. While a submit is in flight the input is read-only
- * (not disabled: disabling would blur it and re-submit).
+ * Inline name input for rename and new folder. Enter submits, Escape
+ * cancels. `onSubmit` resolves to an error key, or null when done.
+ *
+ * - Enter that fails: stays open with the error shown inline.
+ * - Blur with a changed name submits; if that fails the edit is abandoned
+ *   (`onCancel("blur", error)`) since nobody is looking at the input any
+ *   more. Blur with the name unchanged (e.g. the default "New folder") or
+ *   while an error is showing just cancels.
+ *
+ * While a submit is in flight the input is read-only (not disabled:
+ * disabling would blur it and re-submit).
  */
 export function NameEditor({
   initial,
@@ -16,7 +25,7 @@ export function NameEditor({
 }: {
   initial: string;
   onSubmit: (name: string) => Promise<MessageKey | null>;
-  onCancel: () => void;
+  onCancel: (how: EditEnd, error?: MessageKey) => void;
 }) {
   const [value, setValue] = useState(initial);
   const [error, setError] = useState<MessageKey | null>(null);
@@ -24,23 +33,30 @@ export function NameEditor({
   const busy = useRef(false);
   const errorId = useId();
 
-  async function submit() {
+  function cancel(how: EditEnd, err?: MessageKey) {
+    busy.current = true; // ignore any late blur
+    onCancel(how, err);
+  }
+
+  async function submit(how: "enter" | "blur") {
     if (busy.current) return;
     const name = value.trim();
-    if (name === "") {
-      onCancel();
+    if (name === "" || (how === "blur" && name === initial)) {
+      cancel(how === "blur" ? "blur" : "escape");
       return;
     }
     busy.current = true;
     setPending(true);
     setError(null);
     const err = await onSubmit(name);
-    if (err) {
-      busy.current = false;
-      setPending(false);
-      setError(err);
+    if (!err) return; // the parent unmounts us; stay busy so a late blur is ignored
+    if (how === "blur") {
+      cancel("blur", err);
+      return;
     }
-    // On success the parent unmounts us; stay busy so a late blur is ignored.
+    busy.current = false;
+    setPending(false);
+    setError(err);
   }
 
   return (
@@ -66,22 +82,17 @@ export function NameEditor({
           e.stopPropagation();
           if (e.key === "Enter") {
             e.preventDefault();
-            void submit();
+            void submit("enter");
           } else if (e.key === "Escape") {
             e.preventDefault();
-            busy.current = true;
-            onCancel();
+            cancel("escape");
           }
         }}
         onBlur={() => {
           if (busy.current) return;
           // Leaving a rejected name abandons the edit rather than retrying it.
-          if (error) {
-            busy.current = true;
-            onCancel();
-          } else {
-            void submit();
-          }
+          if (error) cancel("blur");
+          else void submit("blur");
         }}
         onClick={(e) => e.stopPropagation()}
         onDoubleClick={(e) => e.stopPropagation()}
