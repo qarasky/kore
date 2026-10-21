@@ -14,8 +14,12 @@ import { NodeIcon, RestoreIcon, TrashIcon } from "./icons";
 import { PageMessage } from "./PageMessage";
 import { RelativeTime } from "./RelativeTime";
 import { useToast } from "./Toast";
+import { UploaderCell, UploaderHeader } from "./UploaderCell";
 
 const GRID = "grid grid-cols-[minmax(0,1fr)_150px_90px_72px] items-center gap-3 px-3";
+/** Shared trash: with "Uploaded by", shown from `lg` up. */
+const GRID_UPLOADER =
+  "grid grid-cols-[minmax(0,1fr)_150px_90px_72px] lg:grid-cols-[minmax(0,1fr)_minmax(0,220px)_150px_90px_72px] items-center gap-3 px-3";
 
 /** `empty.ids` is null while the current trash contents are being fetched. */
 type Confirm = { kind: "delete"; ids: string[] } | { kind: "empty"; ids: string[] | null } | null;
@@ -201,6 +205,8 @@ export function TrashList({ space, items }: { space: Space; items: TrashedNode[]
     "hover:bg-white/5 disabled:pointer-events-none disabled:opacity-40";
   const rowButton = "rounded-ui p-1 text-muted hover:bg-white/10 hover:text-text disabled:opacity-40";
   const tabbable = sel.selection.focus ?? ids[0] ?? null;
+  const showUploader = space === "shared";
+  const grid = showUploader ? GRID_UPLOADER : GRID;
 
   return (
     <div ref={rootRef} tabIndex={-1} data-testid="trash-section" className="flex min-h-0 flex-1 flex-col outline-none">
@@ -232,8 +238,9 @@ export function TrashList({ space, items }: { space: Space; items: TrashedNode[]
         </PageMessage>
       ) : (
         <div className="relative flex min-h-0 flex-1 flex-col overflow-auto" onClick={(e) => e.target === e.currentTarget && sel.clear()}>
-          <div className={`${GRID} sticky top-0 z-10 h-8 shrink-0 border-b border-border bg-surface text-[12px] font-medium text-muted`}>
+          <div className={`${grid} sticky top-0 z-10 h-8 shrink-0 border-b border-border bg-surface text-[12px] font-medium text-muted`}>
             <span className="pl-[26px]">{t("list.name")}</span>
+            {showUploader && <UploaderHeader label={t("list.uploadedBy")} />}
             <span>{t("trash.deleted")}</span>
             <span className="text-right">{t("list.size")}</span>
             <span />
@@ -265,7 +272,7 @@ export function TrashList({ space, items }: { space: Space; items: TrashedNode[]
                   data-id={node.id}
                   onClick={(e) => onRowClick(node.id, e)}
                   className={
-                    `${GRID} group h-8 cursor-default border-b border-border/60 select-none outline-none ` +
+                    `${grid} group h-8 cursor-default border-b border-border/60 select-none outline-none ` +
                     "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset " +
                     (selected ? "bg-accent/15 text-text" : "hover:bg-white/[0.03]")
                   }
@@ -276,6 +283,7 @@ export function TrashList({ space, items }: { space: Space; items: TrashedNode[]
                       {node.name}
                     </span>
                   </div>
+                  {showUploader && <UploaderCell email={node.uploader_email} />}
                   <div className="truncate text-muted">
                     <RelativeTime unixSeconds={node.trashed_at} />
                   </div>

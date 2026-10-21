@@ -17,6 +17,9 @@ type Node struct {
 	Mime       string
 	CreatedAt  int64
 	UpdatedAt  int64
+	// UploaderEmail is the uploader's email, filled only by the listing
+	// queries (List, SearchHits, ListTrash) and only for shared-space nodes.
+	UploaderEmail string
 }
 
 // Space identifies a top-level space. Owner nil is the shared space.

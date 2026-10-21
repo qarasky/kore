@@ -66,16 +66,16 @@ func SearchHits(ctx context.Context, db *sql.DB, actor users.User, q string, lim
 
 	// Stream candidates and release the rows before any further query.
 	matches, err := func() ([]Node, error) {
-		rows, err := db.QueryContext(ctx, `SELECT `+cols+` FROM nodes
-			WHERE (space_owner IS NULL OR space_owner=?) AND `+liveSQL+`
-			ORDER BY is_dir DESC, name`, actor.ID)
+		rows, err := db.QueryContext(ctx, `SELECT `+prefixed("n", cols)+emailCol+` FROM nodes n`+emailJoin+`
+			WHERE (n.space_owner IS NULL OR n.space_owner=?) AND `+prefixedWhere("n", liveSQL)+`
+			ORDER BY n.is_dir DESC, n.name`, actor.ID)
 		if err != nil {
 			return nil, err
 		}
 		defer rows.Close()
 		var out []Node
 		for len(out) < limit && rows.Next() {
-			n, err := scan(rows)
+			n, err := scanEmail(rows)
 			if err != nil {
 				return nil, err
 			}

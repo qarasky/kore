@@ -15,7 +15,7 @@ import { useRegisterBrowser } from "./BrowserContext";
 import { ContextMenu } from "./ContextMenu";
 import { DropZone } from "./DropZone";
 import { EmptyState } from "./EmptyState";
-import { FileRow, ROW_GRID, type RowHandlers } from "./FileRow";
+import { FileRow, ROW_GRID, ROW_GRID_UPLOADER, type RowHandlers } from "./FileRow";
 import {
   DownloadIcon,
   DriveIcon,
@@ -31,6 +31,7 @@ import type { CloseReason, MenuAction } from "./Menu";
 import { MoveDialog } from "./MoveDialog";
 import { NameEditor, type EditEnd } from "./NameEditor";
 import { useToast } from "./Toast";
+import { UploaderHeader } from "./UploaderCell";
 import { useUploads } from "./UploadContext";
 
 type Editing = { kind: "rename"; id: string } | { kind: "new" } | null;
@@ -351,6 +352,8 @@ export function FileList({
         ];
   const tabbable = sel.selection.focus ?? sel.selectedIds[0] ?? ids[0] ?? null;
   const sharedRoot = space === "shared" && parentId === null;
+  const showUploader = space === "shared";
+  const grid = showUploader ? ROW_GRID_UPLOADER : ROW_GRID;
   const empty = nodes.length === 0 && editing?.kind !== "new";
 
   return (
@@ -394,9 +397,10 @@ export function FileList({
           onContextMenu={onAreaContextMenu}
         >
           <div
-            className={`${ROW_GRID} sticky top-0 z-10 h-8 shrink-0 border-b border-border bg-surface text-[12px] font-medium text-muted`}
+            className={`${grid} sticky top-0 z-10 h-8 shrink-0 border-b border-border bg-surface text-[12px] font-medium text-muted`}
           >
             <span className="pl-[26px]">{t("list.name")}</span>
+            {showUploader && <UploaderHeader label={t("list.uploadedBy")} />}
             <span>{t("list.modified")}</span>
             <span className="text-right">{t("list.size")}</span>
           </div>
@@ -411,7 +415,7 @@ export function FileList({
             className="flex-1 pb-10 outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-inset"
           >
             {editing?.kind === "new" && (
-              <div role="option" aria-selected="true" aria-label={t("new.folder")} className={`${ROW_GRID} h-8 border-b border-border/60 bg-accent/15`}>
+              <div role="option" aria-selected="true" aria-label={t("new.folder")} className={`${grid} h-8 border-b border-border/60 bg-accent/15`}>
                 <div className="flex min-w-0 items-center gap-2.5">
                   <NodeIcon kind="folder" />
                   <NameEditor initial={t("new.folderDefault")} onSubmit={submitNew} onCancel={cancelEdit} />
@@ -424,6 +428,7 @@ export function FileList({
                 node={node}
                 selected={sel.isSelected(node.id)}
                 tabbable={node.id === tabbable}
+                showUploader={showUploader}
                 handlers={handlers}
                 rowRef={(el) => {
                   if (el) rowEls.current.set(node.id, el);

@@ -7,9 +7,13 @@ import { t } from "@/lib/i18n";
 import { fileKind, type ApiNode } from "@/lib/nodes";
 import { NodeIcon } from "./icons";
 import { RelativeTime } from "./RelativeTime";
+import { UploaderCell } from "./UploaderCell";
 
 /** Shared column layout for the header row and the file rows. */
 export const ROW_GRID = "grid grid-cols-[minmax(0,1fr)_150px_90px] items-center gap-3 px-3";
+/** The same with an "Uploaded by" column (shared space), shown from `lg` up. */
+export const ROW_GRID_UPLOADER =
+  "grid grid-cols-[minmax(0,1fr)_150px_90px] lg:grid-cols-[minmax(0,1fr)_minmax(0,220px)_150px_90px] items-center gap-3 px-3";
 
 export type RowHandlers = {
   onClick: (id: string, e: MouseEvent) => void;
@@ -22,11 +26,13 @@ export type RowHandlers = {
   onDrop: (node: ApiNode, e: DragEvent) => void;
 };
 
-/** One dense `role="option"` row: icon, name (or the inline editor), modified, size. */
+/** One dense `role="option"` row: icon, name (or the inline editor),
+ *  uploader (shared space only), modified, size. */
 export function FileRow({
   node,
   selected,
   tabbable,
+  showUploader = false,
   editor,
   handlers,
   rowRef,
@@ -34,6 +40,8 @@ export function FileRow({
   node: ApiNode;
   selected: boolean;
   tabbable: boolean;
+  /** Adds the "Uploaded by" column (shared space). */
+  showUploader?: boolean;
   /** Replaces the name while renaming. */
   editor?: ReactNode;
   handlers: RowHandlers;
@@ -65,7 +73,7 @@ export function FileRow({
       onDoubleClick={() => handlers.onDoubleClick(node.id)}
       onContextMenu={(e) => handlers.onContextMenu(node.id, e)}
       className={
-        `${ROW_GRID} h-8 cursor-default border-b border-border/60 select-none outline-none ` +
+        `${showUploader ? ROW_GRID_UPLOADER : ROW_GRID} h-8 cursor-default border-b border-border/60 select-none outline-none ` +
         "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset " +
         (drop.active
           ? "bg-accent/25 text-text ring-2 ring-accent ring-inset"
@@ -87,6 +95,7 @@ export function FileRow({
           </span>
         )}
       </div>
+      {showUploader && <UploaderCell email={node.uploader_email} />}
       <div className="truncate text-muted">
         <RelativeTime unixSeconds={node.updated_at} />
       </div>
