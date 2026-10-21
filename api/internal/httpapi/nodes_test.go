@@ -1,0 +1,78 @@
+package httpapi
+
+import (
+	"testing"
+)
+
+func TestNodesHTTPFlow(t *testing.T) {
+	e := newEnv(t)
+	rec := e.do(t, nil, "GET", "/api/nodes?space=shared", "")
+	if rec.Code != 401 {
+		t.Fatalf("anon: %d", rec.Code)
+	}
+	rec = e.do(t, &e.user, "POST", "/api/nodes", `{"space":"personal","name":"Док"}`)
+	if rec.Code != 201 {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body)
+	}
+	f := jsonBody(t, rec)
+	if f["name"] != "Док" || f["space"] != "personal" || f["is_dir"] != true || f["parent_id"] != nil {
+		t.Fatalf("%v", f)
+	}
+	id := f["id"].(string)
+	if rec = e.do(t, &e.user, "POST", "/api/nodes", `{"space":"personal","name":"Док"}`); rec.Code != 409 || jsonBody(t, rec)["error"] != "name_taken" {
+		t.Fatalf("dup: %d %s", rec.Code, rec.Body)
+	}
+	if rec = e.do(t, &e.user, "POST", "/api/nodes", `{"space":"personal","name":".."}`); rec.Code != 400 {
+		t.Fatalf("bad name: %d", rec.Code)
+	}
+	if rec = e.do(t, &e.user, "GET", "/api/nodes?space=bogus", ""); rec.Code != 400 {
+		t.Fatalf("bad space: %d", rec.Code)
+	}
+	// Admin cannot touch another user's personal node: 404 not 403.
+	for _, c := range [][3]string{
+		{"PATCH", "/api/nodes/" + id, `{"name":"z"}`},
+		{"GET", "/api/nodes/" + id + "/path", ""},
+		{"GET", "/api/nodes?space=personal&parent=" + id, ""},
+	} {
+		if rec = e.do(t, &e.admin, c[0], c[1], c[2]); rec.Code != 404 {
+			t.Fatalf("%s %s: %d", c[0], c[1], rec.Code)
+		}
+	}
+	// Rename + move to shared space.
+	rec = e.do(t, &e.user, "PATCH", "/api/nodes/"+id, `{"name":"Doc2"}`)
+	if rec.Code != 200 || jsonBody(t, rec)["name"] != "Doc2" {
+		t.Fatalf("rename: %d %s", rec.Code, rec.Body)
+	}
+	rec = e.do(t, &e.user, "PATCH", "/api/nodes/"+id, `{"parent_id":null,"space":"shared"}`)
+	if rec.Code != 200 || jsonBody(t, rec)["space"] != "shared" {
+		t.Fatalf("to shared: %d %s", rec.Code, rec.Body)
+	}
+	// Any user can now see/edit it.
+	rec = e.do(t, &e.admin, "GET", "/api/nodes?space=shared", "")
+	if rec.Code != 200 || len(rec.Body.String()) < 10 {
+		t.Fatalf("list: %d %s", rec.Code, rec.Body)
+	}
+	// Into itself is rejected.
+	if rec = e.do(t, &e.admin, "PATCH", "/api/nodes/"+id, `{"parent_id":"`+id+`"}`); rec.Code != 400 {
+		t.Fatalf("self: %d", rec.Code)
+	}
+	// Breadcrumbs.
+	rec = e.do(t, &e.admin, "POST", "/api/nodes", `{"space":"shared","parent_id":"`+id+`","name":"sub"}`)
+	sub := jsonBody(t, rec)["id"].(string)
+	rec = e.do(t, &e.user, "GET", "/api/nodes/"+sub+"/path", "")
+	if rec.Code != 200 || !contains(rec.Body.String(), "Doc2") || !contains(rec.Body.String(), "sub") {
+		t.Fatalf("path: %d %s", rec.Code, rec.Body)
+	}
+	if rec = e.do(t, &e.user, "PATCH", "/api/nodes/"+sub, `{}`); rec.Code != 400 {
+		t.Fatalf("empty patch: %d", rec.Code)
+	}
+}
+
+func contains(s, sub string) bool {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
+}
