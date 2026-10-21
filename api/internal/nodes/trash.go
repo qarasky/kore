@@ -166,39 +166,63 @@ func purgeWhere(ctx context.Context, db *sql.DB, dataDir string, check func(q qu
 		return 0, nil
 	}
 	sel := `(SELECT id FROM nodes WHERE ` + rootSQL + ` AND ` + rootCond + `)`
-	rows, err := tx.QueryContext(ctx, `SELECT blob_id FROM nodes WHERE blob_id IS NOT NULL AND (
-		id IN `+sel+` OR trash_root IN `+sel+`)`, append(args, args...)...)
+	blobs, err := blobIDs(ctx, tx, `id IN `+sel+` OR trash_root IN `+sel, append(args, args...)...)
 	if err != nil {
 		return 0, err
 	}
-	var blobs []string
-	for rows.Next() {
-		var b string
-		if err := rows.Scan(&b); err != nil {
-			rows.Close()
-			return 0, err
-		}
-		blobs = append(blobs, b)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return 0, err
-	}
-	rows.Close()
 	if _, err := tx.ExecContext(ctx, `DELETE FROM nodes WHERE id IN `+sel+` OR trash_root IN `+sel, append(args, args...)...); err != nil {
 		return 0, err
 	}
 	if err := tx.Commit(); err != nil {
 		return 0, err
 	}
-	// Files go only after the rows are durably gone; a crash in between
-	// leaves orphan blobs that SweepOrphanBlobs reclaims.
+	RemoveBlobs(dataDir, blobs)
+	return roots, nil
+}
+
+// blobIDs returns the blob ids of the nodes matching cond.
+func blobIDs(ctx context.Context, tx *sql.Tx, cond string, args ...any) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT blob_id FROM nodes WHERE blob_id IS NOT NULL AND (`+cond+`)`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var blobs []string
+	for rows.Next() {
+		var b string
+		if err := rows.Scan(&b); err != nil {
+			return nil, err
+		}
+		blobs = append(blobs, b)
+	}
+	return blobs, rows.Err()
+}
+
+// RemoveBlobs deletes blob files. Call it only after the transaction that
+// deleted the referencing rows has committed: files go only once the rows are
+// durably gone, and a crash in between leaves orphan blobs that
+// SweepOrphanBlobs reclaims.
+func RemoveBlobs(dataDir string, blobs []string) {
 	for _, b := range blobs {
 		if p, err := volume.BlobPath(dataDir, b); err == nil {
 			os.Remove(p)
 		}
 	}
-	return roots, nil
+}
+
+// PurgeSpaceTx deletes every node of owner's personal space, live and
+// trashed, inside tx, and returns the blob ids to pass to RemoveBlobs after
+// the transaction commits. There is no access check: the caller (an admin
+// deleting the account) has already authorized it.
+func PurgeSpaceTx(ctx context.Context, tx *sql.Tx, owner string) ([]string, error) {
+	blobs, err := blobIDs(ctx, tx, `space_owner=?`, owner)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM nodes WHERE space_owner=?`, owner); err != nil {
+		return nil, err
+	}
+	return blobs, nil
 }
 
 // PurgeNode permanently deletes a trash root, its subtree and their blobs.

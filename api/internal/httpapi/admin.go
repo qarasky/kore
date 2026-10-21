@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/artchsh/kore/api/internal/auth"
+	"github.com/artchsh/kore/api/internal/nodes"
 	"github.com/artchsh/kore/api/internal/settings"
+	"github.com/artchsh/kore/api/internal/uploads"
 	"github.com/artchsh/kore/api/internal/users"
 )
 
@@ -312,8 +314,27 @@ func (s *server) changeOwnPassword(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// deleteUser removes an account. A user who still has files (anything in
+// their personal space, trashed included, or files they uploaded to the
+// shared space) is refused with 409 user_has_files unless ?files=purge is
+// given: then, in the same transaction that deletes the account, their
+// personal space is deleted and their shared-space uploads are handed to the
+// acting admin (so the files stay and count against the admin's quota).
+// Their open upload sessions are always dropped. Blob and staging files are
+// removed only after the commit. The last admin can never be deleted, and
+// admins cannot delete their own account.
 func (s *server) deleteUser(w http.ResponseWriter, r *http.Request) {
+	me, _ := auth.FromContext(r.Context())
 	id := r.PathValue("id")
+	purge := false
+	switch r.URL.Query().Get("files") {
+	case "":
+	case "purge":
+		purge = true
+	default:
+		errJSON(w, 400, "bad_request")
+		return
+	}
 	ctx := r.Context()
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -338,24 +359,47 @@ func (s *server) deleteUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	var files int
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM nodes WHERE space_owner=?`, id).Scan(&files); err != nil {
+	if u.ID == me.ID {
+		errJSON(w, 409, "cannot_delete_self")
+		return
+	}
+	var personal, shared int
+	if err := tx.QueryRowContext(ctx, `SELECT
+		(SELECT count(*) FROM nodes WHERE space_owner=?1),
+		(SELECT count(*) FROM nodes WHERE uploader=?1 AND space_owner IS NULL)`, id).Scan(&personal, &shared); err != nil {
 		errJSON(w, 500, "internal")
 		return
 	}
-	if files > 0 {
-		writeJSON(w, 409, map[string]any{"error": "user_has_files", "file_count": files})
+	if !purge && personal+shared > 0 {
+		// file_count keeps its original meaning: the personal-space count,
+		// or (if that is empty) the number of shared-space uploads.
+		count := personal
+		if count == 0 {
+			count = shared
+		}
+		writeJSON(w, 409, map[string]any{
+			"error": "user_has_files", "file_count": count,
+			"personal_count": personal, "shared_count": shared,
+		})
 		return
 	}
-	// Items the user uploaded into shared spaces still reference them.
-	var uploaded int
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM nodes WHERE uploader=?`, id).Scan(&uploaded); err != nil {
+	sessions, err := uploads.DeleteUserSessionsTx(ctx, tx, id)
+	if err != nil {
 		errJSON(w, 500, "internal")
 		return
 	}
-	if uploaded > 0 {
-		writeJSON(w, 409, map[string]any{"error": "user_has_files", "file_count": uploaded})
-		return
+	var blobs []string
+	if purge {
+		if blobs, err = nodes.PurgeSpaceTx(ctx, tx, id); err != nil {
+			errJSON(w, 500, "internal")
+			return
+		}
+		// Only shared-space nodes can remain with this uploader (a personal
+		// space is writable by its owner alone, and it was just emptied).
+		if _, err := tx.ExecContext(ctx, `UPDATE nodes SET uploader=? WHERE uploader=?`, me.ID, id); err != nil {
+			errJSON(w, 500, "internal")
+			return
+		}
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM users WHERE id=?`, id); err != nil {
 		errJSON(w, 500, "internal")
@@ -365,6 +409,8 @@ func (s *server) deleteUser(w http.ResponseWriter, r *http.Request) {
 		errJSON(w, 500, "internal")
 		return
 	}
+	nodes.RemoveBlobs(s.dataDir, blobs)
+	uploads.RemoveSessionFiles(s.dataDir, sessions)
 	w.WriteHeader(http.StatusNoContent)
 }
 
