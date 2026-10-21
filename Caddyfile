@@ -8,23 +8,29 @@
 	# allows 40 s before SIGKILL).
 	grace_period 30s
 	servers {
-		# cloudflared (and the Docker host) reach Caddy from private
-		# addresses; trust their X-Forwarded-* so an upstream
-		# "X-Forwarded-Proto: https" survives (the session cookie's Secure
-		# flag depends on it).
-		trusted_proxies static private_ranges
+		# Trust X-Forwarded-* only from connections the Docker host makes
+		# itself: cloudflared (or anything else) on the host reaches the
+		# published port through docker-proxy and arrives from the gateway
+		# of Caddy's own network, KORE_SUBNET. LAN/Tailscale clients keep
+		# their real source address through Docker's port forwarding (even
+		# private ones like 192.168.x.x), so they are not trusted: their
+		# X-Forwarded-For/Proto/Host are overwritten with what Caddy sees
+		# and an upstream "X-Forwarded-Proto: https" (which makes the session
+		# cookie Secure) is honoured only from the host.
+		trusted_proxies static 127.0.0.0/8 ::1 {$KORE_SUBNET:172.31.255.0/24}
 	}
 }
 
 :80 {
-	# CF-Connecting-IP is only meaningful from a proxy on a private address
-	# (cloudflared); drop it when a client sends it directly. The API honours
-	# it for rate limiting because its own peer (Caddy) is private.
-	@spoofedCF {
+	# The API uses CF-Connecting-IP (for login rate limiting) because its
+	# own peer, Caddy, is private. Keep the header only when it comes from
+	# the same trusted sources as above; anyone else could otherwise pick a
+	# fresh "client IP" for every request.
+	@untrustedCF {
 		header CF-Connecting-IP *
-		not remote_ip private_ranges
+		not remote_ip 127.0.0.0/8 ::1 {$KORE_SUBNET:172.31.255.0/24}
 	}
-	request_header @spoofedCF -CF-Connecting-IP
+	request_header @untrustedCF -CF-Connecting-IP
 
 	# API: no body size limit, no request buffering, responses flushed as
 	# they are written (chunked uploads, streaming file and zip downloads).

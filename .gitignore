@@ -2,4 +2,4 @@
 # Local deployment config and data (never commit)
 /.env
 /kore.toml
-/data/
+data/
