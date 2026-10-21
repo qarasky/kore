@@ -29,6 +29,7 @@ func New(db *sql.DB) http.Handler {
 	mux.HandleFunc("POST /api/auth/login", s.login)
 	mux.HandleFunc("POST /api/auth/logout", s.logout)
 	mux.Handle("GET /api/auth/me", auth.RequireUser(http.HandlerFunc(s.me)))
+	s.registerAdmin(mux)
 	return auth.Middleware(db)(mux)
 }
 
