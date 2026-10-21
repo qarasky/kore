@@ -81,6 +81,26 @@ One-time setup for e2e: `npx playwright install chromium`. Go must be on `PATH`.
   `API_URL` pointed at a closed port, for API-outage tests (`E2E.webDownUrl`;
   cookies are per host, so a session from :13000 works there).
 
+### Against a running deployment (Docker Compose)
+
+Set `E2E_BASE_URL` to run the suite against an already running stack instead
+of starting its own servers; UI and `/api` must be served on that one origin
+(as Caddy does). Give it a fresh data dir, and tell it the admin account from
+that stack's `kore.toml`:
+
+```sh
+# from the repo root, with kore.toml (admin@kore.test / admin-password-123),
+# .env (KORE_DATA_DIR pointing at an empty throwaway dir) and `kore init` done:
+docker compose up -d --build
+cd web
+E2E_BASE_URL=http://localhost:8080 \
+E2E_ADMIN_EMAIL=admin@kore.test E2E_ADMIN_PASSWORD=admin-password-123 \
+npm run e2e
+```
+
+The two API-outage tests need the harness's second web instance and are
+skipped in this mode.
+
 Tests run with one worker because they share one API (and its login rate
 limiter). Helpers in `e2e/helpers.ts`:
 
