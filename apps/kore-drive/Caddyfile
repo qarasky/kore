@@ -1,0 +1,53 @@
+# Kore reverse proxy: the only published service (see docker-compose.yml).
+# TLS is terminated in front of Caddy (Cloudflare Tunnel) or not at all
+# (LAN/Tailscale), so Caddy itself speaks plain HTTP.
+{
+	admin off
+	auto_https off
+	servers {
+		# cloudflared (and the Docker host) reach Caddy from private
+		# addresses; trust their X-Forwarded-* so an upstream
+		# "X-Forwarded-Proto: https" survives (the session cookie's Secure
+		# flag depends on it).
+		trusted_proxies static private_ranges
+	}
+}
+
+:80 {
+	# CF-Connecting-IP is only meaningful from a proxy on a private address
+	# (cloudflared); drop it when a client sends it directly. The API honours
+	# it for rate limiting because its own peer (Caddy) is private.
+	@spoofedCF {
+		header CF-Connecting-IP *
+		not remote_ip private_ranges
+	}
+	request_header @spoofedCF -CF-Connecting-IP
+
+	# API: no body size limit, no request buffering, responses flushed as
+	# they are written (chunked uploads, streaming file and zip downloads).
+	# No compression here: files and zips are passed through untouched.
+	handle /api/* {
+		reverse_proxy api:8080 {
+			flush_interval -1
+		}
+	}
+
+	# UI (Next.js SSR).
+	handle {
+		encode zstd gzip
+		header {
+			X-Content-Type-Options nosniff
+			Referrer-Policy same-origin
+			X-Frame-Options DENY
+			# Next.js App Router streams its payload in inline <script>
+			# tags and React sets inline styles, so 'unsafe-inline' is
+			# needed without per-request nonces. Everything else is
+			# limited to this origin; no external hosts, no eval, no
+			# plugins, no framing by other sites.
+			Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		}
+		reverse_proxy web:3000 {
+			flush_interval -1
+		}
+	}
+}
