@@ -31,11 +31,12 @@ Before running the last two commands:
 - In `.env` set `KORE_DATA_DIR` (host path of the data dir) and
   `KORE_UID`/`KORE_GID` (the host user that should own the files; `id -u` and
   `id -g` of e.g. `office`).
-- Create the data dir and give it to that user. Docker will not create it for
-  you (on purpose, see below):
+- Create the data dir and give it to that user (run as that user, or put
+  your `KORE_UID`/`KORE_GID` in place of `$(id -u)`/`$(id -g)`). Docker will
+  not create it for you (on purpose, see below):
 
   ```sh
-  sudo install -d -o 1000 -g 1000 /mnt/mirror/kore
+  sudo install -d -o "$(id -u)" -g "$(id -g)" /mnt/mirror/kore
   ```
 
 Then open `http://127.0.0.1:8080` (or your `KORE_PORT`). Check health with
@@ -67,9 +68,25 @@ host, add a public hostname to the tunnel:
   `cloudflared` runs in a container, use an address it can reach and set
   `KORE_BIND` accordingly)
 
-Caddy trusts `X-Forwarded-Proto` and `CF-Connecting-IP` from private
-addresses (where `cloudflared` connects from), so sessions get `Secure`
-cookies over HTTPS and login rate limiting sees the real client IP.
+### Which proxy headers are trusted
+
+Caddy honours `X-Forwarded-Proto` (`https` makes the session cookie `Secure`)
+and `CF-Connecting-IP` (the client IP the API uses for login rate limiting)
+only on connections that come from the Docker host itself. `cloudflared` on
+the host connects to the published port through Docker's port proxy and
+arrives from the gateway of Caddy's network, whose subnet is fixed
+(`KORE_SUBNET`, default `172.31.255.0/24`; change it in `.env` if it collides
+with a network you use). Clients on the LAN or Tailscale reach Caddy with
+their own address, even a private one, so their `CF-Connecting-IP` is dropped
+and their `X-Forwarded-*` headers are replaced with what Caddy actually sees:
+they cannot pick a fresh "client IP" per login attempt or fake HTTPS. Note
+that containers on other Docker networks of the same host also count as the
+host.
+
+Without Docker (`kore -config kore.toml`), the API itself trusts
+`CF-Connecting-IP`/`X-Forwarded-For` from any loopback or private peer. Keep
+`bind = "127.0.0.1"` there and put a proxy in front that removes those headers
+from untrusted clients.
 Cloudflare's 100 MB request limit does not matter: the UI uploads in 8 MiB
 chunks and resumes interrupted uploads. Downloads (including zips) stream.
 
@@ -103,13 +120,21 @@ sudo rsync -a --delete /mnt/mirror/kore/ /backup/kore/
 docker compose start api
 ```
 
-Online (no downtime): snapshot the database with SQLite's backup command, then
-copy the blobs (needs `sqlite3` on the host: `sudo apt install sqlite3`).
+Online (no downtime): copy the blobs first, then snapshot the database with
+SQLite's backup command (needs `sqlite3` on the host: `sudo apt install
+sqlite3`).
 
 ```sh
-sqlite3 /mnt/mirror/kore/kore.db ".backup '/backup/kore/kore.db'"
 sudo rsync -a /mnt/mirror/kore/blobs/ /backup/kore/blobs/
+sqlite3 /mnt/mirror/kore/kore.db ".backup '/backup/kore/kore.db'"
 ```
+
+The order matters. A file uploaded between the two steps then exists only as
+an extra blob that the snapshot does not know about, and Kore removes such
+orphans by itself. The other order could give a snapshot that points at a
+blob the backup does not contain. Without `--delete`, blobs of files purged
+since the last run stay in the backup until you prune it (e.g. with a
+stop-the-API backup).
 
 Do not copy `kore.db` alone with `cp` while Kore is running. To restore, stop
 the stack, put `kore.db`, `blobs/` and an empty `.kore-volume` into the data
@@ -146,7 +171,8 @@ password in `kore.toml` with anything other than `change-me`.
   `.env`, then `docker compose up -d`.
 - **`permission denied` on `/data/...`**: the data dir is not owned by
   `KORE_UID:KORE_GID`. Fix with
-  `sudo chown -R 1000:1000 /mnt/mirror/kore` (your uid/gid), or set
+  `sudo chown -R "$(id -u):$(id -g)" /mnt/mirror/kore` (run as the user in
+  `KORE_UID`/`KORE_GID`), or set
   `KORE_UID`/`KORE_GID` to the dir's owner.
 - **Logged out right after logging in over plain HTTP**: something in front of
   Caddy is sending `X-Forwarded-Proto: https` for an `http://` URL; use the
