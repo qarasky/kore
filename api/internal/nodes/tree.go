@@ -11,6 +11,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/artchsh/kore/api/internal/quota"
 	"github.com/artchsh/kore/api/internal/users"
 	"golang.org/x/text/unicode/norm"
 )
@@ -351,6 +352,24 @@ func moveTx(ctx context.Context, tx *sql.Tx, actor users.User, n Node, mv MoveTa
 			return Node{}, err
 		}
 	}
+	crossSpace := !sameSpace(SpaceOf(n), dest)
+	if crossSpace && dest.Owner != nil {
+		// Moving into a personal space hands the whole subtree to its owner:
+		// charge them for the bytes they were not already paying for.
+		var foreign int64
+		if err := tx.QueryRowContext(ctx, `WITH RECURSIVE d(id) AS (
+			SELECT id FROM nodes WHERE id=?
+			UNION ALL SELECT n.id FROM nodes n JOIN d ON n.parent_id=d.id)
+			SELECT COALESCE(SUM(size),0) FROM nodes
+			WHERE id IN (SELECT id FROM d) AND is_dir=0 AND uploader<>?`, id, *dest.Owner).Scan(&foreign); err != nil {
+			return Node{}, err
+		}
+		if foreign > 0 {
+			if err := quota.Reserve(ctx, tx, *dest.Owner, foreign); err != nil {
+				return Node{}, err
+			}
+		}
+	}
 	now := time.Now().Unix()
 	_, err := tx.ExecContext(ctx, `UPDATE nodes SET parent_id=?,space_owner=?,updated_at=? WHERE id=?`,
 		newParent, dest.Owner, now, id)
@@ -360,12 +379,23 @@ func moveTx(ctx context.Context, tx *sql.Tx, actor users.User, n Node, mv MoveTa
 	if err != nil {
 		return Node{}, err
 	}
-	if !sameSpace(SpaceOf(n), dest) {
+	if crossSpace {
 		if _, err := tx.ExecContext(ctx, `WITH RECURSIVE d(id) AS (
 			SELECT id FROM nodes WHERE parent_id=?
 			UNION ALL SELECT n.id FROM nodes n JOIN d ON n.parent_id=d.id)
 			UPDATE nodes SET space_owner=? WHERE id IN (SELECT id FROM d)`, id, dest.Owner); err != nil {
 			return Node{}, err
+		}
+		if dest.Owner != nil {
+			// Re-attribute every node of the subtree (folders too, so no
+			// stale uploader is left in another user's personal space).
+			if _, err := tx.ExecContext(ctx, `WITH RECURSIVE d(id) AS (
+				SELECT id FROM nodes WHERE id=?
+				UNION ALL SELECT n.id FROM nodes n JOIN d ON n.parent_id=d.id)
+				UPDATE nodes SET uploader=? WHERE id IN (SELECT id FROM d)`, id, *dest.Owner); err != nil {
+				return Node{}, err
+			}
+			n.Uploader = *dest.Owner
 		}
 	}
 	n.ParentID, n.SpaceOwner, n.UpdatedAt = newParent, dest.Owner, now

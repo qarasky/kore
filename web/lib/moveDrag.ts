@@ -5,7 +5,8 @@
  * {@link MOVE_DRAG_TYPE} tells targets the drag is ours (and not stale).
  * Browser-only.
  */
-import { t } from "./i18n";
+import { isApiError } from "./api";
+import { t, type MessageKey } from "./i18n";
 import type { Space } from "./nodes";
 
 export const MOVE_DRAG_TYPE = "application/x-kore-nodes";
@@ -60,4 +61,13 @@ export function beginMove(e: { dataTransfer: DataTransfer }, payload: MovePayloa
 
 export function endMove(): void {
   current = null;
+}
+
+/** The toast message for a failed `PATCH /api/nodes/{id}` move. */
+export function moveErrorKey(e: unknown): MessageKey {
+  if (isApiError(e, 409)) return "move.error.nameTaken";
+  if (isApiError(e, 400) && e.code === "invalid_move") return "move.error.intoItself";
+  if (isApiError(e, 404)) return "move.error.notFound";
+  if (isApiError(e, 507)) return "move.error.quota";
+  return "move.error.generic";
 }

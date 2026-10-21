@@ -227,10 +227,19 @@ func TestDeleteUserUploaderInOtherPersonalSpace(t *testing.T) {
 		t.Fatal(err)
 	}
 	// X (e.user) uploads two files to the shared space; Y moves one into
-	// Y's personal space (the node keeps uploader=X).
+	// Y's personal space. A move now re-attributes the node to Y, but rows
+	// written before that rule (uploader=X inside Y's space) can still exist,
+	// so recreate that legacy state to exercise other_count.
 	moved, movedPath := e.putFileIn(t, e.user, nodes.Space{}, "moved.txt", make([]byte, 19))
 	if rec := e.do(t, &y, "PATCH", "/api/nodes/"+moved.ID, `{"parent_id":null,"space":"personal"}`); rec.Code != 200 {
 		t.Fatalf("move: %d %s", rec.Code, rec.Body)
+	}
+	var up string
+	if err := e.db.QueryRow(`SELECT uploader FROM nodes WHERE id=?`, moved.ID).Scan(&up); err != nil || up != y.ID {
+		t.Fatalf("move did not re-attribute: %q %v", up, err)
+	}
+	if _, err := e.db.Exec(`UPDATE nodes SET uploader=? WHERE id=?`, e.user.ID, moved.ID); err != nil {
+		t.Fatal(err)
 	}
 	path := "/api/admin/users/" + e.user.ID
 	// Their only file is in Y's space: refused (it used to hit the FK and 500).

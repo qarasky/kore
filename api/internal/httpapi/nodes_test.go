@@ -1,8 +1,14 @@
 package httpapi
 
 import (
+	"context"
+	"database/sql"
 	"strings"
 	"testing"
+
+	"github.com/artchsh/kore/api/internal/auth"
+	"github.com/artchsh/kore/api/internal/nodes"
+	"github.com/artchsh/kore/api/internal/users"
 )
 
 func TestNodesHTTPFlow(t *testing.T) {
@@ -101,5 +107,41 @@ func TestPatchIsAtomicAndSpaceChecks(t *testing.T) {
 	rec = e.do(t, &e.user, "PATCH", "/api/nodes/"+n, `{"name":"again","space":"personal"}`)
 	if rec.Code != 200 || jsonBody(t, rec)["parent_id"] != dir {
 		t.Fatalf("space alone moved node: %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestMoveIntoPersonalChargesMover(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	ph, _ := auth.HashPassword("password-1")
+	b, err := users.Create(ctx, e.db, "b@x.io", ph, "user", 1<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.db.Exec(`UPDATE users SET quota_bytes=? WHERE id=?`, 30, e.user.ID)
+	big, _ := e.putFileIn(t, b, nodes.Space{}, "big.txt", make([]byte, 31))
+	small, _ := e.putFileIn(t, b, nodes.Space{}, "small.txt", make([]byte, 30))
+
+	// Over the mover's quota: 507 and nothing changes.
+	rec := e.do(t, &e.user, "PATCH", "/api/nodes/"+big.ID, `{"parent_id":null,"space":"personal"}`)
+	if rec.Code != 507 || jsonBody(t, rec)["error"] != "quota_exceeded" {
+		t.Fatalf("over quota: %d %s", rec.Code, rec.Body)
+	}
+	var up string
+	var owner sql.NullString
+	e.db.QueryRow(`SELECT uploader,space_owner FROM nodes WHERE id=?`, big.ID).Scan(&up, &owner)
+	if up != b.ID || owner.Valid {
+		t.Fatalf("big changed: %q %v", up, owner)
+	}
+
+	rec = e.do(t, &e.user, "PATCH", "/api/nodes/"+small.ID, `{"parent_id":null,"space":"personal"}`)
+	if rec.Code != 200 {
+		t.Fatalf("move: %d %s", rec.Code, rec.Body)
+	}
+	if got := e.usedBy(t, b); got != 31 {
+		t.Fatalf("b used %v, want 31", got)
+	}
+	if got := e.usedBy(t, e.user); got != 30 {
+		t.Fatalf("user used %v, want 30", got)
 	}
 }

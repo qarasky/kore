@@ -2,16 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
-import { api, isApiError } from "@/lib/api";
-import { t, type MessageKey } from "@/lib/i18n";
-import { isNoopMove, type MoveDest, type MovePayload } from "@/lib/moveDrag";
-
-function moveErrorKey(e: unknown): MessageKey {
-  if (isApiError(e, 409)) return "move.error.nameTaken";
-  if (isApiError(e, 400) && e.code === "invalid_move") return "move.error.intoItself";
-  if (isApiError(e, 404)) return "move.error.notFound";
-  return "move.error.generic";
-}
+import { api } from "@/lib/api";
+import { t } from "@/lib/i18n";
+import { isNoopMove, moveErrorKey, type MoveDest, type MovePayload } from "@/lib/moveDrag";
 
 /**
  * Moves dragged nodes with `PATCH /api/nodes/{id}` (into a folder via

@@ -7,6 +7,7 @@ import (
 
 	"github.com/artchsh/kore/api/internal/auth"
 	"github.com/artchsh/kore/api/internal/nodes"
+	"github.com/artchsh/kore/api/internal/quota"
 )
 
 func (s *server) registerNodes(mux *http.ServeMux) {
@@ -49,6 +50,8 @@ func nodeErr(w http.ResponseWriter, err error) {
 		errJSON(w, 400, "space_mismatch")
 	case errors.Is(err, nodes.ErrNotDir):
 		errJSON(w, 400, "not_a_folder")
+	case errors.Is(err, quota.ErrExceeded):
+		errJSON(w, 507, "quota_exceeded")
 	default:
 		errJSON(w, 500, "internal")
 	}
