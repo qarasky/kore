@@ -4,6 +4,7 @@ import { E2E } from "./harness/env";
 import { ADMIN, loginAs } from "./helpers";
 
 test("API outage during SSR shows the styled error page with retry", async ({ page, request }) => {
+  test.skip(E2E.external, "needs the harness's API-down web instance");
   // Wait for the API-down instance (started alongside the main one). Use the
   // cookie-less `request` fixture so /login isn't redirected.
   await expect(async () => {
