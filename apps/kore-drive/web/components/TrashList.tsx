@@ -5,6 +5,7 @@ import { useMemo, useRef, useState, useTransition, type KeyboardEvent, type Mous
 import { useSelection } from "@/hooks/useSelection";
 import { api, isApiError } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
+import { settleLimited } from "@/lib/settle";
 import { t } from "@/lib/i18n";
 import { fileKind, folderHref, type ApiNode, type Space } from "@/lib/nodes";
 import type { TrashedNode } from "@/lib/trash";
@@ -16,7 +17,11 @@ import { useToast } from "./Toast";
 
 const GRID = "grid grid-cols-[minmax(0,1fr)_150px_90px_72px] items-center gap-3 px-3";
 
-type Confirm = { kind: "delete"; ids: string[] } | { kind: "empty" } | null;
+/** `empty.ids` is null while the current trash contents are being fetched. */
+type Confirm = { kind: "delete"; ids: string[] } | { kind: "empty"; ids: string[] | null } | null;
+
+/** Parallel purge requests at a time. */
+const PURGE_CONCURRENCY = 4;
 
 const sectionName = (space: Space) => (space === "shared" ? t("nav.shared") : t("nav.myFiles"));
 
@@ -35,6 +40,11 @@ async function folderName(node: ApiNode): Promise<string> {
  * One trash section as a `role="listbox"` with the file list's selection
  * model. Restore, Delete forever (confirmed; also the Delete key) and Empty
  * trash (confirmed, states the count). Each action refreshes the page data.
+ *
+ * Empty trash re-reads the trash when its dialog opens and then purges
+ * exactly those ids one by one, never the blanket `DELETE /api/trash`: in the
+ * shared trash a teammate may trash something while the dialog is open, and
+ * that must not be destroyed under a confirmation that never listed it.
  */
 export function TrashList({ space, items }: { space: Space; items: TrashedNode[] }) {
   const router = useRouter();
@@ -46,6 +56,10 @@ export function TrashList({ space, items }: { space: Space; items: TrashedNode[]
   const byId = useMemo(() => new Map(items.map((n) => [n.id, n])), [items]);
   const sel = useSelection(ids);
   const listRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  /** After a confirmed purge: focus the list (rows remain) or the section. */
+  const focusAfter = useRef<"list" | "root" | null>(null);
+  const emptyRequest = useRef(0);
   const rowEls = useRef(new Map<string, HTMLDivElement>());
   const working = busy || refreshing;
   const count = sel.selectedIds.length;
@@ -85,33 +99,58 @@ export function TrashList({ space, items }: { space: Space; items: TrashedNode[]
     });
   }
 
-  async function purge(targets: string[]) {
-    const results = await Promise.allSettled(
-      targets.map((id) => api(`/api/trash/${encodeURIComponent(id)}`, { method: "DELETE" })),
+  async function purge(targets: string[], kind: "delete" | "empty") {
+    const results = await settleLimited(targets, PURGE_CONCURRENCY, (id) =>
+      api(`/api/trash/${encodeURIComponent(id)}`, { method: "DELETE" }),
     );
     // Already gone (e.g. purged in another tab) counts as done.
-    const done = targets.filter(
-      (_, i) => results[i].status === "fulfilled" || isApiError((results[i] as PromiseRejectedResult).reason, 404),
-    );
+    const done = targets.filter((_, i) => {
+      const r = results[i];
+      return r.status === "fulfilled" || isApiError(r.reason, 404);
+    });
+    const gone = new Set(done);
+    focusAfter.current = items.some((n) => !gone.has(n.id)) ? "list" : "root";
     setConfirm(null);
     sel.clear();
-    listRef.current?.focus();
     refresh();
-    if (done.length < targets.length) toast.show({ message: t("trash.deleteFailed"), tone: "error" });
+    if (done.length < targets.length) {
+      toast.show({
+        message: done.length === 0 ? t("trash.deleteFailed") : t("trash.partial", { done: done.length, count: targets.length }),
+        tone: "error",
+      });
+    } else if (kind === "empty") toast.show({ message: t("trash.emptied") });
     else if (done.length === 1) toast.show({ message: t("trash.deletedOne", { name: byId.get(done[0])?.name ?? "" }) });
     else toast.show({ message: t("trash.deletedMany", { count: done.length }) });
   }
 
-  async function emptyTrash() {
+  /** Opens the Empty trash dialog with the trash as it is now (refreshing the list too). */
+  async function openEmpty() {
+    if (working) return;
+    const req = ++emptyRequest.current;
+    setConfirm({ kind: "empty", ids: null });
+    refresh();
     try {
-      await api(`/api/trash?space=${space}`, { method: "DELETE" });
-      toast.show({ message: t("trash.emptied") });
+      const fresh = await api<TrashedNode[]>(`/api/trash?space=${space}`);
+      if (req !== emptyRequest.current) return;
+      setConfirm((c) => (c?.kind === "empty" ? { kind: "empty", ids: fresh.map((n) => n.id) } : c));
     } catch {
+      if (req !== emptyRequest.current) return;
+      setConfirm((c) => (c?.kind === "empty" ? null : c));
       toast.show({ message: t("trash.emptyFailed"), tone: "error" });
     }
+  }
+
+  function cancelConfirm() {
+    emptyRequest.current++;
     setConfirm(null);
-    sel.clear();
-    refresh();
+  }
+
+  function confirmReturnFocus(): HTMLElement | null | undefined {
+    const where = focusAfter.current;
+    focusAfter.current = null;
+    if (where === "list") return listRef.current ?? rootRef.current;
+    if (where === "root") return rootRef.current;
+    return undefined; // cancelled: back to the opener
   }
 
   const askDelete = (targets: string[]) => {
@@ -164,7 +203,7 @@ export function TrashList({ space, items }: { space: Space; items: TrashedNode[]
   const tabbable = sel.selection.focus ?? ids[0] ?? null;
 
   return (
-    <>
+    <div ref={rootRef} tabIndex={-1} data-testid="trash-section" className="flex min-h-0 flex-1 flex-col outline-none">
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-4">
         <button type="button" className={toolbarButton} disabled={count === 0 || working} onClick={() => restore(sel.selectedIds)}>
           <RestoreIcon />
@@ -181,7 +220,7 @@ export function TrashList({ space, items }: { space: Space; items: TrashedNode[]
           type="button"
           className={`${toolbarButton} ml-auto text-danger`}
           disabled={items.length === 0 || working}
-          onClick={() => setConfirm({ kind: "empty" })}
+          onClick={openEmpty}
         >
           {t("trash.empty")}
         </button>
@@ -284,27 +323,32 @@ export function TrashList({ space, items }: { space: Space; items: TrashedNode[]
               : t("trash.deleteMessageMany", { count: confirm.ids.length })
           }
           confirmLabel={t("trash.deleteForever")}
-          onConfirm={() => purge(confirm.ids)}
-          onCancel={() => setConfirm(null)}
+          onConfirm={() => purge(confirm.ids, "delete")}
+          onCancel={cancelConfirm}
+          returnFocus={confirmReturnFocus}
         />
       )}
       {confirm?.kind === "empty" && (
         <ConfirmDialog
           danger
           title={t("trash.emptyTitle")}
-          message={
-            items.length === 1
-              ? t("trash.emptyMessageOne", { section: space === "shared" ? t("trash.shared") : t("trash.mine") })
-              : t("trash.emptyMessageMany", {
-                  count: items.length,
-                  section: space === "shared" ? t("trash.shared") : t("trash.mine"),
-                })
-          }
+          message={emptyMessage(confirm.ids, space)}
           confirmLabel={t("trash.empty")}
-          onConfirm={emptyTrash}
-          onCancel={() => setConfirm(null)}
+          confirmDisabled={!confirm.ids || confirm.ids.length === 0}
+          onConfirm={() => (confirm.ids ? purge(confirm.ids, "empty") : undefined)}
+          onCancel={cancelConfirm}
+          returnFocus={confirmReturnFocus}
         />
       )}
-    </>
+    </div>
   );
+}
+
+function emptyMessage(ids: string[] | null, space: Space): string {
+  if (!ids) return t("trash.emptyChecking");
+  if (ids.length === 0) return t("trash.emptyNothing");
+  const section = space === "shared" ? t("trash.shared") : t("trash.mine");
+  return ids.length === 1
+    ? t("trash.emptyMessageOne", { section })
+    : t("trash.emptyMessageMany", { count: ids.length, section });
 }

@@ -19,9 +19,10 @@ export default async function TrashPage({ searchParams }: PageProps<"/trash">) {
   const space = trashSpace((await searchParams).space);
   const [items, settings] = await Promise.all([
     api<TrashedNode[]>(`/api/trash?space=${space}`),
-    api<{ trash_retention_days: number }>("/api/me/settings"),
+    // Only a note: without it the page still works.
+    api<{ trash_retention_days: number }>("/api/me/settings").catch(() => null),
   ]);
-  const days = settings.trash_retention_days;
+  const days = settings?.trash_retention_days;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -45,9 +46,11 @@ export default async function TrashPage({ searchParams }: PageProps<"/trash">) {
             );
           })}
         </nav>
-        <p data-testid="trash-retention" className="ml-auto truncate text-[12px] text-muted">
-          {days === 1 ? t("trash.retentionOne") : t("trash.retention", { days })}
-        </p>
+        {typeof days === "number" && (
+          <p data-testid="trash-retention" className="ml-auto truncate text-[12px] text-muted">
+            {days === 1 ? t("trash.retentionOne") : t("trash.retention", { days })}
+          </p>
+        )}
       </div>
       <TrashList key={space} space={space} items={items} />
     </div>

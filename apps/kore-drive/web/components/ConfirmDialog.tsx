@@ -15,13 +15,19 @@ export function ConfirmDialog({
   message,
   confirmLabel,
   danger = false,
+  confirmDisabled = false,
   onConfirm,
   onCancel,
+  returnFocus,
 }: {
   title: string;
   message: string;
   confirmLabel: string;
   danger?: boolean;
+  /** E.g. while the data the question is about is still loading. */
+  confirmDisabled?: boolean;
+  /** Where focus goes when the dialog closes (default: the opener). */
+  returnFocus?: () => HTMLElement | null | undefined;
   onConfirm: () => Promise<void> | void;
   onCancel: () => void;
 }) {
@@ -31,7 +37,7 @@ export function ConfirmDialog({
   const [pending, setPending] = useState(false);
 
   async function confirm() {
-    if (pending) return;
+    if (pending || confirmDisabled) return;
     setPending(true);
     try {
       await onConfirm();
@@ -47,6 +53,7 @@ export function ConfirmDialog({
       describedBy={messageId}
       onClose={() => !pending && onCancel()}
       initialFocus={cancelRef}
+      returnFocus={returnFocus}
       className="w-[min(420px,calc(100vw-32px))]"
     >
       <div className="p-5">
@@ -69,7 +76,7 @@ export function ConfirmDialog({
           <button
             type="button"
             onClick={confirm}
-            disabled={pending}
+            disabled={pending || confirmDisabled}
             aria-busy={pending || undefined}
             className={
               "rounded-ui px-3.5 py-1.5 font-medium text-white disabled:cursor-wait disabled:opacity-60 " +
