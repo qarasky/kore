@@ -139,18 +139,19 @@ test.describe("preview", () => {
     await expect(numbers).toHaveAttribute("aria-pressed", "true");
   });
 
-  test("double-clicking a non-text file downloads it without asking for a preview", async ({ page }) => {
+  test("double-clicking a non-previewable file downloads it without asking for a preview", async ({ page }) => {
     const { api } = await setup(page);
-    await uploadFile(api, "photo.png", Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2, 3]));
+    // Images are previewable now; an archive is not.
+    await uploadFile(api, "photos.zip", Buffer.from([0x50, 0x4b, 3, 4, 0, 1, 2, 3]));
     await api.dispose();
     const previews: string[] = [];
     page.on("request", (r) => {
-      if (r.url().includes("/preview")) previews.push(r.url());
+      if (r.url().includes("/preview") || r.url().includes("/view")) previews.push(r.url());
     });
     await page.goto("/files");
 
-    const [download] = await Promise.all([page.waitForEvent("download"), row(page, "photo.png").dblclick()]);
-    expect(download.suggestedFilename()).toBe("photo.png");
+    const [download] = await Promise.all([page.waitForEvent("download"), row(page, "photos.zip").dblclick()]);
+    expect(download.suggestedFilename()).toBe("photos.zip");
     expect(await download.failure()).toBeNull();
     await expect(preview(page)).toHaveCount(0);
     expect(previews).toEqual([]);
@@ -193,10 +194,10 @@ test.describe("preview", () => {
     );
   });
 
-  test("Space toggles quick look, Esc closes, arrows step through text files", async ({ page }) => {
+  test("Space toggles quick look, Esc closes, arrows step through previewable files", async ({ page }) => {
     const { api } = await setup(page);
     await uploadFile(api, "a.txt", "first file");
-    await uploadFile(api, "b.png", "not text");
+    await uploadFile(api, "b.zip", "not previewable");
     await uploadFile(api, "c.go", "package main\n\nfunc main() {}\n");
     await api.dispose();
     await page.goto("/files");
@@ -212,7 +213,7 @@ test.describe("preview", () => {
 
     await page.keyboard.press("Space");
     await expect(pane).toBeVisible();
-    await page.keyboard.press("ArrowRight"); // skips b.png
+    await page.keyboard.press("ArrowRight"); // skips b.zip
     await expect(pane.getByRole("heading", { name: "c.go" })).toBeVisible();
     await expect(pane.getByTestId("text-view")).toContainText("package main");
     await expect(pane.getByRole("button", { name: en["preview.lineNumbers"] })).toHaveAttribute("aria-pressed", "true");
@@ -222,10 +223,10 @@ test.describe("preview", () => {
     await expect(row(page, "c.go")).toBeFocused();
     await expect(row(page, "c.go")).toHaveAttribute("aria-selected", "true");
 
-    // Space on a non-text file only selects it.
-    await row(page, "b.png").click();
+    // Space on a non-previewable file only selects it.
+    await row(page, "b.zip").click();
     await page.keyboard.press("Space");
-    await expect(row(page, "b.png")).toHaveAttribute("aria-selected", "true");
+    await expect(row(page, "b.zip")).toHaveAttribute("aria-selected", "true");
     await expect(pane).toHaveCount(0);
   });
 

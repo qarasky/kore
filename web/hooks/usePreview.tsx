@@ -11,8 +11,8 @@ import { isPreviewable, previewable } from "@/lib/preview";
 type Open = { items: ApiNode[]; index: number };
 
 /**
- * "Open a file": text-like files (by the shared allowlist) show in the
- * preview pane, everything else downloads. `siblings` gives the pane its
+ * "Open a file": text, image and PDF files (by the shared allowlists) show
+ * in the preview pane, everything else downloads. `siblings` gives the pane its
  * ←/→ order. `onShow` fires when the pane moves to another file (so the
  * list can follow); `returnFocus` picks the element focused on close.
  */
@@ -30,7 +30,7 @@ export function usePreview({
     downloadFile(node.id, () => toast.show({ message: t("toast.downloadFailed"), tone: "error" }));
   }
 
-  /** Previews `node` if it looks like text, else downloads it. Folders are ignored. */
+  /** Previews `node` if it has a viewer (text, image, PDF), else downloads it. Folders are ignored. */
   function openFile(node: ApiNode, siblings: readonly ApiNode[] = [node]) {
     if (node.is_dir) return;
     if (!isPreviewable(node.name)) {

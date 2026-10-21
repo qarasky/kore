@@ -9,7 +9,7 @@ vi.mock("next/headers", () => ({
   }),
 }));
 
-import { api, API_TIMEOUT_MS, API_UNREACHABLE_DIGEST, ApiError, apiText } from "../api";
+import { api, apiHead, API_TIMEOUT_MS, API_UNREACHABLE_DIGEST, ApiError, apiText } from "../api";
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -327,5 +327,36 @@ describe("apiText()", () => {
   it("rejects paths outside /api/", async () => {
     await expect(apiText("/nodes/x")).rejects.toThrow(TypeError);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("apiHead()", () => {
+  const fetchMock = vi.fn<typeof fetch>();
+
+  beforeEach(() => {
+    cookieStore.clear();
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("sends HEAD and resolves on 2xx", async () => {
+    vi.stubGlobal("window", {});
+    fetchMock.mockResolvedValue(new Response(null, { status: 200, headers: { "Content-Type": "image/png" } }));
+    await expect(apiHead("/api/nodes/n1/view")).resolves.toBeUndefined();
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/nodes/n1/view");
+    expect(init?.method).toBe("HEAD");
+  });
+
+  it("keeps the status of a bodiless error", async () => {
+    vi.stubGlobal("window", {});
+    fetchMock.mockResolvedValue(new Response(null, { status: 415 }));
+    const err = await apiHead("/api/nodes/n1/view").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(415);
   });
 });

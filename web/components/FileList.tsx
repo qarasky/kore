@@ -42,8 +42,8 @@ const isOnRow = (e: { target: EventTarget }) => (e.target as Element).closest('[
 /**
  * The folder listing: a `role="listbox"` of dense rows with file-manager
  * selection (click, shift/ctrl-click, arrows, Ctrl/Cmd+A), inline rename
- * (F2), trash (Delete), open (Enter / double-click: folders navigate, text
- * files preview, other files download), quick look (Space), move (to the
+ * (F2), trash (Delete), open (Enter / double-click: folders navigate, text,
+ * image and PDF files preview, other files download), quick look (Space), move (to the
  * other space's root, or anywhere via the Move to… dialog: M, the context
  * menu or the toolbar button shown while something is selected) and a
  * context menu. `select` (from `?select=<id>`) starts with that row selected and
