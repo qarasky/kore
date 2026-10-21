@@ -80,7 +80,12 @@ func (s *server) listNodes(w http.ResponseWriter, r *http.Request) {
 	if p := q.Get("parent"); p != "" {
 		parent = &p
 	}
-	list, err := nodes.List(r.Context(), s.db, me, sp, parent)
+	// sizes=0 skips the folder totals (folders then report size 0).
+	ls := nodes.List
+	if q.Get("sizes") == "0" {
+		ls = nodes.ListWithoutSizes
+	}
+	list, err := ls(r.Context(), s.db, me, sp, parent)
 	if err != nil {
 		nodeErr(w, err)
 		return

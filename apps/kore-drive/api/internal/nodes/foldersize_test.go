@@ -213,8 +213,27 @@ func TestFolderSizeLargeTreeUsesIndex(t *testing.T) {
 	if got != want {
 		t.Fatalf("big=%d, want %d", got, want)
 	}
-	// The descent must walk the parent index, not scan the table per level.
-	rows, err := db.Query(`EXPLAIN QUERY PLAN `+listSQL, sp.Owner, nil)
+	// The listed rows come from the (space, parent) prefix of
+	// nodes_unique_live_name, for the root and for a folder alike; the
+	// descent walks nodes_parent rather than scanning per level.
+	l, _ := List(ctx, db, a, sp, nil)
+	for _, parent := range []*string{nil, &l[0].ID} {
+		joined := queryPlan(t, db, listSQL, sp.Owner, parent)
+		if !strings.Contains(joined, "SEARCH nodes USING INDEX nodes_unique_live_name") {
+			t.Fatalf("listed rows not found via nodes_unique_live_name (parent %v):\n%s", parent, joined)
+		}
+		if !strings.Contains(joined, "SEARCH n USING INDEX nodes_parent (parent_id=?)") {
+			t.Fatalf("recursive step does not use nodes_parent:\n%s", joined)
+		}
+	}
+	if joined := queryPlan(t, db, listPlainSQL, sp.Owner, nil); !strings.Contains(joined, "nodes_unique_live_name") {
+		t.Fatalf("plain list plan:\n%s", joined)
+	}
+}
+
+func queryPlan(t *testing.T, db *sql.DB, q string, args ...any) string {
+	t.Helper()
+	rows, err := db.Query(`EXPLAIN QUERY PLAN `+q, args...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,8 +247,23 @@ func TestFolderSizeLargeTreeUsesIndex(t *testing.T) {
 		}
 		plan = append(plan, detail)
 	}
-	joined := strings.Join(plan, "\n")
-	if !strings.Contains(joined, "SEARCH n USING INDEX nodes_parent (parent_id=?)") {
-		t.Fatalf("recursive step does not use nodes_parent:\n%s", joined)
+	return strings.Join(plan, "\n")
+}
+
+func TestListWithoutSizes(t *testing.T) {
+	db, _, a, _ := setup(t)
+	sp := Personal(a.ID)
+	d := mustFolder(t, db, a, sp, nil, "d")
+	sizedFile(t, db, a, sp, &d.ID, "in", 70)
+	sizedFile(t, db, a, sp, nil, "loose", 9)
+	l, err := ListWithoutSizes(ctx, db, a, sp, nil)
+	if err != nil || len(l) != 2 {
+		t.Fatalf("%v %v", l, err)
+	}
+	if l[0].Name != "d" || l[0].Size != 0 || l[1].Name != "loose" || l[1].Size != 9 {
+		t.Fatalf("%+v", l)
+	}
+	if _, err := ListWithoutSizes(ctx, db, a, Personal("someone-else"), nil); err != ErrNotFound {
+		t.Fatalf("access: %v", err)
 	}
 }

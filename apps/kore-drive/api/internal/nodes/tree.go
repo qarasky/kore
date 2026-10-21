@@ -189,9 +189,12 @@ func CreateFolder(ctx context.Context, db *sql.DB, actor users.User, sp Space, p
 // walking nodes_parent and grouped by the listed folder it started from.
 // Trashed nodes and everything under them are skipped (a trashed subtree is
 // never descended into), and rows of another space are never counted.
+// The children filter matches nodes_unique_live_name's (space, parent)
+// prefix, so the root of a space is found without touching other spaces.
+const childrenWhere = `COALESCE(space_owner,'')=COALESCE(?1,'') AND COALESCE(parent_id,'')=COALESCE(?2,'') AND ` + liveSQL
+
 var listSQL = `WITH RECURSIVE kids AS (
-		SELECT ` + cols + ` FROM nodes
-		WHERE space_owner IS ?1 AND parent_id IS ?2 AND ` + liveSQL + `),
+		SELECT ` + cols + ` FROM nodes WHERE ` + childrenWhere + `),
 	d(root,id,owner,is_dir,size) AS (
 		SELECT id,id,space_owner,1,0 FROM kids WHERE is_dir=1
 		UNION ALL
@@ -201,14 +204,27 @@ var listSQL = `WITH RECURSIVE kids AS (
 	SELECT ` + strings.Replace(prefixed("k", cols), "k.size", "CASE WHEN k.is_dir=1 THEN COALESCE(t.total,0) ELSE k.size END", 1) + `
 	FROM kids k LEFT JOIN totals t ON t.root=k.id`
 
+// listPlainSQL is listSQL without the folder totals (folders report 0).
+var listPlainSQL = `SELECT ` + cols + ` FROM nodes WHERE ` + childrenWhere
+
 // List returns the live children of parentID (nil = space root): folders
 // first, then by natural, case-insensitive name order. A folder's Size is the
 // total size of the live files anywhere below it.
 func List(ctx context.Context, db *sql.DB, actor users.User, sp Space, parentID *string) ([]Node, error) {
+	return list(ctx, db, actor, sp, parentID, listSQL)
+}
+
+// ListWithoutSizes is List without computing folder totals: folders report
+// Size 0 (for callers that only need names, e.g. a folder picker).
+func ListWithoutSizes(ctx context.Context, db *sql.DB, actor users.User, sp Space, parentID *string) ([]Node, error) {
+	return list(ctx, db, actor, sp, parentID, listPlainSQL)
+}
+
+func list(ctx context.Context, db *sql.DB, actor users.User, sp Space, parentID *string, query string) ([]Node, error) {
 	if err := checkParent(ctx, db, actor, sp, parentID); err != nil {
 		return nil, err
 	}
-	rows, err := db.QueryContext(ctx, listSQL, sp.Owner, parentID)
+	rows, err := db.QueryContext(ctx, query, sp.Owner, parentID)
 	if err != nil {
 		return nil, err
 	}

@@ -7,7 +7,7 @@ import { usePreview } from "@/hooks/usePreview";
 import { useSelection } from "@/hooks/useSelection";
 import { collectDataTransfer } from "@/lib/dropEntries";
 import { t, type MessageKey } from "@/lib/i18n";
-import { activeMove, beginMove, endMove, isFileDrag, isNoopMove, type MovePayload } from "@/lib/moveDrag";
+import { activeMove, beginMove, endMove, isFileDrag, isNoopMove, type MoveDest, type MovePayload } from "@/lib/moveDrag";
 import { otherSpace, spaceLabel } from "@/lib/moveTo";
 import { folderHref, type ApiNode, type Space } from "@/lib/nodes";
 import { isPreviewable } from "@/lib/preview";
@@ -142,12 +142,20 @@ export function FileList({
     return { ids, names: Object.fromEntries(ids.map((d) => [d, byId.get(d)?.name ?? ""])), space, parentId };
   }
 
+  /** Runs a move; once something moved, focus goes to the list, since the
+   *  moved rows (and whatever opened the move) vanish with the refresh and
+   *  focus would otherwise drop to the page. Arrows then start from the top. */
+  async function runMove(p: MovePayload, dest: MoveDest, destLabel: string) {
+    const moved = await moveNodes(p, dest, { destLabel });
+    if (moved > 0) listRef.current?.focus();
+  }
+
   /** Moves the selection to the root of the other space. */
   function moveToOtherSpace() {
     const p = selectionPayload();
     if (!p) return;
     const to = otherSpace(space);
-    void moveNodes(p, { space: to, parentId: null }, { destLabel: spaceLabel(to) });
+    void runMove(p, { space: to, parentId: null }, spaceLabel(to));
   }
 
   function openMoveDialog() {
@@ -440,7 +448,7 @@ export function FileList({
           onClose={() => setMoving(null)}
           onMove={(dest, destLabel) => {
             setMoving(null);
-            void moveNodes(moving, dest, { destLabel });
+            void runMove(moving, dest, destLabel);
           }}
         />
       )}

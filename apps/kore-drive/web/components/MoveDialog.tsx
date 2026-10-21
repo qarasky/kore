@@ -52,7 +52,8 @@ export function MoveDialog({
 
   useEffect(() => {
     const ctl = new AbortController();
-    const q = new URLSearchParams({ space });
+    // Only names are needed here: skip the folder size totals.
+    const q = new URLSearchParams({ space, sizes: "0" });
     if (parent) q.set("parent", parent);
     api<ApiNode[]>(`/api/nodes?${q}`, { signal: ctl.signal })
       .then((nodes) => setLoaded({ key, result: { state: "ready", folders: nodes.filter((n) => n.is_dir) } }))

@@ -19,7 +19,7 @@ const patchTo = (ids: readonly string[], dest: MoveDest) =>
  * failures included) in a toast, naming the destination when `destLabel` is
  * given. Whatever moved can be undone from the toast: a best-effort move
  * back to where it came from that reports its own failures. No-op moves
- * send nothing.
+ * send nothing. Resolves to the number of items moved.
  */
 export function useMoveNodes() {
   const router = useRouter();
@@ -36,8 +36,8 @@ export function useMoveNodes() {
     );
   }
 
-  return async function move(p: MovePayload, dest: MoveDest, opts: { destLabel?: string } = {}): Promise<void> {
-    if (isNoopMove(p, dest)) return;
+  return async function move(p: MovePayload, dest: MoveDest, opts: { destLabel?: string } = {}): Promise<number> {
+    if (isNoopMove(p, dest)) return 0;
     const results = await patchTo(p.ids, dest);
     router.refresh();
     const moved = p.ids.filter((_, i) => results[i].status === "fulfilled");
@@ -48,7 +48,7 @@ export function useMoveNodes() {
         : undefined;
     if (failed.length === 0) {
       toast.show({ message: moveDoneMessage(moved, p.names, opts.destLabel), action });
-      return;
+      return moved.length;
     }
     const reason = t(moveErrorKey(failed[0].reason));
     toast.show({
@@ -56,5 +56,6 @@ export function useMoveNodes() {
       tone: "error",
       action,
     });
+    return moved.length;
   };
 }

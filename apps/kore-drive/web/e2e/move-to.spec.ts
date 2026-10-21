@@ -165,7 +165,12 @@ test("keyboard: M opens Move to… for the selection; Escape closes it, focus re
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("End");
   await page.keyboard.press("Enter");
-  await dialog.getByRole("button", { name: en["move.dialog.submit"] }).focus();
+  // Wait for the choice to render: focusing a still-disabled button is a no-op.
+  await expect(dialog.getByText(tt("move.dialog.here", { location: en["nav.shared"] }))).toBeVisible();
+  const submit = dialog.getByRole("button", { name: en["move.dialog.submit"] });
+  await expect(submit).toBeEnabled();
+  await submit.focus();
+  await expect(submit).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(dialog).toBeHidden();
   await expect(toast(page)).toContainText(tt("move.doneOneTo", { name: file, dest: en["nav.shared"] }));
@@ -238,5 +243,51 @@ test("partial failures say how many moved; a failed Undo is reported", async ({ 
   await toast(page).getByRole("button", { name: en["toast.undo"] }).click();
   await expect(toast(page)).toContainText(tt("move.undoFailed", { count: 1, total: 1 }));
   expect(await names(api, "shared")).toContain(ok);
+  await api.dispose();
+});
+
+test("after a move, focus stays in the list so arrow keys keep working", async ({ page }) => {
+  const { api } = await setup(page);
+  const [a, b, c] = ["a", "b", "c"].map((n) => `${unique(`focus-${n}`)}.txt`);
+  for (const n of [a, b, c]) await uploadFile(api, n, n);
+  await page.goto("/files");
+  const selectedRow = list(page).locator('[role="option"][aria-selected="true"]');
+
+  // Context-menu path.
+  await contextAction(page, b, en["action.moveToShared"]);
+  await expect(toast(page)).toContainText(tt("move.doneOneTo", { name: b, dest: en["nav.shared"] }));
+  await expect(row(page, b)).toHaveCount(0);
+  await expect(list(page)).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(row(page, a)).toBeFocused();
+  await expect(selectedRow).toHaveCount(1);
+  await page.keyboard.press("ArrowDown");
+  await expect(row(page, c)).toBeFocused();
+
+  // Move to… path (opened from the toolbar button).
+  await page.getByRole("button", { name: en["action.moveTo"] }).click();
+  const dialog = page.getByRole("dialog", { name: tt("move.dialog.titleOne", { name: c }) });
+  await dialog.getByRole("combobox", { name: en["move.dialog.space"] }).click();
+  await page.getByRole("listbox").getByRole("option", { name: en["nav.shared"] }).click();
+  await dialog.getByRole("button", { name: en["move.dialog.submit"] }).click();
+  await expect(dialog).toBeHidden();
+  await expect(row(page, c)).toHaveCount(0);
+  await expect(list(page)).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(row(page, a)).toBeFocused();
+  await expect(row(page, a)).toHaveAttribute("aria-selected", "true");
+  await api.dispose();
+});
+
+test("the Move to… picker asks for folders without computing sizes", async ({ page }) => {
+  const { api } = await setup(page);
+  const file = `${unique("picker")}.txt`;
+  await uploadFile(api, file, "p");
+  await page.goto("/files");
+  await row(page, file).click();
+  const req = page.waitForRequest((r) => r.url().includes("/api/nodes?") && r.method() === "GET");
+  await page.keyboard.press("m");
+  expect(new URL((await req).url()).searchParams.get("sizes")).toBe("0");
+  await page.keyboard.press("Escape");
   await api.dispose();
 });
