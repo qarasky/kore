@@ -35,6 +35,7 @@ func (s *server) registerAdmin(mux *http.ServeMux) {
 	mux.Handle("GET /api/admin/settings", auth.RequireAdmin(http.HandlerFunc(s.getSettings)))
 	mux.Handle("PATCH /api/admin/settings", auth.RequireAdmin(http.HandlerFunc(s.patchSettings)))
 	mux.Handle("GET /api/admin/usage", auth.RequireAdmin(http.HandlerFunc(s.usage)))
+	mux.Handle("GET /api/admin/disk", auth.RequireAdmin(http.HandlerFunc(s.adminDisk)))
 	mux.Handle("POST /api/me/password", auth.RequireUser(http.HandlerFunc(s.changeOwnPassword)))
 }
 
