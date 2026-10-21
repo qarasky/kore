@@ -31,6 +31,8 @@ services:
     cap_drop: [ALL]
     cap_add: [NET_BIND_SERVICE]
     networks: [edge, internal]
+    # Caddy drains for up to 30 s (grace_period in the Caddyfile).
+    stop_grace_period: 40s
     depends_on:
       web:
         condition: service_healthy
