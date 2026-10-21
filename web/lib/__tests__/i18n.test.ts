@@ -8,10 +8,10 @@ describe("t()", () => {
   });
 
   it("fills placeholders", () => {
-    expect(t("files.signedInAs", { email: "a@b.c" })).toBe("Signed in as a@b.c");
+    expect(t("account.signedInAs", { email: "a@b.c" })).toBe("Signed in as a@b.c");
   });
 
   it("leaves unknown placeholders intact", () => {
-    expect(t("files.signedInAs", {})).toBe("Signed in as {email}");
+    expect(t("account.signedInAs", {})).toBe("Signed in as {email}");
   });
 });

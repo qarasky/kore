@@ -8,7 +8,13 @@ that fetches from the Go API with the user's `kore_session` cookie.
 | Path | What |
 | --- | --- |
 | `app/(auth)/login/` | Login page (server) + `login-form.tsx` (client) |
-| `app/(app)/files/` | Placeholder landing page (replaced by the file browser) |
+| `app/(app)/layout.tsx` | App shell: top bar (search, account menu), sidebar (+ New, sections, storage meter) |
+| `app/(app)/files/[[...folder]]/`, `shared/[[...folder]]/` | File browser: `/files`, `/files/<folderId>`, `/shared`, `/shared/<folderId>` (SSR; more segments are a 404) |
+| `components/FolderPage.tsx`, `lib/folder.ts` | Server side of a folder view: loads path + children, 404 only on API 404, redirects ids from the other space |
+| `components/FileList.tsx` | Client listbox: selection, keyboard, inline rename, context menu (`FileRow`, `NameEditor`, `ContextMenu`, `Menu`) |
+| `hooks/useFileActions.ts`, `hooks/useSelection.ts` | Mutations (API call, then `router.refresh()`) and selection state over the pure `lib/selection.ts` |
+| `lib/download.ts` | Downloads via a hidden form into a hidden iframe (browser streams to disk; errors become a toast) |
+| `lib/format.ts`, `lib/nodes.ts` | Size/date formatting, node types, hrefs, file kinds |
 | `app/globals.css` | Design tokens (`@theme`) and base styles; dark only |
 | `lib/api.ts` | `api<T>(path, init)`: server calls go to `API_URL` with the cookie, browser calls go to same-origin `/api`; errors throw `ApiError{status, code}` |
 | `lib/session.ts` | `requireUser()`: validates the session via `/api/auth/me`, redirects to login on 401 |
@@ -70,5 +76,6 @@ limiter). Helpers in `e2e/helpers.ts`:
 - `createUser({ email?, password?, role?, quota_bytes? })`: creates a user via the admin API.
 - `apiAs(email, password)`: an API request context logged in as that user.
 - `createFolder(api, name, { space?, parent_id? })`: creates a folder, returns its id.
+- `uploadFile(api, name, content, { space?, parent? })`: uploads a small (< 1 MiB) file in one chunk, returns its id.
 
 Note: the e2e build overwrites `.next`; don't run it alongside `npm run dev`.
