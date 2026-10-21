@@ -2,7 +2,7 @@ import "server-only";
 
 import { headers } from "next/headers";
 import { cache } from "react";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { api, isApiError } from "./api";
 import { loginUrl, PATH_HEADER } from "./routes";
 import { DEFAULT_LANDING } from "./safe-next";
@@ -34,3 +34,14 @@ export const requireUser = cache(async (): Promise<User> => {
     throw e;
   }
 });
+
+/**
+ * Like {@link requireUser}, for admin pages: anyone who is not an admin gets
+ * the 404 page (the admin area does not reveal that it exists). The API
+ * enforces the same rule with 403 on every `/api/admin/*` route.
+ */
+export async function requireAdmin(): Promise<User> {
+  const user = await requireUser();
+  if (user.role !== "admin") notFound();
+  return user;
+}

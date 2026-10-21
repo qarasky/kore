@@ -26,12 +26,16 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly digest?: string;
+  /** The parsed JSON error body, for replies that carry more than `error`
+   *  (e.g. `file_count` on 409 `user_has_files`). */
+  readonly details?: Record<string, unknown>;
 
-  constructor(status: number, code: string) {
+  constructor(status: number, code: string, details?: Record<string, unknown>) {
     super(`API ${status}: ${code}`);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
+    this.details = details;
     if (status === 503 && code === "unreachable") {
       this.digest = API_UNREACHABLE_DIGEST;
     }
@@ -56,16 +60,16 @@ async function sessionCookie(): Promise<string | undefined> {
   return (await cookies()).get(SESSION_COOKIE)?.value;
 }
 
-async function errorCode(res: Response): Promise<string> {
+async function toError(res: Response): Promise<ApiError> {
   try {
     const body: unknown = await res.json();
     if (body && typeof body === "object" && "error" in body && typeof body.error === "string") {
-      return body.error;
+      return new ApiError(res.status, body.error, body as Record<string, unknown>);
     }
   } catch {
     // Not JSON (e.g. a proxy error page); fall through.
   }
-  return `http_${res.status}`;
+  return new ApiError(res.status, `http_${res.status}`);
 }
 
 /** Sends the request (cookie, timeout, same-origin rules) and returns a 2xx
@@ -109,7 +113,7 @@ async function send(path: string, init: RequestInit, accept: string, fn: string)
     throw new ApiError(503, "unreachable");
   }
   if (!res.ok) {
-    throw new ApiError(res.status, await errorCode(res));
+    throw await toError(res);
   }
   return res;
 }
