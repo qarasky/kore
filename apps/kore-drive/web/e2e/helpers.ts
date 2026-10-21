@@ -1,4 +1,4 @@
-import { expect, request, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, request, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import { E2E } from "./harness/env";
 
 export const ADMIN = E2E.admin;
@@ -88,4 +88,18 @@ export async function uploadFile(
   const done = await api.post(`/api/uploads/${id}/complete`);
   expect(done.ok(), `complete upload ${name}`).toBe(true);
   return (await done.json()).id;
+}
+
+/**
+ * Picks `option` in the custom `Select` (components/Select.tsx) named
+ * `label` within `scope` (a page, or e.g. a dialog/form locator): opens it
+ * with a click and clicks the option, then checks the trigger shows it.
+ */
+export async function chooseOption(scope: Page | Locator, label: string, option: string): Promise<void> {
+  const page = "page" in scope && typeof scope.page === "function" ? scope.page() : (scope as Page);
+  const combo = scope.getByRole("combobox", { name: label, exact: true });
+  await combo.click();
+  await page.getByRole("listbox").getByRole("option", { name: option, exact: true }).click();
+  await expect(combo).toHaveAttribute("aria-expanded", "false");
+  await expect(combo).toHaveText(option);
 }

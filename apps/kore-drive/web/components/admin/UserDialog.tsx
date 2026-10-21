@@ -8,6 +8,7 @@ import { passwordProblem } from "@/lib/password";
 import type { Role } from "@/lib/session";
 import { parseSize, QUOTA_UNITS, splitSize, type SizeUnit } from "@/lib/size";
 import { Modal } from "../Modal";
+import { Select } from "../Select";
 import {
   CopyButton,
   Field,
@@ -16,7 +17,6 @@ import {
   PasswordInput,
   primaryButton,
   secondaryButton,
-  selectClass,
   SizeInput,
 } from "./fields";
 
@@ -201,17 +201,19 @@ export function UserDialog({
           label={t("admin.form.role")}
           hint={isSelf ? t("admin.form.selfRole") : t("admin.form.roleHint")}
         >
-          <select
+          <Select<Role>
             id={`${id}-role`}
+            name="role"
             value={role}
             disabled={isSelf}
-            onChange={(e) => setRole(e.target.value as Role)}
+            onChange={setRole}
+            options={[
+              { value: "user", label: t("admin.role.user") },
+              { value: "admin", label: t("admin.role.admin") },
+            ]}
+            aria-labelledby={roleIds.labelId}
             aria-describedby={roleIds.describedBy}
-            className={selectClass}
-          >
-            <option value="user">{t("admin.role.user")}</option>
-            <option value="admin">{t("admin.role.admin")}</option>
-          </select>
+          />
         </Field>
         <Field
           id={`${id}-quota`}

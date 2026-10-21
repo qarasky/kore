@@ -1,7 +1,7 @@
 import { expect, request, test, type APIRequestContext, type Page } from "@playwright/test";
 import en from "../lib/i18n/en";
 import { E2E } from "./harness/env";
-import { ADMIN, apiAs, createFolder, createUser, loginAs, uploadFile } from "./helpers";
+import { ADMIN, apiAs, chooseOption, createFolder, createUser, loginAs, uploadFile } from "./helpers";
 
 const GiB = 1024 ** 3;
 
@@ -60,7 +60,7 @@ test("an admin creates a user, who signs in to an empty space with that quota", 
   const def = settings.default_quota_bytes;
   const tb = def >= 1024 * GiB;
   await expect(quota).toHaveValue(String(Number((def / (tb ? 1024 * GiB : GiB)).toFixed(2))));
-  await expect(unit).toHaveValue(tb ? "TB" : "GB");
+  await expect(unit).toHaveText(tb ? "TB" : "GB");
 
   const email = `created-${Date.now()}@kore.test`;
   await dialog.getByLabel(en["admin.form.email"]).fill(email);
@@ -77,7 +77,7 @@ test("an admin creates a user, who signs in to an empty space with that quota", 
   const generated = await password.inputValue();
   expect(generated).toMatch(/^[\w]{5}(-[\w]{5}){3}$/);
   await quota.fill("3");
-  await unit.selectOption("GB");
+  await chooseOption(dialog, tt("admin.form.unit", { field: en["admin.form.quota"] }), "GB");
   await dialog.getByRole("button", { name: en["admin.add.submit"] }).click();
 
   // The generated password is shown once more, with Copy.
@@ -272,7 +272,7 @@ test("raising a quota shows in that user's storage meter; your own role is locke
     await page.getByRole("button", { name: tt("admin.users.editUser", { email: ADMIN.email }) }).click();
     const self = page.getByRole("dialog", { name: tt("admin.edit.title", { email: ADMIN.email }) });
     await expect(self.getByLabel(en["admin.form.role"])).toBeDisabled();
-    await expect(self.getByLabel(en["admin.form.role"])).toHaveValue("admin");
+    await expect(self.getByLabel(en["admin.form.role"])).toHaveText(en["admin.role.admin"]);
     await expect(self.getByText(en["admin.form.selfRole"])).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(self).toBeHidden();
@@ -321,11 +321,11 @@ test("settings persist after reload; out-of-range values show errors", async ({ 
     await maxSize.fill("-2");
     await expect(form.getByText(en["settings.error.maxFileSize"])).toBeVisible();
     await maxSize.fill("2");
-    await maxUnit.selectOption("GB");
+    await chooseOption(form, tt("admin.form.unit", { field: en["settings.maxFileSize"] }), "GB");
     await quota.fill("-1");
     await expect(form.getByText(en["settings.error.defaultQuota"])).toBeVisible();
     await quota.fill("20");
-    await quotaUnit.selectOption("GB");
+    await chooseOption(form, tt("admin.form.unit", { field: en["settings.defaultQuota"] }), "GB");
     await save.click();
     await expect(page.getByText(en["settings.saved"])).toBeVisible();
     await expect(unsaved).toHaveText("");
@@ -334,9 +334,9 @@ test("settings persist after reload; out-of-range values show errors", async ({ 
     await expect(retention).toHaveValue("45");
     await expect(unlimited).not.toBeChecked();
     await expect(maxSize).toHaveValue("2");
-    await expect(maxUnit).toHaveValue("GB");
+    await expect(maxUnit).toHaveText("GB");
     await expect(quota).toHaveValue("20");
-    await expect(quotaUnit).toHaveValue("GB");
+    await expect(quotaUnit).toHaveText("GB");
     const stored: Settings = await (await admin.get("/api/admin/settings")).json();
     expect(stored).toEqual({ trash_retention_days: 45, max_file_bytes: 2 * GiB, default_quota_bytes: 20 * GiB });
 
