@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/artchsh/kore/api/internal/store"
 	"github.com/artchsh/kore/api/internal/users"
@@ -236,5 +237,46 @@ func TestPathBreadcrumbs(t *testing.T) {
 	p, err := Path(ctx, db, a, y.ID)
 	if err != nil || len(p) != 2 || p[0].Name != "x" || p[1].Name != "y" {
 		t.Fatalf("%v %v", p, err)
+	}
+}
+
+func TestUniqueNameKeepsLimit(t *testing.T) {
+	db, _, a, _ := setup(t)
+	sp := Personal(a.ID)
+	name := strings.Repeat("a", 250) + ".txt" // 254 bytes
+	insertFile(t, db, a, sp, nil, name)
+	got, err := UniqueName(ctx, db, sp, nil, name)
+	if err != nil || len(got) > 255 || !strings.HasSuffix(got, " (1).txt") {
+		t.Fatalf("%d %q %v", len(got), got, err)
+	}
+	if err := ValidateName(got); err != nil {
+		t.Fatal(err)
+	}
+	// Multibyte stem truncates on a rune boundary.
+	m := strings.Repeat("я", 125) + ".txt" // 254 bytes
+	insertFile(t, db, a, sp, nil, m)
+	got, _ = UniqueName(ctx, db, sp, nil, m)
+	if len(got) > 255 || !utf8.ValidString(got) {
+		t.Fatalf("%q", got)
+	}
+	// NFC normalization of input.
+	if g, _ := UniqueName(ctx, db, sp, nil, "и\u0306.txt"); g != "й.txt" {
+		t.Fatalf("%q", g)
+	}
+}
+
+func TestUpdateAtomic(t *testing.T) {
+	db, _, a, _ := setup(t)
+	sp := Personal(a.ID)
+	d := mustFolder(t, db, a, sp, nil, "d")
+	mustFolder(t, db, a, sp, &d.ID, "new")
+	o := mustFolder(t, db, a, sp, nil, "old")
+	nm := "new"
+	if _, err := Update(ctx, db, a, o.ID, &nm, &MoveTarget{Parent: &d.ID, ParentSet: true}); !errors.Is(err, ErrNameTaken) {
+		t.Fatal(err)
+	}
+	l, _ := List(ctx, db, a, sp, nil)
+	if len(l) != 2 || l[1].Name != "old" {
+		t.Fatalf("%+v", l)
 	}
 }

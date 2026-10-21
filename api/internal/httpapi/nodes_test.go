@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -49,7 +50,7 @@ func TestNodesHTTPFlow(t *testing.T) {
 	}
 	// Any user can now see/edit it.
 	rec = e.do(t, &e.admin, "GET", "/api/nodes?space=shared", "")
-	if rec.Code != 200 || len(rec.Body.String()) < 10 {
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"id":"`+id+`"`) {
 		t.Fatalf("list: %d %s", rec.Code, rec.Body)
 	}
 	// Into itself is rejected.
@@ -60,7 +61,7 @@ func TestNodesHTTPFlow(t *testing.T) {
 	rec = e.do(t, &e.admin, "POST", "/api/nodes", `{"space":"shared","parent_id":"`+id+`","name":"sub"}`)
 	sub := jsonBody(t, rec)["id"].(string)
 	rec = e.do(t, &e.user, "GET", "/api/nodes/"+sub+"/path", "")
-	if rec.Code != 200 || !contains(rec.Body.String(), "Doc2") || !contains(rec.Body.String(), "sub") {
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "Doc2") || !strings.Contains(rec.Body.String(), "sub") {
 		t.Fatalf("path: %d %s", rec.Code, rec.Body)
 	}
 	if rec = e.do(t, &e.user, "PATCH", "/api/nodes/"+sub, `{}`); rec.Code != 400 {
@@ -68,11 +69,37 @@ func TestNodesHTTPFlow(t *testing.T) {
 	}
 }
 
-func contains(s, sub string) bool {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
+func TestPatchIsAtomicAndSpaceChecks(t *testing.T) {
+	e := newEnv(t)
+	mk := func(body string) map[string]any {
+		rec := e.do(t, &e.user, "POST", "/api/nodes", body)
+		if rec.Code != 201 {
+			t.Fatalf("create: %d %s", rec.Code, rec.Body)
 		}
+		return jsonBody(t, rec)
 	}
-	return false
+	dir := mk(`{"space":"personal","name":"dir"}`)["id"].(string)
+	mk(`{"space":"personal","parent_id":"` + dir + `","name":"new"}`)
+	n := mk(`{"space":"personal","name":"old"}`)["id"].(string)
+	rec := e.do(t, &e.user, "PATCH", "/api/nodes/"+n, `{"name":"new","parent_id":"`+dir+`"}`)
+	if rec.Code != 409 {
+		t.Fatalf("got %d %s", rec.Code, rec.Body)
+	}
+	rec = e.do(t, &e.user, "GET", "/api/nodes?space=personal", "")
+	if !strings.Contains(rec.Body.String(), `"name":"old"`) {
+		t.Fatalf("rename leaked: %s", rec.Body)
+	}
+	// space contradicting the parent's space.
+	rec = e.do(t, &e.user, "PATCH", "/api/nodes/"+n, `{"parent_id":"`+dir+`","space":"shared"}`)
+	if rec.Code != 400 || jsonBody(t, rec)["error"] != "space_mismatch" {
+		t.Fatalf("mismatch: %d %s", rec.Code, rec.Body)
+	}
+	// Move into dir, then rename + same-space "space" must not jump to root.
+	if rec = e.do(t, &e.user, "PATCH", "/api/nodes/"+n, `{"parent_id":"`+dir+`","name":"moved"}`); rec.Code != 200 {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	rec = e.do(t, &e.user, "PATCH", "/api/nodes/"+n, `{"name":"again","space":"personal"}`)
+	if rec.Code != 200 || jsonBody(t, rec)["parent_id"] != dir {
+		t.Fatalf("space alone moved node: %d %s", rec.Code, rec.Body)
+	}
 }

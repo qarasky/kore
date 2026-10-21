@@ -18,11 +18,12 @@ import (
 var (
 	// ErrNotFound is returned for missing, trashed or inaccessible nodes
 	// (inaccessible deliberately looks identical to missing).
-	ErrNotFound    = errors.New("node not found")
-	ErrNameTaken   = errors.New("name taken")
-	ErrInvalidName = errors.New("invalid name")
-	ErrInvalidMove = errors.New("cannot move a folder into itself or its descendant")
-	ErrNotDir      = errors.New("parent is not a folder")
+	ErrNotFound      = errors.New("node not found")
+	ErrNameTaken     = errors.New("name taken")
+	ErrInvalidName   = errors.New("invalid name")
+	ErrInvalidMove   = errors.New("cannot move a folder into itself or its descendant")
+	ErrNotDir        = errors.New("parent is not a folder")
+	ErrSpaceMismatch = errors.New("space contradicts parent")
 )
 
 const maxNameBytes = 255
@@ -228,26 +229,59 @@ func naturalCompare(a, b string) int {
 
 func foldRune(r rune) rune { return unicode.ToLower(unicode.ToUpper(r)) }
 
+// MoveTarget describes a move. ParentSet reports whether a parent (possibly
+// nil = root) was explicitly requested; Space optionally names the
+// destination space.
+type MoveTarget struct {
+	Parent    *string
+	ParentSet bool
+	Space     *Space
+}
+
+// Update applies an optional rename and an optional move atomically: on any
+// error the node is left untouched.
+func Update(ctx context.Context, db *sql.DB, actor users.User, id string, name *string, move *MoveTarget) (Node, error) {
+	var newName string
+	if name != nil {
+		var err error
+		if newName, err = normalizeName(*name); err != nil {
+			return Node{}, err
+		}
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return Node{}, err
+	}
+	defer tx.Rollback()
+	n, err := get(ctx, tx, actor, id)
+	if err != nil {
+		return Node{}, err
+	}
+	if name != nil {
+		now := time.Now().Unix()
+		_, err := tx.ExecContext(ctx, `UPDATE nodes SET name=?,updated_at=? WHERE id=?`, newName, now, id)
+		if isUnique(err) {
+			return Node{}, ErrNameTaken
+		}
+		if err != nil {
+			return Node{}, err
+		}
+		n.Name, n.UpdatedAt = newName, now
+	}
+	if move != nil {
+		if n, err = moveTx(ctx, tx, actor, n, *move); err != nil {
+			return Node{}, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return Node{}, err
+	}
+	return n, nil
+}
+
 // Rename changes a node's name; a collision yields ErrNameTaken.
 func Rename(ctx context.Context, db *sql.DB, actor users.User, id, newName string) (Node, error) {
-	newName, err := normalizeName(newName)
-	if err != nil {
-		return Node{}, err
-	}
-	n, err := get(ctx, db, actor, id)
-	if err != nil {
-		return Node{}, err
-	}
-	now := time.Now().Unix()
-	_, err = db.ExecContext(ctx, `UPDATE nodes SET name=?,updated_at=? WHERE id=?`, newName, now, id)
-	if isUnique(err) {
-		return Node{}, ErrNameTaken
-	}
-	if err != nil {
-		return Node{}, err
-	}
-	n.Name, n.UpdatedAt = newName, now
-	return n, nil
+	return Update(ctx, db, actor, id, &newName, nil)
 }
 
 // Move re-parents a node. A nil newParent means the root of the node's
@@ -261,24 +295,27 @@ func Move(ctx context.Context, db *sql.DB, actor users.User, id string, newParen
 // MoveTo is Move with an explicit destination space for root moves. A nil sp
 // derives the space from newParent (or the node's current space at root).
 func MoveTo(ctx context.Context, db *sql.DB, actor users.User, id string, sp *Space, newParent *string) (Node, error) {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return Node{}, err
-	}
-	defer tx.Rollback()
-	n, err := get(ctx, tx, actor, id)
-	if err != nil {
-		return Node{}, err
-	}
+	return Update(ctx, db, actor, id, nil, &MoveTarget{Parent: newParent, ParentSet: true, Space: sp})
+}
+
+func moveTx(ctx context.Context, tx *sql.Tx, actor users.User, n Node, mv MoveTarget) (Node, error) {
+	id, newParent := n.ID, mv.Parent
 	dest := SpaceOf(n)
-	if newParent != nil {
+	switch {
+	case newParent != nil:
 		p, err := get(ctx, tx, actor, *newParent)
 		if err != nil {
 			return Node{}, err
 		}
 		dest = SpaceOf(p)
-	} else if sp != nil {
-		dest = *sp
+		if mv.Space != nil && !sameSpace(*mv.Space, dest) {
+			return Node{}, ErrSpaceMismatch
+		}
+	case mv.Space != nil:
+		if !mv.ParentSet && sameSpace(*mv.Space, dest) {
+			return n, nil // space alone, unchanged: not a move
+		}
+		dest = *mv.Space
 	}
 	if err := checkParent(ctx, tx, actor, dest, newParent); err != nil {
 		return Node{}, err
@@ -297,7 +334,7 @@ func MoveTo(ctx context.Context, db *sql.DB, actor users.User, id string, sp *Sp
 		}
 	}
 	now := time.Now().Unix()
-	_, err = tx.ExecContext(ctx, `UPDATE nodes SET parent_id=?,space_owner=?,updated_at=? WHERE id=?`,
+	_, err := tx.ExecContext(ctx, `UPDATE nodes SET parent_id=?,space_owner=?,updated_at=? WHERE id=?`,
 		newParent, dest.Owner, now, id)
 	if isUnique(err) {
 		return Node{}, ErrNameTaken
@@ -310,14 +347,8 @@ func MoveTo(ctx context.Context, db *sql.DB, actor users.User, id string, sp *Sp
 			SELECT id FROM nodes WHERE parent_id=?
 			UNION ALL SELECT n.id FROM nodes n JOIN d ON n.parent_id=d.id)
 			UPDATE nodes SET space_owner=? WHERE id IN (SELECT id FROM d)`, id, dest.Owner); err != nil {
-			if isUnique(err) {
-				return Node{}, ErrNameTaken
-			}
 			return Node{}, err
 		}
-	}
-	if err := tx.Commit(); err != nil {
-		return Node{}, err
 	}
 	n.ParentID, n.SpaceOwner, n.UpdatedAt = newParent, dest.Owner, now
 	return n, nil
@@ -359,6 +390,7 @@ func prefixed(p, list string) string {
 // UniqueName returns name, or "stem (N).ext" for the smallest N>=1, such that
 // no live sibling in sp/parent has that name.
 func UniqueName(ctx context.Context, db *sql.DB, sp Space, parent *string, name string) (string, error) {
+	name = norm.NFC.String(name)
 	stem, ext := name, ""
 	if i := strings.LastIndex(name, "."); i > 0 {
 		stem, ext = name[:i], name[i:]
@@ -366,7 +398,13 @@ func UniqueName(ctx context.Context, db *sql.DB, sp Space, parent *string, name 
 	for n := 0; ; n++ {
 		cand := name
 		if n > 0 {
-			cand = fmt.Sprintf("%s (%d)%s", stem, n, ext)
+			suffix := fmt.Sprintf(" (%d)%s", n, ext)
+			st := stem
+			for len(st)+len(suffix) > maxNameBytes && st != "" {
+				_, sz := utf8.DecodeLastRuneInString(st)
+				st = st[:len(st)-sz]
+			}
+			cand = st + suffix
 		}
 		var x int
 		err := db.QueryRowContext(ctx, `SELECT 1 FROM nodes WHERE COALESCE(space_owner,'')=COALESCE(?,'')
