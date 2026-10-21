@@ -3,6 +3,8 @@ package auth
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"strings"
 	"path/filepath"
 	"testing"
 	"time"
@@ -192,5 +194,30 @@ func TestLimiter(t *testing.T) {
 		if !l.Attempt("k") {
 			t.Fatal("reset failed")
 		}
+	}
+}
+
+func TestBootstrapRefusesShortPassword(t *testing.T) {
+	ctx := context.Background()
+	for _, pw := range []string{"short", "1234567", "пароль7"} { // 7 characters max
+		db := testDB(t)
+		err := Bootstrap(ctx, db, config.Config{AdminEmail: "root@x.y", AdminPassword: pw})
+		if !errors.Is(err, ErrShortPassword) {
+			t.Fatalf("%q: got %v", pw, err)
+		}
+		if !strings.Contains(err.Error(), "at least 8") {
+			t.Fatalf("unclear error: %v", err)
+		}
+		if n, _ := users.Count(ctx, db); n != 0 {
+			t.Fatal("user created")
+		}
+	}
+	db := testDB(t)
+	if err := Bootstrap(ctx, db, config.Config{AdminEmail: "root@x.y", AdminPassword: "пароль78"}); err != nil {
+		t.Fatalf("8 characters: %v", err)
+	}
+	// Existing users: the config password is ignored, so no check.
+	if err := Bootstrap(ctx, db, config.Config{AdminEmail: "root@x.y", AdminPassword: "x"}); err != nil {
+		t.Fatal(err)
 	}
 }

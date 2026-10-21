@@ -10,6 +10,7 @@
 # Directory for the database and stored files (required).
 data_dir = "./data"
 
-# First admin account (required).
+# First admin account (required), created on the first start. Kore refuses
+# to start while the password is still "change-me" or shorter than 8 characters.
 admin_email = "admin@example.com"
 admin_password = "change-me"
