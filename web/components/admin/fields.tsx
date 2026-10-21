@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { t } from "@/lib/i18n";
 import { generatePassword, passwordHints } from "@/lib/password";
 import { SIZE_UNITS, type SizeUnit } from "@/lib/size";
+import { Select } from "../Select";
 
 const controlClass =
   "block min-w-0 rounded-ui border border-border bg-bg/60 px-3 py-1.5 text-text " +
@@ -11,7 +12,6 @@ const controlClass =
   "hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 " +
   "aria-invalid:border-danger/70 disabled:opacity-60";
 export const inputClass = `${controlClass} w-full`;
-export const selectClass = `${controlClass} w-auto pr-8`;
 
 export const primaryButton =
   "rounded-ui bg-accent px-3.5 py-1.5 font-medium text-white transition-colors hover:bg-accent-hover " +
@@ -25,12 +25,13 @@ export const smallButton =
   "rounded-ui border border-border px-2 py-1 text-[12px] font-medium text-muted transition-colors " +
   "hover:border-border-strong hover:text-text disabled:opacity-60";
 
-/** ids for a field's hint and error, and the matching aria-describedby. */
+/** ids for a field's label, hint and error, and the matching aria-describedby. */
 export function fieldIds(id: string, hint: boolean, error: boolean) {
+  const labelId = `${id}-label`;
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
   const describedBy = [hint && hintId, error && errorId].filter(Boolean).join(" ") || undefined;
-  return { hintId, errorId, describedBy };
+  return { labelId, hintId, errorId, describedBy };
 }
 
 /** Label, control, optional hint and inline error (announced via role=alert). */
@@ -50,7 +51,7 @@ export function Field({
   const ids = fieldIds(id, !!hint, !!error);
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-[12px] font-medium text-muted">
+      <label id={ids.labelId} htmlFor={id} className="block text-[12px] font-medium text-muted">
         {label}
       </label>
       {children}
@@ -68,7 +69,7 @@ export function Field({
   );
 }
 
-/** A number field plus a unit select (binary units, labelled like the storage meter). */
+/** A number field plus a unit {@link Select} (binary units, labelled like the storage meter). */
 export function SizeInput({
   id,
   label,
@@ -103,22 +104,16 @@ export function SizeInput({
         aria-describedby={describedBy}
         className={`${inputClass} max-w-[160px]`}
       />
-      <select
+      <Select
         aria-label={t("admin.form.unit", { field: label })}
         value={unit}
         disabled={disabled}
-        onChange={(e) => onChange(value, e.target.value as SizeUnit)}
-        className={selectClass}
-      >
-        {units
+        onChange={(u) => onChange(value, u)}
+        options={units
           .slice()
           .sort((a, b) => SIZE_UNITS[a] - SIZE_UNITS[b])
-          .map((u) => (
-            <option key={u} value={u}>
-              {u}
-            </option>
-          ))}
-      </select>
+          .map((u) => ({ value: u, label: u }))}
+      />
     </div>
   );
 }
