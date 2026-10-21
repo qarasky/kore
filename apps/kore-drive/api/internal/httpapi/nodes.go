@@ -45,6 +45,8 @@ func nodeErr(w http.ResponseWriter, err error) {
 		errJSON(w, 400, "invalid_name")
 	case errors.Is(err, nodes.ErrInvalidMove):
 		errJSON(w, 400, "invalid_move")
+	case errors.Is(err, nodes.ErrSpaceMismatch):
+		errJSON(w, 400, "space_mismatch")
 	case errors.Is(err, nodes.ErrNotDir):
 		errJSON(w, 400, "not_a_folder")
 	default:
@@ -124,45 +126,36 @@ func (s *server) patchNode(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) {
 		return
 	}
-	var parent *string
-	moving := in.ParentID != nil
-	if moving && string(in.ParentID) != "null" {
-		var p string
-		if err := json.Unmarshal(in.ParentID, &p); err != nil {
-			errJSON(w, 400, "bad_request")
-			return
+	var mv *nodes.MoveTarget
+	if in.ParentID != nil || in.Space != nil {
+		mv = &nodes.MoveTarget{ParentSet: in.ParentID != nil}
+		if in.ParentID != nil && string(in.ParentID) != "null" {
+			var p string
+			if err := json.Unmarshal(in.ParentID, &p); err != nil {
+				errJSON(w, 400, "bad_request")
+				return
+			}
+			if p != "" {
+				mv.Parent = &p
+			}
 		}
-		if p != "" {
-			parent = &p
+		if in.Space != nil {
+			sp, ok := spaceFor(*in.Space, me.ID)
+			if !ok {
+				errJSON(w, 400, "invalid_space")
+				return
+			}
+			mv.Space = &sp
 		}
 	}
-	var dest *nodes.Space
-	if in.Space != nil {
-		sp, ok := spaceFor(*in.Space, me.ID)
-		if !ok {
-			errJSON(w, 400, "invalid_space")
-			return
-		}
-		dest = &sp
-		moving = true
-	}
-	if in.Name == nil && !moving {
+	if in.Name == nil && mv == nil {
 		errJSON(w, 400, "bad_request")
 		return
 	}
-	var n nodes.Node
-	var err error
-	if in.Name != nil {
-		if n, err = nodes.Rename(r.Context(), s.db, me, id, *in.Name); err != nil {
-			nodeErr(w, err)
-			return
-		}
-	}
-	if moving {
-		if n, err = nodes.MoveTo(r.Context(), s.db, me, id, dest, parent); err != nil {
-			nodeErr(w, err)
-			return
-		}
+	n, err := nodes.Update(r.Context(), s.db, me, id, in.Name, mv)
+	if err != nil {
+		nodeErr(w, err)
+		return
 	}
 	writeJSON(w, 200, toJSON(n))
 }
