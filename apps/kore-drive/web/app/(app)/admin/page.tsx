@@ -1,19 +1,23 @@
 import Link from "next/link";
+import { DiskCard } from "@/components/admin/DiskCard";
 import { UsageBar, usagePercent } from "@/components/admin/UsageBar";
 import type { AdminUser, UsageRow } from "@/lib/admin";
 import { api } from "@/lib/api";
+import type { DiskInfo } from "@/lib/disk";
 import { formatBytes } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { requireAdmin } from "@/lib/session";
 
 export const metadata = { title: t("admin.overview.title") };
 
-/** `/admin`: totals and a usage bar per user (no file names, ever). */
+/** `/admin`: the disk, totals and a usage bar per user (no file names, ever). */
 export default async function AdminOverview() {
   await requireAdmin();
-  const [usage, users] = await Promise.all([
+  const [usage, users, disk] = await Promise.all([
     api<UsageRow[]>("/api/admin/usage"),
     api<AdminUser[]>("/api/admin/users"),
+    // Only informational: the rest of the page works without it.
+    api<DiskInfo>("/api/admin/disk").catch(() => null),
   ]);
   const used = usage.reduce((n, u) => n + u.used_bytes, 0);
   const quota = usage.reduce((n, u) => n + u.quota_bytes, 0);
@@ -25,6 +29,7 @@ export default async function AdminOverview() {
   return (
     <div className="mx-auto max-w-[880px] space-y-6 p-6">
       <h2 className="sr-only">{t("admin.overview.title")}</h2>
+      <DiskCard disk={disk} />
       <div className="grid grid-cols-2 gap-3">
         <section className="rounded-[8px] border border-border bg-bg/40 p-4">
           <h3 className="text-[12px] font-medium text-muted">{t("admin.overview.totalUsed")}</h3>
