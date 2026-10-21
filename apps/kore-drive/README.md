@@ -25,8 +25,8 @@ docker compose up -d
 
 Before running the last two commands:
 
-- In `kore.toml` set `admin_email` and a real `admin_password` (Kore refuses to
-  start with `change-me`). Leave `bind = "0.0.0.0"`, `port = 8080` and
+- In `kore.toml` set `admin_email` and a real `admin_password` of at least 8
+  characters (Kore refuses to start with `change-me` or a shorter password). Leave `bind = "0.0.0.0"`, `port = 8080` and
   `data_dir = "/data"`: those are inside the container.
 - In `.env` set `KORE_DATA_DIR` (host path of the data dir) and
   `KORE_UID`/`KORE_GID` (the host user that should own the files; `id -u` and
@@ -166,7 +166,8 @@ password in `kore.toml` with anything other than `change-me`.
   fix `.env`; run `kore init` only for a genuinely new data dir.
 - **`bind source path does not exist`**: `KORE_DATA_DIR` or `./kore.toml` is
   missing. Create/mount it (see Install).
-- **`admin_password is still the placeholder "change-me"`**: edit `kore.toml`.
+- **`admin_password is still the placeholder "change-me"`** or
+  **`admin_password must be at least 8 characters`**: edit `kore.toml`.
 - **Port already in use / `address already in use`**: change `KORE_PORT` in
   `.env`, then `docker compose up -d`.
 - **`permission denied` on `/data/...`**: the data dir is not owned by

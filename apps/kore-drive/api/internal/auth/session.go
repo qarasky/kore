@@ -8,8 +8,10 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/artchsh/kore/api/internal/config"
 	"github.com/artchsh/kore/api/internal/settings"
@@ -24,6 +26,12 @@ var ErrInvalidCredentials = errors.New("invalid email or password")
 var ErrPlaceholderPassword = errors.New(`admin_password is still the placeholder "change-me"; set a real password in the config file`)
 
 const placeholderPassword = "change-me"
+
+// MinBootstrapPasswordLen is the minimum admin_password length, in characters.
+const MinBootstrapPasswordLen = 8
+
+// ErrShortPassword is returned when bootstrap is given a too-short admin_password.
+var ErrShortPassword = fmt.Errorf("admin_password must be at least %d characters; set a longer password in the config file", MinBootstrapPasswordLen)
 
 var (
 	dummyOnce sync.Once
@@ -114,6 +122,9 @@ func Bootstrap(ctx context.Context, db *sql.DB, cfg config.Config) error {
 	}
 	if cfg.AdminPassword == placeholderPassword {
 		return ErrPlaceholderPassword
+	}
+	if utf8.RuneCountInString(cfg.AdminPassword) < MinBootstrapPasswordLen {
+		return ErrShortPassword
 	}
 	h, err := HashPassword(cfg.AdminPassword)
 	if err != nil {
