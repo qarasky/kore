@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { useFileActions } from "@/hooks/useFileActions";
 import { useMoveNodes } from "@/hooks/useMoveNodes";
@@ -20,6 +21,7 @@ import {
   DownloadIcon,
   DriveIcon,
   FolderMoveIcon,
+  LinkIcon,
   FolderPlusIcon,
   NodeIcon,
   OpenIcon,
@@ -29,6 +31,7 @@ import {
 } from "./icons";
 import type { CloseReason, MenuAction } from "./Menu";
 import { MoveDialog } from "./MoveDialog";
+import { ShareDialog } from "./ShareDialog";
 import { NameEditor, type EditEnd } from "./NameEditor";
 import { useToast } from "./Toast";
 import { UploaderHeader } from "./UploaderCell";
@@ -71,6 +74,8 @@ export function FileList({
   const [editing, setEditing] = useState<Editing>(null);
   const [menu, setMenu] = useState<MenuState>(null);
   const [moving, setMoving] = useState<MovePayload | null>(null);
+  const [sharing, setSharing] = useState<ApiNode | null>(null);
+  const router = useRouter();
   const listRef = useRef<HTMLDivElement>(null);
   const rowEls = useRef(new Map<string, HTMLDivElement>());
   /** A row to focus once it shows up (after create/rename refreshes). */
@@ -157,6 +162,11 @@ export function FileList({
     if (!p) return;
     const to = otherSpace(space);
     void runMove(p, { space: to, parentId: null }, spaceLabel(to));
+  }
+
+  function openShare(id: string) {
+    const n = byId.get(id);
+    if (n) setSharing(n);
   }
 
   function openMoveDialog() {
@@ -345,6 +355,13 @@ export function FileList({
             onSelect: moveToOtherSpace,
           },
           { id: "move-to", label: t("action.moveTo"), icon: <FolderMoveIcon />, onSelect: openMoveDialog },
+          {
+            id: "share",
+            label: t("action.shareLink"),
+            icon: <LinkIcon />,
+            disabled: count !== 1,
+            onSelect: () => target1 && openShare(target1),
+          },
           { id: "trash", label: t("action.trash"), icon: <TrashIcon />, danger: true, separated: true, onSelect: trashSelected },
         ]
       : [
@@ -371,6 +388,19 @@ export function FileList({
               t("list.selectedCount", { count })
             ) : null}
           </div>
+          {count === 1 && (
+            <button
+              type="button"
+              onClick={() => openShare(sel.selectedIds[0])}
+              className={
+                "flex items-center gap-1.5 rounded-ui border border-border px-2 py-1 text-[12px] font-medium text-muted " +
+                "transition-colors hover:border-border-strong hover:text-text"
+              }
+            >
+              <LinkIcon className="size-3.5" />
+              {t("action.shareLink")}
+            </button>
+          )}
           {count > 0 && (
             <button
               type="button"
@@ -455,6 +485,14 @@ export function FileList({
             setMoving(null);
             void runMove(moving, dest, destLabel);
           }}
+        />
+      )}
+      {sharing && (
+        <ShareDialog
+          target={sharing}
+          onClose={() => setSharing(null)}
+          onChanged={() => router.refresh()}
+          returnFocus={() => rowEls.current.get(sharing.id) ?? listRef.current}
         />
       )}
       {menu && (

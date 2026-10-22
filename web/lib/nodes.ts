@@ -16,6 +16,8 @@ export type ApiNode = {
   /** Who uploaded it (created it, for folders): shared-space nodes in
    *  listings, search and trash only. */
   uploader_email?: string;
+  /** The caller has an active public link to it (folder listings only). */
+  shared?: boolean;
 };
 
 export type Usage = { used_bytes: number; quota_bytes: number };

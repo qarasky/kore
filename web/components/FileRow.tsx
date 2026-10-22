@@ -5,7 +5,7 @@ import { useDropTarget } from "@/hooks/useDropTarget";
 import { formatBytes } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { fileKind, type ApiNode } from "@/lib/nodes";
-import { NodeIcon } from "./icons";
+import { LinkIcon, NodeIcon } from "./icons";
 import { RelativeTime } from "./RelativeTime";
 import { UploaderCell } from "./UploaderCell";
 
@@ -87,6 +87,12 @@ export function FileRow({
         {editor ?? (
           <span id={nameId} className="truncate" title={node.name}>
             {node.name}
+          </span>
+        )}
+        {node.shared && !editor && (
+          <span data-testid="shared-badge" title={t("list.sharedBadge")} className="shrink-0 text-accent">
+            <LinkIcon className="size-3.5" />
+            <span className="sr-only">{t("list.sharedBadge")}</span>
           </span>
         )}
         {editor && (

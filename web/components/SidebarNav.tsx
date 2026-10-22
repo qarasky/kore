@@ -8,7 +8,7 @@ import { useMoveNodes } from "@/hooks/useMoveNodes";
 import { t } from "@/lib/i18n";
 import { activeMove, endMove, isNoopMove } from "@/lib/moveDrag";
 import type { Space } from "@/lib/nodes";
-import { DriveIcon, ShieldIcon, TrashIcon, UsersIcon } from "./icons";
+import { DriveIcon, LinkIcon, ShieldIcon, TrashIcon, UsersIcon } from "./icons";
 
 /** `space`: the link is a drop target moving dragged rows to that space's root. */
 type Item = { href: string; label: string; icon: ReactNode; space?: Space };
@@ -23,6 +23,7 @@ export function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
   const items: Item[] = [
     { href: "/files", label: t("nav.myFiles"), icon: <DriveIcon />, space: "personal" },
     { href: "/shared", label: t("nav.shared"), icon: <UsersIcon />, space: "shared" },
+    { href: "/shared-links", label: t("nav.sharedLinks"), icon: <LinkIcon /> },
     { href: "/trash", label: t("nav.trash"), icon: <TrashIcon /> },
   ];
   if (isAdmin) items.push({ href: "/admin", label: t("nav.admin"), icon: <ShieldIcon /> });

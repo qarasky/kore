@@ -25,6 +25,9 @@ export type AdminSettings = {
   /** 0 = unlimited. */
   max_file_bytes: number;
   default_quota_bytes: number;
+  share_links_enabled: boolean;
+  /** 0 = links never expire by default. */
+  share_default_expiry_days: number;
 };
 
 /** Server range for `trash_retention_days`. */

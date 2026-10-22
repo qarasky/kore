@@ -6,6 +6,7 @@ import { adminErrorKey, parseRetentionDays, type AdminSettings } from "@/lib/adm
 import { api } from "@/lib/api";
 import { t, type MessageKey } from "@/lib/i18n";
 import { FILE_SIZE_UNITS, parseSize, QUOTA_UNITS, splitSize, type SizeUnit } from "@/lib/size";
+import { Select, type SelectOption } from "../Select";
 import { useToast } from "../Toast";
 import { Field, fieldIds, inputClass, primaryButton, secondaryButton, SizeInput } from "./fields";
 
@@ -16,6 +17,8 @@ type Form = {
   maxUnit: SizeUnit;
   quotaValue: string;
   quotaUnit: SizeUnit;
+  shareEnabled: boolean;
+  shareExpiry: string;
 };
 
 function toForm(s: AdminSettings): Form {
@@ -28,7 +31,21 @@ function toForm(s: AdminSettings): Form {
     maxUnit: max.unit,
     quotaValue: quota.value,
     quotaUnit: quota.unit,
+    shareEnabled: s.share_links_enabled,
+    shareExpiry: String(s.share_default_expiry_days),
   };
+}
+
+/** Default-expiry choices; a value set outside them (via the API) stays listed. */
+function expiryOptions(current: string): SelectOption[] {
+  const opts: SelectOption[] = [
+    { value: "1", label: t("share.expiry.1") },
+    { value: "7", label: t("share.expiry.7") },
+    { value: "30", label: t("share.expiry.30") },
+    { value: "0", label: t("share.expiry.never") },
+  ];
+  if (!opts.some((o) => o.value === current)) opts.push({ value: current, label: t("settings.shareDays", { days: current }) });
+  return opts;
 }
 
 type Errors = Partial<Record<"retention" | "max" | "quota", MessageKey>>;
@@ -72,7 +89,11 @@ export function SettingsForm({ settings }: { settings: AdminSettings }) {
     max: !sameMax(form, base),
     quota: form.quotaValue.trim() !== base.quotaValue || form.quotaUnit !== base.quotaUnit,
   };
-  const dirty = changed.retention || changed.max || changed.quota;
+  const changedShare = {
+    enabled: form.shareEnabled !== base.shareEnabled,
+    expiry: form.shareExpiry !== base.shareExpiry,
+  };
+  const dirty = changed.retention || changed.max || changed.quota || changedShare.enabled || changedShare.expiry;
 
   useEffect(() => {
     if (!dirty) return;
@@ -97,6 +118,8 @@ export function SettingsForm({ settings }: { settings: AdminSettings }) {
     if (changed.retention && c.retention !== null) body.trash_retention_days = c.retention;
     if (changed.max && c.max !== null) body.max_file_bytes = c.max;
     if (changed.quota && c.quota !== null) body.default_quota_bytes = c.quota;
+    if (changedShare.enabled) body.share_links_enabled = form.shareEnabled;
+    if (changedShare.expiry) body.share_default_expiry_days = Number(form.shareExpiry);
     setPending(true);
     setFormError(null);
     try {
@@ -189,6 +212,34 @@ export function SettingsForm({ settings }: { settings: AdminSettings }) {
           describedBy={quotaIds.describedBy}
         />
       </Field>
+
+      <section aria-labelledby={`${id}-share-title`} className="space-y-3 rounded-[8px] border border-border bg-raised/40 p-4" data-testid="share-settings">
+        <h3 id={`${id}-share-title`} className="font-semibold">
+          {t("settings.shareTitle")}
+        </h3>
+        <p className="text-[12px] text-muted">{t("settings.shareHint")}</p>
+        <label className="flex w-fit items-center gap-2">
+          <input
+            type="checkbox"
+            checked={form.shareEnabled}
+            onChange={(e) => set({ shareEnabled: e.target.checked })}
+            className="size-3.5 accent-[var(--color-accent)]"
+          />
+          {t("settings.shareEnabled")}
+        </label>
+        <div className="space-y-1.5">
+          <span id={`${id}-share-expiry`} className="block font-medium">
+            {t("settings.shareDefaultExpiry")}
+          </span>
+          <Select
+            aria-labelledby={`${id}-share-expiry`}
+            value={form.shareExpiry}
+            options={expiryOptions(form.shareExpiry)}
+            onChange={(shareExpiry) => set({ shareExpiry })}
+            className="w-[180px]"
+          />
+        </div>
+      </section>
 
       <div className="flex items-center gap-3 border-t border-border pt-4">
         <button type="submit" disabled={pending || !dirty} aria-busy={pending || undefined} className={primaryButton}>
