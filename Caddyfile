@@ -32,6 +32,10 @@
 	}
 	request_header @untrustedCF -CF-Connecting-IP
 
+	# Nothing here is meant for search engines (UI, API and files alike);
+	# see also app/robots.ts and the robots metadata in the root layout.
+	header X-Robots-Tag "noindex, nofollow"
+
 	# API: no body size limit, no request buffering, responses flushed as
 	# they are written (chunked uploads, streaming file and zip downloads).
 	# No compression here: files and zips are passed through untouched.
