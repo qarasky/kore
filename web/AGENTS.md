@@ -1,3 +1,5 @@
+Project conventions, commands and architecture rules: see the root `../AGENTS.md`.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know
