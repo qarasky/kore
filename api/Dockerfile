@@ -14,6 +14,10 @@ COPY --from=build /out/kore /usr/local/bin/kore
 # docker-compose.yml overrides the user with KORE_UID:KORE_GID so files in the
 # data dir belong to a host user.
 USER 65532:65532
+# Optional config file; everything can also come from KORE_* environment
+# variables (see docker-compose.yml). Absolute, so it does not depend on the
+# working directory (which is not readable by the KORE_UID user).
+ENV KORE_CONFIG=/etc/kore/kore.toml
 EXPOSE 8080
 # The image has no curl; the binary checks itself.
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
