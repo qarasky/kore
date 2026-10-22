@@ -33,12 +33,12 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-border px-4">
-        <h1 className="min-w-0 truncate text-[14px] font-semibold" data-testid="search-heading">
+      <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border px-4">
+        <h1 className="min-w-0 truncate text-heading font-semibold" data-testid="search-heading">
           {hits ? t("search.resultsFor", { query }) : t("search.title")}
         </h1>
         {hits && hits.length >= SEARCH_LIMIT && (
-          <p className="shrink-0 text-[12px] text-muted">{t("search.limited", { count: hits.length })}</p>
+          <p className="shrink-0 text-meta text-muted">{t("search.limited", { count: hits.length })}</p>
         )}
       </div>
       {error ? (

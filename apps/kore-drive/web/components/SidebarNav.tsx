@@ -61,7 +61,7 @@ function NavLink({ item, active }: { item: Item; active: boolean }) {
       {...drop.props}
       data-drop-target={drop.active || undefined}
       className={
-        "flex items-center gap-2.5 rounded-ui px-2.5 py-1.5 transition-colors " +
+        "flex min-h-control items-center gap-3 rounded-ui px-3 transition-colors " +
         (drop.active
           ? "bg-accent/25 text-text ring-2 ring-accent"
           : active

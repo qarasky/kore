@@ -145,7 +145,7 @@ export function MenuPanel({
               item.onSelect();
             }}
             className={
-              "flex w-full items-center gap-2.5 px-3 py-1.5 text-left outline-none " +
+              "flex min-h-control w-full items-center gap-3 px-3.5 text-left outline-none " +
               "focus-visible:bg-accent/15 hover:bg-white/5 focus:bg-white/5 " +
               "aria-disabled:cursor-default aria-disabled:opacity-40 aria-disabled:hover:bg-transparent " +
               (item.danger ? "text-danger" : "text-text")

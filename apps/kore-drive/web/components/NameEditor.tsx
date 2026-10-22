@@ -107,7 +107,7 @@ export function NameEditor({
         <p
           id={errorId}
           role="alert"
-          className="absolute top-full left-0 z-10 mt-1 rounded-[4px] border border-danger/40 bg-raised px-2 py-1 text-[12px] whitespace-nowrap text-danger shadow-lg"
+          className="absolute top-full left-0 z-10 mt-1 rounded-[4px] border border-danger/40 bg-raised px-2 py-1 text-meta whitespace-nowrap text-danger shadow-lg"
         >
           {t(error)}
         </p>

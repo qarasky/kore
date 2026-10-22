@@ -8,8 +8,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   await requireAdmin();
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-12 shrink-0 items-center gap-4 border-b border-border px-4">
-        <h1 className="text-[14px] font-semibold">{t("admin.title")}</h1>
+      <div className="flex h-14 shrink-0 items-center gap-4 border-b border-border px-4">
+        <h1 className="text-heading font-semibold">{t("admin.title")}</h1>
         <AdminNav />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>

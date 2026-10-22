@@ -24,7 +24,7 @@ export function UsageBar({ used, quota, label }: { used: number; quota: number; 
       >
         <div className={`h-full rounded-full ${pct > 90 ? "bg-danger" : "bg-accent"}`} style={{ width: `${pct}%` }} />
       </div>
-      <div className="mt-1 flex justify-between gap-2 text-[12px] text-muted">
+      <div className="mt-1 flex justify-between gap-2 text-meta text-muted">
         <span data-testid="usage-text" className="truncate">
           {text}
         </span>

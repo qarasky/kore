@@ -31,7 +31,7 @@ const RetryIcon = () => (
   </svg>
 );
 
-const iconButton = "flex size-6 shrink-0 items-center justify-center rounded-ui text-muted hover:bg-white/5 hover:text-text";
+const iconButton = "flex size-control-sm shrink-0 items-center justify-center rounded-ui text-muted hover:bg-white/5 hover:text-text";
 
 /** Bottom-right panel listing uploads with progress, cancel and retry. Hidden while empty. */
 export function UploadTray({ queue }: { queue: UploadQueue }) {
@@ -45,11 +45,11 @@ export function UploadTray({ queue }: { queue: UploadQueue }) {
       aria-label={t("upload.tray")}
       data-testid="upload-tray"
       className={
-        "fixed right-4 bottom-4 z-50 w-[360px] overflow-hidden rounded-ui border border-border-strong bg-raised " +
+        "fixed right-4 bottom-4 z-50 w-[min(400px,calc(100vw-32px))] overflow-hidden rounded-ui border border-border-strong bg-raised " +
         "shadow-[0_12px_32px_-8px_rgba(0,0,0,0.7)]"
       }
     >
-      <header className="flex h-10 items-center gap-1 border-b border-border pr-1.5 pl-3.5">
+      <header className="flex h-12 items-center gap-1 border-b border-border pr-2 pl-4">
         <h2 aria-live="polite" data-testid="upload-summary" className="min-w-0 flex-1 truncate font-medium">
           {summary(items)}
         </h2>
@@ -94,13 +94,13 @@ function UploadRow({ item, queue }: { item: UploadItem; queue: UploadQueue }) {
             : t("upload.progress", { loaded: formatBytes(item.loaded), total: formatBytes(file.size) });
 
   return (
-    <li data-testid="upload-item" data-state={state} className="flex items-center gap-2.5 px-3.5 py-1.5">
+    <li data-testid="upload-item" data-state={state} className="flex min-h-row items-center gap-3 px-4 py-1.5">
       <NodeIcon kind={fileKind({ is_dir: false, name: file.name, mime: file.type })} />
       <div className="min-w-0 flex-1">
         <div className="truncate" title={file.name}>
           {file.name}
         </div>
-        <div className={`truncate text-[12px] ${state === "error" ? "text-danger" : "text-muted"}`}>{status}</div>
+        <div className={`truncate text-meta ${state === "error" ? "text-danger" : "text-muted"}`}>{status}</div>
         {(state === "uploading" || state === "queued") && (
           <div
             role="progressbar"

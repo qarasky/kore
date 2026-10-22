@@ -32,18 +32,18 @@ export default async function AdminOverview() {
       <DiskCard disk={disk} />
       <div className="grid grid-cols-2 gap-3">
         <section className="rounded-[8px] border border-border bg-bg/40 p-4">
-          <h3 className="text-[12px] font-medium text-muted">{t("admin.overview.totalUsed")}</h3>
-          <p data-testid="total-used" className="mt-1 text-[22px] font-semibold tracking-[-0.02em]">
+          <h3 className="text-meta font-medium text-muted">{t("admin.overview.totalUsed")}</h3>
+          <p data-testid="total-used" className="mt-1 text-display font-semibold tracking-[-0.02em]">
             {formatBytes(used)}
           </p>
-          <p className="text-[12px] text-muted">{t("admin.overview.allocated", { quota: formatBytes(quota) })}</p>
+          <p className="text-meta text-muted">{t("admin.overview.allocated", { quota: formatBytes(quota) })}</p>
         </section>
         <section className="rounded-[8px] border border-border bg-bg/40 p-4">
-          <h3 className="text-[12px] font-medium text-muted">{t("admin.overview.users")}</h3>
-          <p data-testid="user-count" className="mt-1 text-[22px] font-semibold tracking-[-0.02em]">
+          <h3 className="text-meta font-medium text-muted">{t("admin.overview.users")}</h3>
+          <p data-testid="user-count" className="mt-1 text-display font-semibold tracking-[-0.02em]">
             {usage.length}
           </p>
-          <p className="text-[12px] text-muted">
+          <p className="text-meta text-muted">
             {admins === 1 ? t("admin.overview.adminsOne") : t("admin.overview.adminsMany", { count: admins })}
           </p>
         </section>
@@ -51,14 +51,14 @@ export default async function AdminOverview() {
 
       <section aria-labelledby="usage-heading">
         <div className="mb-3 flex items-baseline justify-between gap-4">
-          <h3 id="usage-heading" className="text-[13px] font-semibold">
+          <h3 id="usage-heading" className="text-sub font-semibold">
             {t("admin.overview.usage")}
           </h3>
-          <Link href="/admin/users" className="text-[12px] text-accent hover:underline">
+          <Link href="/admin/users" className="text-meta text-accent hover:underline">
             {t("admin.overview.manageUsers")}
           </Link>
         </div>
-        <p className="mb-3 text-[12px] text-muted">{t("admin.overview.privacy")}</p>
+        <p className="mb-3 text-meta text-muted">{t("admin.overview.privacy")}</p>
         <ul className="divide-y divide-border rounded-[8px] border border-border">
           {byUse.map((u) => (
             <li key={u.user_id} data-testid="usage-row" className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] items-center gap-4 px-4 py-2.5">

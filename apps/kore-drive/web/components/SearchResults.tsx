@@ -94,8 +94,8 @@ export function SearchResults({ hits }: { hits: SearchHit[] }) {
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-auto" aria-busy={navigating || undefined}>
-      <div className={`${grid} sticky top-0 z-10 h-8 shrink-0 border-b border-border bg-surface text-[12px] font-medium text-muted`}>
-        <span className="pl-[26px]">{t("list.name")}</span>
+      <div className={`${grid} sticky top-0 z-10 h-10 shrink-0 border-b border-border bg-surface text-meta font-medium text-muted`}>
+        <span className="pl-[calc(var(--spacing-icon)+0.625rem)]">{t("list.name")}</span>
         <span>{t("search.location")}</span>
         {showUploader && <UploaderHeader label={t("list.uploadedBy")} />}
         <span>{t("list.modified")}</span>
@@ -128,7 +128,7 @@ export function SearchResults({ hits }: { hits: SearchHit[] }) {
               onClick={(e) => sel.click(hit.id, { shift: e.shiftKey, toggle: e.metaKey || e.ctrlKey })}
               onDoubleClick={() => open(hit.id)}
               className={
-                `${grid} h-9 cursor-default border-b border-border/60 select-none outline-none ` +
+                `${grid} h-row cursor-default border-b border-border/60 select-none outline-none ` +
                 "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset " +
                 (selected ? "bg-accent/15 text-text" : "hover:bg-white/[0.03]")
               }

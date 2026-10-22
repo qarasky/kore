@@ -59,7 +59,7 @@ export function ResetPasswordDialog({
     return (
       <Modal labelledBy={titleId} onClose={onClose} className="w-[min(440px,calc(100vw-32px))]">
         <div className="space-y-4 p-5" data-testid="password-reset-done">
-          <h2 id={titleId} className="text-[15px] font-semibold tracking-[-0.01em]">
+          <h2 id={titleId} className="text-title font-semibold tracking-[-0.01em]">
             {t("admin.reset.doneTitle")}
           </h2>
           {done.password ? (
@@ -95,7 +95,7 @@ export function ResetPasswordDialog({
     >
       <form onSubmit={submit} noValidate className="space-y-4 p-5">
         <div>
-          <h2 id={titleId} className="truncate text-[15px] font-semibold tracking-[-0.01em]">
+          <h2 id={titleId} className="truncate text-title font-semibold tracking-[-0.01em]">
             {t("admin.reset.title", { email: user.email })}
           </h2>
           <p id={messageId} className="mt-2 text-muted">

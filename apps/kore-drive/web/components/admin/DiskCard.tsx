@@ -27,10 +27,10 @@ export function DiskCard({ disk }: { disk: DiskInfo | null }) {
   if (!disk) {
     return (
       <section aria-labelledby="disk-heading" className="rounded-[8px] border border-border bg-bg/40 p-4">
-        <h3 id="disk-heading" className="text-[13px] font-semibold">
+        <h3 id="disk-heading" className="text-sub font-semibold">
           {t("admin.disk.title")}
         </h3>
-        <p className="mt-1 text-[12px] text-muted">{t("admin.disk.unavailable")}</p>
+        <p className="mt-1 text-meta text-muted">{t("admin.disk.unavailable")}</p>
       </section>
     );
   }
@@ -54,18 +54,18 @@ export function DiskCard({ disk }: { disk: DiskInfo | null }) {
     >
       <div className="flex items-baseline justify-between gap-4">
         <div className="min-w-0">
-          <h3 id="disk-heading" className="text-[13px] font-semibold">
+          <h3 id="disk-heading" className="text-sub font-semibold">
             {t("admin.disk.title")}
           </h3>
           {disk.fs_path_label && (
-            <p className="truncate text-[12px] text-muted" title={disk.fs_path_label}>
+            <p className="truncate text-meta text-muted" title={disk.fs_path_label}>
               {t("admin.disk.where", { label: disk.fs_path_label })}
             </p>
           )}
         </div>
-        <p className={`shrink-0 text-[22px] font-semibold tracking-[-0.02em] tabular-nums ${LEVEL_TEXT[v.level]}`}>
+        <p className={`shrink-0 text-display font-semibold tracking-[-0.02em] tabular-nums ${LEVEL_TEXT[v.level]}`}>
           <span data-testid="disk-percent">{t("admin.disk.percent", { percent })}</span>{" "}
-          <span className="text-[12px] font-normal text-muted">{t("admin.disk.percentLabel")}</span>
+          <span className="text-meta font-normal text-muted">{t("admin.disk.percentLabel")}</span>
         </p>
       </div>
 
@@ -83,7 +83,7 @@ export function DiskCard({ disk }: { disk: DiskInfo | null }) {
         <div className={SEGMENT.free} style={{ width: `${v.segments.free}%` }} />
       </div>
 
-      <ul data-testid="disk-legend" className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-muted">
+      <ul data-testid="disk-legend" className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-meta text-muted">
         <li className="flex items-center gap-1.5">
           <Swatch className={SEGMENT.kore} />
           <span>{t("admin.disk.legendKore")}</span>
@@ -104,28 +104,28 @@ export function DiskCard({ disk }: { disk: DiskInfo | null }) {
       <dl className="mt-3 grid grid-cols-3 gap-3 border-t border-border pt-3">
         {stats.map((s) => (
           <div key={s.key}>
-            <dt className="text-[12px] text-muted">{s.label}</dt>
-            <dd data-testid={`disk-${s.key}`} className="text-[15px] font-semibold tabular-nums">
+            <dt className="text-meta text-muted">{s.label}</dt>
+            <dd data-testid={`disk-${s.key}`} className="text-title font-semibold tabular-nums">
               {formatBytes(s.value)}
             </dd>
           </div>
         ))}
       </dl>
 
-      {v.reserved > 0 && <p className="mt-2 text-[12px] text-muted">{t("admin.disk.reserved", { size: formatBytes(v.reserved) })}</p>}
+      {v.reserved > 0 && <p className="mt-2 text-meta text-muted">{t("admin.disk.reserved", { size: formatBytes(v.reserved) })}</p>}
       {v.level !== "ok" && (
-        <p role="status" className={`mt-2 text-[12.5px] font-medium ${LEVEL_TEXT[v.level]}`}>
+        <p role="status" className={`mt-2 text-meta font-medium ${LEVEL_TEXT[v.level]}`}>
           {v.level === "critical" ? t("admin.disk.critical") : t("admin.disk.warn")}
         </p>
       )}
-      <p data-testid="disk-allocated" className="mt-2 text-[12px] text-muted">
+      <p data-testid="disk-allocated" className="mt-2 text-meta text-muted">
         {t("admin.disk.allocated", {
           allocated: formatBytes(disk.quota_allocated_bytes),
           free: formatBytes(disk.free_bytes),
         })}
       </p>
       {v.overAllocated && (
-        <p data-testid="disk-overallocated" role="status" className="mt-0.5 text-[12px] text-warning">
+        <p data-testid="disk-overallocated" role="status" className="mt-0.5 text-meta text-warning">
           {t("admin.disk.overAllocated", { unused: formatBytes(v.quotaUnused), free: formatBytes(disk.free_bytes) })}
         </p>
       )}
