@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/artchsh/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/users"
 )
 
 // sizeIn lists sp/parent as actor and returns the listed size of the item named name.

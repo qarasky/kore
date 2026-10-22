@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/artchsh/kore/api/internal/store"
+	"github.com/qarasky/kore/api/internal/store"
 )
 
 func TestCreateAndLookup(t *testing.T) {

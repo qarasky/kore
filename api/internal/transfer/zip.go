@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/artchsh/kore/api/internal/nodes"
-	"github.com/artchsh/kore/api/internal/users"
-	"github.com/artchsh/kore/api/internal/volume"
+	"github.com/qarasky/kore/api/internal/nodes"
+	"github.com/qarasky/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/volume"
 )
 
 // MaxZipIDs caps the number of ids in one zip request.

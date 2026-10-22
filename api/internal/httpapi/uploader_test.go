@@ -6,9 +6,9 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/artchsh/kore/api/internal/auth"
-	"github.com/artchsh/kore/api/internal/nodes"
-	"github.com/artchsh/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/auth"
+	"github.com/qarasky/kore/api/internal/nodes"
+	"github.com/qarasky/kore/api/internal/users"
 )
 
 // listJSON decodes a JSON array response into id -> object.

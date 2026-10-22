@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/artchsh/kore/api/internal/quota"
-	"github.com/artchsh/kore/api/internal/users"
-	"github.com/artchsh/kore/api/internal/volume"
+	"github.com/qarasky/kore/api/internal/quota"
+	"github.com/qarasky/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/volume"
 )
 
 // blobFile creates a file node with a real blob on disk.

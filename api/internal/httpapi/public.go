@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/artchsh/kore/api/internal/auth"
-	"github.com/artchsh/kore/api/internal/nodes"
-	"github.com/artchsh/kore/api/internal/settings"
-	"github.com/artchsh/kore/api/internal/shares"
-	"github.com/artchsh/kore/api/internal/transfer"
-	"github.com/artchsh/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/auth"
+	"github.com/qarasky/kore/api/internal/nodes"
+	"github.com/qarasky/kore/api/internal/settings"
+	"github.com/qarasky/kore/api/internal/shares"
+	"github.com/qarasky/kore/api/internal/transfer"
+	"github.com/qarasky/kore/api/internal/users"
 )
 
 // publicPrefix is where anonymous share-link routes live. Requests under it

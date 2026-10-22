@@ -4,9 +4,9 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/artchsh/kore/api/internal/auth"
-	"github.com/artchsh/kore/api/internal/quota"
-	"github.com/artchsh/kore/api/internal/settings"
+	"github.com/qarasky/kore/api/internal/auth"
+	"github.com/qarasky/kore/api/internal/quota"
+	"github.com/qarasky/kore/api/internal/settings"
 )
 
 func (s *server) registerMe(mux *http.ServeMux) {

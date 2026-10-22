@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/artchsh/kore/api/internal/auth"
-	"github.com/artchsh/kore/api/internal/nodes"
-	"github.com/artchsh/kore/api/internal/settings"
-	"github.com/artchsh/kore/api/internal/uploads"
-	"github.com/artchsh/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/auth"
+	"github.com/qarasky/kore/api/internal/nodes"
+	"github.com/qarasky/kore/api/internal/settings"
+	"github.com/qarasky/kore/api/internal/uploads"
+	"github.com/qarasky/kore/api/internal/users"
 )
 
 const (

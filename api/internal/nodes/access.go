@@ -2,7 +2,7 @@
 // rename, move and access rules.
 package nodes
 
-import "github.com/artchsh/kore/api/internal/users"
+import "github.com/qarasky/kore/api/internal/users"
 
 // Node is a file or folder row.
 type Node struct {

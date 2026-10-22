@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/artchsh/kore/api/internal/auth"
-	"github.com/artchsh/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/auth"
+	"github.com/qarasky/kore/api/internal/users"
 )
 
 func (e *env) req(t *testing.T, as *users.User, method, path string, body []byte, hdr map[string]string) *httptest.ResponseRecorder {

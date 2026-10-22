@@ -9,9 +9,9 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/artchsh/kore/api/internal/nodes"
-	"github.com/artchsh/kore/api/internal/users"
-	"github.com/artchsh/kore/api/internal/volume"
+	"github.com/qarasky/kore/api/internal/nodes"
+	"github.com/qarasky/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/volume"
 )
 
 func (e *env) putFile(t *testing.T, u users.User, name, mime string, data []byte) nodes.Node {

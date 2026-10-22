@@ -11,8 +11,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/artchsh/kore/api/internal/quota"
-	"github.com/artchsh/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/quota"
+	"github.com/qarasky/kore/api/internal/users"
 	"golang.org/x/text/unicode/norm"
 )
 

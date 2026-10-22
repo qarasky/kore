@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/artchsh/kore/api/internal/config"
-	"github.com/artchsh/kore/api/internal/settings"
-	"github.com/artchsh/kore/api/internal/store"
-	"github.com/artchsh/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/config"
+	"github.com/qarasky/kore/api/internal/settings"
+	"github.com/qarasky/kore/api/internal/store"
+	"github.com/qarasky/kore/api/internal/users"
 )
 
 func testDB(t *testing.T) *sql.DB {

@@ -34,11 +34,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/artchsh/kore/api/internal/nodes"
-	"github.com/artchsh/kore/api/internal/quota"
-	"github.com/artchsh/kore/api/internal/settings"
-	"github.com/artchsh/kore/api/internal/users"
-	"github.com/artchsh/kore/api/internal/volume"
+	"github.com/qarasky/kore/api/internal/nodes"
+	"github.com/qarasky/kore/api/internal/quota"
+	"github.com/qarasky/kore/api/internal/settings"
+	"github.com/qarasky/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/volume"
 )
 
 // Chunk size bounds accepted at Create.

@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/artchsh/kore/api/internal/auth"
-	"github.com/artchsh/kore/api/internal/settings"
-	"github.com/artchsh/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/auth"
+	"github.com/qarasky/kore/api/internal/settings"
+	"github.com/qarasky/kore/api/internal/users"
 )
 
 var (

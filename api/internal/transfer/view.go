@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/artchsh/kore/api/internal/nodes"
-	"github.com/artchsh/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/nodes"
+	"github.com/qarasky/kore/api/internal/users"
 )
 
 // viewExts maps the extensions /view serves to their file family. Mirrored

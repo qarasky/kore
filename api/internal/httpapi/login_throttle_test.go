@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/artchsh/kore/api/internal/auth"
+	"github.com/qarasky/kore/api/internal/auth"
 )
 
 func TestLoginPerIPLimitAcrossEmails(t *testing.T) {
