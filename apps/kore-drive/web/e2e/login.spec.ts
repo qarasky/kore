@@ -93,3 +93,11 @@ test("redirects use relative Location headers (safe behind Caddy)", async ({ req
   expect(fromPage.status()).toBe(307);
   expect(fromPage.headers()["location"]).toBe("/login?next=%2Ffiles&expired=1");
 });
+
+test("search engines are told to stay out: robots.txt and a noindex tag on the login page", async ({ page }) => {
+  const robots = await page.request.get("/robots.txt");
+  expect(robots.status()).toBe(200);
+  expect(await robots.text()).toMatch(/User-Agent: \*\s+Disallow: \//i);
+  await page.goto("/login");
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+});
