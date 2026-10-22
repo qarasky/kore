@@ -358,10 +358,10 @@ export function FileList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-border px-4">
+      <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border px-4">
         {header}
         <div className="flex shrink-0 items-center gap-3">
-          <div aria-live="polite" className="flex items-center gap-2 text-[12px] text-muted">
+          <div aria-live="polite" className="flex items-center gap-2 text-meta text-muted">
             {actions.working ? (
               <>
                 <span aria-hidden="true" className="size-3 animate-spin rounded-full border-[1.5px] border-muted border-t-transparent" />
@@ -378,7 +378,7 @@ export function FileList({
               aria-keyshortcuts="M"
               title={t("action.moveToShortcut")}
               className={
-                "flex items-center gap-1.5 rounded-ui border border-border px-2 py-1 text-[12px] font-medium text-muted " +
+                "flex min-h-control items-center gap-1.5 rounded-ui border border-border px-3 font-medium text-muted " +
                 "transition-colors hover:border-border-strong hover:text-text"
               }
             >
@@ -397,9 +397,9 @@ export function FileList({
           onContextMenu={onAreaContextMenu}
         >
           <div
-            className={`${grid} sticky top-0 z-10 h-8 shrink-0 border-b border-border bg-surface text-[12px] font-medium text-muted`}
+            className={`${grid} sticky top-0 z-10 h-10 shrink-0 border-b border-border bg-surface text-meta font-medium text-muted`}
           >
-            <span className="pl-[26px]">{t("list.name")}</span>
+            <span className="pl-[calc(var(--spacing-icon)+0.625rem)]">{t("list.name")}</span>
             {showUploader && <UploaderHeader label={t("list.uploadedBy")} />}
             <span>{t("list.modified")}</span>
             <span className="text-right">{t("list.size")}</span>
@@ -415,7 +415,7 @@ export function FileList({
             className="flex-1 pb-10 outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-inset"
           >
             {editing?.kind === "new" && (
-              <div role="option" aria-selected="true" aria-label={t("new.folder")} className={`${grid} h-8 border-b border-border/60 bg-accent/15`}>
+              <div role="option" aria-selected="true" aria-label={t("new.folder")} className={`${grid} h-row border-b border-border/60 bg-accent/15`}>
                 <div className="flex min-w-0 items-center gap-2.5">
                   <NodeIcon kind="folder" />
                   <NameEditor initial={t("new.folderDefault")} onSubmit={submitNew} onCancel={cancelEdit} />

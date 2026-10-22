@@ -44,11 +44,11 @@ export function AccountMenu({ email }: { email: string }) {
         },
         { id: "signout", label: t("account.signOut"), icon: <SignOutIcon />, onSelect: signOut },
       ]}
-      buttonClassName="flex items-center gap-2 rounded-ui py-1 pr-2 pl-1 text-muted transition-colors hover:bg-white/5 hover:text-text"
+      buttonClassName="flex min-h-control items-center gap-2 rounded-ui pr-2.5 pl-1 text-muted transition-colors hover:bg-white/5 hover:text-text"
     >
       <span
         aria-hidden="true"
-        className="flex size-7 items-center justify-center rounded-full bg-accent text-[12px] font-semibold text-white uppercase"
+        className="flex size-8 items-center justify-center rounded-full bg-accent text-meta font-semibold text-white uppercase"
       >
         {email.slice(0, 1)}
       </span>

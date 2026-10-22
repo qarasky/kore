@@ -201,16 +201,16 @@ export function TrashList({ space, items }: { space: Space; items: TrashedNode[]
   };
 
   const toolbarButton =
-    "inline-flex items-center gap-1.5 rounded-ui border border-border-strong px-2.5 py-1 font-medium " +
+    "inline-flex items-center gap-1.5 rounded-ui border border-border-strong min-h-control px-3 font-medium " +
     "hover:bg-white/5 disabled:pointer-events-none disabled:opacity-40";
-  const rowButton = "rounded-ui p-1 text-muted hover:bg-white/10 hover:text-text disabled:opacity-40";
+  const rowButton = "flex size-control-sm items-center justify-center rounded-ui text-muted hover:bg-white/10 hover:text-text disabled:opacity-40";
   const tabbable = sel.selection.focus ?? ids[0] ?? null;
   const showUploader = space === "shared";
   const grid = showUploader ? GRID_UPLOADER : GRID;
 
   return (
     <div ref={rootRef} tabIndex={-1} data-testid="trash-section" className="flex min-h-0 flex-1 flex-col outline-none">
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-4">
+      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-4">
         <button type="button" className={toolbarButton} disabled={count === 0 || working} onClick={() => restore(sel.selectedIds)}>
           <RestoreIcon />
           {t("trash.restore")}
@@ -219,7 +219,7 @@ export function TrashList({ space, items }: { space: Space; items: TrashedNode[]
           <TrashIcon />
           {t("trash.deleteForever")}
         </button>
-        <span aria-live="polite" className="text-[12px] text-muted">
+        <span aria-live="polite" className="text-meta text-muted">
           {working ? t("list.working") : count > 0 ? t("list.selectedCount", { count }) : null}
         </span>
         <button
@@ -238,8 +238,8 @@ export function TrashList({ space, items }: { space: Space; items: TrashedNode[]
         </PageMessage>
       ) : (
         <div className="relative flex min-h-0 flex-1 flex-col overflow-auto" onClick={(e) => e.target === e.currentTarget && sel.clear()}>
-          <div className={`${grid} sticky top-0 z-10 h-8 shrink-0 border-b border-border bg-surface text-[12px] font-medium text-muted`}>
-            <span className="pl-[26px]">{t("list.name")}</span>
+          <div className={`${grid} sticky top-0 z-10 h-10 shrink-0 border-b border-border bg-surface text-meta font-medium text-muted`}>
+            <span className="pl-[calc(var(--spacing-icon)+0.625rem)]">{t("list.name")}</span>
             {showUploader && <UploaderHeader label={t("list.uploadedBy")} />}
             <span>{t("trash.deleted")}</span>
             <span className="text-right">{t("list.size")}</span>
@@ -272,7 +272,7 @@ export function TrashList({ space, items }: { space: Space; items: TrashedNode[]
                   data-id={node.id}
                   onClick={(e) => onRowClick(node.id, e)}
                   className={
-                    `${grid} group h-8 cursor-default border-b border-border/60 select-none outline-none ` +
+                    `${grid} group h-row cursor-default border-b border-border/60 select-none outline-none ` +
                     "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset " +
                     (selected ? "bg-accent/15 text-text" : "hover:bg-white/[0.03]")
                   }

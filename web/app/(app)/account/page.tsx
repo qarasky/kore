@@ -21,21 +21,21 @@ export default async function AccountPage() {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="flex h-12 shrink-0 items-center border-b border-border px-4">
-        <h1 className="text-[14px] font-semibold">{t("account.title")}</h1>
+      <div className="flex h-14 shrink-0 items-center border-b border-border px-4">
+        <h1 className="text-heading font-semibold">{t("account.title")}</h1>
       </div>
       <div className="mx-auto max-w-[560px] space-y-8 p-6">
         <section>
-          <p className="truncate text-[15px] font-semibold" title={user.email}>
+          <p className="truncate text-title font-semibold" title={user.email}>
             {user.email}
           </p>
-          <p className="text-[12px] text-muted">
+          <p className="text-meta text-muted">
             {t("account.role", { role: user.role === "admin" ? t("admin.role.admin") : t("admin.role.user") })}
           </p>
         </section>
 
         <section aria-labelledby="storage-heading" className="space-y-2">
-          <h2 id="storage-heading" className="text-[13px] font-semibold">
+          <h2 id="storage-heading" className="text-sub font-semibold">
             {t("account.storageTitle")}
           </h2>
           <div
@@ -52,15 +52,15 @@ export default async function AccountPage() {
           <p data-testid="account-usage" className="text-muted">
             {text}
           </p>
-          <p className="text-[12px] text-muted">{t("account.storageNote")}</p>
+          <p className="text-meta text-muted">{t("account.storageNote")}</p>
         </section>
 
         <section aria-labelledby="password-heading" className="space-y-3">
           <div>
-            <h2 id="password-heading" className="text-[13px] font-semibold">
+            <h2 id="password-heading" className="text-sub font-semibold">
               {t("account.passwordTitle")}
             </h2>
-            <p className="text-[12px] text-muted">{t("account.passwordHint")}</p>
+            <p className="text-meta text-muted">{t("account.passwordHint")}</p>
           </div>
           <ChangePasswordForm />
         </section>

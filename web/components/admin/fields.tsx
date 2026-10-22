@@ -7,22 +7,22 @@ import { SIZE_UNITS, type SizeUnit } from "@/lib/size";
 import { Select } from "../Select";
 
 const controlClass =
-  "block min-w-0 rounded-ui border border-border bg-bg/60 px-3 py-1.5 text-text " +
+  "block min-h-control min-w-0 rounded-ui border border-border bg-bg/60 px-3 py-1.5 text-text " +
   "placeholder:text-muted outline-none transition-colors " +
   "hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 " +
   "aria-invalid:border-danger/70 disabled:opacity-60";
 export const inputClass = `${controlClass} w-full`;
 
 export const primaryButton =
-  "rounded-ui bg-accent px-3.5 py-1.5 font-medium text-white transition-colors hover:bg-accent-hover " +
+  "min-h-control rounded-ui bg-accent px-4 py-1.5 font-medium text-white transition-colors hover:bg-accent-hover " +
   "disabled:cursor-not-allowed disabled:opacity-60";
 export const dangerButton =
-  "rounded-ui bg-[#c94b4f] px-3.5 py-1.5 font-medium text-white hover:bg-[#d65b5f] " +
+  "min-h-control rounded-ui bg-[#c94b4f] px-4 py-1.5 font-medium text-white hover:bg-[#d65b5f] " +
   "disabled:cursor-not-allowed disabled:opacity-60";
 export const secondaryButton =
-  "rounded-ui border border-border-strong px-3.5 py-1.5 font-medium hover:bg-white/5 disabled:opacity-60";
+  "min-h-control rounded-ui border border-border-strong px-4 py-1.5 font-medium hover:bg-white/5 disabled:opacity-60";
 export const smallButton =
-  "rounded-ui border border-border px-2 py-1 text-[12px] font-medium text-muted transition-colors " +
+  "inline-flex min-h-control-sm items-center rounded-ui border border-border px-2.5 text-meta font-medium text-muted transition-colors " +
   "hover:border-border-strong hover:text-text disabled:opacity-60";
 
 /** ids for a field's label, hint and error, and the matching aria-describedby. */
@@ -51,17 +51,17 @@ export function Field({
   const ids = fieldIds(id, !!hint, !!error);
   return (
     <div className="space-y-1.5">
-      <label id={ids.labelId} htmlFor={id} className="block text-[12px] font-medium text-muted">
+      <label id={ids.labelId} htmlFor={id} className="block text-meta font-medium text-muted">
         {label}
       </label>
       {children}
       {hint && (
-        <p id={ids.hintId} className="text-[12px] text-muted">
+        <p id={ids.hintId} className="text-meta text-muted">
           {hint}
         </p>
       )}
       {error && (
-        <p id={ids.errorId} role="alert" className="text-[12px] text-danger">
+        <p id={ids.errorId} role="alert" className="text-meta text-danger">
           {error}
         </p>
       )}
@@ -144,7 +144,7 @@ export function CopyButton({ text, className = smallButton }: { text: string; cl
         {state === "copied" ? t("password.copied") : t("password.copy")}
       </button>
       {state === "failed" && (
-        <span role="alert" className="text-[12px] text-danger">
+        <span role="alert" className="text-meta text-danger">
           {t("password.copyFailed")}
         </span>
       )}
@@ -232,7 +232,7 @@ export function PasswordInput({
         )}
       </div>
       {hints && (
-        <ul id={hintsId} aria-label={t("password.hints")} className="space-y-0.5 text-[12px]">
+        <ul id={hintsId} aria-label={t("password.hints")} className="space-y-0.5 text-meta">
           {items.map(([met, label]) => (
             <li key={label} data-met={met} className={`flex items-center gap-1.5 ${met ? "text-text" : "text-muted"}`}>
               <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} className={`size-3.5 ${met ? "text-accent" : ""}`}>

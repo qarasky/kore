@@ -115,12 +115,12 @@ export function PreviewPane({
         <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border pr-2 pl-4">
           <NodeIcon kind={fileKind(node)} />
           <div className="flex min-w-0 flex-1 items-baseline gap-2.5">
-            <h2 id={titleId} className="truncate text-[14px] font-semibold" title={node.name}>
+            <h2 id={titleId} className="truncate text-heading font-semibold" title={node.name}>
               {node.name}
             </h2>
             <span className="shrink-0 text-muted tabular-nums">{formatBytes(node.size)}</span>
             {items.length > 1 && (
-              <span className="shrink-0 text-[12px] text-muted tabular-nums">
+              <span className="shrink-0 text-meta text-muted tabular-nums">
                 {t("preview.position", { index: index + 1, count: items.length })}
               </span>
             )}
@@ -269,7 +269,7 @@ function PreviewBody({
       {loaded.truncated && (
         <div
           data-testid="preview-truncated"
-          className="sticky top-0 left-0 z-10 flex items-center gap-2 border-b border-border bg-raised px-4 py-2 text-[12.5px]"
+          className="sticky top-0 left-0 z-10 flex items-center gap-2 border-b border-border bg-raised px-4 py-2 text-meta"
         >
           <span>{t("preview.truncated", { size: formatBytes(PREVIEW_MAX_BYTES) })}</span>
           <button type="button" onClick={() => onDownload(node)} className="font-medium text-accent hover:underline">

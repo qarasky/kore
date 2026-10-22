@@ -22,13 +22,13 @@ export function StorageMeter({ usage }: { usage: Usage }) {
         aria-describedby={percentId}
         title={t("storage.details")}
         onClick={() => setOpen(true)}
-        className="block w-full rounded-ui px-2.5 py-1.5 text-left transition-colors hover:bg-white/[0.04]"
+        className="block w-full rounded-ui px-3 py-2.5 text-left transition-colors hover:bg-white/[0.04]"
       >
-        <span className="mb-1.5 block text-[12px] font-medium text-muted">{t("storage.label")}</span>
-        <span aria-hidden="true" className="block h-1 overflow-hidden rounded-full bg-border">
+        <span className="mb-1.5 block text-meta font-medium text-muted">{t("storage.label")}</span>
+        <span aria-hidden="true" className="block h-1.5 overflow-hidden rounded-full bg-border">
           <span className={`block h-full rounded-full ${pct > 90 ? "bg-danger" : "bg-accent"}`} style={{ width: `${pct}%` }} />
         </span>
-        <span className="mt-1.5 block text-[12px] text-muted">{label}</span>
+        <span className="mt-1.5 block text-meta text-muted">{label}</span>
       </button>
       {/* The bar is decorative; its value reaches assistive tech here. */}
       <span id={percentId} className="sr-only">

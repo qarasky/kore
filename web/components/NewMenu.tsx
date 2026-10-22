@@ -54,7 +54,7 @@ export function NewMenu() {
         label={t("new.menu")}
         items={items}
         buttonClassName={
-          "flex items-center gap-2 rounded-ui bg-accent py-2 pr-4 pl-3 font-medium text-white " +
+          "flex min-h-11 items-center gap-2.5 rounded-ui bg-accent pr-5 pl-4 font-medium text-white " +
           "shadow-[0_1px_0_rgba(255,255,255,0.12)_inset] transition-colors hover:bg-accent-hover"
         }
       >
