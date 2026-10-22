@@ -508,9 +508,11 @@ func Path(ctx context.Context, db *sql.DB, actor users.User, id string) ([]Node,
 	return out, rows.Err()
 }
 
-// prefixedWhere qualifies the node columns used in childrenWhere/liveSQL
-// with alias p (users, joined for emailCol, shares no such column names, but
-// qualifying keeps the query unambiguous).
+// prefixedWhere qualifies the node columns used in childrenWhere, liveSQL
+// and rootSQL with alias p (users, joined for emailCol, shares no such
+// column names, but qualifying keeps the query unambiguous). It is a plain
+// substring replacement: use it only on those fixed fragments, never on
+// anything else; TestPrefixedWhere pins the exact output.
 func prefixedWhere(p, where string) string {
 	for _, c := range []string{"space_owner", "parent_id", "trashed_at", "trash_root"} {
 		where = strings.ReplaceAll(where, c, p+"."+c)

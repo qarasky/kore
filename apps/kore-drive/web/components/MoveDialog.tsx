@@ -43,8 +43,10 @@ export function MoveDialog({
   const [attempt, setAttempt] = useState(0);
   /** The last load result and which location (and attempt) it is for. */
   const [loaded, setLoaded] = useState<{ key: string; result: Folders } | null>(null);
-  /** Focus the folder list after the user navigated (not on first open). */
-  const focusList = useRef(false);
+  /** After folder/breadcrumb navigation (not on first open, not after a
+   *  Space change): the control that triggered it, so the folder list can
+   *  take focus once loaded, unless the user has moved focus meanwhile. */
+  const focusList = useRef<{ from: Element | null } | null>(null);
 
   const parent = path.length > 0 ? path[path.length - 1].id : null;
   const key = `${space}/${parent ?? ""}#${attempt}`;
@@ -65,14 +67,21 @@ export function MoveDialog({
   }, [space, parent, key]);
 
   useEffect(() => {
-    if (focusList.current && folders.state !== "loading") {
-      focusList.current = false;
-      listRef.current?.focus();
+    const pending = focusList.current;
+    if (pending && folders.state !== "loading") {
+      focusList.current = null;
+      // The clicked folder/crumb usually unmounts (focus falls to <body>);
+      // anything else focused means the user went on: leave it there.
+      const active = document.activeElement;
+      if (active === null || active === document.body || active === pending.from) listRef.current?.focus();
     }
   }, [folders.state, key]);
 
-  function go(next: Crumb[], nextSpace: Space = space) {
-    focusList.current = true;
+  /** Shows `next` in `nextSpace`. `moveFocus`: hand focus to the folder
+   *  list once loaded (folder and breadcrumb navigation; not the Space
+   *  select, which keeps focus where the user is). */
+  function go(next: Crumb[], nextSpace: Space = space, moveFocus = true) {
+    focusList.current = moveFocus ? { from: document.activeElement } : null;
     setSpace(nextSpace);
     setPath(next);
   }
@@ -103,7 +112,7 @@ export function MoveDialog({
           <Select<Space>
             aria-labelledby={spaceId}
             value={space}
-            onChange={(s) => go([], s)}
+            onChange={(s) => go([], s, false)}
             options={SPACES.map((s) => ({ value: s, label: spaceLabel(s) }))}
             className="min-w-[160px]"
           />

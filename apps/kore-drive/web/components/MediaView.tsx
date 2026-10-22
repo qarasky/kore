@@ -7,14 +7,16 @@ import type { ApiNode } from "@/lib/nodes";
 import { viewHref } from "@/lib/preview";
 import { DownloadIcon } from "./icons";
 
-type Check = "checking" | "ok" | "notFound" | "error";
+type Check = "checking" | "ok" | "unavailable" | "notFound" | "error";
 
 /**
  * Asks the server (HEAD /view) whether `node` can be shown inline before an
- * `<img>`/`<iframe>` points at it: a 415 (the bytes are not the image/PDF
- * the name claims, or an SVG) goes to `onUnavailable`, which downloads.
+ * `<img>`/`<iframe>` points at it. A 415 (the bytes are not the image/PDF
+ * the name claims) goes to `onUnavailable` (close and download), or, with
+ * `onUnavailable` null (the pane was stepped onto this file), is reported
+ * as "unavailable" so the pane shows a panel with a Download button.
  */
-function useViewCheck(node: ApiNode, onUnavailable: (node: ApiNode) => void, attempt: number): Check {
+function useViewCheck(node: ApiNode, onUnavailable: ((node: ApiNode) => void) | null, attempt: number): Check {
   const [state, setState] = useState<{ id: string; attempt: number; check: Check } | null>(null);
   const unavailable = useRef(onUnavailable);
   useEffect(() => {
@@ -26,7 +28,8 @@ function useViewCheck(node: ApiNode, onUnavailable: (node: ApiNode) => void, att
       () => setState({ id: node.id, attempt, check: "ok" }),
       (e: unknown) => {
         if (ctrl.signal.aborted) return;
-        if (isApiError(e, 415)) unavailable.current(node);
+        if (isApiError(e, 415) && unavailable.current) unavailable.current(node);
+        else if (isApiError(e, 415)) setState({ id: node.id, attempt, check: "unavailable" });
         else setState({ id: node.id, attempt, check: isApiError(e, 404) ? "notFound" : "error" });
       },
     );
@@ -66,6 +69,10 @@ function Problem({ message, onRetry, onDownload }: { message: string; onRetry?: 
   );
 }
 
+function Unavailable({ node, onDownload }: { node: ApiNode; onDownload: (node: ApiNode) => void }) {
+  return <Problem message={t("preview.cannotPreview", { name: node.name })} onDownload={() => onDownload(node)} />;
+}
+
 /**
  * An image from `/view`: fit to the pane, or at its actual size (scrolling)
  * when `actual`; a click on it toggles (`onToggleZoom`), as does Z in the
@@ -81,12 +88,13 @@ export function ImageView({
   node: ApiNode;
   actual: boolean;
   onToggleZoom: () => void;
-  onUnavailable: (node: ApiNode) => void;
+  onUnavailable: ((node: ApiNode) => void) | null;
   onDownload: (node: ApiNode) => void;
 }) {
   const [attempt, setAttempt] = useState(0);
   const check = useViewCheck(node, onUnavailable, attempt);
   const [img, setImg] = useState<"loading" | "ok" | "error">("loading");
+  if (check === "unavailable") return <Unavailable node={node} onDownload={onDownload} />;
   if (check === "notFound") return <Problem message={t("preview.notFound")} />;
   if (check === "error") return <Problem message={t("preview.error")} onRetry={() => setAttempt((a) => a + 1)} />;
   if (img === "error") return <Problem message={t("preview.imageError")} onDownload={() => onDownload(node)} />;
@@ -132,12 +140,13 @@ export function PdfView({
   onDownload,
 }: {
   node: ApiNode;
-  onUnavailable: (node: ApiNode) => void;
+  onUnavailable: ((node: ApiNode) => void) | null;
   onDownload: (node: ApiNode) => void;
 }) {
   const [attempt, setAttempt] = useState(0);
   const check = useViewCheck(node, onUnavailable, attempt);
   const viewer = typeof navigator === "undefined" || navigator.pdfViewerEnabled !== false;
+  if (check === "unavailable") return <Unavailable node={node} onDownload={onDownload} />;
   if (check === "notFound") return <Problem message={t("preview.notFound")} />;
   if (check === "error") return <Problem message={t("preview.error")} onRetry={() => setAttempt((a) => a + 1)} />;
   return (

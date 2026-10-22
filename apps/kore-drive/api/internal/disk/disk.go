@@ -103,3 +103,26 @@ func unescape(s string) string {
 	}
 	return b.String()
 }
+
+// blockUnit is the unit statfs block counts are in: f_frsize (the fragment
+// size, which POSIX defines blocks in) when the platform reports a positive
+// one, else f_bsize.
+func blockUnit(frsize, bsize int64) uint64 {
+	if frsize > 0 {
+		return uint64(frsize)
+	}
+	if bsize > 0 {
+		return uint64(bsize)
+	}
+	return 0
+}
+
+// usageFrom turns statfs block counts into bytes. Used saturates at zero so
+// an odd report (more free than total blocks) cannot wrap around.
+func usageFrom(blocks, bfree, bavail, unit uint64) Usage {
+	used := uint64(0)
+	if blocks > bfree {
+		used = blocks - bfree
+	}
+	return Usage{Total: blocks * unit, Used: used * unit, Free: bavail * unit}
+}

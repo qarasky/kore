@@ -36,7 +36,9 @@ const isControl = (el: EventTarget) => (el as Element).closest?.("button, a, inp
  * and PDFs alike). Text comes from `GET /api/nodes/{id}/preview`; images
  * (fit or actual size: click or Z) and PDFs (the browser's viewer in a
  * frame) from `GET /api/nodes/{id}/view`. A 415 means the server disagrees
- * that the file can be shown, and `onNotText` takes over (download).
+ * that the file can be shown: on the file the pane opened on, `onNotText`
+ * takes over (download); an image/PDF reached with ←/→ shows a "can't be
+ * previewed" panel with Download in the pane instead.
  */
 export function PreviewPane({
   items,
@@ -61,6 +63,9 @@ export function PreviewPane({
   const [wrap, setWrap] = useState(false);
   const [numbers, setNumbers] = useState<Record<string, boolean>>({});
   const [actualSize, setActualSize] = useState<string | null>(null);
+  /** The file the pane was opened on: a 415 there closes and downloads; on a
+   *  file reached with ←/→ an image/PDF shows a panel in the pane instead. */
+  const [openedOn] = useState(node.id);
   const lineNumbers = numbers[node.id] ?? defaultLineNumbers(node.name);
   const kind = previewKind(node.name) ?? "text";
   const markdown = isMarkdown(node.name);
@@ -176,9 +181,16 @@ export function PreviewPane({
           }
         >
           {kind === "image" ? (
-            <ImageView key={node.id} node={node} actual={actual} onToggleZoom={toggleZoom} onUnavailable={onNotText} onDownload={onDownload} />
+            <ImageView
+              key={node.id}
+              node={node}
+              actual={actual}
+              onToggleZoom={toggleZoom}
+              onUnavailable={node.id === openedOn ? onNotText : null}
+              onDownload={onDownload}
+            />
           ) : kind === "pdf" ? (
-            <PdfView key={node.id} node={node} onUnavailable={onNotText} onDownload={onDownload} />
+            <PdfView key={node.id} node={node} onUnavailable={node.id === openedOn ? onNotText : null} onDownload={onDownload} />
           ) : (
             <PreviewBody key={node.id} node={node} markdown={markdown} wrap={wrap} lineNumbers={lineNumbers} onNotText={onNotText} onDownload={onDownload} />
           )}
