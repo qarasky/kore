@@ -75,6 +75,7 @@ func (s *server) handler() http.Handler {
 	s.registerPreview(mux)
 	s.registerShares(mux)
 	s.registerPublic(mux)
+	s.registerBranding(mux)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		var allow []string
 		for _, m := range []string{"GET", "HEAD", "POST", "PATCH", "PUT", "DELETE"} {

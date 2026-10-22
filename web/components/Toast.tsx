@@ -74,7 +74,7 @@ function ToastView({ toast, onDone }: { toast: Toast; onDone: () => void }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className={
-        "pointer-events-auto flex max-w-[520px] items-center gap-3 rounded-ui border bg-raised py-2 pr-2 pl-3.5 " +
+        "pointer-events-auto flex min-h-row max-w-[560px] items-center gap-3 rounded-ui border bg-raised py-1.5 pr-2 pl-4 " +
         "shadow-[0_12px_32px_-8px_rgba(0,0,0,0.7)] " +
         (toast.tone === "error" ? "border-danger/50" : "border-border-strong")
       }
@@ -85,7 +85,7 @@ function ToastView({ toast, onDone }: { toast: Toast; onDone: () => void }) {
           type="button"
           onClick={runAction}
           disabled={pending}
-          className="rounded-ui px-2 py-1 font-medium text-accent hover:bg-accent/10 disabled:cursor-wait disabled:opacity-60"
+          className="min-h-control-sm rounded-ui px-2.5 font-medium text-accent hover:bg-accent/10 disabled:cursor-wait disabled:opacity-60"
         >
           {pending ? t("list.working") : toast.action.label}
         </button>
@@ -94,7 +94,7 @@ function ToastView({ toast, onDone }: { toast: Toast; onDone: () => void }) {
         type="button"
         onClick={onDone}
         aria-label={t("toast.dismiss")}
-        className="rounded-ui px-1.5 py-1 text-muted hover:bg-white/5 hover:text-text"
+        className="flex size-control-sm items-center justify-center rounded-ui text-muted hover:bg-white/5 hover:text-text"
       >
         <svg aria-hidden="true" viewBox="0 0 16 16" className="size-3.5" stroke="currentColor" strokeWidth={1.6}>
           <path d="m4 4 8 8M12 4l-8 8" />

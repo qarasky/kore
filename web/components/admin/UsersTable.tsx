@@ -36,8 +36,8 @@ export function UsersTable({ users, meId, defaultQuota }: { users: AdminUser[]; 
     <div className="mx-auto max-w-[1040px] p-6">
       <div className="mb-4 flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{t("admin.users.title")}</h2>
-          <p className="text-[12px] text-muted">
+          <h2 className="text-title font-semibold tracking-[-0.01em]">{t("admin.users.title")}</h2>
+          <p className="text-meta text-muted">
             {users.length === 1 ? t("admin.users.countOne") : t("admin.users.countMany", { count: users.length })}
           </p>
         </div>
@@ -50,7 +50,7 @@ export function UsersTable({ users, meId, defaultQuota }: { users: AdminUser[]; 
       <div className="overflow-x-auto rounded-[8px] border border-border">
         <table className="w-full min-w-[760px] border-collapse text-left">
           <caption className="sr-only">{t("admin.users.table")}</caption>
-          <thead className="text-[12px] text-muted">
+          <thead className="text-meta text-muted">
             <tr className="border-b border-border">
               <th scope="col" className="px-4 py-2 font-medium">
                 {t("admin.users.email")}
@@ -71,14 +71,14 @@ export function UsersTable({ users, meId, defaultQuota }: { users: AdminUser[]; 
           </thead>
           <tbody className="divide-y divide-border">
             {users.map((u) => (
-              <tr key={u.id} data-testid="user-row" data-email={u.email}>
+              <tr key={u.id} className="h-row" data-testid="user-row" data-email={u.email}>
                 <th scope="row" className="max-w-[280px] px-4 py-2.5 font-normal">
                   <span className="flex min-w-0 items-center gap-2">
                     <span className="truncate" title={u.email}>
                       {u.email}
                     </span>
                     {u.id === meId && (
-                      <span className="shrink-0 rounded-full bg-accent/15 px-1.5 py-px text-[11px] font-medium text-accent">
+                      <span className="shrink-0 rounded-full bg-accent/15 px-1.5 py-px text-2xs font-medium text-accent">
                         {t("admin.users.you")}
                       </span>
                     )}

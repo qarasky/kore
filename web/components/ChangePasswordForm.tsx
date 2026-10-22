@@ -95,7 +95,7 @@ export function ChangePasswordForm() {
         />
       </Field>
       {errors.form && (
-        <p role="alert" className="text-[12px] text-danger">
+        <p role="alert" className="text-meta text-danger">
           {t(errors.form)}
         </p>
       )}
@@ -104,7 +104,7 @@ export function ChangePasswordForm() {
           {pending ? t("account.submitting") : t("account.submit")}
         </button>
       </div>
-      <p role="status" data-testid="password-changed" className="text-[12px] text-accent">
+      <p role="status" data-testid="password-changed" className="text-meta text-accent">
         {done ? t("account.changed") : ""}
       </p>
     </form>

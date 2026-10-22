@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { describe, expect, it } from "vitest";
-import { proxy } from "../../proxy";
+import { config, proxy } from "../../proxy";
 import { redirectTo } from "../redirect";
 
 function req(path: string, cookie?: string): NextRequest {
@@ -73,5 +73,16 @@ describe("proxy()", () => {
       expect(res.status).toBe(200);
       expect(res.headers.get("location")).toBeNull();
     }
+  });
+});
+
+describe("proxy matcher", () => {
+  const matches = (path: string) => new RegExp(`^${config.matcher[0]}$`).test(path);
+  it("leaves the favicon public so the login page shows it", () => {
+    expect(matches("/icon.svg")).toBe(false);
+    expect(matches("/favicon.ico")).toBe(false);
+  });
+  it("still gates pages", () => {
+    expect(matches("/files")).toBe(true);
   });
 });

@@ -20,7 +20,7 @@ const TYPEAHEAD_MS = 500;
 
 /** Exported so neighbouring inputs can match the trigger's look. */
 export const selectTriggerClass =
-  "flex min-w-0 items-center justify-between gap-2 rounded-ui border border-border bg-bg/60 px-3 py-1.5 " +
+  "flex min-w-0 items-center justify-between gap-2 rounded-ui border border-border bg-bg/60 min-h-control px-3 " +
   "text-left text-text outline-none transition-colors hover:border-border-strong " +
   "focus:border-accent focus:ring-2 focus:ring-accent/25 aria-invalid:border-danger/70 " +
   "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-border";
@@ -295,7 +295,7 @@ export function Select<V extends string>({
                   onMouseMove={() => !o.disabled && i !== active && setActive(i)}
                   onClick={() => choose(i)}
                   className={
-                    "flex cursor-default items-center justify-between gap-4 px-3 py-1.5 whitespace-nowrap " +
+                    "flex min-h-control cursor-default items-center justify-between gap-4 px-3 whitespace-nowrap " +
                     "aria-disabled:opacity-40 data-active:bg-accent/15 " +
                     (isSelected ? "font-medium" : "")
                   }

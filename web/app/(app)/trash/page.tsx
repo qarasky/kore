@@ -26,8 +26,8 @@ export default async function TrashPage({ searchParams }: PageProps<"/trash">) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-12 shrink-0 items-center gap-4 border-b border-border px-4">
-        <h1 className="text-[14px] font-semibold">{t("trash.title")}</h1>
+      <div className="flex h-14 shrink-0 items-center gap-4 border-b border-border px-4">
+        <h1 className="text-heading font-semibold">{t("trash.title")}</h1>
         <nav aria-label={t("trash.tabs")} className="flex items-center gap-1">
           {TABS.map((tab) => {
             const active = tab.space === space;
@@ -47,7 +47,7 @@ export default async function TrashPage({ searchParams }: PageProps<"/trash">) {
           })}
         </nav>
         {typeof days === "number" && (
-          <p data-testid="trash-retention" className="ml-auto truncate text-[12px] text-muted">
+          <p data-testid="trash-retention" className="ml-auto truncate text-meta text-muted">
             {days === 1 ? t("trash.retentionOne") : t("trash.retention", { days })}
           </p>
         )}

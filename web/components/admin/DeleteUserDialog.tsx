@@ -61,7 +61,7 @@ export function DeleteUserDialog({
   }
 
   const errorBox = error && (
-    <p role="alert" data-testid="dialog-error" className="text-[12px] text-danger">
+    <p role="alert" data-testid="dialog-error" className="text-meta text-danger">
       {t(error)}
     </p>
   );
@@ -86,7 +86,7 @@ export function DeleteUserDialog({
         className="w-[min(440px,calc(100vw-32px))]"
       >
         <div className="space-y-4 p-5">
-          <h2 id={titleId} className="truncate text-[15px] font-semibold tracking-[-0.01em]">
+          <h2 id={titleId} className="truncate text-title font-semibold tracking-[-0.01em]">
             {t("admin.delete.title", { email: user.email })}
           </h2>
           <p id={messageId} className="text-muted">
@@ -128,7 +128,7 @@ export function DeleteUserDialog({
           void remove(true);
         }}
       >
-        <h2 id={titleId} className="truncate text-[15px] font-semibold tracking-[-0.01em]">
+        <h2 id={titleId} className="truncate text-title font-semibold tracking-[-0.01em]">
           {t("admin.delete.hasFilesTitle", { email: user.email })}
         </h2>
         <div id={messageId} className="space-y-2 text-muted">
@@ -146,7 +146,7 @@ export function DeleteUserDialog({
           </p>
         </div>
         <div className="space-y-1.5 pt-1">
-          <label htmlFor={inputId} className="block text-[12px] font-medium text-muted">
+          <label htmlFor={inputId} className="block text-meta font-medium text-muted">
             {t("admin.delete.typeEmail", { email: user.email })}
           </label>
           <input
@@ -161,7 +161,7 @@ export function DeleteUserDialog({
             className={inputClass}
           />
           {typed !== "" && !matches && (
-            <p id={ids.errorId} className="text-[12px] text-muted">
+            <p id={ids.errorId} className="text-meta text-muted">
               {t("admin.delete.emailMismatch")}
             </p>
           )}

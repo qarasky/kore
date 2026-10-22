@@ -23,7 +23,7 @@ export function AdminNav() {
             href={l.href}
             aria-current={active ? "page" : undefined}
             className={
-              "rounded-ui px-2.5 py-1 transition-colors " +
+              "flex min-h-control-sm items-center rounded-ui px-3 transition-colors " +
               (active ? "bg-raised font-medium text-text" : "text-muted hover:bg-white/[0.04] hover:text-text")
             }
           >

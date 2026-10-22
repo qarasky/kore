@@ -22,8 +22,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <BrowserProvider>
         <UploadProvider>
           <div className="flex h-dvh flex-col">
-            <header className="flex h-14 shrink-0 items-center gap-4 pr-3 pl-5">
-              <Link href="/files" className="w-[208px] shrink-0 rounded-ui text-[16px]">
+            <header className="flex h-16 shrink-0 items-center gap-4 pr-3 pl-5">
+              <Link href="/files" className="w-[232px] shrink-0 rounded-ui text-brand">
                 <Wordmark />
               </Link>
               <div className="flex min-w-0 flex-1">
@@ -32,7 +32,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               <AccountMenu email={user.email} />
             </header>
             <div className="flex min-h-0 flex-1">
-              <aside className="flex w-[232px] shrink-0 flex-col gap-4 px-3 pb-4">
+              <aside className="flex w-[256px] shrink-0 flex-col gap-4 px-3 pb-4">
                 <div className="pl-0.5">
                   <NewMenu />
                 </div>

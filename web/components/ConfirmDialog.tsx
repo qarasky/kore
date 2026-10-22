@@ -57,7 +57,7 @@ export function ConfirmDialog({
       className="w-[min(420px,calc(100vw-32px))]"
     >
       <div className="p-5">
-        <h2 id={titleId} className="text-[15px] font-semibold tracking-[-0.01em]">
+        <h2 id={titleId} className="text-title font-semibold tracking-[-0.01em]">
           {title}
         </h2>
         <p id={messageId} className="mt-2 text-muted">
@@ -69,7 +69,7 @@ export function ConfirmDialog({
             type="button"
             onClick={onCancel}
             disabled={pending}
-            className="rounded-ui border border-border-strong px-3.5 py-1.5 font-medium hover:bg-white/5 disabled:opacity-60"
+            className="min-h-control rounded-ui border border-border-strong px-4 py-1.5 font-medium hover:bg-white/5 disabled:opacity-60"
           >
             {t("dialog.cancel")}
           </button>
@@ -79,7 +79,7 @@ export function ConfirmDialog({
             disabled={pending || confirmDisabled}
             aria-busy={pending || undefined}
             className={
-              "rounded-ui px-3.5 py-1.5 font-medium text-white disabled:cursor-wait disabled:opacity-60 " +
+              "min-h-control rounded-ui px-4 py-1.5 font-medium text-white disabled:cursor-wait disabled:opacity-60 " +
               (danger ? "bg-[#c94b4f] hover:bg-[#d65b5f]" : "bg-accent hover:bg-accent-hover")
             }
           >
