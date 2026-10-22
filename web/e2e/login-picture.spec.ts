@@ -47,6 +47,12 @@ test("login page: form plus picture on wide screens, just the form on narrow one
   expect(box.x).toBeGreaterThanOrEqual(600);
   expect(box.height).toBeGreaterThanOrEqual(790);
   await expect(panel.getByTestId("login-art")).toBeVisible();
+  // The favicon is the Kore mark, reachable without a session.
+  const icon = await wide.page.locator('link[rel="icon"]').first().getAttribute("href");
+  expect(icon).toMatch(/^\/icon\.svg/);
+  const res = await wide.page.request.get(icon!, { maxRedirects: 0 });
+  expect(res.status()).toBe(200);
+  expect(res.headers()["content-type"]).toContain("image/svg+xml");
   await wide.close();
 
   const narrow = await anonLogin(browser, 700);
