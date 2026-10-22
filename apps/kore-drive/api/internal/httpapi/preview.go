@@ -74,6 +74,11 @@ func (s *server) preview(w http.ResponseWriter, r *http.Request) {
 		nodeErr(w, err)
 		return
 	}
+	s.servePreview(w, n)
+}
+
+// servePreview answers the text preview of an already-authorized node.
+func (s *server) servePreview(w http.ResponseWriter, n nodes.Node) {
 	if n.IsDir {
 		errJSON(w, 400, "is_directory")
 		return

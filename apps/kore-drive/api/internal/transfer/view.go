@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/artchsh/kore/api/internal/nodes"
 	"github.com/artchsh/kore/api/internal/users"
 )
 
@@ -125,7 +126,14 @@ const (
 // agree; anything else is 415 not_previewable. Content-Type comes from the
 // verified sniff, never from the stored mime.
 func View(w http.ResponseWriter, r *http.Request, db *sql.DB, dataDir string, actor users.User, id string) {
-	n, f, ok := openFile(w, r, db, dataDir, actor, id, "view")
+	if n, ok := lookupFile(w, r, db, actor, id, "view"); ok {
+		ServeView(w, r, dataDir, n)
+	}
+}
+
+// ServeView is View for an already-authorized node.
+func ServeView(w http.ResponseWriter, r *http.Request, dataDir string, n nodes.Node) {
+	f, ok := openBlob(w, dataDir, n, "view")
 	if !ok {
 		return
 	}

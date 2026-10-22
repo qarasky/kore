@@ -55,7 +55,8 @@ func TestMySettings(t *testing.T) {
 		return jsonBody(t, rec)
 	}
 	b := get()
-	if b["trash_retention_days"] != float64(30) || len(b) != 1 {
+	if b["trash_retention_days"] != float64(30) || b["share_links_enabled"] != true ||
+		b["share_default_expiry_days"] != float64(7) || len(b) != 3 {
 		t.Fatalf("default: %v", b)
 	}
 	if rec := e.do(t, &e.admin, "PATCH", "/api/admin/settings", `{"trash_retention_days":7}`); rec.Code != 200 {

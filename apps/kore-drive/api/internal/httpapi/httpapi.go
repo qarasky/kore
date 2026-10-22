@@ -2,14 +2,18 @@
 package httpapi
 
 import (
+	"context"
+	"crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/artchsh/kore/api/internal/auth"
+	"github.com/artchsh/kore/api/internal/settings"
 	"github.com/artchsh/kore/api/internal/uploads"
 )
 
@@ -21,12 +25,40 @@ type server struct {
 	limiter *auth.Limiter // per email|IP (and per user|IP for password changes)
 	ipLimit *auth.Limiter // per client IP across all emails
 	uploads *uploads.Uploads
+
+	// Public share links (shares.go, public.go).
+	now         func() time.Time // injectable clock for share expiry
+	shareSecret []byte           // HMAC key for unlock cookies
+	shareLimit  *auth.Limiter    // failed unlocks per client IP|share
+	publicLimit *auth.Limiter    // requests per client IP across public routes
+	zipSlots    chan struct{}    // concurrent public zip streams
 }
 
 // New returns the API handler. dataDir is the (already checked) volume.
 func New(db *sql.DB, dataDir string) http.Handler {
-	s := &server{db: db, dataDir: dataDir, limiter: auth.NewLimiter(5, 15*time.Minute),
-		ipLimit: auth.NewLimiter(30, 15*time.Minute), uploads: uploads.New(db, dataDir)}
+	return newServer(db, dataDir).handler()
+}
+
+func newServer(db *sql.DB, dataDir string) *server {
+	secret, err := settings.ShareSecret(context.Background(), db)
+	if err != nil {
+		// Unlock cookies then just do not survive a restart.
+		log.Printf("share secret: %v; using an ephemeral key", err)
+		secret = make([]byte, 32)
+		if _, err := rand.Read(secret); err != nil {
+			panic(err)
+		}
+	}
+	return &server{db: db, dataDir: dataDir, limiter: auth.NewLimiter(5, 15*time.Minute),
+		ipLimit: auth.NewLimiter(30, 15*time.Minute), uploads: uploads.New(db, dataDir),
+		now: time.Now, shareSecret: secret,
+		shareLimit:  auth.NewLimiter(5, 15*time.Minute),
+		publicLimit: auth.NewLimiter(300, time.Minute),
+		zipSlots:    make(chan struct{}, 4)}
+}
+
+func (s *server) handler() http.Handler {
+	db := s.db
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]string{"status": "ok"})
@@ -41,6 +73,8 @@ func New(db *sql.DB, dataDir string) http.Handler {
 	s.registerUploads(mux)
 	s.registerTransfer(mux)
 	s.registerPreview(mux)
+	s.registerShares(mux)
+	s.registerPublic(mux)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		var allow []string
 		for _, m := range []string{"GET", "HEAD", "POST", "PATCH", "PUT", "DELETE"} {
@@ -57,7 +91,18 @@ func New(db *sql.DB, dataDir string) http.Handler {
 		}
 		writeJSON(w, 404, map[string]string{"error": "not_found"})
 	})
-	return auth.Middleware(db)(mux)
+	authed := auth.Middleware(db)(mux)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Public share routes never look at the session cookie: they bypass
+		// the session middleware entirely, so being signed in (even as an
+		// admin or the owner) changes nothing there.
+		if strings.HasPrefix(r.URL.Path, publicPrefix) {
+			publicHeaders(w)
+			mux.ServeHTTP(w, r)
+			return
+		}
+		authed.ServeHTTP(w, r)
+	})
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {

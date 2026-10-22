@@ -8,6 +8,7 @@ import (
 	"github.com/artchsh/kore/api/internal/auth"
 	"github.com/artchsh/kore/api/internal/nodes"
 	"github.com/artchsh/kore/api/internal/quota"
+	"github.com/artchsh/kore/api/internal/shares"
 )
 
 func (s *server) registerNodes(mux *http.ServeMux) {
@@ -29,6 +30,8 @@ type nodeJSON struct {
 	// UploaderEmail: who uploaded a file (or created a folder), for
 	// shared-space nodes in listings, search and trash only.
 	UploaderEmail string `json:"uploader_email,omitempty"`
+	// Shared: the caller has an active public link to this node (listings only).
+	Shared bool `json:"shared,omitempty"`
 }
 
 func toJSON(n nodes.Node) nodeJSON {
@@ -38,7 +41,8 @@ func toJSON(n nodes.Node) nodeJSON {
 		sp = "personal"
 		email = "" // never exposed outside the shared space
 	}
-	return nodeJSON{n.ID, n.Name, n.IsDir, n.Size, n.Mime, n.ParentID, sp, n.UpdatedAt, email}
+	return nodeJSON{ID: n.ID, Name: n.Name, IsDir: n.IsDir, Size: n.Size, Mime: n.Mime, ParentID: n.ParentID,
+		Space: sp, UpdatedAt: n.UpdatedAt, UploaderEmail: email}
 }
 
 func nodeErr(w http.ResponseWriter, err error) {
@@ -95,9 +99,20 @@ func (s *server) listNodes(w http.ResponseWriter, r *http.Request) {
 		nodeErr(w, err)
 		return
 	}
+	ids := make([]string, len(list))
+	for i, n := range list {
+		ids[i] = n.ID
+	}
+	// One set-based query marks the rows the caller has an active link to.
+	linked, err := shares.SharedAmong(r.Context(), s.db, me.ID, ids, s.now().Unix())
+	if err != nil {
+		errJSON(w, 500, "internal")
+		return
+	}
 	out := make([]nodeJSON, len(list))
 	for i, n := range list {
 		out[i] = toJSON(n)
+		out[i].Shared = linked[n.ID]
 	}
 	writeJSON(w, 200, out)
 }
