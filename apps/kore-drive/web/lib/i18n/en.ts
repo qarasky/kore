@@ -448,6 +448,22 @@ const en = {
   "notFound.title": "Not found",
   "notFound.description": "This folder doesn't exist, was moved to trash, or you don't have access to it.",
   "notFound.back": "Go to My files",
+
+  // --- Login screen picture (admin Settings, login page) ---
+  "branding.title": "Login screen picture",
+  "branding.hint": "Shown next to the sign-in form. PNG, JPEG or WebP, up to 5 MB.",
+  "branding.public": "Anyone who can open the login page can see this picture.",
+  "branding.preview": "Current login screen picture",
+  "branding.default": "Built-in artwork",
+  "branding.custom": "Custom picture",
+  "branding.upload": "Upload picture",
+  "branding.uploading": "Uploading…",
+  "branding.reset": "Reset to default",
+  "branding.uploaded": "Login screen picture updated",
+  "branding.resetDone": "Login screen picture reset to the built-in artwork",
+  "branding.error.type": "Choose a PNG, JPEG or WebP image.",
+  "branding.error.tooLarge": "The picture is larger than 5 MB.",
+  "branding.error.generic": "Could not update the login screen picture. Try again.",
 } satisfies Record<string, string>;
 
 export default en;
