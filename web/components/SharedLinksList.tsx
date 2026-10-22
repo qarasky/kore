@@ -83,6 +83,8 @@ export function SharedLinksList({ shares }: { shares: Share[] }) {
         {shares.map((s) => {
           const name = s.node_name || t("sharedLinks.hiddenItem");
           const live = s.status !== "revoked";
+          // A link to a trashed or no longer reachable item can only be revoked or deleted.
+          const editable = live && s.status !== "item_trashed" && s.status !== "unavailable";
           return (
             <li
               key={s.id}
@@ -119,13 +121,13 @@ export function SharedLinksList({ shares }: { shares: Share[] }) {
               <span className="truncate text-muted" suppressHydrationWarning>{s.status === "revoked" ? "" : expiryText(s.expires_at, now)}</span>
               <span className="text-right text-muted tabular-nums">{s.download_count}</span>
               <span className="flex justify-end gap-0.5">
-                {live && (
+                {editable && (
                   <button type="button" className={`${action} inline-flex items-center gap-1`} onClick={() => void copy(s)}>
                     <LinkIcon className="size-3.5" />
                     {t("share.copy")}
                   </button>
                 )}
-                {live && (
+                {editable && (
                   <button type="button" className={action} onClick={() => setEditing(s)}>
                     {t("sharedLinks.edit")}
                   </button>

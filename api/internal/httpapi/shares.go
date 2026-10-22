@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	minSharePasswordLen = 4
+	minSharePasswordLen = 8
 	maxSharePasswordLen = 1024
 )
 
@@ -108,7 +108,7 @@ func (s *server) createShare(w http.ResponseWriter, r *http.Request) {
 		ExpiresInDays json.RawMessage `json:"expires_in_days"`
 		Password      *string         `json:"password"`
 	}
-	if !decode(w, r, &in) {
+	if !requireJSON(w, r) || !decode(w, r, &in) {
 		return
 	}
 	ctx := r.Context()
@@ -198,7 +198,7 @@ func (s *server) patchShare(w http.ResponseWriter, r *http.Request) {
 		Password      json.RawMessage `json:"password"` // absent = unchanged, null = clear
 		Revoked       *bool           `json:"revoked"`
 	}
-	if !decode(w, r, &in) {
+	if !requireJSON(w, r) || !decode(w, r, &in) {
 		return
 	}
 	var p shares.Patch

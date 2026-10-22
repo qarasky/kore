@@ -56,6 +56,10 @@ export function expiryDays(c: ExpiryChoice): number | null {
   return c === "never" ? null : Number(c);
 }
 
+/** Minimum length of a new link password (the API's rule; older, shorter
+ *  passwords keep working). */
+export const SHARE_PASSWORD_MIN = 8;
+
 /** Public metadata from `GET /api/public/shares/{token}`. */
 export type PublicMeta = {
   name?: string;
@@ -181,6 +185,26 @@ export function unlockErrorKey(e: unknown): MessageKey {
   if (isApiError(e, 429)) return "publicShare.tooManyAttempts";
   if (isApiError(e, 503)) return "share.error.busy";
   return "share.error.generic";
+}
+
+/**
+ * Headers telling the API who the visitor is, copied from the request the
+ * SSR page is rendering: `cf-connecting-ip` (Cloudflare; Caddy drops it
+ * from untrusted sources) and the proxy-built `x-forwarded-for` chain. The
+ * web server is a private peer of the API, so `ClientIP` trusts them;
+ * without them every visitor would share the web container's rate-limit
+ * bucket. Values that don't look like addresses are dropped.
+ */
+export function forwardedClientHeaders(get: (name: string) => string | null | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  const cf = get("cf-connecting-ip")?.trim();
+  if (cf && /^[0-9A-Fa-f:.]{2,45}$/.test(cf)) out["cf-connecting-ip"] = cf;
+  const xff = get("x-forwarded-for")
+    ?.split(",")
+    .map((p) => p.trim())
+    .filter((p) => /^[0-9A-Fa-f:.]{2,45}$/.test(p));
+  if (xff && xff.length > 0) out["x-forwarded-for"] = xff.slice(-8).join(", ");
+  return out;
 }
 
 /** Cookie names the public page forwards to the API (unlock cookies only). */

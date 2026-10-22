@@ -298,7 +298,7 @@ func (s *server) changeOwnPassword(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) {
 		return
 	}
-	key := "pw|" + me.ID + "|" + ClientIP(r)
+	key := "pw|" + me.ID + "|" + limitKey(r)
 	if !s.limiter.Attempt(key) {
 		w.Header().Set("Retry-After", "900")
 		errJSON(w, 429, "too_many_attempts")

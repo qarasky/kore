@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"log"
+	"mime"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/artchsh/kore/api/internal/auth"
@@ -108,7 +110,10 @@ func (s *server) creator(sh shares.Share) users.User {
 // (when needContent) the password gate.
 func (s *server) public(h func(http.ResponseWriter, *http.Request, pubShare), needContent bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !s.publicLimit.Attempt("pub|" + ClientIP(r)) {
+		// Keyed by the real client (behind Caddy and the SSR page, the
+		// forwarded address; IPv6 grouped by /64): one visitor can only
+		// use up their own budget, whatever tokens they try.
+		if !s.publicLimit.Attempt("pub|" + limitKey(r)) {
 			w.Header().Set("Retry-After", "60")
 			errJSON(w, 429, "rate_limited")
 			return
@@ -142,11 +147,19 @@ func (s *server) pubMeta(w http.ResponseWriter, r *http.Request, ps pubShare) {
 	if ps.unlocked {
 		size := ps.root.Size
 		if ps.root.IsDir {
-			var err error
-			if size, err = s.folderTotal(r.Context(), ps.root.ID); err != nil {
-				errJSON(w, 500, "internal")
-				return
+			// One recursive total per share per minute at most (cached), so
+			// anonymous reloads can't keep the database busy.
+			now := s.now()
+			total, ok := s.sizeCache.get(ps.ID, now)
+			if !ok {
+				var err error
+				if total, err = s.folderTotal(r.Context(), ps.root.ID); err != nil {
+					errJSON(w, 500, "internal")
+					return
+				}
+				s.sizeCache.put(ps.ID, total, now)
 			}
+			size = total
 		}
 		out.Name, out.IsDir, out.Size, out.Mime = ps.root.Name, &ps.root.IsDir, &size, ps.root.Mime
 	}
@@ -168,21 +181,41 @@ func (s *server) pubUnlock(w http.ResponseWriter, r *http.Request, ps pubShare) 
 	var in struct {
 		Password string `json:"password"`
 	}
-	if !decode(w, r, &in) {
+	if !requireJSON(w, r) || !decode(w, r, &in) {
 		return
 	}
 	if ps.PasswordHash == nil {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	ip := ClientIP(r)
-	ipKey, key := "ip|"+ip, "share|"+ip+"|"+ps.ID
-	if !s.ipLimit.Attempt(ipKey) || !s.shareLimit.Attempt(key) {
-		w.Header().Set("Retry-After", "900")
-		errJSON(w, 429, "too_many_attempts")
+	// Three budgets: per client address across all links (su|, separate
+	// from login), per address on this link, and per link from any
+	// address (stops a distributed guess at one password). Each is
+	// reserved up front; a success or a busy hash pool gives back what it
+	// took, so only wrong passwords count.
+	ip := limitKey(r)
+	ipKey, key, failKey := "su|"+ip, "su|"+ip+"|"+ps.ID, "sf|"+ps.ID
+	if !s.ipLimit.Attempt(ipKey) {
+		tooMany(w)
+		return
+	}
+	if !s.shareLimit.Attempt(key) {
+		s.ipLimit.Forgive(ipKey)
+		tooMany(w)
+		return
+	}
+	if !s.shareFail.Attempt(failKey) {
+		s.ipLimit.Forgive(ipKey)
+		s.shareLimit.Forgive(key)
+		tooMany(w)
 		return
 	}
 	ok, err := auth.VerifyPassword(*ps.PasswordHash, in.Password)
+	if err != nil || ok {
+		s.ipLimit.Forgive(ipKey)
+		s.shareLimit.Forgive(key)
+		s.shareFail.Forgive(failKey)
+	}
 	if err != nil {
 		hashErr(w, err)
 		return
@@ -192,7 +225,6 @@ func (s *server) pubUnlock(w http.ResponseWriter, r *http.Request, ps pubShare) 
 		return
 	}
 	s.shareLimit.Reset(key)
-	s.ipLimit.Forgive(ipKey)
 	exp := s.now().Add(shares.UnlockTTL)
 	val := shares.SignUnlock(s.shareSecret, ps.ID, *ps.PasswordHash, exp)
 	// One cookie for the API routes of this share, one for its page (the
@@ -291,9 +323,10 @@ func (s *server) pubChildren(w http.ResponseWriter, r *http.Request, ps pubShare
 		errJSON(w, 404, "not_found")
 		return
 	}
-	// nodes.List with the creator as actor: same live filter, natural
-	// order and set-based folder sizes as the app.
-	list, err := nodes.List(r.Context(), s.db, s.creator(ps.Share), nodes.SpaceOf(ps.root), &dir.ID)
+	// nodes.ListWithoutSizes with the creator as actor: same live filter
+	// and natural order as the app, but no recursive folder totals
+	// (anonymous listings must stay cheap; folders report 0).
+	list, err := nodes.ListWithoutSizes(r.Context(), s.db, s.creator(ps.Share), nodes.SpaceOf(ps.root), &dir.ID)
 	if errors.Is(err, nodes.ErrNotFound) {
 		errJSON(w, 404, "not_found")
 		return
@@ -331,25 +364,70 @@ func (s *server) pubFile(w http.ResponseWriter, r *http.Request, ps pubShare) (n
 	return n, true
 }
 
-// countDownload records a full download; best effort, never blocks long.
-func (s *server) countDownload(r *http.Request, ps pubShare) {
-	if r.Method != http.MethodGet || r.Header.Get("Range") != "" {
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), time.Second)
-	defer cancel()
-	if err := shares.CountDownload(ctx, s.db, ps.ID, s.now().Unix()); err != nil {
-		log.Printf("public share %s: count: %v", ps.ID, err)
-	}
+// countDownload records a full download in the background (best effort,
+// 1 s budget), so it never delays the stream.
+func (s *server) countDownload(ps pubShare) {
+	now := s.now().Unix()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := shares.CountDownload(ctx, s.db, ps.ID, now); err != nil {
+			log.Printf("public share %s: count: %v", ps.ID, err)
+		}
+	}()
 }
+
+// streamIdle is how long a public stream may make no write progress
+// before the connection is dropped.
+const streamIdle = 60 * time.Second
+
+// pubStream wraps a public download/zip response: every write pushes the
+// connection's write deadline streamIdle ahead (a stalled reader is cut
+// off), and onStart runs once when a 200 starts streaming.
+type pubStream struct {
+	http.ResponseWriter
+	rc      *http.ResponseController
+	onStart func()
+	started bool
+}
+
+func (s *server) newStream(w http.ResponseWriter, r *http.Request, ps pubShare) *pubStream {
+	st := &pubStream{ResponseWriter: w, rc: http.NewResponseController(w)}
+	if r.Method == http.MethodGet && r.Header.Get("Range") == "" {
+		st.onStart = func() { s.countDownload(ps) }
+	}
+	return st
+}
+
+func (w *pubStream) WriteHeader(code int) {
+	if !w.started {
+		w.started = true
+		if code == http.StatusOK && w.onStart != nil {
+			w.onStart()
+		}
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *pubStream) Write(b []byte) (int, error) {
+	if !w.started {
+		w.WriteHeader(http.StatusOK)
+	}
+	_ = w.rc.SetWriteDeadline(time.Now().Add(streamIdle)) // unsupported in tests: ignore
+	return w.ResponseWriter.Write(b)
+}
+
+func (w *pubStream) Flush() { _ = w.rc.Flush() }
+
+// Unwrap lets http.ResponseController reach the underlying writer.
+func (w *pubStream) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 func (s *server) pubDownload(w http.ResponseWriter, r *http.Request, ps pubShare) {
 	n, ok := s.pubFile(w, r, ps)
 	if !ok {
 		return
 	}
-	s.countDownload(r, ps)
-	transfer.ServeDownload(w, r, s.dataDir, n)
+	transfer.ServeDownload(s.newStream(w, r, ps), r, s.dataDir, n)
 }
 
 func (s *server) pubView(w http.ResponseWriter, r *http.Request, ps pubShare) {
@@ -374,6 +452,23 @@ func (s *server) pubZip(w http.ResponseWriter, r *http.Request, ps pubShare) {
 		errJSON(w, 400, "not_a_folder")
 		return
 	}
+	// At most one running zip per client address, four in total.
+	ip := limitKey(r)
+	s.zipMu.Lock()
+	if s.zipByIP[ip] > 0 {
+		s.zipMu.Unlock()
+		busy(w)
+		return
+	}
+	s.zipByIP[ip]++
+	s.zipMu.Unlock()
+	defer func() {
+		s.zipMu.Lock()
+		if s.zipByIP[ip]--; s.zipByIP[ip] <= 0 {
+			delete(s.zipByIP, ip)
+		}
+		s.zipMu.Unlock()
+	}()
 	select {
 	case s.zipSlots <- struct{}{}:
 		defer func() { <-s.zipSlots }()
@@ -381,6 +476,63 @@ func (s *server) pubZip(w http.ResponseWriter, r *http.Request, ps pubShare) {
 		busy(w)
 		return
 	}
-	s.countDownload(r, ps)
-	transfer.ServeZip(w, r, s.db, s.dataDir, []nodes.Node{dir})
+	transfer.ServeZip(s.newStream(w, r, ps), r, s.db, s.dataDir, []nodes.Node{dir})
+}
+
+func tooMany(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "900")
+	errJSON(w, 429, "too_many_attempts")
+}
+
+// sizeCache keeps shared-folder totals for a short time, bounded in size.
+type sizeCache struct {
+	mu   sync.Mutex
+	max  int
+	ttl  time.Duration
+	data map[string]sizeEntry
+}
+
+type sizeEntry struct {
+	total int64
+	at    time.Time
+}
+
+func newSizeCache(max int, ttl time.Duration) *sizeCache {
+	return &sizeCache{max: max, ttl: ttl, data: map[string]sizeEntry{}}
+}
+
+func (c *sizeCache) get(id string, now time.Time) (int64, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	e, ok := c.data[id]
+	if !ok || now.Sub(e.at) >= c.ttl || now.Before(e.at) {
+		return 0, false
+	}
+	return e.total, true
+}
+
+func (c *sizeCache) put(id string, total int64, now time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.data) >= c.max {
+		for k, e := range c.data {
+			if now.Sub(e.at) >= c.ttl {
+				delete(c.data, k)
+			}
+		}
+		if len(c.data) >= c.max {
+			clear(c.data)
+		}
+	}
+	c.data[id] = sizeEntry{total, now}
+}
+
+// requireJSON refuses a mutating request whose body is not declared JSON
+// (415 unsupported_media_type): a cross-site form can't send it.
+func requireJSON(w http.ResponseWriter, r *http.Request) bool {
+	if mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mt != "application/json" {
+		errJSON(w, 415, "unsupported_media_type")
+		return false
+	}
+	return true
 }

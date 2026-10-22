@@ -2,15 +2,17 @@
  * Server-side reads of a public share for the `/s/[token]` page. Unlike
  * `api()`, these never send the `kore_session` cookie: only the share
  * unlock cookies (`kore_share_*`) are forwarded, so the public page renders
- * exactly what an anonymous visitor may see.
+ * exactly what an anonymous visitor may see. The visitor's address is
+ * forwarded (`forwardedClientHeaders`) so rate limits apply per visitor.
  */
-import { cookies } from "next/headers";
+import { cookies, headers as requestHeaders } from "next/headers";
 import { API_TIMEOUT_MS, ApiError, DEFAULT_API_URL } from "./api";
-import { publicBase, shareCookieHeader, shareUrls, type PublicListing, type PublicMeta } from "./shares";
+import { forwardedClientHeaders, publicBase, shareCookieHeader, shareUrls, type PublicListing, type PublicMeta } from "./shares";
 
 async function publicGet<T>(path: string): Promise<T> {
   const base = (process.env.API_URL || DEFAULT_API_URL).replace(/\/+$/, "");
-  const headers = new Headers({ accept: "application/json" });
+  const incoming = await requestHeaders();
+  const headers = new Headers({ accept: "application/json", ...forwardedClientHeaders((n) => incoming.get(n)) });
   const cookie = shareCookieHeader((await cookies()).getAll());
   if (cookie) headers.set("cookie", cookie);
   let res: Response;

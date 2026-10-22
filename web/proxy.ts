@@ -16,7 +16,11 @@ export function proxy(req: NextRequest) {
 
   // Public share links work the same signed in or not: no redirects.
   if (pathname.startsWith("/s/")) {
-    return NextResponse.next();
+    const res = NextResponse.next();
+    res.headers.set("X-Robots-Tag", "noindex, nofollow");
+    res.headers.set("Cache-Control", "private, no-store");
+    res.headers.set("Referrer-Policy", "no-referrer");
+    return res;
   }
 
   if (pathname === "/login") {

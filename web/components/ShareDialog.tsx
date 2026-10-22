@@ -10,6 +10,7 @@ import {
   expiryLabel,
   expiryText,
   nowSeconds,
+  SHARE_PASSWORD_MIN,
   shareErrorKey,
   shareUrl,
   statusLabel,
@@ -192,12 +193,12 @@ function CreateForm({
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<MessageKey | null>(null);
-  const tooShort = usePassword && password.length > 0 && password.length < 4;
+  const tooShort = usePassword && password.length > 0 && password.length < SHARE_PASSWORD_MIN;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (pending) return;
-    if (usePassword && password.length < 4) {
+    if (usePassword && password.length < SHARE_PASSWORD_MIN) {
       setError("share.error.passwordShort");
       return;
     }
@@ -314,7 +315,7 @@ function LinkView({
 
   async function savePassword(e: FormEvent) {
     e.preventDefault();
-    if (password.length < 4) {
+    if (password.length < SHARE_PASSWORD_MIN) {
       setError("share.error.passwordShort");
       return;
     }

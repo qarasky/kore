@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/artchsh/kore/api/internal/auth"
@@ -30,8 +31,12 @@ type server struct {
 	now         func() time.Time // injectable clock for share expiry
 	shareSecret []byte           // HMAC key for unlock cookies
 	shareLimit  *auth.Limiter    // failed unlocks per client IP|share
-	publicLimit *auth.Limiter    // requests per client IP across public routes
-	zipSlots    chan struct{}    // concurrent public zip streams
+	shareFail   *auth.Limiter    // failed unlocks per share, any address
+	sizeCache   *sizeCache       // shared-folder totals for public pages
+	zipMu       sync.Mutex
+	zipByIP     map[string]int // running public zips per client address
+	publicLimit *auth.Limiter  // requests per client IP across public routes
+	zipSlots    chan struct{}  // concurrent public zip streams
 }
 
 // New returns the API handler. dataDir is the (already checked) volume.
@@ -53,6 +58,9 @@ func newServer(db *sql.DB, dataDir string) *server {
 		ipLimit: auth.NewLimiter(30, 15*time.Minute), uploads: uploads.New(db, dataDir),
 		now: time.Now, shareSecret: secret,
 		shareLimit:  auth.NewLimiter(5, 15*time.Minute),
+		shareFail:   auth.NewLimiter(50, time.Hour),
+		sizeCache:   newSizeCache(1000, time.Minute),
+		zipByIP:     map[string]int{},
 		publicLimit: auth.NewLimiter(300, time.Minute),
 		zipSlots:    make(chan struct{}, 4)}
 }
@@ -121,7 +129,7 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 		errJSON(w, 400, "bad_request")
 		return
 	}
-	ip := ClientIP(r)
+	ip := limitKey(r)
 	ipKey := "ip|" + ip
 	key := strings.ToLower(strings.TrimSpace(in.Email)) + "|" + ip
 	if !s.ipLimit.Attempt(ipKey) || !s.limiter.Attempt(key) {
