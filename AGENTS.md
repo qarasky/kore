@@ -101,6 +101,17 @@ restrictive CSP (`sandbox`). Nothing user-controlled becomes a filesystem path
   marker: an unmounted RAID must fail loudly, not look like a fresh install.
 - Migrations run on start. Caddy's admin API is off: restart it after
   `Caddyfile` changes.
+- Configuration is `.env` only (`KORE_*`, see `.env.example`); the API reads
+  `KORE_ADMIN_EMAIL`, `KORE_ADMIN_PASSWORD`, `KORE_DATA_DIR`, `KORE_BIND`,
+  `KORE_PORT` from the environment (the TOML file is optional).
+- Releases: `git tag vX.Y.Z && git push origin vX.Y.Z` runs
+  `.github/workflows/release.yml`, which publishes `ghcr.io/qarasky/kore-api`
+  and `kore-web` (amd64 + arm64). `install.sh` pulls them; test changes to it
+  with a local file run and a `curl | bash` run (docker must not read the
+  script from stdin: keep `</dev/null` on docker commands). raw.githubusercontent
+  caches for a few minutes after a push.
+- The office server deploys from source: `git archive main | ssh … tar -x`
+  then `docker compose up -d --build` (builds and tags the same image names).
 
 ## Gotchas learned
 
