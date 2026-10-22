@@ -51,3 +51,42 @@ func TestLoadInvalidBindFails(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestLoadFromEnvironmentWithoutFile(t *testing.T) {
+	t.Setenv("KORE_PORT", "9090")
+	t.Setenv("KORE_BIND", "0.0.0.0")
+	t.Setenv("KORE_DATA_DIR", "/data")
+	t.Setenv("KORE_ADMIN_EMAIL", "root@x.y")
+	t.Setenv("KORE_ADMIN_PASSWORD", "long-enough-pw")
+	c, err := Load(filepath.Join(t.TempDir(), "absent.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Port != 9090 || c.Bind != "0.0.0.0" || c.DataDir != "/data" || c.AdminEmail != "root@x.y" || c.AdminPassword != "long-enough-pw" {
+		t.Fatalf("got %+v", c)
+	}
+}
+
+func TestLoadEnvironmentOverridesFile(t *testing.T) {
+	t.Setenv("KORE_ADMIN_PASSWORD", "from-env")
+	c, err := Load(write(t, required))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.AdminPassword != "from-env" || c.AdminEmail != "a@b.c" {
+		t.Fatalf("got %+v", c)
+	}
+}
+
+func TestLoadMissingFileAndNoEnvFails(t *testing.T) {
+	if _, err := Load(filepath.Join(t.TempDir(), "absent.toml")); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestLoadInvalidPortEnvFails(t *testing.T) {
+	t.Setenv("KORE_PORT", "eighty")
+	if _, err := Load(write(t, required)); err == nil {
+		t.Fatal("expected error")
+	}
+}
