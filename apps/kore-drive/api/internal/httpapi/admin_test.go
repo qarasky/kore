@@ -50,6 +50,9 @@ func newEnv(t *testing.T) *env {
 func (e *env) do(t *testing.T, as *users.User, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	if as != nil {
 		tok, err := auth.NewSession(context.Background(), e.db, as.ID, 3600e9)
 		if err != nil {

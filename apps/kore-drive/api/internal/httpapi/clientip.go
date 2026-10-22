@@ -34,3 +34,19 @@ func ClientIP(r *http.Request) string {
 	}
 	return peer.String()
 }
+
+// limitKey is the client address used in rate-limiter keys: ClientIP, with
+// IPv6 addresses grouped by their /64 (one subscriber usually holds a whole
+// /64, so per-address buckets would be trivial to sidestep).
+func limitKey(r *http.Request) string {
+	ip := ClientIP(r)
+	a, err := netip.ParseAddr(ip)
+	if err != nil || a.Is4() {
+		return ip
+	}
+	p, err := a.Prefix(64)
+	if err != nil {
+		return ip
+	}
+	return p.String()
+}

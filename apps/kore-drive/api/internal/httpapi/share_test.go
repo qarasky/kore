@@ -90,6 +90,9 @@ func (e *shareEnv) share(t *testing.T, as users.User, body string) map[string]an
 func (e *shareEnv) pub(method, path, body string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.RemoteAddr = "203.0.113.7:1234"
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
@@ -177,7 +180,7 @@ func TestShareCreateAndAuthorization(t *testing.T) {
 		code(t, e.do(t, &as, "DELETE", "/api/shares/"+id+"?purge=1", ""), 404, "not_found")
 	}
 	// Owner: patch expiry/password, revoke, purge.
-	rec := e.do(t, &e.user, "PATCH", "/api/shares/"+id, `{"expires_in_days":30,"password":"secret"}`)
+	rec := e.do(t, &e.user, "PATCH", "/api/shares/"+id, `{"expires_in_days":30,"password":"secret-pw"}`)
 	code(t, rec, 200, "")
 	if b := jsonBody(t, rec); b["has_password"] != true || b["expires_at"] != float64(e.clock.Add(30*24*time.Hour).Unix()) {
 		t.Fatalf("patched %v", b)
@@ -262,7 +265,16 @@ func TestPublicFileShare(t *testing.T) {
 		t.Fatalf("preview %d %s", rec.Code, rec.Body)
 	}
 	// Full downloads are counted, ranges are not.
+	// (Counted in the background: poll briefly.)
 	var count int
+	for i := 0; i < 100; i++ {
+		e.db.QueryRow(`SELECT download_count FROM shares WHERE token=?`, tok).Scan(&count)
+		if count == 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	time.Sleep(50 * time.Millisecond)
 	e.db.QueryRow(`SELECT download_count FROM shares WHERE token=?`, tok).Scan(&count)
 	if count != 1 {
 		t.Fatalf("count %d", count)
@@ -360,7 +372,7 @@ func TestPublicFolderScope(t *testing.T) {
 		Children   []map[string]any `json:"children"`
 	}
 	json.Unmarshal(rec.Body.Bytes(), &ch)
-	if len(ch.Children) != 2 || ch.Children[0]["name"] != "sub" || ch.Children[0]["size"] != float64(2) ||
+	if len(ch.Children) != 2 || ch.Children[0]["name"] != "sub" || ch.Children[0]["size"] != float64(0) ||
 		ch.Children[1]["name"] != "a.txt" || len(ch.Breadcrumb) != 1 {
 		t.Fatalf("children %s", rec.Body)
 	}
@@ -576,6 +588,7 @@ func TestPublicPasswordFlow(t *testing.T) {
 	code(t, e.pub("GET", pubPath(tok)+"/download", ""), 200, "")
 	// Over HTTPS the cookie is Secure.
 	req := httptest.NewRequest("POST", pubPath(tok2)+"/unlock", strings.NewReader(`{"password":"open sesame"}`))
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Forwarded-Proto", "https")
 	rr := httptest.NewRecorder()
 	e.h.ServeHTTP(rr, req)
@@ -594,6 +607,7 @@ func TestPublicUnlockRateLimit(t *testing.T) {
 	code(t, e.pub("POST", pubPath(tok)+"/unlock", `{"password":"right-pass"}`), 429, "too_many_attempts")
 	// Other addresses have their own bucket.
 	req := httptest.NewRequest("POST", pubPath(tok)+"/unlock", strings.NewReader(`{"password":"right-pass"}`))
+	req.Header.Set("Content-Type", "application/json")
 	req.RemoteAddr = "198.51.100.1:1"
 	rr := httptest.NewRecorder()
 	e.h.ServeHTTP(rr, req)
@@ -621,6 +635,12 @@ func TestPublicUnlockBusy(t *testing.T) {
 			t.Fatalf("codes %v", codes)
 		}
 	}
+	// Busy attempts are refunded: more of them than any budget allows.
+	for i := 0; i < 8; i++ {
+		code(t, e.pub("POST", pubPath(tok)+"/unlock", `{"password":"right-pass"}`), 503, "busy")
+	}
+	restore()
+	code(t, e.pub("POST", pubPath(tok)+"/unlock", `{"password":"right-pass"}`), 204, "")
 }
 
 func TestPublicRateLimitAndZipCap(t *testing.T) {

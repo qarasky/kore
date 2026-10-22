@@ -72,6 +72,9 @@ describe("proxy()", () => {
       const res = proxy(req("/s/abc?folder=x", cookie));
       expect(res.status).toBe(200);
       expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+      expect(res.headers.get("cache-control")).toBe("private, no-store");
+      expect(res.headers.get("referrer-policy")).toBe("no-referrer");
     }
   });
 });

@@ -4,6 +4,7 @@ import {
   defaultChoice,
   expiryDays,
   expiryText,
+  forwardedClientHeaders,
   publicProblem,
   shareCookieHeader,
   sharePageHref,
@@ -80,5 +81,22 @@ describe("shareCookieHeader()", () => {
         { name: "other", value: "1" },
       ]),
     ).toBe("kore_share_abc123=1700000000.abcdef");
+  });
+});
+
+describe("forwardedClientHeaders()", () => {
+  const from = (h: Record<string, string>) => forwardedClientHeaders((n) => h[n]);
+  it("forwards the visitor's address from Cloudflare and the proxy chain", () => {
+    expect(from({ "cf-connecting-ip": "198.51.100.7", "x-forwarded-for": "10.0.0.1, 198.51.100.7" })).toEqual({
+      "cf-connecting-ip": "198.51.100.7",
+      "x-forwarded-for": "10.0.0.1, 198.51.100.7",
+    });
+    expect(from({ "x-forwarded-for": "2001:db8::1" })).toEqual({ "x-forwarded-for": "2001:db8::1" });
+  });
+  it("sends nothing when there is nothing, and drops junk (no header injection)", () => {
+    expect(from({})).toEqual({});
+    expect(from({ "cf-connecting-ip": "evil\r\nx: y", "x-forwarded-for": "junk, <script>, 203.0.113.9" })).toEqual({
+      "x-forwarded-for": "203.0.113.9",
+    });
   });
 });
