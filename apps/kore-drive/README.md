@@ -108,12 +108,12 @@ To publish on IPv4 only, set `KORE_BIND` to the server's IPv4 LAN or Tailscale
 address (e.g. `KORE_BIND=192.168.1.10`) instead of `0.0.0.0`, run
 `docker compose up -d`, and check `docker port` again.
 
-## Cloudflare Tunnel (`files.example.com`)
+## Cloudflare Tunnel
 
 `cloudflared` is not part of the stack. With `cloudflared` running on the same
 host, add a public hostname to the tunnel:
 
-- Hostname: `files.example.com`
+- Hostname: your public hostname, e.g. `files.example.com`
 - Service: `http://127.0.0.1:8080` (the `KORE_BIND:KORE_PORT` from `.env`).
   Use `127.0.0.1`, not `localhost`, which may resolve to `::1`, where nothing
   is published by default. If `cloudflared` runs in a container, use an

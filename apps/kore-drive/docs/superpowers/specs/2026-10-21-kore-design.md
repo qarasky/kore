@@ -42,7 +42,7 @@ Typical content: documents, some videos. Nothing heavy.
 
 - **Frontend:** Next.js **with SSR** (not static export, not client-only routing), so routes work normally.
 - **Backend:** fast language, **not Python and not JavaScript**. The owner left the choice to the builder; see "my calls" below.
-- **Deployment:** Docker (already installed on the server). Production sits behind a **Cloudflare Tunnel** at `files.example.com`.
+- **Deployment:** Docker (already installed on the server). Production sits behind a **Cloudflare Tunnel** at a public hostname.
 - **Network binding:** configurable, including `0.0.0.0` so it can be reached over LAN or Tailscale directly.
 - **Cloudflare Tunnel limit:** the free plan rejects request bodies over 100 MB, so uploads must be chunked (and resumable). Downloads are unaffected.
 - **Storage:** mdadm RAID mirror mounted at `/mnt/mirror` (ext4, ~916 GB). A second single disk is at `/mnt/storage` (~916 GB). Quotas are enforced by the app, not the filesystem.
