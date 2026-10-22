@@ -234,6 +234,18 @@ password in `kore.toml` with anything other than `change-me`.
   fix `.env`; run `kore init` only for a genuinely new data dir.
 - **`bind source path does not exist`**: `KORE_DATA_DIR` or `./kore.toml` is
   missing. Create/mount it (see Install).
+- **After a reboot the site says "The file server is not responding" and
+  `docker compose ps -a` shows `api` exited**: Docker started before the data
+  volume was mounted, so the bind mount failed and Docker did not retry. Make
+  Docker wait for the mount (adjust the path to your volume), then
+  `docker compose up -d`:
+
+  ```sh
+  sudo mkdir -p /etc/systemd/system/docker.service.d
+  printf '[Unit]\nRequiresMountsFor=/mnt/mirror\n' | sudo tee /etc/systemd/system/docker.service.d/wait-for-mount.conf
+  sudo systemctl daemon-reload
+  ```
+
 - **`admin_password is still the placeholder "change-me"`** or
   **`admin_password must be at least 8 characters`**: edit `kore.toml`.
 - **Port already in use / `address already in use`**: change `KORE_PORT` in
