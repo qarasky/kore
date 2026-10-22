@@ -33,7 +33,7 @@ export function ShareFileView({ token, name, size, mime, expiry }: { token: stri
       <div className="flex flex-wrap items-center gap-4 border-b border-border px-6 py-5">
         <NodeIcon kind={fileKind({ is_dir: false, name, mime })} className="size-8" />
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-[16px] font-semibold" title={name} data-testid="share-name">
+          <h1 className="truncate text-heading font-semibold" title={name} data-testid="share-name">
             {name}
           </h1>
           <p className="text-muted">

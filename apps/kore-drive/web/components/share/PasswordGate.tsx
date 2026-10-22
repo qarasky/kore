@@ -39,7 +39,7 @@ export function PasswordGate({ token }: { token: string }) {
         <span className="flex size-10 items-center justify-center rounded-full bg-accent/15 text-accent">
           <KeyIcon className="size-5" />
         </span>
-        <h1 className="text-[16px] font-semibold">{t("publicShare.passwordTitle")}</h1>
+        <h1 className="text-heading font-semibold">{t("publicShare.passwordTitle")}</h1>
         <p className="text-muted">{t("publicShare.passwordBody")}</p>
       </div>
       <div className="flex flex-col gap-1.5">
@@ -56,7 +56,7 @@ export function PasswordGate({ token }: { token: string }) {
           describedBy={error ? `${id}-err` : undefined}
         />
         {error && (
-          <p id={`${id}-err`} role="alert" className="text-[12px] text-danger">
+          <p id={`${id}-err`} role="alert" className="text-meta text-danger">
             {t(error)}
           </p>
         )}
