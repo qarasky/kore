@@ -12,9 +12,9 @@ export default async function SharedLinksPage() {
   const shares = await api<Share[]>("/api/shares");
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-12 shrink-0 items-center gap-4 border-b border-border px-4">
-        <h1 className="text-[14px] font-semibold">{t("sharedLinks.title")}</h1>
-        <p className="ml-auto truncate text-[12px] text-muted">{t("sharedLinks.hint")}</p>
+      <div className="flex h-14 shrink-0 items-center gap-4 border-b border-border px-4">
+        <h1 className="text-heading font-semibold">{t("sharedLinks.title")}</h1>
+        <p className="ml-auto truncate text-meta text-muted">{t("sharedLinks.hint")}</p>
       </div>
       <SharedLinksList shares={shares} />
     </div>
