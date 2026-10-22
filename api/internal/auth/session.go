@@ -23,7 +23,7 @@ import (
 var ErrInvalidCredentials = errors.New("invalid email or password")
 
 // ErrPlaceholderPassword is returned when bootstrap is asked to use the shipped placeholder password.
-var ErrPlaceholderPassword = errors.New(`admin_password is still the placeholder "change-me"; set a real password in the config file`)
+var ErrPlaceholderPassword = errors.New(`admin_password is still the placeholder "change-me"; set a real password (admin_password in the config file or KORE_ADMIN_PASSWORD)`)
 
 const placeholderPassword = "change-me"
 
