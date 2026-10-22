@@ -36,7 +36,7 @@
       <h1>Your office files,<br>on your own server.</h1>
       <p class="lede">Kore is a small, fast, Google Drive-style file server for a team. No suite of apps, no subscription: just files, folders, sharing and quotas.</p>
       <div class="cta">
-        <a class="btn primary" href="#install">Install with Docker</a>
+        <a class="btn primary" href="#install">Install in one command</a>
         <a class="btn" href="https://github.com/qarasky/kore">View on GitHub</a>
       </div>
       <p class="fine">Open source, MIT licensed. Go API, Next.js UI, SQLite. Runs fine on a small box.</p>
@@ -105,24 +105,18 @@
   <section id="install">
     <div class="wrap">
       <h2>Install in a few minutes</h2>
-      <p class="sub">Docker and Docker Compose on a Linux machine are all you need. One small config file, one <code>.env</code>.</p>
+      <p class="sub">Docker and Docker Compose on a Linux machine are all you need. Prebuilt images, one <code>.env</code> file, no source build.</p>
       <div class="install">
-<pre><span class="c"># get it</span>
-git clone https://github.com/qarasky/kore.git
-cd kore
-cp kore.docker.example.toml kore.toml
-cp .env.example .env
+<pre><span class="c"># one command: asks a few questions, then starts Kore</span>
+curl -fsSL https://raw.githubusercontent.com/qarasky/kore/main/install.sh | bash
 
-<span class="c"># edit kore.toml (admin email + password)</span>
-<span class="c"># and .env (data folder, user id)</span>
-
-<span class="c"># set up the data volume, then start</span>
-docker compose run --rm api kore init \
-  -config /etc/kore/kore.toml
+<span class="c"># update later</span>
+cd ~/kore
+docker compose pull
 docker compose up -d</pre>
         <ol class="steps">
-          <li><b>Set the admin account</b> in <code>kore.toml</code>. That account creates everyone else.</li>
-          <li><b>Point <code>KORE_DATA_DIR</code></b> at the disk that should hold the files, such as a RAID mount.</li>
+          <li><b>Run the installer.</b> It sets up the config, the data folder and the admin account, and prints your sign-in details.</li>
+          <li><b>Pick where the files live.</b> Any folder works, for example a RAID mount. Kore refuses to start if that disk isn't mounted.</li>
           <li><b>Open it</b> at <code>http://127.0.0.1:8080</code>, put it behind a Cloudflare Tunnel, or bind it to your LAN or Tailscale address.</li>
         </ol>
       </div>
