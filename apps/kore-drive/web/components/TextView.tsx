@@ -42,7 +42,7 @@ export const TextView = memo(function TextView({
     <div
       data-testid="text-view"
       data-line-count={lines.length}
-      className={`px-4 py-3 font-mono text-[12.5px] leading-[20px] ${wrap ? "" : "min-w-max"}`}
+      className={`px-4 py-3 font-mono text-meta leading-[20px] ${wrap ? "" : "min-w-max"}`}
       style={{ "--gutter": gutter } as CSSProperties}
     >
       {chunks.map((c) => (

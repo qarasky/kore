@@ -41,7 +41,7 @@ export function StorageDialog({ onClose }: { onClose: () => void }) {
     <Modal labelledBy={titleId} onClose={onClose} initialFocus={closeRef} className="w-[min(560px,calc(100vw-32px))]">
       <div className="flex max-h-[min(80vh,720px)] flex-col">
         <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border pr-2 pl-4">
-          <h2 id={titleId} className="flex-1 text-[14px] font-semibold">
+          <h2 id={titleId} className="flex-1 text-heading font-semibold">
             {t("storage.title")}
           </h2>
           <button
@@ -89,7 +89,7 @@ function BreakdownView({ data, onNavigate }: { data: Breakdown; onNavigate: () =
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-[15px] font-semibold tabular-nums">
+        <p className="text-title font-semibold tabular-nums">
           {t("storage.used", { used: formatBytes(used), quota: formatBytes(data.quota_bytes) })}
         </p>
         <div aria-hidden="true" className="mt-2 flex h-2 overflow-hidden rounded-full bg-border">
@@ -108,7 +108,7 @@ function BreakdownView({ data, onNavigate }: { data: Breakdown; onNavigate: () =
       ) : (
         <>
           <section aria-labelledby="storage-by-type">
-            <h3 id="storage-by-type" className="mb-2 text-[12px] font-medium text-muted">
+            <h3 id="storage-by-type" className="mb-2 text-meta font-medium text-muted">
               {t("storage.byType")}
             </h3>
             <ul aria-labelledby="storage-by-type" className="space-y-2.5">
@@ -119,11 +119,11 @@ function BreakdownView({ data, onNavigate }: { data: Breakdown; onNavigate: () =
                     <div className="flex items-baseline gap-2">
                       <span aria-hidden="true" className="size-2.5 shrink-0 self-center rounded-[2px]" style={{ background: categoryColor(c.key) }} />
                       <span className="font-medium">{t(categoryLabelKey(c.key))}</span>
-                      <span className="text-[12px] text-muted">
+                      <span className="text-meta text-muted">
                         {c.count === 1 ? t("storage.filesOne") : t("storage.files", { count: c.count })}
                       </span>
                       <span className="ml-auto tabular-nums">{formatBytes(c.bytes)}</span>
-                      <span className="w-10 text-right text-[12px] text-muted tabular-nums">
+                      <span className="w-10 text-right text-meta text-muted tabular-nums">
                         {t("storage.percent", { percent: Math.round(share) })}
                       </span>
                     </div>
@@ -137,7 +137,7 @@ function BreakdownView({ data, onNavigate }: { data: Breakdown; onNavigate: () =
           </section>
 
           {(data.uploading_bytes > 0 || data.trash_bytes > 0) && (
-            <div className="space-y-1.5 border-t border-border pt-3 text-[12.5px]">
+            <div className="space-y-1.5 border-t border-border pt-3 text-meta">
               {data.uploading_bytes > 0 && (
                 <p data-testid="storage-uploading" className="text-muted">
                   {t("storage.uploading", { size: formatBytes(data.uploading_bytes) })}
@@ -166,10 +166,10 @@ function BreakdownView({ data, onNavigate }: { data: Breakdown; onNavigate: () =
 
           {data.largest.length > 0 && (
             <section aria-labelledby="storage-largest" className="border-t border-border pt-3">
-              <h3 id="storage-largest" className="text-[12px] font-medium text-muted">
+              <h3 id="storage-largest" className="text-meta font-medium text-muted">
                 {t("storage.largest")}
               </h3>
-              <p className="mb-2 text-[12px] text-muted">{t("storage.largestHint")}</p>
+              <p className="mb-2 text-meta text-muted">{t("storage.largestHint")}</p>
               <ul aria-labelledby="storage-largest" className="-mx-2">
                 {data.largest.map((f) => (
                   <li key={f.id}>
@@ -182,7 +182,7 @@ function BreakdownView({ data, onNavigate }: { data: Breakdown; onNavigate: () =
                       <span className="min-w-0 flex-1 truncate" title={f.name}>
                         {f.name}
                       </span>
-                      <span className="shrink-0 text-[12px] text-muted">
+                      <span className="shrink-0 text-meta text-muted">
                         {t("storage.where", { where: f.space === "shared" ? t("nav.shared") : t("nav.myFiles") })}
                       </span>
                       <span className="w-16 shrink-0 text-right text-muted tabular-nums">{formatBytes(f.size)}</span>

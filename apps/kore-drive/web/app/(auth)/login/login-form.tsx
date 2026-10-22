@@ -14,7 +14,7 @@ function errorKey(e: unknown): MessageKey {
 }
 
 const inputClass =
-  "block w-full rounded-ui border border-border bg-raised px-3 py-2 text-text " +
+  "block min-h-control w-full rounded-ui border border-border bg-raised px-3 py-2 text-text " +
   "placeholder:text-muted outline-none transition-colors " +
   "hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 " +
   "aria-invalid:border-danger/70";
@@ -45,7 +45,7 @@ export function LoginForm({ next, expired }: { next: string; expired: boolean })
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="space-y-1.5">
-        <label htmlFor="email" className="block text-[12px] font-medium text-muted">
+        <label htmlFor="email" className="block text-meta font-medium text-muted">
           {t("login.email")}
         </label>
         <input
@@ -60,7 +60,7 @@ export function LoginForm({ next, expired }: { next: string; expired: boolean })
         />
       </div>
       <div className="space-y-1.5">
-        <label htmlFor="password" className="block text-[12px] font-medium text-muted">
+        <label htmlFor="password" className="block text-meta font-medium text-muted">
           {t("login.password")}
         </label>
         <input
@@ -78,7 +78,7 @@ export function LoginForm({ next, expired }: { next: string; expired: boolean })
         role="alert"
         data-testid="login-error"
         aria-live="polite"
-        className={`min-h-[1.45em] text-[12px] ${failed ? "text-danger" : "text-muted"}`}
+        className={`min-h-[1.45em] text-meta ${failed ? "text-danger" : "text-muted"}`}
       >
         {error ? t(error) : null}
       </p>
@@ -86,7 +86,7 @@ export function LoginForm({ next, expired }: { next: string; expired: boolean })
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-ui bg-accent px-3 py-2 font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-wait disabled:opacity-70"
+        className="min-h-control w-full rounded-ui bg-accent px-3 py-2 font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-wait disabled:opacity-70"
       >
         {pending ? t("login.submitting") : t("login.submit")}
       </button>

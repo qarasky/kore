@@ -164,7 +164,7 @@ export function PdfView({
       </div>
       <div
         data-testid="pdf-fallback"
-        className="flex shrink-0 items-center justify-center gap-2 border-t border-border bg-raised px-4 py-1.5 text-[12.5px] text-muted"
+        className="flex shrink-0 items-center justify-center gap-2 border-t border-border bg-raised px-4 py-1.5 text-meta text-muted"
       >
         <span>{t("preview.pdfFallback")}</span>
         <button type="button" onClick={() => onDownload(node)} className="font-medium text-accent hover:underline">

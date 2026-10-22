@@ -124,7 +124,7 @@ export function UserDialog({
     return (
       <Modal labelledBy={titleId} onClose={onClose} className="w-[min(440px,calc(100vw-32px))]">
         <div className="space-y-4 p-5" data-testid="user-created">
-          <h2 id={titleId} className="text-[15px] font-semibold tracking-[-0.01em]">
+          <h2 id={titleId} className="text-title font-semibold tracking-[-0.01em]">
             {t("admin.add.createdTitle")}
           </h2>
           {created.password ? (
@@ -163,7 +163,7 @@ export function UserDialog({
       className="w-[min(480px,calc(100vw-32px))]"
     >
       <form onSubmit={submit} noValidate className="space-y-4 p-5">
-        <h2 id={titleId} className="truncate text-[15px] font-semibold tracking-[-0.01em]">
+        <h2 id={titleId} className="truncate text-title font-semibold tracking-[-0.01em]">
           {title}
         </h2>
         <Field id={`${id}-email`} label={t("admin.form.email")} error={errors.email && t(errors.email)}>
@@ -233,7 +233,7 @@ export function UserDialog({
           />
         </Field>
         {errors.form && (
-          <p role="alert" data-testid="dialog-error" className="text-[12px] text-danger">
+          <p role="alert" data-testid="dialog-error" className="text-meta text-danger">
             {t(errors.form)}
           </p>
         )}

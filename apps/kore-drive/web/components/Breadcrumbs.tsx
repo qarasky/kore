@@ -21,7 +21,7 @@ export function Breadcrumbs({ space, path }: { space: Space; path: ApiNode[] }) 
   ];
   return (
     <nav aria-label={t("breadcrumbs.label")} className="min-w-0">
-      <ol className="flex min-w-0 items-center gap-0.5 text-[14px]">
+      <ol className="flex min-w-0 items-center gap-0.5 text-heading">
         {crumbs.map((c, i) => {
           const last = i === crumbs.length - 1;
           return (
@@ -32,7 +32,7 @@ export function Breadcrumbs({ space, path }: { space: Space; path: ApiNode[] }) 
                   aria-current="page"
                   data-testid="current-folder"
                   title={c.name}
-                  className="truncate px-1.5 py-0.5 font-semibold text-text"
+                  className="truncate px-2 py-1 font-semibold text-text"
                 >
                   {c.name}
                 </span>
@@ -68,7 +68,7 @@ function CrumbLink({ space, crumb }: { space: Space; crumb: Crumb }) {
       {...drop.props}
       data-drop-target={drop.active || undefined}
       className={
-        "max-w-[200px] truncate rounded-ui px-1.5 py-0.5 transition-colors " +
+        "max-w-[220px] truncate rounded-ui px-2 py-1 transition-colors " +
         (drop.active ? "bg-accent/25 text-text ring-2 ring-accent" : "text-muted hover:bg-white/5 hover:text-text")
       }
     >

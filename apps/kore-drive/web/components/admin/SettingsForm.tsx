@@ -119,7 +119,7 @@ export function SettingsForm({ settings }: { settings: AdminSettings }) {
 
   return (
     <form onSubmit={submit} noValidate className="mx-auto max-w-[640px] space-y-6 p-6" data-testid="settings-form">
-      <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{t("settings.title")}</h2>
+      <h2 className="text-title font-semibold tracking-[-0.01em]">{t("settings.title")}</h2>
 
       <Field
         id={`${id}-retention`}
@@ -199,12 +199,12 @@ export function SettingsForm({ settings }: { settings: AdminSettings }) {
             {t("settings.discard")}
           </button>
         )}
-        <p aria-live="polite" data-testid="unsaved" className="text-[12px] text-muted">
+        <p aria-live="polite" data-testid="unsaved" className="text-meta text-muted">
           {dirty ? t("settings.unsaved") : ""}
         </p>
       </div>
       {formError && (
-        <p role="alert" data-testid="form-error" className="text-[12px] text-danger">
+        <p role="alert" data-testid="form-error" className="text-meta text-danger">
           {t(formError)}
         </p>
       )}

@@ -192,7 +192,7 @@ const KIND_MARK: Partial<Record<FileKind, string>> = {
 };
 
 /** Folder or file icon, tinted and marked by kind. */
-export function NodeIcon({ kind, className = "size-4" }: { kind: FileKind; className?: string }) {
+export function NodeIcon({ kind, className = "size-icon" }: { kind: FileKind; className?: string }) {
   if (kind === "folder") {
     return (
       <svg aria-hidden="true" viewBox="0 0 16 16" className={`shrink-0 ${KIND_COLOR.folder} ${className}`}>

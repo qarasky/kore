@@ -10,10 +10,10 @@ import { RelativeTime } from "./RelativeTime";
 import { UploaderCell } from "./UploaderCell";
 
 /** Shared column layout for the header row and the file rows. */
-export const ROW_GRID = "grid grid-cols-[minmax(0,1fr)_150px_90px] items-center gap-3 px-3";
+export const ROW_GRID = "grid grid-cols-[minmax(0,1fr)_150px_90px] items-center gap-4 px-4";
 /** The same with an "Uploaded by" column (shared space), shown from `lg` up. */
 export const ROW_GRID_UPLOADER =
-  "grid grid-cols-[minmax(0,1fr)_150px_90px] lg:grid-cols-[minmax(0,1fr)_minmax(0,220px)_150px_90px] items-center gap-3 px-3";
+  "grid grid-cols-[minmax(0,1fr)_150px_90px] lg:grid-cols-[minmax(0,1fr)_minmax(0,220px)_150px_90px] items-center gap-4 px-4";
 
 export type RowHandlers = {
   onClick: (id: string, e: MouseEvent) => void;
@@ -73,7 +73,7 @@ export function FileRow({
       onDoubleClick={() => handlers.onDoubleClick(node.id)}
       onContextMenu={(e) => handlers.onContextMenu(node.id, e)}
       className={
-        `${showUploader ? ROW_GRID_UPLOADER : ROW_GRID} h-8 cursor-default border-b border-border/60 select-none outline-none ` +
+        `${showUploader ? ROW_GRID_UPLOADER : ROW_GRID} h-row cursor-default border-b border-border/60 select-none outline-none ` +
         "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset " +
         (drop.active
           ? "bg-accent/25 text-text ring-2 ring-accent ring-inset"

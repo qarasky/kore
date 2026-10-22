@@ -101,12 +101,12 @@ export function MoveDialog({
   return (
     <Modal labelledBy={titleId} describedBy={statusId} onClose={onClose} className="w-[min(480px,calc(100vw-32px))]">
       <div className="flex flex-col gap-3 p-5">
-        <h2 id={titleId} className="truncate text-[15px] font-semibold tracking-[-0.01em]">
+        <h2 id={titleId} className="truncate text-title font-semibold tracking-[-0.01em]">
           {title}
         </h2>
 
         <div className="flex items-center gap-3">
-          <span id={spaceId} className="text-[12px] font-medium text-muted">
+          <span id={spaceId} className="text-meta font-medium text-muted">
             {t("move.dialog.space")}
           </span>
           <Select<Space>
@@ -186,7 +186,7 @@ export function MoveDialog({
                       aria-label={t("move.dialog.open", { name: f.name })}
                       onClick={() => go([...path, { id: f.id, name: f.name }])}
                       className={
-                        "flex w-full items-center gap-2.5 px-3 py-1.5 text-left outline-none " +
+                        "flex min-h-control w-full items-center gap-3 px-3.5 text-left outline-none " +
                         "hover:bg-white/[0.04] focus-visible:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
                       }
                     >
@@ -197,7 +197,7 @@ export function MoveDialog({
                       {open ? (
                         <ChevronRightIcon className="size-3.5 text-muted" />
                       ) : (
-                        <span className="text-[12px] text-muted">{t("move.dialog.moving")}</span>
+                        <span className="text-meta text-muted">{t("move.dialog.moving")}</span>
                       )}
                     </button>
                   </li>
@@ -207,7 +207,7 @@ export function MoveDialog({
           )}
         </div>
 
-        <p id={statusId} aria-live="polite" className={`min-h-[19px] text-[12px] ${problem === "inside" || gone ? "text-danger" : "text-muted"}`}>
+        <p id={statusId} aria-live="polite" className={`min-h-[19px] text-meta ${problem === "inside" || gone ? "text-danger" : "text-muted"}`}>
           {problem === "here"
             ? t("move.dialog.alreadyHere")
             : problem === "inside"
@@ -221,7 +221,7 @@ export function MoveDialog({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-ui border border-border-strong px-3.5 py-1.5 font-medium hover:bg-white/5"
+            className="min-h-control rounded-ui border border-border-strong px-4 py-1.5 font-medium hover:bg-white/5"
           >
             {t("dialog.cancel")}
           </button>
@@ -229,7 +229,7 @@ export function MoveDialog({
             type="button"
             disabled={!canMove}
             onClick={() => onMove(locationDest(loc), here)}
-            className="rounded-ui bg-accent px-3.5 py-1.5 font-medium text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-control rounded-ui bg-accent px-4 py-1.5 font-medium text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {t("move.dialog.submit")}
           </button>
