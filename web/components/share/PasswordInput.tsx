@@ -48,7 +48,7 @@ export function PasswordInput({
         onClick={() => setShown((s) => !s)}
         aria-pressed={shown}
         aria-controls={id}
-        className="shrink-0 rounded-ui border border-border px-2.5 text-[12px] font-medium text-muted hover:border-border-strong hover:text-text"
+        className="shrink-0 rounded-ui border border-border px-2.5 text-meta font-medium text-muted hover:border-border-strong hover:text-text"
       >
         {shown ? t("share.hidePassword") : t("share.showPassword")}
       </button>

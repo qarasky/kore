@@ -7,7 +7,7 @@ import { Wordmark } from "../wordmark";
 export function PublicShell({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   return (
     <div className="flex min-h-dvh flex-col items-center px-4 py-10">
-      <header className="mb-8 text-[18px]">
+      <header className="mb-8 text-brand">
         <Wordmark />
       </header>
       <main
@@ -18,7 +18,7 @@ export function PublicShell({ children, wide = false }: { children: ReactNode; w
       >
         {children}
       </main>
-      <p className="mt-6 text-[12px] text-muted">{t("publicShare.footer")}</p>
+      <p className="mt-6 text-meta text-muted">{t("publicShare.footer")}</p>
     </div>
   );
 }
@@ -41,7 +41,7 @@ export function ShareProblem({ problem }: { problem: PublicProblem }) {
         <path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1" strokeLinecap="round" />
         <path d="M4 4l16 16" strokeLinecap="round" />
       </svg>
-      <h1 className="text-[16px] font-semibold">{t(title)}</h1>
+      <h1 className="text-heading font-semibold">{t(title)}</h1>
       <p className="max-w-[340px] text-muted">{t(body)}</p>
     </div>
   );

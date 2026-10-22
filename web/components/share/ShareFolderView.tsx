@@ -49,7 +49,7 @@ export function ShareFolderView({
       <div className="flex flex-wrap items-center gap-4 border-b border-border px-6 py-5">
         <NodeIcon kind="folder" className="size-8" />
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-[16px] font-semibold" title={name} data-testid="share-name">
+          <h1 className="truncate text-heading font-semibold" title={name} data-testid="share-name">
             {name}
           </h1>
           <p className="text-muted">
@@ -84,7 +84,7 @@ export function ShareFolderView({
         })}
       </nav>
 
-      <div className={`${GRID} h-8 border-b border-border text-[12px] font-medium text-muted`}>
+      <div className={`${GRID} h-10 border-b border-border text-meta font-medium text-muted`}>
         <span className="pl-[26px]">{t("list.name")}</span>
         <span>{t("list.modified")}</span>
         <span className="text-right">{t("list.size")}</span>
@@ -97,7 +97,7 @@ export function ShareFolderView({
           {listing.children.map((c) => {
             const pi = c.is_dir ? -1 : files.findIndex((f) => f.id === c.id);
             return (
-              <li key={c.id} data-name={c.name} className={`${GRID} h-10 border-b border-border/60 last:border-b-0 hover:bg-white/[0.03]`}>
+              <li key={c.id} data-name={c.name} className={`${GRID} h-row border-b border-border/60 last:border-b-0 hover:bg-white/[0.03]`}>
                 <div className="flex min-w-0 items-center gap-2.5">
                   <NodeIcon kind={fileKind(c)} />
                   {c.is_dir ? (
