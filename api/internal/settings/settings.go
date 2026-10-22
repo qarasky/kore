@@ -14,6 +14,14 @@ const (
 	KeyDefaultQuotaBytes  = "default_quota_bytes"
 )
 
+// Login screen picture (see httpapi/branding.go): the sniffed content type of
+// <dataDir>/branding/login-image (absent: built-in artwork) and a version
+// that changes on every upload or reset, for cache busting.
+const (
+	KeyLoginImageType    = "login_image_type"
+	KeyLoginImageVersion = "login_image_version"
+)
+
 // Defaults.
 const (
 	DefaultTrashRetentionDays       = 30
