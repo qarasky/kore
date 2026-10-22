@@ -46,3 +46,25 @@ func TestMountLabel(t *testing.T) {
 		t.Errorf("garbage: %q", got)
 	}
 }
+
+func TestUsageFrom(t *testing.T) {
+	// Frsize (fragment size) is the block unit when set; Bsize otherwise.
+	if got := blockUnit(1024, 4096); got != 1024 {
+		t.Fatalf("frsize: %d", got)
+	}
+	if got := blockUnit(0, 4096); got != 4096 {
+		t.Fatalf("fallback: %d", got)
+	}
+	if got := blockUnit(-1, 4096); got != 4096 {
+		t.Fatalf("negative frsize: %d", got)
+	}
+	u := usageFrom(1000, 400, 350, 4096)
+	if u.Total != 1000*4096 || u.Used != 600*4096 || u.Free != 350*4096 {
+		t.Fatalf("%+v", u)
+	}
+	// A filesystem reporting more free than total blocks must not wrap around.
+	u = usageFrom(100, 150, 120, 512)
+	if u.Used != 0 || u.Total != 100*512 || u.Free != 120*512 {
+		t.Fatalf("saturation: %+v", u)
+	}
+}

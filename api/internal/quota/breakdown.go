@@ -24,12 +24,16 @@ type LargeFile struct {
 
 // Breakdown is a user's storage use split up for display.
 type Breakdown struct {
-	UsedBytes      int64           `json:"used_bytes"`
-	QuotaBytes     int64           `json:"quota_bytes"`
-	UploadingBytes int64           `json:"uploading_bytes"`
-	TrashBytes     int64           `json:"trash_bytes"`
-	Categories     []CategoryUsage `json:"categories"`
-	Largest        []LargeFile     `json:"largest"`
+	UsedBytes      int64 `json:"used_bytes"`
+	QuotaBytes     int64 `json:"quota_bytes"`
+	UploadingBytes int64 `json:"uploading_bytes"`
+	TrashBytes     int64 `json:"trash_bytes"` // personal + shared below
+	// TrashPersonalBytes / TrashSharedBytes: the trashed part by the trash
+	// tab that holds it (own personal trash, shared trash).
+	TrashPersonalBytes int64           `json:"trash_personal_bytes"`
+	TrashSharedBytes   int64           `json:"trash_shared_bytes"`
+	Categories         []CategoryUsage `json:"categories"`
+	Largest            []LargeFile     `json:"largest"`
 }
 
 // LargestCount is how many files Breakdown.Largest lists.
@@ -39,8 +43,9 @@ const LargestCount = 10
 // uploaded, in any space, trashed included, plus open uploads): categories
 // sum to UsedBytes - UploadingBytes. Files are grouped by extension in SQL
 // (one grouped query) and the few groups mapped to categories here.
-// TrashBytes is the part in the trash; Largest lists their biggest live
-// files they can still open (own personal space or shared). The queries
+// TrashBytes is the part in the trash, split by the trash the caller can
+// open (their personal trash, the shared trash). Largest lists their
+// biggest live files they can still open (own personal space or shared). The queries
 // are separate statements, so a concurrent change can make them disagree
 // by that change; nothing here is used for enforcement.
 func GetBreakdown(ctx context.Context, db *sql.DB, userID string) (Breakdown, error) {
@@ -50,11 +55,14 @@ func GetBreakdown(ctx context.Context, db *sql.DB, userID string) (Breakdown, er
 		(SELECT quota_bytes FROM users WHERE id=?1),
 		COALESCE((SELECT SUM(size) FROM nodes WHERE uploader=?1 AND is_dir=0),0),
 		COALESCE((SELECT SUM(size) FROM uploads WHERE user_id=?1),0),
-		COALESCE((SELECT SUM(size) FROM nodes WHERE uploader=?1 AND is_dir=0
+		COALESCE((SELECT SUM(size) FROM nodes WHERE uploader=?1 AND is_dir=0 AND space_owner=?1
+			AND (trashed_at IS NOT NULL OR trash_root IS NOT NULL)),0),
+		COALESCE((SELECT SUM(size) FROM nodes WHERE uploader=?1 AND is_dir=0 AND space_owner IS NULL
 			AND (trashed_at IS NOT NULL OR trash_root IS NOT NULL)),0)`, userID).
-		Scan(&b.QuotaBytes, &files, &b.UploadingBytes, &b.TrashBytes); err != nil {
+		Scan(&b.QuotaBytes, &files, &b.UploadingBytes, &b.TrashPersonalBytes, &b.TrashSharedBytes); err != nil {
 		return b, err
 	}
+	b.TrashBytes = b.TrashPersonalBytes + b.TrashSharedBytes
 	b.UsedBytes = files + b.UploadingBytes
 
 	byCat := map[string]*CategoryUsage{}

@@ -169,3 +169,39 @@ func TestViewStreamsLargeImages(t *testing.T) {
 		t.Fatalf("allocated %d bytes for a 20 MiB response", alloc)
 	}
 }
+
+// A PDF opened top-level (a typed URL, a link, "open frame in new tab") is
+// downloaded; framed or fetched it stays inline. Images are unaffected.
+func TestViewPDFTopLevelIsAttachment(t *testing.T) {
+	e := newEnv(t)
+	pdf := e.putFile(t, e.user, "Отчёт.pdf", "", pdfData)
+	png := e.putFile(t, e.user, "a.png", "", pngData)
+	for _, c := range []struct {
+		id, dest, want string
+	}{
+		{pdf.ID, "document", "attachment;"},
+		{pdf.ID, "Document", "attachment;"},
+		{pdf.ID, "iframe", "inline;"},
+		{pdf.ID, "embed", "inline;"},
+		{pdf.ID, "object", "inline;"},
+		{pdf.ID, "empty", "inline;"},
+		{pdf.ID, "", "inline;"},
+		{png.ID, "document", "inline;"},
+	} {
+		hdr := map[string]string{}
+		if c.dest != "" {
+			hdr["Sec-Fetch-Dest"] = c.dest
+		}
+		rec := e.req(t, &e.user, "GET", "/api/nodes/"+c.id+"/view", nil, hdr)
+		cd := rec.Header().Get("Content-Disposition")
+		if rec.Code != 200 || !strings.HasPrefix(cd, c.want) {
+			t.Errorf("dest %q: %d %q, want %s", c.dest, rec.Code, cd, c.want)
+		}
+		if c.id == pdf.ID && !strings.Contains(cd, "filename*=UTF-8''%D0%9E%D1%82%D1%87%D1%91%D1%82.pdf") {
+			t.Errorf("dest %q: filename* missing: %q", c.dest, cd)
+		}
+		if vary := rec.Header().Values("Vary"); c.id == pdf.ID && !strings.Contains(strings.Join(vary, ","), "Sec-Fetch-Dest") {
+			t.Errorf("dest %q: Vary %v", c.dest, vary)
+		}
+	}
+}

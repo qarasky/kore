@@ -40,6 +40,11 @@ func TestBreakdown(t *testing.T) {
 	if b.QuotaBytes != 10_000 || b.UploadingBytes != 25 || b.TrashBytes != 100 {
 		t.Fatalf("quota %d uploading %d trash %d", b.QuotaBytes, b.UploadingBytes, b.TrashBytes)
 	}
+	// Split by which trash tab holds it: old.zip in my trash, inside.pdf
+	// (in a trashed shared folder) in the shared trash.
+	if b.TrashPersonalBytes != 70 || b.TrashSharedBytes != 30 || b.TrashBytes != b.TrashPersonalBytes+b.TrashSharedBytes {
+		t.Fatalf("trash split %d + %d = %d", b.TrashPersonalBytes, b.TrashSharedBytes, b.TrashBytes)
+	}
 	got := map[string][2]int64{}
 	var sum int64
 	for _, c := range b.Categories {

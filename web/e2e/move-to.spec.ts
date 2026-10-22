@@ -161,12 +161,16 @@ test("keyboard: M opens Move to… for the selection; Escape closes it, focus re
 
   await page.keyboard.press("M");
   await expect(dialog).toBeVisible();
-  await dialog.getByRole("combobox", { name: en["move.dialog.space"] }).focus();
+  const spaceSelect = dialog.getByRole("combobox", { name: en["move.dialog.space"] });
+  await spaceSelect.focus();
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("End");
   await page.keyboard.press("Enter");
   // Wait for the choice to render: focusing a still-disabled button is a no-op.
   await expect(dialog.getByText(tt("move.dialog.here", { location: en["nav.shared"] }))).toBeVisible();
+  // Changing the space never pulls focus away once the folders have loaded.
+  await expect(dialog.getByTestId("move-folders")).not.toHaveAttribute("aria-busy", "true");
+  await expect(spaceSelect).toBeFocused();
   const submit = dialog.getByRole("button", { name: en["move.dialog.submit"] });
   await expect(submit).toBeEnabled();
   await submit.focus();
@@ -289,5 +293,42 @@ test("the Move to… picker asks for folders without computing sizes", async ({ 
   await page.keyboard.press("m");
   expect(new URL((await req).url()).searchParams.get("sizes")).toBe("0");
   await page.keyboard.press("Escape");
+  await api.dispose();
+});
+
+test("Move to… dialog: opening a folder moves focus to the list unless focus moved elsewhere meanwhile", async ({ page }) => {
+  const { api } = await setup(page);
+  const team = unique("FocusTeam");
+  const teamId = await createFolder(api, team, { space: "shared" });
+  await createFolder(api, "Inner", { space: "shared", parent_id: teamId });
+  const file = `${unique("f")}.txt`;
+  await uploadFile(api, file, "f");
+  await page.goto("/files");
+  await row(page, file).click();
+  await page.keyboard.press("m");
+  const dialog = page.getByRole("dialog", { name: tt("move.dialog.titleOne", { name: file }) });
+  const space = dialog.getByRole("combobox", { name: en["move.dialog.space"] });
+  await space.click();
+  await page.getByRole("listbox").getByRole("option", { name: en["nav.shared"] }).click();
+  const folders = dialog.getByTestId("move-folders");
+  await expect(folders).not.toHaveAttribute("aria-busy", "true");
+
+  // Folder navigation by keyboard: focus follows into the new list.
+  await dialog.getByRole("button", { name: tt("move.dialog.open", { name: team }) }).focus();
+  await page.keyboard.press("Enter");
+  await expect(dialog.getByRole("button", { name: tt("move.dialog.open", { name: "Inner" }) })).toBeVisible();
+  await expect(folders).toBeFocused();
+
+  // Navigate, then move focus before the listing arrives: focus stays put.
+  await page.route("**/api/nodes?*", async (route) => {
+    await new Promise((r) => setTimeout(r, 400));
+    await route.continue();
+  });
+  await dialog.getByRole("navigation", { name: en["move.dialog.path"] }).getByRole("button", { name: en["nav.shared"] }).click();
+  const cancel = dialog.getByRole("button", { name: en["dialog.cancel"] });
+  await cancel.focus();
+  await expect(folders).not.toHaveAttribute("aria-busy", "true");
+  await expect(dialog.getByRole("button", { name: tt("move.dialog.open", { name: team }) })).toBeVisible();
+  await expect(cancel).toBeFocused();
   await api.dispose();
 });

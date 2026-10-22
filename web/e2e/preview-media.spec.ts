@@ -65,6 +65,8 @@ test("images and PDFs open in the preview; arrows step through every previewable
       (window as unknown as { __cspViolation: (v: string) => void }).__cspViolation(`${e.violatedDirective} ${e.blockedURI}`),
     ),
   );
+  let autoDownloads = 0;
+  page.on("download", () => autoDownloads++);
   await page.goto("/files");
 
   // Double-click an image: an <img> from /view, decoded, alt = file name.
@@ -102,6 +104,8 @@ test("images and PDFs open in the preview; arrows step through every previewable
     .toBe(true);
   const fallback = p.getByTestId("pdf-fallback");
   await expect(fallback).toContainText(en["preview.pdfFallback"]);
+  // Framed, the PDF renders inline (the attachment rule is for top-level only).
+  expect(autoDownloads).toBe(0);
   const [download] = await Promise.all([
     page.waitForEvent("download"),
     fallback.getByRole("button", { name: en["preview.pdfFallbackDownload"] }).click(),
@@ -198,4 +202,30 @@ test("without a PDF viewer the pane offers the download instead of a frame", asy
     p.getByTestId("pdf-fallback").getByRole("button", { name: en["preview.pdfFallbackDownload"] }).click(),
   ]);
   expect(dl.suggestedFilename()).toBe("nv.pdf");
+});
+
+test("stepping onto an image the server refuses shows a panel in the pane instead of closing it", async ({ page }) => {
+  const { api, png } = await setup(page);
+  await uploadFile(api, "a-real.png", png);
+  await uploadFile(api, "b-fake.png", "<html>not a png</html>");
+  await uploadFile(api, "c-real.png", png);
+  await api.dispose();
+  let downloads = 0;
+  page.on("download", () => downloads++);
+  await page.goto("/files");
+  await row(page, "a-real.png").dblclick();
+  const p = pane(page);
+  await expect(p.getByRole("img", { name: "a-real.png" })).toBeVisible();
+  await page.keyboard.press("ArrowRight");
+  await expect(p.getByRole("heading", { name: "b-fake.png" })).toBeVisible();
+  const panel = p.getByRole("alert");
+  await expect(panel).toContainText(fill("preview.cannotPreview", { name: "b-fake.png" }));
+  expect(downloads).toBe(0);
+  // Arrows keep working from the panel, and its Download button downloads.
+  await page.keyboard.press("ArrowRight");
+  await expect(p.getByRole("img", { name: "c-real.png" })).toBeVisible();
+  await page.keyboard.press("ArrowLeft");
+  const [dl] = await Promise.all([page.waitForEvent("download"), panel.getByRole("button", { name: en["preview.download"] }).click()]);
+  expect(dl.suggestedFilename()).toBe("b-fake.png");
+  await expect(p).toBeVisible();
 });

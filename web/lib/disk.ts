@@ -35,7 +35,11 @@ export type DiskView = {
   /** Bar widths in percent of used + free (sums to 100, or all 0). */
   segments: { kore: number; other: number; free: number };
   level: DiskLevel;
-  /** More quota handed out than there is free space. */
+  /** Quota users can still fill: allocated minus what Kore already uses. */
+  quotaUnused: number;
+  /** quotaUnused exceeds the free space: users can fill the disk before
+   *  reaching their quotas. (Kore's current use is already on the disk, so
+   *  comparing the raw allocation with free space would count it twice.) */
   overAllocated: boolean;
 };
 
@@ -52,6 +56,7 @@ export function diskView(d: DiskInfo): DiskView {
   const span = used + free;
   const pct = (n: number) => (span > 0 ? (n / span) * 100 : 0);
   const percentUsed = pct(used);
+  const quotaUnused = Math.max(0, nonNeg(d.quota_allocated_bytes) - nonNeg(d.kore_used_bytes));
   return {
     kore,
     other,
@@ -60,6 +65,7 @@ export function diskView(d: DiskInfo): DiskView {
     percentUsed,
     segments: { kore: pct(kore), other: pct(other), free: pct(free) },
     level: diskLevel(percentUsed),
-    overAllocated: nonNeg(d.quota_allocated_bytes) > free,
+    quotaUnused,
+    overAllocated: quotaUnused > free,
   };
 }

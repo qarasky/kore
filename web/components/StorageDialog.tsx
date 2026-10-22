@@ -16,8 +16,8 @@ type State = { status: "loading" } | { status: "ok"; data: Breakdown } | { statu
 /**
  * "Storage": what the caller's quota is spent on, from
  * `GET /api/me/usage/breakdown`. Bars per file type (largest first, size and
- * percent of what is used), uploads in progress, the trashed part with a link
- * to the trash (nothing is deleted here) and the largest files, each linking
+ * percent of what is used), uploads in progress, the trashed part per trash
+ * tab with a link to it (nothing is deleted here) and the largest files, each linking
  * to its folder with the file selected.
  */
 export function StorageDialog({ onClose }: { onClose: () => void }) {
@@ -143,13 +143,23 @@ function BreakdownView({ data, onNavigate }: { data: Breakdown; onNavigate: () =
                   {t("storage.uploading", { size: formatBytes(data.uploading_bytes) })}
                 </p>
               )}
-              {data.trash_bytes > 0 && (
-                <p data-testid="storage-trash" className="flex items-baseline gap-3 text-muted">
-                  <span>{t("storage.trash", { size: formatBytes(data.trash_bytes) })}</span>
-                  <Link href={trashHref("personal")} onClick={onNavigate} className="font-medium text-accent hover:underline">
-                    {t("storage.emptyTrash")}
-                  </Link>
-                </p>
+              {data.trash_personal_bytes > 0 && (
+                <TrashLine
+                  testId="storage-trash-personal"
+                  text={t("storage.trashMine", { size: formatBytes(data.trash_personal_bytes) })}
+                  href={trashHref("personal")}
+                  link={t("storage.openTrashMine")}
+                  onNavigate={onNavigate}
+                />
+              )}
+              {data.trash_shared_bytes > 0 && (
+                <TrashLine
+                  testId="storage-trash-shared"
+                  text={t("storage.trashShared", { size: formatBytes(data.trash_shared_bytes) })}
+                  href={trashHref("shared")}
+                  link={t("storage.openTrashShared")}
+                  onNavigate={onNavigate}
+                />
               )}
             </div>
           )}
@@ -185,5 +195,29 @@ function BreakdownView({ data, onNavigate }: { data: Breakdown; onNavigate: () =
         </>
       )}
     </div>
+  );
+}
+
+/** A trashed share with a link to the trash tab that holds it (nothing is deleted here). */
+function TrashLine({
+  testId,
+  text,
+  href,
+  link,
+  onNavigate,
+}: {
+  testId: string;
+  text: string;
+  href: string;
+  link: string;
+  onNavigate: () => void;
+}) {
+  return (
+    <p data-testid={testId} className="flex items-baseline gap-3 text-muted">
+      <span>{text}</span>
+      <Link href={href} onClick={onNavigate} className="font-medium text-accent hover:underline">
+        {link}
+      </Link>
+    </p>
   );
 }

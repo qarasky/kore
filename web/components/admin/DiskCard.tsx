@@ -19,7 +19,8 @@ function Swatch({ className }: { className: string }) {
 /**
  * The disk holding the data directory: a segmented bar (Kore | other data
  * | free), total/used/free, percent used (amber from 85%, red from 95%,
- * with a plain-language warning) and allocated quotas against free space.
+ * with a plain-language warning), allocated quotas next to free space
+ * (informational) and a warning when the quota still unused exceeds it.
  * `disk` null: the API could not report it.
  */
 export function DiskCard({ disk }: { disk: DiskInfo | null }) {
@@ -113,17 +114,21 @@ export function DiskCard({ disk }: { disk: DiskInfo | null }) {
 
       {v.reserved > 0 && <p className="mt-2 text-[12px] text-muted">{t("admin.disk.reserved", { size: formatBytes(v.reserved) })}</p>}
       {v.level !== "ok" && (
-        <p role="alert" className={`mt-2 text-[12.5px] font-medium ${LEVEL_TEXT[v.level]}`}>
+        <p role="status" className={`mt-2 text-[12.5px] font-medium ${LEVEL_TEXT[v.level]}`}>
           {v.level === "critical" ? t("admin.disk.critical") : t("admin.disk.warn")}
         </p>
       )}
-      <p data-testid="disk-allocated" className={`mt-2 text-[12px] ${v.overAllocated ? "text-warning" : "text-muted"}`}>
+      <p data-testid="disk-allocated" className="mt-2 text-[12px] text-muted">
         {t("admin.disk.allocated", {
           allocated: formatBytes(disk.quota_allocated_bytes),
           free: formatBytes(disk.free_bytes),
         })}
       </p>
-      {v.overAllocated && <p className="mt-0.5 text-[12px] text-warning">{t("admin.disk.overAllocated")}</p>}
+      {v.overAllocated && (
+        <p data-testid="disk-overallocated" role="status" className="mt-0.5 text-[12px] text-warning">
+          {t("admin.disk.overAllocated", { unused: formatBytes(v.quotaUnused), free: formatBytes(disk.free_bytes) })}
+        </p>
+      )}
     </section>
   );
 }

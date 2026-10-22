@@ -12,8 +12,12 @@ export type Breakdown = {
   quota_bytes: number;
   /** Open uploads (reserved at their full size). */
   uploading_bytes: number;
-  /** The part of used_bytes that is in the trash. */
+  /** The part of used_bytes that is in the trash (personal + shared). */
   trash_bytes: number;
+  /** ...of which in the caller's own trash (`/trash`). */
+  trash_personal_bytes: number;
+  /** ...of which their uploads in the shared trash (`/trash?space=shared`). */
+  trash_shared_bytes: number;
   /** Sorted by bytes, largest first; only categories with files. */
   categories: { key: string; bytes: number; count: number }[];
   /** The user's ten largest live files they can open. */

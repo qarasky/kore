@@ -43,9 +43,19 @@ describe("diskView", () => {
     expect(v.other).toBe(0);
   });
 
-  it("flags quotas allocated beyond the free space", () => {
-    expect(diskView({ ...base, quota_allocated_bytes: 451 * GB }).overAllocated).toBe(true);
-    expect(diskView({ ...base, quota_allocated_bytes: 450 * GB }).overAllocated).toBe(false);
+  it("flags quota still to be consumed beyond the free space (Kore's use is already on disk)", () => {
+    // base: Kore uses 200 GB, 450 GB free.
+    expect(diskView({ ...base, quota_allocated_bytes: 651 * GB }).overAllocated).toBe(true);
+    expect(diskView({ ...base, quota_allocated_bytes: 650 * GB }).overAllocated).toBe(false);
+    expect(diskView({ ...base, quota_allocated_bytes: 451 * GB }).overAllocated).toBe(false);
+    // Users over their quota leave nothing still to consume.
+    expect(diskView({ ...base, quota_allocated_bytes: 100 * GB }).overAllocated).toBe(false);
+  });
+
+  it("the office example: 916 GB disk, Kore uses 600 GB, 316 GB free", () => {
+    const office = { ...base, total_bytes: 916 * GB, used_bytes: 600 * GB, free_bytes: 316 * GB, kore_used_bytes: 600 * GB };
+    expect(diskView({ ...office, quota_allocated_bytes: 800 * GB }).overAllocated).toBe(false);
+    expect(diskView({ ...office, quota_allocated_bytes: 1100 * GB }).overAllocated).toBe(true);
   });
 
   it("levels follow the percent used", () => {

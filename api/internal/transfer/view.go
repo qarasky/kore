@@ -118,7 +118,8 @@ const (
 	pdfCSP = "default-src 'none'; object-src 'self'; frame-ancestors 'self'"
 )
 
-// View serves a file inline for the preview pane: images (png, jpeg, gif,
+// View serves a file inline for the preview pane (a PDF opened top-level is
+// sent as an attachment, see below): images (png, jpeg, gif,
 // webp, avif, bmp) and PDF, with Range support. Access is checked like
 // Download. The extension must be allowlisted and the magic bytes must
 // agree; anything else is 415 not_previewable. Content-Type comes from the
@@ -153,6 +154,16 @@ func View(w http.ResponseWriter, r *http.Request, db *sql.DB, dataDir string, ac
 	h.Set("Content-Disposition", disposition("inline", n.Name))
 	if ctype == "application/pdf" {
 		h.Set("Content-Security-Policy", pdfCSP)
+		// A PDF opened as a top-level document (typed URL, link, "open
+		// frame in new tab") downloads instead of rendering under our
+		// origin outside the preview. Only "document" is treated so: the
+		// preview's frame sends "iframe", embeds "embed"/"object", and
+		// Firefox's pdf.js fetches ranges as "empty"; browsers that send no
+		// Sec-Fetch-Dest keep inline.
+		h.Add("Vary", "Sec-Fetch-Dest")
+		if strings.EqualFold(r.Header.Get("Sec-Fetch-Dest"), "document") {
+			h.Set("Content-Disposition", disposition("attachment", n.Name))
+		}
 	} else {
 		h.Set("Content-Security-Policy", imageCSP)
 	}

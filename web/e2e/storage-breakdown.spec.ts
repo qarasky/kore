@@ -39,7 +39,8 @@ test("the storage meter opens a breakdown by file type with the largest files", 
   await expect(bars.nth(3)).toContainText(en["storage.filesOne"]);
 
   // Trash is reported on its own line, with a link (nothing is deleted here).
-  await expect(dialog.getByTestId("storage-trash")).toContainText(formatBytes(50 * KiB));
+  await expect(dialog.getByTestId("storage-trash-personal")).toContainText(formatBytes(50 * KiB));
+  await expect(dialog.getByTestId("storage-trash-shared")).toHaveCount(0);
 
   // Largest files: live only (the trashed zip is not listed).
   const largest = dialog.getByRole("list", { name: en["storage.largest"] }).getByRole("link");
@@ -57,9 +58,9 @@ test("the storage meter opens a breakdown by file type with the largest files", 
     page.getByRole("listbox", { name: en["list.label"] }).getByRole("option", { name: "report.pdf", exact: true }),
   ).toHaveAttribute("aria-selected", "true");
 
-  // The Empty trash shortcut only goes to the trash page.
+  // The trash link only opens the trash tab that holds it.
   await meter.click();
-  await dialog.getByRole("link", { name: en["storage.emptyTrash"] }).click();
+  await dialog.getByRole("link", { name: en["storage.openTrashMine"] }).click();
   await expect(page).toHaveURL("/trash");
   await expect(page.getByRole("listbox", { name: en["trash.list"] }).getByRole("option", { name: "old.zip" })).toBeVisible();
 });
@@ -76,4 +77,25 @@ test("an empty account shows the empty state; Escape closes", async ({ page }) =
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(meter).toBeFocused();
+});
+
+test("a trashed shared upload is reported under the shared trash and links there", async ({ page }) => {
+  const user = await createUser();
+  const api = await apiAs(user.email, user.password);
+  const name = `sb-${Date.now()}-team.zip`;
+  const id = await uploadFile(api, name, Buffer.alloc(20 * KiB, 5), { space: "shared" });
+  expect((await api.delete(`/api/nodes/${id}`)).status()).toBe(204);
+  await api.dispose();
+
+  await loginAs(page, user.email, user.password);
+  await page.goto("/files");
+  await page.getByTestId("storage-meter").getByRole("button").click();
+  const dialog = page.getByRole("dialog", { name: en["storage.title"] });
+  await expect(dialog.getByTestId("storage-trash-shared")).toContainText(formatBytes(20 * KiB));
+  await expect(dialog.getByTestId("storage-trash-personal")).toHaveCount(0);
+  await dialog.getByRole("link", { name: en["storage.openTrashShared"] }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page).toHaveURL("/trash?space=shared");
+  await expect(page.getByRole("link", { name: en["trash.shared"] })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("listbox", { name: en["trash.list"] }).getByRole("option", { name })).toBeVisible();
 });
