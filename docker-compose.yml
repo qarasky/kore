@@ -1,6 +1,6 @@
 # Kore: Caddy (the only published service) -> web (Next.js) and api (Go).
-# Configure with .env (see .env.example) and kore.toml (see
-# kore.docker.example.toml). Install steps: README.md.
+# Configure with .env only (see .env.example). Install: install.sh or README.md.
+# Images come from ghcr.io; `docker compose build` builds them from source.
 name: kore
 
 x-logging: &logging
@@ -54,7 +54,7 @@ services:
       context: ./web
       args:
         API_URL: http://api:8080
-    image: kore-web:local
+    image: ghcr.io/qarasky/kore-web:${KORE_VERSION:-latest}
     restart: unless-stopped
     environment:
       API_URL: http://api:8080
@@ -73,21 +73,25 @@ services:
 
   api:
     build: ./api
-    image: kore-api:local
+    image: ghcr.io/qarasky/kore-api:${KORE_VERSION:-latest}
     restart: unless-stopped
     # Files in the data dir are created as this host user (e.g. `office`).
     user: "${KORE_UID:-1000}:${KORE_GID:-1000}"
+    environment:
+      # Inside the container: listen on all interfaces (only Caddy reaches
+      # it, over the internal network) and keep data in /data. Where Kore is
+      # reachable on the host is KORE_BIND/KORE_PORT, used by caddy above.
+      KORE_BIND: 0.0.0.0
+      KORE_PORT: "8080"
+      KORE_DATA_DIR: /data
+      # First admin account, created on the first start.
+      KORE_ADMIN_EMAIL: ${KORE_ADMIN_EMAIL:?set KORE_ADMIN_EMAIL in .env}
+      KORE_ADMIN_PASSWORD: ${KORE_ADMIN_PASSWORD:?set KORE_ADMIN_PASSWORD in .env}
     volumes:
-      - type: bind
-        source: ./kore.toml
-        target: /etc/kore/kore.toml
-        read_only: true
-        bind:
-          create_host_path: false
       # Never auto-created: if the volume is not mounted, compose fails
       # instead of writing into an empty directory on the root disk.
       - type: bind
-        source: ${KORE_DATA_DIR:-/mnt/mirror/kore}
+        source: ${KORE_DATA_DIR:?set KORE_DATA_DIR in .env}
         target: /data
         bind:
           create_host_path: false
