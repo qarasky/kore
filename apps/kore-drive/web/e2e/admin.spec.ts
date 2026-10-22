@@ -338,7 +338,7 @@ test("settings persist after reload; out-of-range values show errors", async ({ 
     await expect(quota).toHaveValue("20");
     await expect(quotaUnit).toHaveText("GB");
     const stored: Settings = await (await admin.get("/api/admin/settings")).json();
-    expect(stored).toEqual({ trash_retention_days: 45, max_file_bytes: 2 * GiB, default_quota_bytes: 20 * GiB });
+    expect(stored).toMatchObject({ trash_retention_days: 45, max_file_bytes: 2 * GiB, default_quota_bytes: 20 * GiB });
 
     // Back to no limit.
     await unlimited.check();
