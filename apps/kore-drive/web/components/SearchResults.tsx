@@ -7,10 +7,10 @@ import { usePreview } from "@/hooks/usePreview";
 import { useSelection } from "@/hooks/useSelection";
 import { formatBytes } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { fileKind } from "@/lib/nodes";
 import { isPreviewable } from "@/lib/preview";
 import { locationHref, resultHref, type SearchHit } from "@/lib/search";
-import { ChevronRightIcon, NodeIcon } from "./icons";
+import { ChevronRightIcon } from "./icons";
+import { NodeThumb } from "./NodeThumb";
 import { RelativeTime } from "./RelativeTime";
 import { UploaderCell, UploaderHeader } from "./UploaderCell";
 
@@ -134,7 +134,7 @@ export function SearchResults({ hits }: { hits: SearchHit[] }) {
               }
             >
               <div className="flex min-w-0 items-center gap-2.5">
-                <NodeIcon kind={fileKind(hit)} />
+                <NodeThumb node={hit} />
                 <Link
                   id={nameId}
                   href={resultHref(hit)}

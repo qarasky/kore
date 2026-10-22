@@ -229,3 +229,18 @@ test("stepping onto an image the server refuses shows a panel in the pane instea
   expect(dl.suggestedFilename()).toBe("b-fake.png");
   await expect(p).toBeVisible();
 });
+
+test("an image row shows a small picture of its content; other files keep their icon", async ({ page }) => {
+  const { api, png } = await setup(page);
+  await uploadFile(api, "pic.png", png);
+  await uploadFile(api, "fake.png", "not really a png");
+  await uploadFile(api, "doc.txt", "hi");
+  await api.dispose();
+  await page.goto("/files");
+  const thumb = row(page, "pic.png").locator("img");
+  await expect(thumb).toBeVisible();
+  await expect.poll(() => thumb.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBeGreaterThan(0);
+  // The server refuses a file that only pretends to be an image: the icon stays.
+  await expect(row(page, "fake.png").locator("img")).toHaveCount(0);
+  await expect(row(page, "doc.txt").locator("img")).toHaveCount(0);
+});

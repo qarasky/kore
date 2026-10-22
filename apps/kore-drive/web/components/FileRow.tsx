@@ -5,7 +5,8 @@ import { useDropTarget } from "@/hooks/useDropTarget";
 import { formatBytes } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { fileKind, type ApiNode } from "@/lib/nodes";
-import { LinkIcon, NodeIcon } from "./icons";
+import { LinkIcon } from "./icons";
+import { NodeThumb } from "./NodeThumb";
 import { RelativeTime } from "./RelativeTime";
 import { UploaderCell } from "./UploaderCell";
 
@@ -83,7 +84,7 @@ export function FileRow({
       }
     >
       <div className="flex min-w-0 items-center gap-2.5">
-        <NodeIcon kind={kind} />
+        <NodeThumb node={node} />
         {editor ?? (
           <span id={nameId} className="truncate" title={node.name}>
             {node.name}
