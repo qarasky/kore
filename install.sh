@@ -157,7 +157,7 @@ umask 022
 cd "$KORE_DIR"
 step "Pulling the images"
 # A failed pull is not fatal here (e.g. images already present locally);
-# \`up\` below fails loudly if an image is really missing.
+# `up` below fails loudly if an image is really missing.
 docker compose pull --quiet --ignore-pull-failures </dev/null || true
 if [ "$HAVE_VOLUME" = 0 ]; then
   step "Initializing the data volume"
