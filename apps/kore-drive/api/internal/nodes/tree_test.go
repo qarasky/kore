@@ -9,8 +9,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/artchsh/kore/api/internal/store"
-	"github.com/artchsh/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/store"
+	"github.com/qarasky/kore/api/internal/users"
 )
 
 var ctx = context.Background()

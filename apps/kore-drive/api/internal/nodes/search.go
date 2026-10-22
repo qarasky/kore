@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/artchsh/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/users"
 	"golang.org/x/text/unicode/norm"
 )
 

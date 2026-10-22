@@ -1,4 +1,4 @@
-module github.com/artchsh/kore/api
+module github.com/qarasky/kore/api
 
 go 1.26.0
 

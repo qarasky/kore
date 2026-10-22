@@ -9,9 +9,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/artchsh/kore/api/internal/auth"
-	"github.com/artchsh/kore/api/internal/store"
-	"github.com/artchsh/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/auth"
+	"github.com/qarasky/kore/api/internal/store"
+	"github.com/qarasky/kore/api/internal/users"
 )
 
 func setup(t *testing.T) http.Handler {

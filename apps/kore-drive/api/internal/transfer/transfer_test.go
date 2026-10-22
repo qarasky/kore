@@ -14,10 +14,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/artchsh/kore/api/internal/nodes"
-	"github.com/artchsh/kore/api/internal/store"
-	"github.com/artchsh/kore/api/internal/users"
-	"github.com/artchsh/kore/api/internal/volume"
+	"github.com/qarasky/kore/api/internal/nodes"
+	"github.com/qarasky/kore/api/internal/store"
+	"github.com/qarasky/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/volume"
 )
 
 var ctx = context.Background()

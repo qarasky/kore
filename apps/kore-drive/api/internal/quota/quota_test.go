@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/artchsh/kore/api/internal/store"
+	"github.com/qarasky/kore/api/internal/store"
 )
 
 func setup(t *testing.T, quota int64) *sql.DB {

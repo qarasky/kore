@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/artchsh/kore/api/internal/auth"
-	"github.com/artchsh/kore/api/internal/nodes"
+	"github.com/qarasky/kore/api/internal/auth"
+	"github.com/qarasky/kore/api/internal/nodes"
 )
 
 var (

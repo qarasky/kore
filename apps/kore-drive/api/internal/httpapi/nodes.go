@@ -5,10 +5,10 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/artchsh/kore/api/internal/auth"
-	"github.com/artchsh/kore/api/internal/nodes"
-	"github.com/artchsh/kore/api/internal/quota"
-	"github.com/artchsh/kore/api/internal/shares"
+	"github.com/qarasky/kore/api/internal/auth"
+	"github.com/qarasky/kore/api/internal/nodes"
+	"github.com/qarasky/kore/api/internal/quota"
+	"github.com/qarasky/kore/api/internal/shares"
 )
 
 func (s *server) registerNodes(mux *http.ServeMux) {

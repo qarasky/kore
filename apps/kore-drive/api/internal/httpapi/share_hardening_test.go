@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/artchsh/kore/api/internal/auth"
-	"github.com/artchsh/kore/api/internal/nodes"
+	"github.com/qarasky/kore/api/internal/auth"
+	"github.com/qarasky/kore/api/internal/nodes"
 )
 
 // from sends an anonymous request from remote, with extra headers.

@@ -5,8 +5,8 @@ import (
 	"mime"
 	"net/http"
 
-	"github.com/artchsh/kore/api/internal/auth"
-	"github.com/artchsh/kore/api/internal/transfer"
+	"github.com/qarasky/kore/api/internal/auth"
+	"github.com/qarasky/kore/api/internal/transfer"
 )
 
 func (s *server) registerTransfer(mux *http.ServeMux) {

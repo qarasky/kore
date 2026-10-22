@@ -19,14 +19,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/artchsh/kore/api/internal/auth"
-	"github.com/artchsh/kore/api/internal/config"
-	"github.com/artchsh/kore/api/internal/httpapi"
-	"github.com/artchsh/kore/api/internal/nodes"
-	"github.com/artchsh/kore/api/internal/settings"
-	"github.com/artchsh/kore/api/internal/store"
-	"github.com/artchsh/kore/api/internal/uploads"
-	"github.com/artchsh/kore/api/internal/volume"
+	"github.com/qarasky/kore/api/internal/auth"
+	"github.com/qarasky/kore/api/internal/config"
+	"github.com/qarasky/kore/api/internal/httpapi"
+	"github.com/qarasky/kore/api/internal/nodes"
+	"github.com/qarasky/kore/api/internal/settings"
+	"github.com/qarasky/kore/api/internal/store"
+	"github.com/qarasky/kore/api/internal/uploads"
+	"github.com/qarasky/kore/api/internal/volume"
 )
 
 const usage = `usage:

@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/artchsh/kore/api/internal/disk"
+	"github.com/qarasky/kore/api/internal/disk"
 )
 
 type diskJSON struct {

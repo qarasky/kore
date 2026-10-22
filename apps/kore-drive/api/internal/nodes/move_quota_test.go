@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/artchsh/kore/api/internal/quota"
-	"github.com/artchsh/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/quota"
+	"github.com/qarasky/kore/api/internal/users"
 )
 
 func sizedFile(t *testing.T, db *sql.DB, u users.User, sp Space, parent *string, name string, size int64) string {

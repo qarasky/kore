@@ -16,8 +16,8 @@ import (
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp" // registers the decoder
 
-	"github.com/artchsh/kore/api/internal/nodes"
-	"github.com/artchsh/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/nodes"
+	"github.com/qarasky/kore/api/internal/users"
 )
 
 const (

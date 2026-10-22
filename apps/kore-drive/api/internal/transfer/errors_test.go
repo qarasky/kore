@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/artchsh/kore/api/internal/nodes"
+	"github.com/qarasky/kore/api/internal/nodes"
 )
 
 func TestUnsatisfiableRangeIsJSON(t *testing.T) {

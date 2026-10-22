@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/artchsh/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/users"
 )
 
 // CookieName is the session cookie.

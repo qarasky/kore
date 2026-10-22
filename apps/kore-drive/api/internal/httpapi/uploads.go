@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/artchsh/kore/api/internal/auth"
-	"github.com/artchsh/kore/api/internal/quota"
-	"github.com/artchsh/kore/api/internal/uploads"
+	"github.com/qarasky/kore/api/internal/auth"
+	"github.com/qarasky/kore/api/internal/quota"
+	"github.com/qarasky/kore/api/internal/uploads"
 )
 
 func (s *server) registerUploads(mux *http.ServeMux) {

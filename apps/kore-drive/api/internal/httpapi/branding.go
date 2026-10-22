@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/artchsh/kore/api/internal/auth"
-	"github.com/artchsh/kore/api/internal/settings"
+	"github.com/qarasky/kore/api/internal/auth"
+	"github.com/qarasky/kore/api/internal/settings"
 )
 
 // The login screen picture: one admin-uploaded PNG/JPEG/WebP stored at a

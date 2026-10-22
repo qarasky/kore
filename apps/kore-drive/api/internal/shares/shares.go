@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/artchsh/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/users"
 )
 
 // ErrNotFound is returned for a missing share or one owned by someone else.

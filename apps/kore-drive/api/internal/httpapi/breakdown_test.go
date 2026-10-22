@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/artchsh/kore/api/internal/nodes"
+	"github.com/qarasky/kore/api/internal/nodes"
 )
 
 func TestMyUsageBreakdown(t *testing.T) {
