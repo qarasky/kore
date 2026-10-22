@@ -285,3 +285,7 @@ Next build, starts both on fresh, throwaway data, and removes it afterwards
 web build. To run the suite against a running deployment instead, set
 `E2E_BASE_URL` (plus `E2E_ADMIN_EMAIL`/`E2E_ADMIN_PASSWORD`); see
 `web/README.md`.
+
+## License
+
+[MIT](LICENSE)
