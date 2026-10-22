@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kore: a small self-hosted file server for your office</title>
+<meta name="description" content="Kore is a lightweight self-hosted Google Drive-style file server: personal and shared spaces, quotas, share links, previews and an admin panel. Go + Next.js, one config file, Docker Compose.">
+<meta property="og:title" content="Kore: a small self-hosted file server for your office">
+<meta property="og:description" content="Google Drive-style UI, personal and shared spaces, quotas, share links. Self-hosted, lightweight, MIT.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://qarasky.github.io/kore/">
+<meta property="og:image" content="https://qarasky.github.io/kore/screenshots/files.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#16181d">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="favicon.svg" alt="">Kore</a>
+    <nav class="links" aria-label="Sections">
+      <a href="#features">Features</a>
+      <a href="#screens">Screenshots</a>
+      <a href="#install">Install</a>
+      <a href="#security">Security</a>
+      <a href="https://github.com/qarasky/kore">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <div class="hero">
+    <div class="wrap">
+      <img class="mark" src="favicon.svg" alt="">
+      <h1>Your office files,<br>on your own server.</h1>
+      <p class="lede">Kore is a small, fast, Google Drive-style file server for a team. No suite of apps, no subscription: just files, folders, sharing and quotas.</p>
+      <div class="cta">
+        <a class="btn primary" href="#install">Install with Docker</a>
+        <a class="btn" href="https://github.com/qarasky/kore">View on GitHub</a>
+      </div>
+      <p class="fine">Open source, MIT licensed. Go API, Next.js UI, SQLite. Runs fine on a small box.</p>
+      <div class="frame">
+        <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
+        <img src="screenshots/files.png" width="2040" height="1350" alt="Kore's My files view: folders and files with image thumbnails, the storage meter bottom left.">
+      </div>
+    </div>
+  </div>
+
+  <section id="features">
+    <div class="wrap">
+      <h2>Everything a small office needs. Nothing it doesn't.</h2>
+      <p class="sub">Built because the big suites were slow and complicated, and the tiny ones looked rough. Kore does file storage and sharing, and does it well.</p>
+      <div class="features">
+        <div class="card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <h3>Personal and shared spaces</h3>
+          <p>Every person gets a private space. Everyone also gets one shared space. The admin can't browse anyone's private files.</p>
+        </div>
+        <div class="card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          <h3>Big uploads that just work</h3>
+          <p>Drag in files or whole folders. Uploads are chunked and resumable, so they survive reloads, flaky Wi-Fi and Cloudflare Tunnel's 100 MB limit.</p>
+        </div>
+        <div class="card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <h3>Public share links</h3>
+          <p>Send a file or a whole folder to someone without an account. Optional password and expiry, browsable folders, zip download.</p>
+        </div>
+        <div class="card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/></svg>
+          <h3>Previews and thumbnails</h3>
+          <p>Look at text, Markdown, images and PDFs without downloading. Image files show a little picture of themselves right in the list.</p>
+        </div>
+        <div class="card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83M22 12A10 10 0 0 0 12 2v10z"/></svg>
+          <h3>Quotas and a storage meter</h3>
+          <p>Set a limit per person. Click the meter to see what takes the space, by file type, with the largest files listed.</p>
+        </div>
+        <div class="card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          <h3>Trash, search, move</h3>
+          <p>Deleted files wait in the trash until retention runs out. Search by name, drag to move, and shuffle files between your space and the shared one.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screens">
+    <div class="wrap">
+      <h2>A look around</h2>
+      <p class="sub">Dark, dense and quick, with a layout you already know. Click a screenshot for the full size.</p>
+      <div class="gallery">
+        <figure class="shot"><a href="screenshots/preview.png"><img loading="lazy" src="screenshots/preview.png" width="2040" height="1350" alt="An image open in the preview pane with next and previous arrows."></a><figcaption><b>Preview in place.</b> Images, PDFs, Markdown and text, with arrow keys to step through a folder.</figcaption></figure>
+        <figure class="shot"><a href="screenshots/share.png"><img loading="lazy" src="screenshots/share.png" width="2040" height="1350" alt="The Share link dialog with expiry and password options and a created link."></a><figcaption><b>Share with anyone.</b> A link for one file or a folder, with an expiry and an optional password.</figcaption></figure>
+        <figure class="shot"><a href="screenshots/storage.png"><img loading="lazy" src="screenshots/storage.png" width="2040" height="1350" alt="Storage dialog with usage by file type and the largest files."></a><figcaption><b>See where the space goes.</b> Usage by file type and the biggest files, one click from the storage meter.</figcaption></figure>
+        <figure class="shot"><a href="screenshots/shared.png"><img loading="lazy" src="screenshots/shared.png" width="2040" height="1350" alt="The shared space with an Uploaded by column."></a><figcaption><b>A shared space for the team.</b> Everyone sees who uploaded what.</figcaption></figure>
+        <figure class="shot"><a href="screenshots/admin-overview.png"><img loading="lazy" src="screenshots/admin-overview.png" width="2040" height="1350" alt="Admin overview with disk usage, quota allocation and usage per user."></a><figcaption><b>An admin panel, not a config maze.</b> Disk usage, quotas and users. Usage totals only: private files stay private.</figcaption></figure>
+        <figure class="shot"><a href="screenshots/login.png"><img loading="lazy" src="screenshots/login.png" width="2040" height="1350" alt="Split login screen: sign-in form on the left, a picture on the right."></a><figcaption><b>Your own front door.</b> Accounts are created by an admin, and the login picture is configurable.</figcaption></figure>
+      </div>
+      <p class="note">Screenshots use made-up people and files.</p>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="wrap">
+      <h2>Install in a few minutes</h2>
+      <p class="sub">Docker and Docker Compose on a Linux machine are all you need. One small config file, one <code>.env</code>.</p>
+      <div class="install">
+<pre><span class="c"># get it</span>
+git clone https://github.com/qarasky/kore.git
+cd kore
+cp kore.docker.example.toml kore.toml
+cp .env.example .env
+
+<span class="c"># edit kore.toml (admin email + password)</span>
+<span class="c"># and .env (data folder, user id)</span>
+
+<span class="c"># set up the data volume, then start</span>
+docker compose run --rm api kore init \
+  -config /etc/kore/kore.toml
+docker compose up -d</pre>
+        <ol class="steps">
+          <li><b>Set the admin account</b> in <code>kore.toml</code>. That account creates everyone else.</li>
+          <li><b>Point <code>KORE_DATA_DIR</code></b> at the disk that should hold the files, such as a RAID mount.</li>
+          <li><b>Open it</b> at <code>http://127.0.0.1:8080</code>, put it behind a Cloudflare Tunnel, or bind it to your LAN or Tailscale address.</li>
+        </ol>
+      </div>
+      <p class="note">The full guide covers backups, LAN and Tailscale access, Cloudflare Tunnel and troubleshooting: <a href="https://github.com/qarasky/kore#readme">README on GitHub</a>.</p>
+    </div>
+  </section>
+
+  <section id="security">
+    <div class="wrap">
+      <h2>Careful with your files</h2>
+      <p class="sub">It runs on a real office server, so data safety comes before cleverness.</p>
+      <ul class="checks">
+        <li><b>Your data stays yours.</b> Plain files plus one SQLite database on a volume you choose.</li>
+        <li><b>Loud failures.</b> If the storage volume isn't mounted, Kore refuses to start instead of writing to an empty folder.</li>
+        <li><b>Private means private.</b> Other people's personal files don't even show up as existing, admins included.</li>
+        <li><b>Safe file handling.</b> Uploads never run in the app's origin, and SVG is never previewed.</li>
+        <li><b>Nothing phones home.</b> No external fonts, scripts or analytics: everything is bundled.</li>
+        <li><b>Rate-limited sign-in.</b> Login attempts, password hashing and link-password guesses are all bounded.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Kore · MIT License · © 2026 qarasky</span>
+    <span class="r">
+      <a href="https://github.com/qarasky/kore">GitHub</a>
+      <a href="https://github.com/qarasky/kore#readme">Docs</a>
+      <a href="https://github.com/qarasky/kore/blob/main/LICENSE">License</a>
+    </span>
+  </div>
+</footer>
+</body>
+</html>
