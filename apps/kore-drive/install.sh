@@ -158,13 +158,14 @@ cd "$KORE_DIR"
 step "Pulling the images"
 # A failed pull is not fatal here (e.g. images already present locally);
 # \`up\` below fails loudly if an image is really missing.
-docker compose pull --quiet --ignore-pull-failures || true
+docker compose pull --quiet --ignore-pull-failures </dev/null || true
 if [ "$HAVE_VOLUME" = 0 ]; then
   step "Initializing the data volume"
-  docker compose run --rm api kore init
+  # -T and </dev/null: when the script comes from a pipe, docker must not read it from stdin.
+  docker compose run --rm -T api kore init </dev/null
 fi
 step "Starting Kore"
-docker compose up -d
+docker compose up -d </dev/null
 
 printf 'Waiting for Kore to come up'
 UP=0
