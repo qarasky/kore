@@ -73,7 +73,7 @@ export async function uploadFile(
       parent: opts.parent ?? null,
       name,
       size: data.length,
-      chunk_size: 1 << 20,
+      chunk_size: Math.max(1 << 20, data.length),
     },
   });
   expect(created.status(), `create upload ${name}`).toBe(201);
