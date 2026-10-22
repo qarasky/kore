@@ -54,7 +54,11 @@ func run(ctx context.Context, args []string, stderr io.Writer) int {
 	fs := flag.NewFlagSet("kore "+cmd, flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() { fmt.Fprint(stderr, usage) }
-	path := fs.String("config", "kore.toml", "path to config file")
+	defaultPath := "kore.toml"
+	if v := os.Getenv("KORE_CONFIG"); v != "" {
+		defaultPath = v
+	}
+	path := fs.String("config", defaultPath, "path to config file (default: $KORE_CONFIG or kore.toml)")
 	var url *string
 	switch cmd {
 	case "serve", "init":
