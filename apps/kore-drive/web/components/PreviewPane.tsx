@@ -5,7 +5,7 @@ import { apiText, isApiError } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { fileKind, type ApiNode } from "@/lib/nodes";
-import { defaultLineNumbers, isMarkdown, PREVIEW_MAX_BYTES, previewKind } from "@/lib/preview";
+import { defaultLineNumbers, isMarkdown, nodeUrls, PREVIEW_MAX_BYTES, previewKind, type PreviewUrls } from "@/lib/preview";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -48,6 +48,7 @@ export function PreviewPane({
   onNotText,
   onDownload,
   returnFocus,
+  urls = nodeUrls,
 }: {
   items: readonly ApiNode[];
   index: number;
@@ -56,6 +57,8 @@ export function PreviewPane({
   onNotText: (node: ApiNode) => void;
   onDownload: (node: ApiNode) => void;
   returnFocus?: () => HTMLElement | null | undefined;
+  /** Where bytes come from (a share link's scoped endpoints on public pages). */
+  urls?: PreviewUrls;
 }) {
   const node = items[index];
   const titleId = useId();
@@ -188,11 +191,21 @@ export function PreviewPane({
               onToggleZoom={toggleZoom}
               onUnavailable={node.id === openedOn ? onNotText : null}
               onDownload={onDownload}
+              urls={urls}
             />
           ) : kind === "pdf" ? (
-            <PdfView key={node.id} node={node} onUnavailable={node.id === openedOn ? onNotText : null} onDownload={onDownload} />
+            <PdfView key={node.id} node={node} onUnavailable={node.id === openedOn ? onNotText : null} onDownload={onDownload} urls={urls} />
           ) : (
-            <PreviewBody key={node.id} node={node} markdown={markdown} wrap={wrap} lineNumbers={lineNumbers} onNotText={onNotText} onDownload={onDownload} />
+            <PreviewBody
+              key={node.id}
+              node={node}
+              markdown={markdown}
+              wrap={wrap}
+              lineNumbers={lineNumbers}
+              onNotText={onNotText}
+              onDownload={onDownload}
+              urls={urls}
+            />
           )}
         </div>
       </div>
@@ -201,13 +214,14 @@ export function PreviewPane({
 }
 
 /** Loads and shows one file's content; keyed by node id so state resets per file. */
-function PreviewBody({
+export function PreviewBody({
   node,
   markdown,
   wrap,
   lineNumbers,
   onNotText,
   onDownload,
+  urls = nodeUrls,
 }: {
   node: ApiNode;
   markdown: boolean;
@@ -215,6 +229,7 @@ function PreviewBody({
   lineNumbers: boolean;
   onNotText: (node: ApiNode) => void;
   onDownload: (node: ApiNode) => void;
+  urls?: PreviewUrls;
 }) {
   const [loaded, setLoaded] = useState<Loaded>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -225,7 +240,7 @@ function PreviewBody({
 
   useEffect(() => {
     const ctrl = new AbortController();
-    apiText(`/api/nodes/${encodeURIComponent(node.id)}/preview`, { signal: ctrl.signal }).then(
+    apiText(urls.text(node.id), { signal: ctrl.signal }).then(
       (body) => setLoaded({ status: "ok", ...body }),
       (e: unknown) => {
         if (ctrl.signal.aborted) return;
@@ -235,7 +250,7 @@ function PreviewBody({
       },
     );
     return () => ctrl.abort();
-  }, [node, attempt]);
+  }, [node, attempt, urls]);
 
   if (loaded.status === "loading") {
     return (

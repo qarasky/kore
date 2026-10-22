@@ -163,6 +163,19 @@ export const KeyIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const LinkIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6.75 9.25a2.5 2.5 0 0 0 3.54 0l2.12-2.12a2.5 2.5 0 0 0-3.54-3.54l-.7.7M9.25 6.75a2.5 2.5 0 0 0-3.54 0L3.6 8.87a2.5 2.5 0 0 0 3.54 3.54l.7-.7" />
+  </Svg>
+);
+
+export const LockIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3.5" y="7" width="9" height="6.5" rx="1.25" />
+    <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
+  </Svg>
+);
+
 export const SignOutIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M6.5 13.5h-3v-11h3M10 5l3 3-3 3M13 8H6.5" />

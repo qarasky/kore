@@ -66,4 +66,12 @@ describe("proxy()", () => {
     expect(res.headers.get("location")).toBeNull();
     expect(res.headers.get("x-middleware-request-x-kore-path")).toBe("/files/abc?x=1");
   });
+
+  it("lets public share links through signed in or not, without redirects", () => {
+    for (const cookie of [undefined, "kore_session=t"]) {
+      const res = proxy(req("/s/abc?folder=x", cookie));
+      expect(res.status).toBe(200);
+      expect(res.headers.get("location")).toBeNull();
+    }
+  });
 });

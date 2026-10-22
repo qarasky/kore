@@ -14,6 +14,11 @@ export function proxy(req: NextRequest) {
   const { pathname, search, searchParams } = req.nextUrl;
   const hasSession = Boolean(req.cookies.get(SESSION_COOKIE)?.value);
 
+  // Public share links work the same signed in or not: no redirects.
+  if (pathname.startsWith("/s/")) {
+    return NextResponse.next();
+  }
+
   if (pathname === "/login") {
     // `expired` means the API rejected the cookie; let the user sign in again.
     if (hasSession && !searchParams.has("expired")) {

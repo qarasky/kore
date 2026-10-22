@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { apiHead, isApiError } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import type { ApiNode } from "@/lib/nodes";
-import { viewHref } from "@/lib/preview";
+import { nodeUrls, type PreviewUrls } from "@/lib/preview";
 import { DownloadIcon } from "./icons";
 
 type Check = "checking" | "ok" | "unavailable" | "notFound" | "error";
@@ -16,7 +16,12 @@ type Check = "checking" | "ok" | "unavailable" | "notFound" | "error";
  * `onUnavailable` null (the pane was stepped onto this file), is reported
  * as "unavailable" so the pane shows a panel with a Download button.
  */
-function useViewCheck(node: ApiNode, onUnavailable: ((node: ApiNode) => void) | null, attempt: number): Check {
+function useViewCheck(
+  node: ApiNode,
+  onUnavailable: ((node: ApiNode) => void) | null,
+  attempt: number,
+  urls: PreviewUrls,
+): Check {
   const [state, setState] = useState<{ id: string; attempt: number; check: Check } | null>(null);
   const unavailable = useRef(onUnavailable);
   useEffect(() => {
@@ -24,7 +29,7 @@ function useViewCheck(node: ApiNode, onUnavailable: ((node: ApiNode) => void) | 
   });
   useEffect(() => {
     const ctrl = new AbortController();
-    apiHead(viewHref(node.id), { signal: ctrl.signal }).then(
+    apiHead(urls.view(node.id), { signal: ctrl.signal }).then(
       () => setState({ id: node.id, attempt, check: "ok" }),
       (e: unknown) => {
         if (ctrl.signal.aborted) return;
@@ -34,7 +39,7 @@ function useViewCheck(node: ApiNode, onUnavailable: ((node: ApiNode) => void) | 
       },
     );
     return () => ctrl.abort();
-  }, [node, attempt]);
+  }, [node, attempt, urls]);
   return state && state.id === node.id && state.attempt === attempt ? state.check : "checking";
 }
 
@@ -84,15 +89,17 @@ export function ImageView({
   onToggleZoom,
   onUnavailable,
   onDownload,
+  urls = nodeUrls,
 }: {
   node: ApiNode;
   actual: boolean;
   onToggleZoom: () => void;
   onUnavailable: ((node: ApiNode) => void) | null;
   onDownload: (node: ApiNode) => void;
+  urls?: PreviewUrls;
 }) {
   const [attempt, setAttempt] = useState(0);
-  const check = useViewCheck(node, onUnavailable, attempt);
+  const check = useViewCheck(node, onUnavailable, attempt, urls);
   const [img, setImg] = useState<"loading" | "ok" | "error">("loading");
   if (check === "unavailable") return <Unavailable node={node} onDownload={onDownload} />;
   if (check === "notFound") return <Problem message={t("preview.notFound")} />;
@@ -110,7 +117,7 @@ export function ImageView({
         // next/image would try to proxy and resize.
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={viewHref(node.id)}
+          src={urls.view(node.id)}
           alt={node.name}
           title={t("preview.zoomHint")}
           onLoad={() => setImg("ok")}
@@ -138,13 +145,15 @@ export function PdfView({
   node,
   onUnavailable,
   onDownload,
+  urls = nodeUrls,
 }: {
   node: ApiNode;
   onUnavailable: ((node: ApiNode) => void) | null;
   onDownload: (node: ApiNode) => void;
+  urls?: PreviewUrls;
 }) {
   const [attempt, setAttempt] = useState(0);
-  const check = useViewCheck(node, onUnavailable, attempt);
+  const check = useViewCheck(node, onUnavailable, attempt, urls);
   const viewer = typeof navigator === "undefined" || navigator.pdfViewerEnabled !== false;
   if (check === "unavailable") return <Unavailable node={node} onDownload={onDownload} />;
   if (check === "notFound") return <Problem message={t("preview.notFound")} />;
@@ -154,7 +163,7 @@ export function PdfView({
       <div className="relative min-h-0 flex-1">
         {check === "checking" && <Loading />}
         {check === "ok" && viewer && (
-          <iframe title={t("preview.pdfFrame", { name: node.name })} src={viewHref(node.id)} className="h-full w-full border-0 bg-bg" />
+          <iframe title={t("preview.pdfFrame", { name: node.name })} src={urls.view(node.id)} className="h-full w-full border-0 bg-bg" />
         )}
         {check === "ok" && !viewer && (
           <div className="flex h-full items-center justify-center px-6 text-center">

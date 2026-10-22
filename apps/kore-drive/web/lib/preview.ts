@@ -55,6 +55,20 @@ export function viewHref(id: string): string {
   return `/api/nodes/${encodeURIComponent(id)}/view`;
 }
 
+/** Where the preview fetches a node's bytes from: the signed-in app's node
+ *  endpoints, or a public share link's scoped ones. */
+export type PreviewUrls = {
+  /** Text preview (`text/plain`). */
+  text: (id: string) => string;
+  /** Inline image/PDF. */
+  view: (id: string) => string;
+};
+
+export const nodeUrls: PreviewUrls = {
+  text: (id) => `/api/nodes/${encodeURIComponent(id)}/preview`,
+  view: viewHref,
+};
+
 export function isMarkdown(name: string): boolean {
   const e = ext(name);
   return e === "md" || e === "markdown";
