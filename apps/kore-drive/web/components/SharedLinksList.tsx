@@ -15,7 +15,7 @@ import { useToast } from "./Toast";
 
 const GRID = "grid grid-cols-[minmax(0,1fr)_96px_110px_130px_80px_auto] items-center gap-3 px-4";
 const action =
-  "rounded-ui px-2 py-1 text-[12px] font-medium text-muted transition-colors hover:bg-white/5 hover:text-text disabled:opacity-50";
+  "rounded-ui px-2 py-1 text-meta font-medium text-muted transition-colors hover:bg-white/5 hover:text-text disabled:opacity-50";
 
 const CHIP: Record<Share["status"], string> = {
   active: "bg-[#3fa66b]/15 text-[#7fd18b]",
@@ -71,7 +71,7 @@ export function SharedLinksList({ shares }: { shares: Share[] }) {
 
   return (
     <div className="min-h-0 flex-1 overflow-auto">
-      <div className={`${GRID} sticky top-0 z-10 h-8 border-b border-border bg-surface text-[12px] font-medium text-muted`}>
+      <div className={`${GRID} sticky top-0 z-10 h-10 border-b border-border bg-surface text-meta font-medium text-muted`}>
         <span className="pl-[26px]">{t("sharedLinks.item")}</span>
         <span>{t("sharedLinks.status")}</span>
         <span>{t("sharedLinks.created")}</span>
@@ -95,7 +95,7 @@ export function SharedLinksList({ shares }: { shares: Share[] }) {
                 if (el) rowRefs.current.set(s.id, el);
                 else rowRefs.current.delete(s.id);
               }}
-              className={`${GRID} min-h-10 border-b border-border/60 py-1 hover:bg-white/[0.03]`}
+              className={`${GRID} min-h-row border-b border-border/60 py-1 hover:bg-white/[0.03]`}
             >
               <div className="flex min-w-0 items-center gap-2.5">
                 <NodeIcon kind={s.is_dir ? "folder" : "file"} />
@@ -108,10 +108,10 @@ export function SharedLinksList({ shares }: { shares: Share[] }) {
                     <span className="sr-only">{t("share.protected")}</span>
                   </span>
                 )}
-                {!s.is_dir && s.node_name && <span className="shrink-0 text-[12px] text-muted tabular-nums">{formatBytes(s.size)}</span>}
+                {!s.is_dir && s.node_name && <span className="shrink-0 text-meta text-muted tabular-nums">{formatBytes(s.size)}</span>}
               </div>
               <span>
-                <span className={`rounded-full px-2 py-0.5 text-[11.5px] font-medium ${CHIP[s.status] ?? CHIP.unavailable}`}>
+                <span className={`rounded-full px-2 py-0.5 text-meta font-medium ${CHIP[s.status] ?? CHIP.unavailable}`}>
                   {statusLabel(s.status)}
                 </span>
               </span>
