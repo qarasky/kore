@@ -7,7 +7,8 @@ that fetches from the Go API with the user's `kore_session` cookie.
 
 | Path | What |
 | --- | --- |
-| `app/(auth)/login/` | Login page (server) + `login-form.tsx` (client) |
+| `app/(auth)/login/` | Login page (server) + `login-form.tsx` (client). Split layout: form left, picture right (hidden below 900px): the admin's picture from `/api/branding/login-image?v=` or the built-in `components/LoginArt.tsx` |
+| `components/admin/LoginImageCard.tsx`, `lib/branding.ts` | Admin Settings card to upload (PNG/JPEG/WebP, 5 MB) or reset the login picture |
 | `app/(app)/layout.tsx` | App shell: top bar (search, account menu), sidebar (+ New, sections, storage meter) |
 | `app/(app)/files/[[...folder]]/`, `shared/[[...folder]]/` | File browser: `/files`, `/files/<folderId>`, `/shared`, `/shared/<folderId>` (SSR; more segments are a 404) |
 | `components/FolderPage.tsx`, `lib/folder.ts` | Server side of a folder view: loads path + children, 404 only on API 404, redirects ids from the other space |
@@ -30,7 +31,8 @@ that fetches from the Go API with the user's `kore_session` cookie.
 | `lib/size.ts`, `lib/password.ts`, `lib/admin.ts` | Size input parsing/splitting in binary units labelled GB/TB like `formatBytes`; password rules (UTF-8 bytes, as the API counts), hints and generator; admin API types and error-code messages |
 | `lib/download.ts` | Downloads via a hidden form into a hidden iframe (browser streams to disk; errors become a toast) |
 | `lib/format.ts`, `lib/nodes.ts` | Size/date formatting, node types, hrefs, file kinds |
-| `app/globals.css` | Design tokens (`@theme`) and base styles; dark only |
+| `app/globals.css` | Design tokens (`@theme`) and base styles; dark only. Size scale: 15px base, `text-meta/sub/heading/title/brand/display`, `h-row` (48px list/table rows), `min-h-control` (40px), `control-sm` (32px), `size-icon` |
+| `app/icon.svg` | Favicon (the Kore mark; same as `../assets/kore-icon.svg`), excluded from the `proxy.ts` auth gate |
 | `lib/api.ts` | `api<T>(path, init)`: server calls go to `API_URL` with the cookie, browser calls go to same-origin `/api`; errors throw `ApiError{status, code}`. `apiText()` is the same for `text/plain` endpoints (the preview) and returns `{text, truncated}` |
 | `lib/session.ts` | `requireUser()`: validates the session via `/api/auth/me`, redirects to login on 401 |
 | `lib/safe-next.ts` | Sanitizes the post-login `next` redirect (same-origin relative paths only) |

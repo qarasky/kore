@@ -1,12 +1,47 @@
-<img src="assets/icon.svg" width="64" height="64" alt="">
+<img src="assets/kore-icon.svg" width="64" height="64" alt="">
 
 # Kore
 
 A small self-hosted file server for an office: personal spaces and a shared
 space, drag-and-drop uploads (chunked and resumable, so large files work
-through Cloudflare Tunnel), folders, trash, text previews, search, per-user
+through Cloudflare Tunnel), folders, trash, previews, search, per-user
 quotas and an admin panel. Go API + Next.js (SSR) UI behind Caddy, data in
 plain files plus one SQLite database.
+
+## Features
+
+- **My files** (private to each user) and a **Shared space** everyone can use.
+- Per-user **quotas**, counted by uploader (shared-space uploads and trash
+  included) and enforced before an upload starts.
+- **Chunked, resumable uploads** (8 MiB chunks, retries, resume after a
+  reload) of files and whole folders by drag and drop or picker.
+- **Trash** with restore, delete forever and a configurable retention.
+- **Search** by name across both spaces.
+- **Previews** for text and Markdown, images and PDFs.
+- **Folder sizes** in the list.
+- **Move** by drag and drop or **Move to…**, including between My files and
+  the shared space.
+- **Uploaded by** column in the shared space.
+- **Storage breakdown** by file type behind the storage meter.
+- **Admin panel**: users, quotas, settings, per-user usage and disk usage of
+  the data volume.
+- **Public share links** with expiry and optional password.
+- Configurable **login screen picture**.
+
+## Architecture
+
+```
+browser ──> Caddy :80 ──┬── /api/*  ──> api (Go)  ──> SQLite (kore.db) + blobs/ on the data volume
+                        └── else    ──> web (Next.js SSR) ──> api (server-side, with the session cookie)
+```
+
+Caddy is the only published service. `web` renders every page on the server
+by calling the API with the user's session cookie; the browser talks to the
+API directly for mutations, uploads and downloads. The API keeps metadata in
+one SQLite database and file contents as blob files, both in the data dir
+(`KORE_DATA_DIR`, mounted at `/data`). The data dir must carry the
+`.kore-volume` marker written by `kore init` (see "The data volume marker"),
+so a missing mount never turns into an empty fresh install.
 
 ## Requirements
 
@@ -139,8 +174,9 @@ by hand, on the real volume. It is safe to re-run (it never touches data).
 ## Backups
 
 Everything lives in the data dir: `kore.db` (SQLite in WAL mode, with
-`kore.db-wal`/`kore.db-shm` next to it), `blobs/` (file contents) and
-`tmp/uploads/` (unfinished uploads, not needed in a backup).
+`kore.db-wal`/`kore.db-shm` next to it), `blobs/` (file contents),
+`branding/` (the custom login picture, if any) and `tmp/uploads/`
+(unfinished uploads, not needed in a backup).
 
 Simplest consistent backup: stop the API, copy, start it again.
 
@@ -211,5 +247,41 @@ password in `kore.toml` with anything other than `change-me`.
 
 ## Development
 
-See `api/` (Go, `go test ./...`) and `web/README.md` (Next.js, unit and
-Playwright tests, including running e2e against a compose stack).
+### Layout
+
+| Path | What |
+| --- | --- |
+| `api/` | Go API: `cmd/kore` (serve, `init`, `healthcheck`), `internal/httpapi` (routes), `internal/{auth,nodes,uploads,transfer,quota,settings,store,volume,...}` |
+| `web/` | Next.js app (App Router, SSR); see `web/README.md` for its own layout |
+| `web/e2e/` | Playwright tests and the harness that starts a throwaway API + web |
+| `Caddyfile`, `docker-compose.yml` | The production stack |
+| `docs/superpowers/` | Design spec, plans and HTML mockups (`specs/`, `plans/`, `specs/mockups/`) |
+| `AGENTS.md` | Notes for coding agents (conventions, commands, gotchas) |
+
+### Running locally
+
+Needs Go (see `api/go.mod`) and Node 24 (as in `web/Dockerfile`).
+
+```sh
+cp kore.example.toml kore.toml          # set data_dir, admin_email, admin_password
+mkdir -p data && (cd api && go run ./cmd/kore init -config ../kore.toml)
+(cd api && go run ./cmd/kore -config ../kore.toml)    # API on 127.0.0.1:8080
+
+cd web && npm ci && npm run dev         # http://localhost:3000, /api proxied to the API
+```
+
+### Tests
+
+```sh
+cd api && go vet ./... && go test -race ./...
+cd web && npm run typecheck && npm run lint && npx vitest run
+cd web && npx playwright test e2e/login.spec.ts   # one e2e spec
+cd web && npm run e2e                              # the whole e2e suite
+```
+
+The e2e harness (`web/e2e/harness/`) builds the Go binary and a production
+Next build, starts both on fresh, throwaway data, and removes it afterwards
+(`npx playwright install chromium` once). `E2E_SKIP_BUILD=1` reuses the last
+web build. To run the suite against a running deployment instead, set
+`E2E_BASE_URL` (plus `E2E_ADMIN_EMAIL`/`E2E_ADMIN_PASSWORD`); see
+`web/README.md`.
