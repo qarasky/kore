@@ -8,6 +8,8 @@ through Cloudflare Tunnel), folders, trash, previews, search, per-user
 quotas and an admin panel. Go API + Next.js (SSR) UI behind Caddy, data in
 plain files plus one SQLite database.
 
+[Website and screenshots](https://qarasky.github.io/kore/)
+
 ## Features
 
 - **My files** (private to each user) and a **Shared space** everyone can use.
