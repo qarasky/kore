@@ -455,16 +455,20 @@ func (s *server) deleteUser(w http.ResponseWriter, r *http.Request) {
 }
 
 type settingsView struct {
-	TrashRetentionDays int   `json:"trash_retention_days"`
-	MaxFileBytes       int64 `json:"max_file_bytes"`
-	DefaultQuotaBytes  int64 `json:"default_quota_bytes"`
+	TrashRetentionDays     int   `json:"trash_retention_days"`
+	MaxFileBytes           int64 `json:"max_file_bytes"`
+	DefaultQuotaBytes      int64 `json:"default_quota_bytes"`
+	ShareLinksEnabled      bool  `json:"share_links_enabled"`
+	ShareDefaultExpiryDays int   `json:"share_default_expiry_days"`
 }
 
 func (s *server) currentSettings(ctx context.Context) settingsView {
 	return settingsView{
-		TrashRetentionDays: settings.TrashRetentionDays(ctx, s.db),
-		MaxFileBytes:       settings.MaxFileBytes(ctx, s.db),
-		DefaultQuotaBytes:  settings.DefaultQuotaBytes(ctx, s.db),
+		TrashRetentionDays:     settings.TrashRetentionDays(ctx, s.db),
+		MaxFileBytes:           settings.MaxFileBytes(ctx, s.db),
+		DefaultQuotaBytes:      settings.DefaultQuotaBytes(ctx, s.db),
+		ShareLinksEnabled:      settings.ShareLinksEnabled(ctx, s.db),
+		ShareDefaultExpiryDays: settings.ShareDefaultExpiryDays(ctx, s.db),
 	}
 }
 
@@ -474,9 +478,11 @@ func (s *server) getSettings(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) patchSettings(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		TrashRetentionDays *int   `json:"trash_retention_days"`
-		MaxFileBytes       *int64 `json:"max_file_bytes"`
-		DefaultQuotaBytes  *int64 `json:"default_quota_bytes"`
+		TrashRetentionDays     *int   `json:"trash_retention_days"`
+		MaxFileBytes           *int64 `json:"max_file_bytes"`
+		DefaultQuotaBytes      *int64 `json:"default_quota_bytes"`
+		ShareLinksEnabled      *bool  `json:"share_links_enabled"`
+		ShareDefaultExpiryDays *int   `json:"share_default_expiry_days"`
 	}
 	if !decode(w, r, &in) {
 		return
@@ -490,6 +496,9 @@ func (s *server) patchSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	case in.DefaultQuotaBytes != nil && *in.DefaultQuotaBytes < 0:
 		errJSON(w, 400, "invalid_default_quota_bytes")
+		return
+	case in.ShareDefaultExpiryDays != nil && (*in.ShareDefaultExpiryDays < 0 || *in.ShareDefaultExpiryDays > settings.MaxShareDefaultExpiryDays):
+		errJSON(w, 400, "invalid_share_default_expiry_days")
 		return
 	}
 	ctx := r.Context()
@@ -513,6 +522,16 @@ func (s *server) patchSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	if werr == nil && in.DefaultQuotaBytes != nil {
 		werr = put(settings.KeyDefaultQuotaBytes, *in.DefaultQuotaBytes)
+	}
+	if werr == nil && in.ShareLinksEnabled != nil {
+		v := 0
+		if *in.ShareLinksEnabled {
+			v = 1
+		}
+		werr = put(settings.KeyShareLinksEnabled, v)
+	}
+	if werr == nil && in.ShareDefaultExpiryDays != nil {
+		werr = put(settings.KeyShareDefaultExpiryDays, *in.ShareDefaultExpiryDays)
 	}
 	if werr != nil || tx.Commit() != nil {
 		errJSON(w, 500, "internal")

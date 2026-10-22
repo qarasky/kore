@@ -128,6 +128,12 @@ func Zip(w http.ResponseWriter, r *http.Request, db *sql.DB, dataDir string, act
 		}
 		tops = append(tops, n)
 	}
+	ServeZip(w, r, db, dataDir, tops)
+}
+
+// ServeZip streams already-authorized nodes (folders recursively, trashed
+// descendants excluded) as a zip archive named after a single top folder.
+func ServeZip(w http.ResponseWriter, r *http.Request, db *sql.DB, dataDir string, tops []nodes.Node) {
 	var entries []entry
 	used := map[string]bool{}
 	for _, n := range tops {

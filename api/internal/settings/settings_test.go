@@ -29,3 +29,28 @@ func TestDefaultsAndSet(t *testing.T) {
 		t.Fatal("bad values")
 	}
 }
+
+func TestShareSettings(t *testing.T) {
+	db, err := store.Open(filepath.Join(t.TempDir(), "k.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if !ShareLinksEnabled(ctx, db) || ShareDefaultExpiryDays(ctx, db) != 7 {
+		t.Fatal("bad share defaults")
+	}
+	Set(ctx, db, KeyShareLinksEnabled, "0")
+	Set(ctx, db, KeyShareDefaultExpiryDays, "0")
+	if ShareLinksEnabled(ctx, db) || ShareDefaultExpiryDays(ctx, db) != 0 {
+		t.Fatal("bad share values")
+	}
+	a, err := ShareSecret(ctx, db)
+	if err != nil || len(a) != 32 {
+		t.Fatalf("secret %x %v", a, err)
+	}
+	b, _ := ShareSecret(ctx, db)
+	if string(a) != string(b) {
+		t.Fatal("secret not stable")
+	}
+}

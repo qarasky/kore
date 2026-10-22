@@ -64,7 +64,15 @@ func setDownloadHeaders(w http.ResponseWriter, name string) {
 // Download serves a single file node (with Range support). The node lookup
 // is done and finished before any bytes are streamed.
 func Download(w http.ResponseWriter, r *http.Request, db *sql.DB, dataDir string, actor users.User, id string) {
-	n, f, ok := openFile(w, r, db, dataDir, actor, id, "download")
+	if n, ok := lookupFile(w, r, db, actor, id, "download"); ok {
+		ServeDownload(w, r, dataDir, n)
+	}
+}
+
+// ServeDownload streams an already-authorized file node as an attachment
+// (with Range support). Callers must have checked access to n.
+func ServeDownload(w http.ResponseWriter, r *http.Request, dataDir string, n nodes.Node) {
+	f, ok := openBlob(w, dataDir, n, "download")
 	if !ok {
 		return
 	}
@@ -75,32 +83,39 @@ func Download(w http.ResponseWriter, r *http.Request, db *sql.DB, dataDir string
 	http.ServeContent(&jsonErrorWriter{ResponseWriter: w}, r, n.Name, time.Unix(n.UpdatedAt, 0), f)
 }
 
-// openFile looks up a live file node the actor may access and opens its
-// blob; on failure it has written the JSON error and returns ok=false.
-func openFile(w http.ResponseWriter, r *http.Request, db *sql.DB, dataDir string, actor users.User, id, tag string) (nodes.Node, *os.File, bool) {
+// lookupFile looks up a live node the actor may access; on failure it has
+// written the JSON error and returns ok=false.
+func lookupFile(w http.ResponseWriter, r *http.Request, db *sql.DB, actor users.User, id, tag string) (nodes.Node, bool) {
 	n, err := nodes.Get(r.Context(), db, actor, id)
 	if errors.Is(err, nodes.ErrNotFound) {
 		writeErr(w, 404, "not_found")
-		return n, nil, false
+		return n, false
 	}
 	if err != nil {
 		log.Printf("%s: lookup %s: %v", tag, id, err)
 		writeErr(w, 500, "internal")
-		return n, nil, false
+		return n, false
 	}
+	return n, true
+}
+
+// openBlob opens the blob of an already-authorized file node; on failure
+// (a folder, a missing blob) it has written the JSON error and returns
+// ok=false.
+func openBlob(w http.ResponseWriter, dataDir string, n nodes.Node, tag string) (*os.File, bool) {
 	if n.IsDir {
 		writeErr(w, 400, "is_directory")
-		return n, nil, false
+		return nil, false
 	}
 	if n.BlobID == nil {
 		writeErr(w, 404, "not_found")
-		return n, nil, false
+		return nil, false
 	}
 	p, err := volume.BlobPath(dataDir, *n.BlobID)
 	if err != nil {
 		log.Printf("%s: node %s: %v", tag, n.ID, err)
 		writeErr(w, 500, "internal")
-		return n, nil, false
+		return nil, false
 	}
 	f, err := os.Open(p)
 	if err != nil {
@@ -110,7 +125,7 @@ func openFile(w http.ResponseWriter, r *http.Request, db *sql.DB, dataDir string
 		} else {
 			writeErr(w, 500, "internal")
 		}
-		return n, nil, false
+		return nil, false
 	}
-	return n, f, true
+	return f, true
 }

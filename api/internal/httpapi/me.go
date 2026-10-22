@@ -16,9 +16,15 @@ func (s *server) registerMe(mux *http.ServeMux) {
 }
 
 // mySettings exposes the instance settings every user may see (the trash
-// retention shown on the trash page); the full set stays admin-only.
+// retention shown on the trash page, whether share links are on and
+// their default expiry); the full set stays admin-only.
 func (s *server) mySettings(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, 200, map[string]int{"trash_retention_days": settings.TrashRetentionDays(r.Context(), s.db)})
+	ctx := r.Context()
+	writeJSON(w, 200, map[string]any{
+		"trash_retention_days":      settings.TrashRetentionDays(ctx, s.db),
+		"share_links_enabled":       settings.ShareLinksEnabled(ctx, s.db),
+		"share_default_expiry_days": settings.ShareDefaultExpiryDays(ctx, s.db),
+	})
 }
 
 // myUsage reports the caller's storage use (as counted by quota.Used: files
