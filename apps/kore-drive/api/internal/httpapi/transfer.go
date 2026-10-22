@@ -12,6 +12,7 @@ import (
 func (s *server) registerTransfer(mux *http.ServeMux) {
 	mux.Handle("GET /api/nodes/{id}/download", auth.RequireUser(http.HandlerFunc(s.download)))
 	mux.Handle("GET /api/nodes/{id}/view", auth.RequireUser(http.HandlerFunc(s.view)))
+	mux.Handle("GET /api/nodes/{id}/thumb", auth.RequireUser(http.HandlerFunc(s.thumb)))
 	mux.Handle("POST /api/download/zip", auth.RequireUser(http.HandlerFunc(s.downloadZip)))
 }
 
@@ -24,6 +25,12 @@ func (s *server) download(w http.ResponseWriter, r *http.Request) {
 func (s *server) view(w http.ResponseWriter, r *http.Request) {
 	me, _ := auth.FromContext(r.Context())
 	transfer.View(w, r, s.db, s.dataDir, me, r.PathValue("id"))
+}
+
+// thumb serves a small preview of an image for file lists (transfer.Thumb).
+func (s *server) thumb(w http.ResponseWriter, r *http.Request) {
+	me, _ := auth.FromContext(r.Context())
+	transfer.Thumb(w, r, s.db, s.dataDir, me, r.PathValue("id"))
 }
 
 // downloadZip takes {"ids":[...]} as JSON, or repeated ids=... form fields
