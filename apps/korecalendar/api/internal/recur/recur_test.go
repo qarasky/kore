@@ -304,3 +304,22 @@ func TestSeriesValidate(t *testing.T) {
 		}
 	}
 }
+
+func TestHasOccurrence(t *testing.T) {
+	s := Series{Start: "2026-11-04T16:00:00", End: "2026-11-04T17:00:00", TZ: "Europe/Berlin", RRule: "FREQ=WEEKLY;BYDAY=WE,FR;UNTIL=20261120T000000Z",
+		Exdates: []string{"2026-11-06T16:00:00"}}
+	for key, want := range map[string]bool{
+		"2026-11-04T16:00:00": true, // first
+		"2026-11-06T16:00:00": true, // excluded occurrences are still occurrences
+		"2026-11-13T16:00:00": true,
+		"2026-11-05T16:00:00": false, // a Thursday
+		"2026-11-04T17:00:00": false, // wrong time of day
+		"2026-11-18T16:00:00": true,
+		"2026-11-25T16:00:00": false, // after UNTIL
+		"garbage":             false,
+	} {
+		if got := s.HasOccurrence(key); got != want {
+			t.Errorf("HasOccurrence(%q) = %v, want %v", key, got, want)
+		}
+	}
+}

@@ -195,11 +195,13 @@ func TestCreateWritesAChange(t *testing.T) {
 }
 
 type occurrence struct {
-	EventID  string `json:"event_id"`
-	Key      string `json:"key"`
-	Title    string `json:"title"`
-	Start    string `json:"start"`
-	StartUTC string `json:"start_utc"`
+	EventID    string `json:"event_id"`
+	Key        string `json:"key"`
+	Title      string `json:"title"`
+	Start      string `json:"start"`
+	End        string `json:"end"`
+	StartUTC   string `json:"start_utc"`
+	IsOverride bool   `json:"is_override"`
 }
 
 func TestOccurrencesEndpoint(t *testing.T) {

@@ -371,3 +371,25 @@ func (s Series) Validate() error {
 	_, err := s.compile()
 	return err
 }
+
+// HasOccurrence reports whether key is an occurrence of the series, ignoring
+// exclusions (an excluded occurrence is still an occurrence).
+func (s Series) HasOccurrence(key string) bool {
+	c, err := s.compile()
+	if err != nil {
+		return false
+	}
+	kw, err := parseWall(key, s.AllDay)
+	if err != nil || formatWall(kw, s.AllDay) != key {
+		return false
+	}
+	if !c.until.IsZero() && c.instant(kw).After(c.until) {
+		return false
+	}
+	for _, w := range c.walls(kw, kw) {
+		if w.Equal(kw) {
+			return true
+		}
+	}
+	return false
+}

@@ -14,6 +14,8 @@ import (
 	"github.com/qarasky/korecalendar/api/internal/users"
 )
 
+func newID() string { return users.NewID() }
+
 // liveSQL is the one predicate for "this event exists": not soft-deleted.
 const liveSQL = "deleted_at IS NULL"
 
@@ -44,30 +46,47 @@ func normalize(in Input, userTZ string) (Input, error) {
 		}
 		in.End = start.Add(step).Format(layout)
 	}
-	s := recur.Series{Start: in.Start, End: in.End, TZ: in.TZ, AllDay: in.AllDay, RRule: in.RRule, RDates: in.RDates}
+	if err := validateSeries(recur.Series{Start: in.Start, End: in.End, TZ: in.TZ, AllDay: in.AllDay, RRule: in.RRule, RDates: in.RDates}); err != nil {
+		return in, err
+	}
+	rs, err := cleanReminders(in.Reminders)
+	if err != nil {
+		return in, err
+	}
+	in.Reminders = rs
+	sort.Strings(in.RDates)
+	return in, nil
+}
+
+// validateSeries maps recur's errors to this package's: an unsupported rule
+// stays itself (so the API can name it), everything else is a ValidationError.
+func validateSeries(s recur.Series) error {
 	if err := s.Validate(); err != nil {
 		if errors.Is(err, recur.ErrUnsupportedRule) {
-			return in, err
+			return err
 		}
-		return in, invalid(strings.TrimPrefix(err.Error(), "invalid series: "))
+		return invalid(strings.TrimPrefix(err.Error(), "invalid series: "))
 	}
-	if len(in.Reminders) > maxReminders {
-		return in, invalid("at most 20 reminders per event")
+	return nil
+}
+
+// cleanReminders checks bounds and removes duplicates.
+func cleanReminders(in []Reminder) ([]Reminder, error) {
+	if len(in) > maxReminders {
+		return nil, invalid("at most 20 reminders per event")
 	}
 	seen := map[int]bool{}
-	out := in.Reminders[:0:0]
-	for _, r := range in.Reminders {
+	out := []Reminder{}
+	for _, r := range in {
 		if r.MinutesBefore < 0 || r.MinutesBefore > MaxReminderMinutes {
-			return in, invalid("reminder minutes_before must be between 0 and 40320 (28 days)")
+			return nil, invalid("reminder minutes_before must be between 0 and 40320 (28 days)")
 		}
 		if !seen[r.MinutesBefore] {
 			seen[r.MinutesBefore] = true
 			out = append(out, r)
 		}
 	}
-	in.Reminders = out
-	sort.Strings(in.RDates)
-	return in, nil
+	return out, nil
 }
 
 // Create stores a new event for a.UserID and records a sync change.
@@ -96,7 +115,7 @@ func Create(ctx context.Context, db *sql.DB, a Actor, in Input) (Event, error) {
 		return Event{}, err
 	}
 	now := time.Now().Unix()
-	e := Event{ID: users.NewID(), CalendarID: in.CalendarID, Title: in.Title, Notes: in.Notes, Location: in.Location,
+	e := Event{ID: newID(), CalendarID: in.CalendarID, Title: in.Title, Notes: in.Notes, Location: in.Location,
 		Start: in.Start, End: in.End, TZ: in.TZ, AllDay: in.AllDay, RRule: in.RRule, RDates: nonNil(in.RDates), Exdates: []string{},
 		Reminders: nonNilR(in.Reminders), Version: 1, CreatedBy: a.Label, UpdatedBy: a.Label, CreatedAt: now, UpdatedAt: now}
 	tx, err := db.BeginTx(ctx, nil)
@@ -104,24 +123,45 @@ func Create(ctx context.Context, db *sql.DB, a Actor, in Input) (Event, error) {
 		return Event{}, err
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `INSERT INTO events(id,user_id,calendar_id,title,notes,location,start_local,end_local,tz,all_day,rrule,
-		version,created_by,updated_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		e.ID, a.UserID, e.CalendarID, e.Title, e.Notes, e.Location, e.Start, e.End, e.TZ, e.AllDay, e.RRule,
-		e.Version, e.CreatedBy, e.UpdatedBy, e.CreatedAt, e.UpdatedAt); err != nil {
-		return Event{}, err
-	}
-	for _, d := range e.RDates {
-		if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO event_rdates(event_id,start_local) VALUES(?,?)`, e.ID, d); err != nil {
-			return Event{}, err
-		}
-	}
-	if err := writeReminders(ctx, tx, e.ID, "", e.Reminders); err != nil {
+	if err := insertEvent(ctx, tx, a.UserID, e); err != nil {
 		return Event{}, err
 	}
 	if err := recordChange(ctx, tx, a.UserID, e.ID, "upsert"); err != nil {
 		return Event{}, err
 	}
 	return e, tx.Commit()
+}
+
+// insertEvent writes a new event row with its exclusions, extra dates and reminders.
+func insertEvent(ctx context.Context, q queryer, userID string, e Event) error {
+	if _, err := q.ExecContext(ctx, `INSERT INTO events(id,user_id,calendar_id,title,notes,location,start_local,end_local,tz,all_day,rrule,
+		version,created_by,updated_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		e.ID, userID, e.CalendarID, e.Title, e.Notes, e.Location, e.Start, e.End, e.TZ, e.AllDay, e.RRule,
+		e.Version, e.CreatedBy, e.UpdatedBy, e.CreatedAt, e.UpdatedAt); err != nil {
+		return err
+	}
+	return writeCollections(ctx, q, e)
+}
+
+// writeCollections replaces the event's exclusions, extra dates and series reminders.
+func writeCollections(ctx context.Context, q queryer, e Event) error {
+	for _, del := range []string{`DELETE FROM event_exdates WHERE event_id=?`, `DELETE FROM event_rdates WHERE event_id=?`,
+		`DELETE FROM event_reminders WHERE event_id=? AND override_key=''`} {
+		if _, err := q.ExecContext(ctx, del, e.ID); err != nil {
+			return err
+		}
+	}
+	for _, k := range e.Exdates {
+		if _, err := q.ExecContext(ctx, `INSERT OR IGNORE INTO event_exdates(event_id,key) VALUES(?,?)`, e.ID, k); err != nil {
+			return err
+		}
+	}
+	for _, d := range e.RDates {
+		if _, err := q.ExecContext(ctx, `INSERT OR IGNORE INTO event_rdates(event_id,start_local) VALUES(?,?)`, e.ID, d); err != nil {
+			return err
+		}
+	}
+	return writeReminders(ctx, q, e.ID, "", e.Reminders)
 }
 
 func nonNil(s []string) []string {
