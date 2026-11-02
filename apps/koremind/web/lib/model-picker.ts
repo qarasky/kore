@@ -12,3 +12,7 @@ export function filterModels(providers: ProviderInfo[], favorites: string[], rai
 
 export const thinkingLabel = (level: string | undefined) => (level ? level.charAt(0).toUpperCase() + level.slice(1) : "");
 export const chipLabel = (modelName: string, level: string | undefined) => [modelName, thinkingLabel(level)].filter(Boolean).join(" ");
+
+/** True when a photo is attached but the chosen model can't read photos. */
+export const lacksVision = (attachments: { mime: string }[], model: ModelInfo | undefined): boolean =>
+  !!model && !model.vision && attachments.some((a) => a.mime.startsWith("image/"));

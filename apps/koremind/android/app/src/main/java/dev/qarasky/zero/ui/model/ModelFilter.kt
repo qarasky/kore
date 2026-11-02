@@ -1,5 +1,6 @@
 package dev.qarasky.zero.ui.model
 
+import dev.qarasky.zero.data.Attachment
 import dev.qarasky.zero.data.ModelInfo
 import dev.qarasky.zero.data.ProviderInfo
 
@@ -14,3 +15,7 @@ fun filterModels(providers: List<ProviderInfo>, favorites: Set<String>, rail: St
 }
 
 fun thinkingLabel(level: String?): String = level?.replaceFirstChar { it.uppercase() } ?: ""
+
+/** True when a photo is attached but the chosen model can't read photos. */
+fun lacksVision(attachments: List<Attachment>, model: ModelInfo?): Boolean =
+    model != null && !model.vision && attachments.any { it.mime.startsWith("image/") }

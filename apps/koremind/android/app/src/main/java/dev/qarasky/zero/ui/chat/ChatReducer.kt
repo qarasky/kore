@@ -44,3 +44,6 @@ fun reduce(s: ChatUiState, ev: StreamEvent): ChatUiState {
         }
     }
 }
+
+fun canSend(text: String, pendingCount: Int, busy: Boolean, hasModel: Boolean): Boolean =
+    hasModel && !busy && (text.isNotBlank() || pendingCount > 0)

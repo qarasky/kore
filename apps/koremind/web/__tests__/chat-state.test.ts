@@ -57,3 +57,32 @@ test("needsLoad ignores the URL catching up to a chat we just created", () => {
   expect(needsLoad(null, "abc")).toBe(true); // New chat clicked
   expect(needsLoad("def", "abc")).toBe(true);
 });
+
+import { canSend } from "../lib/chat-state";
+import { uploadSizeError } from "../lib/upload";
+import { lacksVision } from "../lib/model-picker";
+
+test("canSend refuses without a model, while busy, while uploading, or when empty", () => {
+  const ok = { text: "hi", fileCount: 0, uploading: 0, busy: false, hasModel: true };
+  expect(canSend(ok)).toBe(true);
+  expect(canSend({ ...ok, hasModel: false })).toBe(false);
+  expect(canSend({ ...ok, busy: true })).toBe(false);
+  expect(canSend({ ...ok, uploading: 1 })).toBe(false);
+  expect(canSend({ ...ok, text: "  " })).toBe(false);
+  expect(canSend({ ...ok, text: "", fileCount: 1 })).toBe(true);
+});
+
+test("uploadSizeError uses the server's wording and passes small files", () => {
+  expect(uploadSizeError(21 * 1024 * 1024)).toBe("That file is too large. The limit is 20 MB.");
+  expect(uploadSizeError(1024)).toBeNull();
+});
+
+test("lacksVision warns only for images on a text-only model", () => {
+  const img = [{ id: "a", name: "p.png", mime: "image/png", size: 1 }];
+  const pdf = [{ id: "b", name: "d.pdf", mime: "application/pdf", size: 1 }];
+  const textOnly = { id: "m", name: "M", vision: false, thinkingLevels: [], isDefault: true };
+  expect(lacksVision(img, textOnly)).toBe(true);
+  expect(lacksVision(img, { ...textOnly, vision: true })).toBe(false);
+  expect(lacksVision(pdf, textOnly)).toBe(false);
+  expect(lacksVision(img, undefined)).toBe(false);
+});

@@ -4,11 +4,17 @@ import { ArrowUp, FileText, Paperclip, Square, X } from "lucide-react";
 import { useRef, useState, type KeyboardEvent } from "react";
 import { ModelPicker } from "./ModelPicker";
 import { ErrorText } from "./ui";
+import { canSend } from "@/lib/chat-state";
+import { useModelChoice } from "@/lib/contexts";
+import { lacksVision } from "@/lib/model-picker";
 import { useSession } from "@/lib/session";
+import { uploadSizeError } from "@/lib/upload";
 import { t } from "@/lib/strings";
 
 export function Composer({ busy, onSend, onStop }: { busy: boolean; onSend(text: string, attachments: Attachment[]): void; onStop(): void }) {
   const { api } = useSession();
+  const { providers, choice } = useModelChoice();
+  const model = providers.find((p) => p.id === choice?.providerId)?.models.find((m) => m.id === choice?.modelId);
   const [text, setText] = useState("");
   const [files, setFiles] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(0);
@@ -19,6 +25,8 @@ export function Composer({ busy, onSend, onStop }: { busy: boolean; onSend(text:
     if (!list || !api) return;
     setError("");
     for (const f of Array.from(list)) {
+      const tooBig = uploadSizeError(f.size);
+      if (tooBig) { setError(tooBig); continue; }
       setUploading((n) => n + 1);
       try { const a = await api.upload(f); setFiles((cur) => [...cur, a]); }
       catch (e) { setError(e instanceof Error ? e.message : t.genericError); }
@@ -29,7 +37,7 @@ export function Composer({ busy, onSend, onStop }: { busy: boolean; onSend(text:
 
   function submit() {
     const v = text.trim();
-    if ((!v && !files.length) || busy || uploading) return;
+    if (!canSend({ text: v, fileCount: files.length, uploading, busy, hasModel: !!model })) return;
     onSend(v, files);
     setText("");
     setFiles([]);
@@ -69,11 +77,13 @@ export function Composer({ busy, onSend, onStop }: { busy: boolean; onSend(text:
           {busy ? (
             <button type="button" aria-label={t.stop} onClick={onStop} className="grid size-control place-items-center rounded-full bg-text text-bg"><Square size={14} fill="currentColor" /></button>
           ) : (
-            <button type="button" aria-label={t.send} onClick={submit} disabled={(!text.trim() && !files.length) || uploading > 0} className="grid size-control place-items-center rounded-full bg-accent text-white hover:bg-accent-hover disabled:opacity-40"><ArrowUp size={20} /></button>
+            <button type="button" aria-label={t.send} onClick={submit} disabled={!canSend({ text, fileCount: files.length, uploading, busy, hasModel: !!model })} className="grid size-control place-items-center rounded-full bg-accent text-white hover:bg-accent-hover disabled:opacity-40"><ArrowUp size={20} /></button>
           )}
         </div>
       </div>
-      <div className="mt-2 px-2"><ErrorText>{error}</ErrorText></div>
+      <div className="mt-2 px-2">
+        <ErrorText>{error || (!model ? t.noModel : "") || (lacksVision(files, model) ? t.noPhotosWarning : "")}</ErrorText>
+      </div>
     </div>
   );
 }

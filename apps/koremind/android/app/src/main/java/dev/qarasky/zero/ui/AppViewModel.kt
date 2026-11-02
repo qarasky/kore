@@ -17,6 +17,7 @@ import dev.qarasky.zero.data.SendMessageRequest
 import dev.qarasky.zero.data.StreamEvent
 import dev.qarasky.zero.data.ZeroApi
 import dev.qarasky.zero.data.normalizeBackendUrl
+import dev.qarasky.zero.data.uploadSizeError
 import dev.qarasky.zero.ui.chat.ChatUiState
 import dev.qarasky.zero.ui.chat.beginTurn
 import dev.qarasky.zero.ui.chat.reduce
@@ -204,6 +205,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val i = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
                 if (c.moveToFirst() && i >= 0) c.getString(i) else null
             } ?: "file"
+            val size = resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { c -> if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else null }
+            uploadSizeError(size)?.let { _uploadError.value = it; return@launch }
             val bytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { resolver.openInputStream(uri)?.use { it.readBytes() } } ?: error("Couldn't read that file")
             val att = a.upload(name, mime, bytes)
             _pending.update { it + Pending(att, uri) }

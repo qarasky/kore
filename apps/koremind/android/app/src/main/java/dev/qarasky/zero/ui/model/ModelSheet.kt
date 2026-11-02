@@ -86,6 +86,7 @@ fun ModelSheet(
                         val active = r.providerId == choice?.providerId && r.model.id == choice.modelId
                         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).background(if (active) ZeroColors.Raised else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(6.dp)).clickable { onSelect(r.providerId, r.model.id); onDismiss() }.padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(r.model.name, Modifier.weight(1f), maxLines = 1)
+                            if (!r.model.vision) Text(stringResource(R.string.no_photos), color = ZeroColors.Muted, style = MaterialTheme.typography.labelSmall)
                             val fav = r.key in favorites
                             IconButton(onClick = { onFavorite(r.key) }) {
                                 Icon(if (fav) Icons.Filled.Star else Icons.Outlined.Star, stringResource(if (fav) R.string.remove_favorite else R.string.add_favorite), tint = if (fav) ZeroColors.Accent else ZeroColors.Muted)

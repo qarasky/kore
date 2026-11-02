@@ -47,3 +47,7 @@ export function applyEvent(s: ChatState, ev: StreamEvent): ChatState {
 
 /** True when the URL points at a different chat than the one on screen. */
 export const needsLoad = (urlChatId: string | null, shownChatId: string | null) => urlChatId !== shownChatId;
+
+export function canSend(a: { text: string; fileCount: number; uploading: number; busy: boolean; hasModel: boolean }): boolean {
+  return a.hasModel && !a.busy && a.uploading === 0 && (a.text.trim().length > 0 || a.fileCount > 0);
+}

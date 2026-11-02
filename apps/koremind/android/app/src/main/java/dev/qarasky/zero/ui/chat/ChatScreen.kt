@@ -69,6 +69,7 @@ import dev.qarasky.zero.R
 import dev.qarasky.zero.ui.AppViewModel
 import dev.qarasky.zero.ui.ErrorText
 import dev.qarasky.zero.ui.model.ModelSheet
+import dev.qarasky.zero.ui.model.lacksVision
 import dev.qarasky.zero.ui.model.thinkingLabel
 import dev.qarasky.zero.ui.theme.ZeroColors
 import kotlinx.coroutines.launch
@@ -177,14 +178,14 @@ private fun Composer(vm: AppViewModel, busy: Boolean) {
                 Spacer(Modifier.weight(1f))
                 if (busy) Box(Modifier.size(40.dp).background(ZeroColors.Text, CircleShape).clickable { vm.stop() }.semantics { contentDescription = "Stop" }, contentAlignment = Alignment.Center) { Box(Modifier.size(12.dp).background(ZeroColors.Bg, RoundedCornerShape(2.dp))) }
                 else {
-                    val can = text.isNotBlank() || pending.isNotEmpty()
+                    val can = canSend(text, pending.size, busy = false, hasModel = currentModel != null)
                     Box(Modifier.size(40.dp).background(if (can) ZeroColors.Accent else ZeroColors.Raised, CircleShape).clickable(enabled = can) { vm.send(text.trim()); text = "" }.semantics { contentDescription = "Send" }, contentAlignment = Alignment.Center) {
                         Icon(Icons.AutoMirrored.Filled.Send, null, tint = if (can) Color.White else ZeroColors.Muted, modifier = Modifier.size(18.dp))
                     }
                 }
             }
         }
-        ErrorText(uploadError)
+        ErrorText(uploadError ?: if (currentModel == null) stringResource(R.string.no_model) else if (lacksVision(pending.map { it.attachment }, currentModel)) stringResource(R.string.no_photos_warning) else null)
     }
     if (sheet) ModelSheet(providers, favorites, choice, vm::selectModel, vm::setThinking, vm::toggleFavorite) { sheet = false }
 }

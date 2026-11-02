@@ -72,6 +72,7 @@ export function ModelPicker() {
                   <li key={r.key} className={`flex min-h-control items-center gap-1 rounded-ui pr-1 ${active ? "bg-raised" : "hover:bg-raised/60"}`}>
                     <button type="button" onClick={() => { select(r.providerId, r.model.id); setOpen(false); }} className="flex min-h-control flex-1 items-center gap-2 px-2 text-left text-sub">
                       <span className="truncate">{r.model.name}</span>
+                      {!r.model.vision && <span className="shrink-0 text-2xs text-muted">{t.noPhotos}</span>}
                     </button>
                     {i < 3 && <kbd className="rounded-md bg-border px-1.5 py-0.5 text-2xs text-muted">⌘{i + 1}</kbd>}
                     <button type="button" aria-label={favorites.includes(r.key) ? t.removeFavorite : t.addFavorite} onClick={() => void toggleFavorite(r.key)} className="grid size-control-sm place-items-center text-muted hover:text-text">
