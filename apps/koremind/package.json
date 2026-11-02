@@ -1,9 +1,13 @@
 {
   "name": "zero",
   "private": true,
-  "workspaces": ["backend", "shared"],
+  "workspaces": [
+    "backend",
+    "shared",
+    "web"
+  ],
   "scripts": {
-    "test": "bun test backend shared",
+    "test": "bun test backend shared web",
     "start": "bun run scripts/dev.ts"
   }
 }
