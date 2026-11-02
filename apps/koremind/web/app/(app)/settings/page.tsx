@@ -20,12 +20,14 @@ const ICONS: Record<SectionId, LucideIcon> = { models: Cpu, providers: Plug, per
 
 export default function SettingsPage() {
   const { api } = useSession();
-  const { providers, favorites, toggleFavorite } = useModelChoice();
+  const { providers, favorites, toggleFavorite, reload } = useModelChoice();
   const [section, setSection] = useState<SectionId>("models");
   const [settings, setSettings] = useState<Settings | null>(null);
   const save = useAutosave(settings, (s) => api!.putSettings(s));
 
   useEffect(() => { api?.settings().then(setSettings).catch(() => {}); }, [api]);
+  // The picker follows what was just saved (provider switches, free-only).
+  useEffect(() => { if (save === "saved") void reload(); }, [save]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const read = () => { const h = window.location.hash.slice(1); if (isSection(h)) setSection(h); };
     read();
@@ -62,7 +64,7 @@ export default function SettingsPage() {
                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0, transition: smooth }} exit={{ opacity: 0, y: -4, transition: quick }}
               >
                 {section === "models" && <ModelsSection providers={providers} favorites={favorites} toggleFavorite={toggleFavorite} />}
-                {section === "providers" && <ProvidersSection />}
+                {section === "providers" && <ProvidersSection settings={settings} onChange={setSettings} />}
                 {section === "personalization" && settings && <PersonalizationSection settings={settings} onChange={setSettings} />}
                 {section === "memory" && settings && <MemorySection settings={settings} onChange={setSettings} />}
                 {section === "account" && <AccountSection />}

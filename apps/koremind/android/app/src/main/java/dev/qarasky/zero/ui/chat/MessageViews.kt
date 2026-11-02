@@ -1,6 +1,10 @@
 package dev.qarasky.zero.ui.chat
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -19,10 +23,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Create
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -50,10 +64,14 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import dev.qarasky.zero.R
+import dev.qarasky.zero.data.Activity
 import dev.qarasky.zero.data.Attachment
 import dev.qarasky.zero.data.ChatMessage
 import dev.qarasky.zero.data.Source
+import dev.qarasky.zero.ui.ZeroButton
 import dev.qarasky.zero.ui.theme.CodeFont
+import dev.qarasky.zero.ui.theme.enterExpand
+import dev.qarasky.zero.ui.theme.exitShrink
 import dev.qarasky.zero.ui.theme.LocalMotion
 import dev.qarasky.zero.ui.theme.layoutSpec
 import dev.qarasky.zero.ui.theme.quickSpec
@@ -105,7 +123,11 @@ fun AttachmentChips(items: List<Attachment>) {
 }
 
 @Composable
-fun AssistantMessage(text: String, sources: List<Source>, status: String? = null) {
+fun AssistantMessage(
+    text: String, sources: List<Source>, status: String? = null,
+    activity: List<Activity> = emptyList(), approvals: List<PendingApproval> = emptyList(), expired: Boolean = false,
+    animateChips: Boolean = false, onApproval: (id: String, allow: Boolean) -> Unit = { _, _ -> },
+) {
     val on = LocalMotion.current
     Column(Modifier.fillMaxWidth().animateContentSize(layoutSpec(on)), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         // Thinking, searching and the first words cross-fade into each other instead of jumping.
@@ -117,7 +139,12 @@ fun AssistantMessage(text: String, sources: List<Source>, status: String? = null
                 }
             }
         }
+        ApprovalCards(approvals, onApproval)
+        AnimatedVisibility(expired, enter = enterExpand(on), exit = exitShrink(on)) {
+            Text(stringResource(R.string.approval_expired), color = ZeroColors.Muted, style = MaterialTheme.typography.bodySmall)
+        }
         if (text.isNotEmpty()) MarkdownText(text)
+        if (activity.isNotEmpty()) ActivityChips(activity, animateChips)
         if (sources.isNotEmpty()) {
             val uri = LocalUriHandler.current
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -166,6 +193,62 @@ fun MarkdownText(text: String) {
                 is Block.Quote -> Row { Box(Modifier.size(width = 3.dp, height = 20.dp).background(ZeroColors.BorderStrong)); Text(spans(b.spans), color = ZeroColors.Muted, modifier = Modifier.padding(start = 10.dp)) }
                 is Block.Code -> Text(b.text, fontFamily = CodeFont, style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.fillMaxWidth().background(ZeroColors.Surface, RoundedCornerShape(6.dp)).border(1.dp, ZeroColors.Border, RoundedCornerShape(6.dp)).padding(10.dp))
+            }
+        }
+    }
+}
+
+/** What the assistant did with notes this turn: small chips in the same style as sources. */
+@Composable
+fun ActivityChips(items: List<Activity>, animate: Boolean) {
+    val on = LocalMotion.current && animate
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        items.forEachIndexed { i, a ->
+            val label = activityLabel(a)
+            // Chips pop in once when they first appear; chips of finished messages are simply there.
+            val visible = remember { MutableTransitionState(!on) }
+            LaunchedEffect(Unit) { visible.targetState = true }
+            AnimatedVisibility(visible, enter = if (on) fadeIn(quickSpec(true)) + scaleIn(quickSpec(true), initialScale = 0.9f) else androidx.compose.animation.EnterTransition.None) {
+                Row(
+                    Modifier.widthIn(max = 280.dp).border(1.dp, ZeroColors.Border, RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    Icon(
+                        when (a.kind) { "saved" -> Icons.Filled.Create; "edited" -> Icons.Filled.Edit; "read" -> Icons.Filled.Search; else -> Icons.Filled.Lock },
+                        null, Modifier.size(12.dp), tint = ZeroColors.Muted,
+                    )
+                    Text(stringResource(label.res, *label.args.toTypedArray()), maxLines = 1, overflow = TextOverflow.Ellipsis, color = ZeroColors.Muted, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+    }
+}
+
+/** One card per pending request, same look as the "connect a provider" box. A card shrinks away when answered or closed. */
+@Composable
+fun ApprovalCards(approvals: List<PendingApproval>, onAnswer: (id: String, allow: Boolean) -> Unit) {
+    val on = LocalMotion.current
+    // Keep a card on screen while its exit animation plays.
+    var shown by remember { mutableStateOf(approvals) }
+    LaunchedEffect(approvals) {
+        shown = shown + approvals.filter { a -> shown.none { it.id == a.id } }
+        kotlinx.coroutines.delay(280)
+        shown = shown.filter { s -> approvals.any { it.id == s.id } }
+    }
+    shown.forEach { a ->
+        key(a.id) {
+            val label = approvalLabel(a)
+            AnimatedVisibility(approvals.any { it.id == a.id }, enter = enterExpand(on), exit = exitShrink(on)) {
+                Column(
+                    Modifier.fillMaxWidth().border(1.dp, ZeroColors.Warning.copy(alpha = 0.4f), RoundedCornerShape(6.dp)).background(ZeroColors.Surface, RoundedCornerShape(6.dp)).padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(stringResource(label.res, *label.args.toTypedArray()), style = MaterialTheme.typography.bodyMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ZeroButton(stringResource(R.string.approval_allow), onClick = { onAnswer(a.id, true) })
+                        ZeroButton(stringResource(R.string.approval_deny), ghost = true, onClick = { onAnswer(a.id, false) })
+                    }
+                }
             }
         }
     }

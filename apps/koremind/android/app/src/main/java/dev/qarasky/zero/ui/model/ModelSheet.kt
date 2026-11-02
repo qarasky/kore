@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -53,11 +52,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.qarasky.zero.R
 import dev.qarasky.zero.data.ProviderInfo
 import dev.qarasky.zero.ui.Choice
+import dev.qarasky.zero.ui.ZeroButton
 import dev.qarasky.zero.ui.theme.LocalMotion
 import dev.qarasky.zero.ui.theme.ZeroColors
 import dev.qarasky.zero.ui.theme.animateRow
@@ -68,22 +67,28 @@ import dev.qarasky.zero.ui.theme.quickSpec
 @Composable
 fun ModelSheet(
     providers: List<ProviderInfo>, favorites: Set<String>, choice: Choice?,
-    onSelect: (String, String) -> Unit, onThinking: (String?) -> Unit, onFavorite: (String) -> Unit, onDismiss: () -> Unit,
+    onSelect: (String, String) -> Unit, onThinking: (String?) -> Unit, onFavorite: (String) -> Unit, onOpenSettings: () -> Unit, onDismiss: () -> Unit,
 ) {
-    var rail by remember { mutableStateOf(if (favorites.isNotEmpty()) "favorites" else choice?.providerId ?: providers.firstOrNull()?.id ?: "favorites") }
+    var rail by remember { mutableStateOf(initialRail(providers, favorites, choice)) }
     var query by remember { mutableStateOf("") }
     val rows = filterModels(providers, favorites, rail, query)
     val levels = providers.firstOrNull { it.id == choice?.providerId }?.models?.firstOrNull { it.id == choice?.modelId }?.thinkingLevels ?: emptyList()
+    // A provider that can't be used right now explains itself instead of listing models.
+    val railProvider = providers.firstOrNull { it.id == rail }
+    val notice = railProvider?.let { railNoticeRes(it) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = ZeroColors.Surface, contentColor = ZeroColors.Text) {
         Row(Modifier.fillMaxWidth().heightIn(min = 280.dp, max = 460.dp).navigationBarsPadding()) {
             Column(Modifier.width(52.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                RailItem(rail == "favorites", stringResource(R.string.favorites)) { rail = "favorites" }.also { }
+                RailItem(rail == "favorites", stringResource(R.string.favorites), 1f) { rail = "favorites" }
                 Box(Modifier.width(28.dp).size(width = 28.dp, height = 1.dp).background(ZeroColors.Border))
-                providers.forEach { p -> RailItem(rail == p.id, p.name, label = p.name.take(1).uppercase()) { rail = p.id } }
+                providers.forEach { p -> RailItem(rail == p.id, p.name, railAlpha(p), provider = p) { rail = p.id } }
             }
             Box(Modifier.width(1.dp).fillMaxHeight().background(ZeroColors.Border))
-            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            if (railProvider != null && notice != null) Column(Modifier.weight(1f).padding(horizontal = 16.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.Start) {
+                Text(stringResource(notice, railProvider.name), color = ZeroColors.Muted, style = MaterialTheme.typography.bodyMedium)
+                Box(Modifier.padding(top = 12.dp)) { ZeroButton(stringResource(R.string.open_settings), ghost = true, onClick = { onDismiss(); onOpenSettings() }) }
+            } else Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Filled.Search, null, tint = ZeroColors.Muted, modifier = Modifier.size(18.dp))
                     Box(Modifier.weight(1f)) {
@@ -100,6 +105,7 @@ fun ModelSheet(
                         val rowBg by animateColorAsState(if (active) ZeroColors.Raised else androidx.compose.ui.graphics.Color.Transparent, quickSpec(on), label = "row-bg")
                         Row(animateRow(on).fillMaxWidth().heightIn(min = 48.dp).background(rowBg, RoundedCornerShape(6.dp)).clickable { onSelect(r.providerId, r.model.id); onDismiss() }.padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(r.model.name, Modifier.weight(1f), maxLines = 1)
+                            if (r.model.free) Text(stringResource(R.string.free_tag), color = ZeroColors.Muted, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(end = 6.dp))
                             if (!r.model.vision) Text(stringResource(R.string.no_photos), color = ZeroColors.Muted, style = MaterialTheme.typography.labelSmall)
                             val fav = r.key in favorites
                             IconButton(onClick = { onFavorite(r.key) }) {
@@ -128,11 +134,14 @@ fun ModelSheet(
 }
 
 @Composable
-private fun RailItem(active: Boolean, description: String, label: String? = null, onClick: () -> Unit) {
+private fun RailItem(active: Boolean, description: String, dim: Float, provider: ProviderInfo? = null, onClick: () -> Unit) {
+    val on = LocalMotion.current
+    val alpha by animateFloatAsState(dim, quickSpec(on), label = "rail-dim")
     Box(Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable(onClick = onClick).semantics { contentDescription = description }, contentAlignment = Alignment.Center) {
-        if (label == null) Icon(Icons.Filled.Star, null, tint = ZeroColors.Text)
-        else Box(Modifier.size(26.dp).background(ZeroColors.Raised, CircleShape), contentAlignment = Alignment.Center) { Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold) }
-        val alpha by animateFloatAsState(if (active) 1f else 0f, quickSpec(LocalMotion.current), label = "rail-marker")
-        Box(Modifier.align(Alignment.CenterEnd).size(width = 3.dp, height = 24.dp).graphicsLayer { this.alpha = alpha }.background(ZeroColors.Accent, RoundedCornerShape(2.dp)))
+        Box(Modifier.graphicsLayer { this.alpha = alpha }) {
+            if (provider == null) Icon(Icons.Filled.Star, null, tint = ZeroColors.Text) else ProviderIcon(provider.id, provider.name, 22.dp)
+        }
+        val marker by animateFloatAsState(if (active) 1f else 0f, quickSpec(on), label = "rail-marker")
+        Box(Modifier.align(Alignment.CenterEnd).size(width = 3.dp, height = 24.dp).graphicsLayer { this.alpha = marker }.background(ZeroColors.Accent, RoundedCornerShape(2.dp)))
     }
 }

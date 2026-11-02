@@ -1,19 +1,20 @@
 "use client";
-import type { ProviderConnection } from "@zero/shared";
+import type { ProviderConnection, Settings } from "@zero/shared";
 import { KeyRound, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { Card, SectionHeader } from "./parts";
+import { ProviderIcon } from "@/components/ProviderIcon";
+import { Card, SectionHeader, Switch } from "./parts";
 import { Button, ErrorText, Field } from "@/components/ui";
 import { collapse, fadeUp } from "@/lib/motion";
-import { providerStatus } from "@/lib/settings-model";
+import { freeOnly, providerEnabled, providerStatus, withFreeOnly, withProviderEnabled } from "@/lib/settings-model";
 import { useSession } from "@/lib/session";
 import { useModelChoice } from "@/lib/contexts";
 import { t } from "@/lib/strings";
 
 const STATUS = { on: t.connected, free: t.freeTier, off: t.notConnected } as const;
 
-export function ProvidersSection() {
+export function ProvidersSection({ settings, onChange }: { settings: Settings | null; onChange(s: Settings): void }) {
   const { api } = useSession();
   const { reload } = useModelChoice();
   const [list, setList] = useState<ProviderConnection[]>([]);
@@ -68,7 +69,7 @@ export function ProvidersSection() {
               <Card className="p-4">
                 <div className="flex items-center gap-3">
                   <div className="flex min-w-0 items-center gap-3">
-                    <span className="grid size-9 shrink-0 place-items-center rounded-ui bg-raised text-sub font-semibold uppercase" aria-hidden>{p.name.slice(0, 1)}</span>
+                    <span className="grid size-9 shrink-0 place-items-center rounded-ui bg-raised text-text" aria-hidden><ProviderIcon id={p.id} name={p.name} size={20} /></span>
                     <div className="min-w-0">
                       <p className="truncate text-sub font-medium">{p.name}</p>
                       <p className="flex items-center gap-1.5 text-meta text-muted">
@@ -93,6 +94,21 @@ export function ProvidersSection() {
                     )}
                     {p.connected && <Button variant="ghost" onClick={() => void disconnect(p.id)}>{t.disconnect}</Button>}
                   </div>
+
+                {settings && (
+                  <div className="mt-3 divide-y divide-border rounded-ui border border-border">
+                    <div className="flex min-h-control items-center justify-between gap-3 px-3">
+                      <span className="text-sub">{t.useInPicker}</span>
+                      <Switch checked={providerEnabled(settings, p.id)} onChange={(v) => onChange(withProviderEnabled(settings, p.id, v))} label={`${t.useInPicker}: ${p.name}`} />
+                    </div>
+                    {p.supportsFreeFilter && (
+                      <div className="flex min-h-control items-center justify-between gap-3 px-3 py-2">
+                        <span><span className="block text-sub">{t.onlyFreeModels}</span><span className="block text-2xs text-muted">{t.onlyFreeHint}</span></span>
+                        <Switch checked={freeOnly(settings, p.id)} onChange={(v) => onChange(withFreeOnly(settings, p.id, v))} label={`${t.onlyFreeModels}: ${p.name}`} />
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <AnimatePresence initial={false}>
                   {signing === p.id && (

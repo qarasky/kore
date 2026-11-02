@@ -7,6 +7,9 @@ import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.qarasky.zero.data.ApiException
+import dev.qarasky.zero.data.PairResult
+import dev.qarasky.zero.data.pair
+import dev.qarasky.zero.data.parsePairLink
 import dev.qarasky.zero.data.Attachment
 import dev.qarasky.zero.data.Cache
 import dev.qarasky.zero.data.ChatSummary
@@ -20,6 +23,9 @@ import dev.qarasky.zero.data.normalizeBackendUrl
 import dev.qarasky.zero.data.uploadSizeError
 import dev.qarasky.zero.ui.chat.ChatUiState
 import dev.qarasky.zero.ui.chat.beginTurn
+import dev.qarasky.zero.ui.chat.dismissApproval
+import dev.qarasky.zero.ui.model.defaultChoice
+import dev.qarasky.zero.ui.model.isChoiceAllowed
 import dev.qarasky.zero.ui.chat.endsTurn
 import dev.qarasky.zero.ui.chat.reduce
 import kotlinx.coroutines.Job
@@ -32,6 +38,14 @@ import kotlinx.coroutines.launch
 data class Session(val baseUrl: String?, val signedIn: Boolean, val email: String?)
 data class Choice(val providerId: String, val modelId: String, val thinking: String? = null)
 data class Pending(val attachment: Attachment, val uri: Uri?)
+
+/** Where a QR / deep-link pairing stands. Done is consumed by the app shell, which opens the chat. */
+sealed interface PairUi {
+    data object Idle : PairUi
+    data object Working : PairUi
+    data object Done : PairUi
+    data class Failed(@androidx.annotation.StringRes val message: Int) : PairUi
+}
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val prefs = Prefs(app)
@@ -62,6 +76,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val favorites: StateFlow<Set<String>> = _favorites.asStateFlow()
     private val _choice = MutableStateFlow(prefs.providerId?.let { p -> prefs.modelId?.let { Choice(p, it, prefs.thinking) } })
     val choice: StateFlow<Choice?> = _choice.asStateFlow()
+
+    private val _pair = MutableStateFlow<PairUi>(PairUi.Idle)
+    val pairState: StateFlow<PairUi> = _pair.asStateFlow()
 
     private var streamJob: Job? = null
 
@@ -99,6 +116,39 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _session.value = Session(prefs.baseUrl, false, null)
     }
 
+    // ---- pairing (scan a QR code shown on the web, or open a zero://pair link) --------------------
+    /** Signs in with a scanned or opened pairing link: the first reachable address redeems the code. */
+    fun startPair(text: String) {
+        if (_pair.value is PairUi.Working) return
+        val link = parsePairLink(text)
+        if (link == null) { _pair.value = PairUi.Failed(dev.qarasky.zero.R.string.pair_invalid); return }
+        _pair.value = PairUi.Working
+        viewModelScope.launch {
+            val r = pair(
+                link,
+                probe = { url -> try { ZeroApi(url) { null }.healthQuick(); true } catch (_: Exception) { false } },
+                redeem = { url, code -> ZeroApi(url) { null }.redeemPair(code) },
+            )
+            when (r) {
+                is PairResult.Ok -> {
+                    prefs.baseUrl = r.url; prefs.token = r.auth.token; prefs.email = r.auth.user.email
+                    api = ZeroApi(r.url) { prefs.token }
+                    cache.clear()
+                    streamJob?.cancel()
+                    _chat.value = ChatUiState(); _chatId.value = null; _chats.value = emptyList(); _busy.value = false
+                    _session.value = Session(r.url, true, r.auth.user.email)
+                    refreshAll()
+                    _pair.value = PairUi.Done
+                }
+                PairResult.Invalid -> _pair.value = PairUi.Failed(dev.qarasky.zero.R.string.pair_invalid)
+                PairResult.Unreachable -> _pair.value = PairUi.Failed(dev.qarasky.zero.R.string.pair_unreachable)
+            }
+        }
+    }
+
+    fun pairFailed(@androidx.annotation.StringRes message: Int) { _pair.value = PairUi.Failed(message) }
+    fun pairHandled() { _pair.value = PairUi.Idle }
+
     // ---- models ------------------------------------------------------------
     fun refreshAll() { refreshChats(); refreshModels() }
 
@@ -108,12 +158,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val ps = a.models(); val favs = a.favorites().toSet()
             _providers.value = ps; _favorites.value = favs
             val cur = _choice.value
-            val valid = cur != null && ps.any { p -> p.id == cur.providerId && p.models.any { it.id == cur.modelId } }
-            if (!valid) {
-                val p = ps.firstOrNull { it.models.isNotEmpty() }
-                val m = p?.models?.firstOrNull { it.isDefault } ?: p?.models?.firstOrNull()
-                setChoice(if (p != null && m != null) Choice(p.id, m.id) else null)
-            }
+            // A provider that was turned off, lost its key, or a model that is now paid-only means falling back to the default.
+            if (cur == null || !isChoiceAllowed(ps, cur.providerId, cur.modelId)) setChoice(defaultChoice(ps)?.let { (p, m) -> Choice(p, m) })
         } catch (_: Exception) { }
     }
 
@@ -220,7 +266,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Saves Settings from a screen that is going away, so a late edit is never lost. */
-    fun saveSettingsNow(s: dev.qarasky.zero.data.Settings) { viewModelScope.launch { try { api?.putSettings(s) } catch (_: Exception) { } } }
+    fun saveSettingsNow(s: dev.qarasky.zero.data.Settings) { viewModelScope.launch { try { api?.putSettings(s); refreshModels() } catch (_: Exception) { } } }
+
+    /** Allow or Deny on the approval card. The card goes away at once; the server resolves the pending tool call. */
+    fun answerApproval(approvalId: String, allow: Boolean) {
+        val id = _chatId.value ?: return
+        _chat.update { dismissApproval(it, approvalId) }
+        viewModelScope.launch { try { api?.answerApproval(id, approvalId, allow) } catch (_: Exception) { } }
+    }
 
     fun removePending(id: String) { _pending.update { l -> l.filterNot { it.attachment.id == id } } }
 }

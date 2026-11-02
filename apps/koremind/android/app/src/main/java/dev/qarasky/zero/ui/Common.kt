@@ -20,6 +20,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -106,3 +108,16 @@ fun Section(title: String, content: @Composable () -> Unit) {
 }
 
 val HairlineBorder = BorderStroke(1.dp, ZeroColors.Border)
+
+/** The app's on/off switch: accent track when on, white thumb. */
+@Composable
+fun ZeroSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
+    Switch(
+        checked, onChange,
+        colors = SwitchDefaults.colors(
+            checkedTrackColor = ZeroColors.Accent, checkedThumbColor = androidx.compose.ui.graphics.Color.White,
+            uncheckedTrackColor = ZeroColors.BorderStrong, uncheckedThumbColor = androidx.compose.ui.graphics.Color.White,
+            uncheckedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+        ),
+    )
+}

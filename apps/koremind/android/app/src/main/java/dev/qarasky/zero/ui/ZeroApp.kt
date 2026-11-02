@@ -7,6 +7,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -15,7 +18,11 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.navArgument
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.ui.res.stringResource
+import dev.qarasky.zero.R
+import dev.qarasky.zero.ui.theme.ZeroColors
 import dev.qarasky.zero.ui.auth.ConnectScreen
 import dev.qarasky.zero.ui.auth.LoginScreen
 import dev.qarasky.zero.ui.chat.ChatScreen
@@ -33,6 +40,24 @@ fun ZeroApp(vm: AppViewModel) {
         val dest = when { session.baseUrl == null -> "connect"; !session.signedIn -> "login"; else -> null }
         val here = nav.currentDestination?.route
         if (dest != null && here != dest && here != "connect") nav.navigate(dest) { popUpTo(0) }
+    }
+
+    // A finished pairing (scanned QR or opened zero://pair link) lands on the chat home.
+    val pair by vm.pairState.collectAsStateWithLifecycle()
+    val route = nav.currentBackStackEntryAsState().value?.destination?.route
+    LaunchedEffect(pair) {
+        if (pair is PairUi.Done) { nav.navigate("chat") { popUpTo(0) }; vm.pairHandled() }
+    }
+    // The auth screens show pairing progress and errors themselves; anywhere else a dialog does.
+    val onAuthScreen = route == "connect" || route == "login"
+    if (!onAuthScreen) {
+        val failed = pair as? PairUi.Failed
+        if (pair is PairUi.Working) AlertDialog(onDismissRequest = {}, containerColor = ZeroColors.Raised, confirmButton = {}, text = { Text(stringResource(R.string.pair_connecting)) })
+        if (failed != null) AlertDialog(
+            onDismissRequest = vm::pairHandled, containerColor = ZeroColors.Raised,
+            text = { Text(stringResource(failed.message)) },
+            confirmButton = { TextButton(onClick = vm::pairHandled) { Text(stringResource(android.R.string.ok)) } },
+        )
     }
 
     // Screens fade and drift a few dp: short, and gone entirely when the system asks for no animations.

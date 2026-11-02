@@ -1,6 +1,7 @@
 "use client";
 import type { ChatSummary, ProviderInfo } from "@zero/shared";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { defaultChoice, isChoiceAllowed } from "./model-picker";
 import { useSession } from "./session";
 
 // ---- chats list -----------------------------------------------------------
@@ -45,11 +46,8 @@ export function ModelChoiceProvider({ children }: { children: ReactNode }) {
     setFavorites(favs);
     setChoice((cur) => {
       const stored: Choice | null = cur ?? JSON.parse(localStorage.getItem(CHOICE_KEY) ?? "null");
-      const valid = stored && ps.some((p) => p.id === stored.providerId && p.models.some((m) => m.id === stored.modelId));
-      if (valid) return stored;
-      const p = ps.find((x) => x.models.length);
-      const m = p?.models.find((x) => x.isDefault) ?? p?.models[0];
-      return p && m ? { providerId: p.id, modelId: m.id } : null;
+      if (stored && isChoiceAllowed(ps, stored.providerId, stored.modelId)) return stored;
+      return defaultChoice(ps);
     });
   }, [api]);
   useEffect(() => { void reload(); }, [reload]);
