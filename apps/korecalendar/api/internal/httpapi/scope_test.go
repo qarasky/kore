@@ -425,3 +425,51 @@ func TestMovingAnAlreadyMovedOccurrenceByStartKeepsItsDuration(t *testing.T) {
 		t.Fatalf("got %+v, want 20:00 to 21:30 (the 1.5 h it already had)", got)
 	}
 }
+
+func TestPatchMovesAnEventToAnotherCalendar(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	tok := testsrv.Login(t, srv)
+	var work cal
+	testsrv.Do(t, srv, tok, "POST", "/api/calendars", map[string]string{"name": "Work", "color": "#7b6cf0"}).Decode(t, &work)
+	e := mkEvent(t, srv, tok, weekly("Gym"))
+	r, got := edit(t, srv, tok, "PATCH", e.ID, "", map[string]any{"calendar_id": work.ID})
+	if r.Status != 200 || got.CalendarID != work.ID || got.Version != 2 {
+		t.Fatalf("%d %s", r.Status, r.Body)
+	}
+	if o := occs(t, srv, tok, "2026-11-04T00:00:00Z", "2026-11-05T00:00:00Z"); len(o) != 1 {
+		t.Fatalf("occurrences %v", o)
+	}
+	// filtering by the new calendar finds it
+	r2 := testsrv.Do(t, srv, tok, "GET", "/api/occurrences?from=2026-11-04T00:00:00Z&to=2026-11-05T00:00:00Z&calendar_id="+work.ID, nil)
+	var in []occurrence
+	r2.Decode(t, &in)
+	if len(in) != 1 {
+		t.Fatalf("not in the new calendar: %s", r2.Body)
+	}
+}
+
+func TestPatchCalendarRules(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	admin := testsrv.Login(t, srv)
+	other := testsrv.AddUser(t, srv, admin, "u@example.com")
+	var theirs []cal
+	testsrv.Do(t, srv, other, "GET", "/api/calendars", nil).Decode(t, &theirs)
+	var mine cal
+	testsrv.Do(t, srv, admin, "POST", "/api/calendars", map[string]string{"name": "Work", "color": "#7b6cf0"}).Decode(t, &mine)
+	e := mkEvent(t, srv, admin, weekly("Gym"))
+
+	if r, _ := edit(t, srv, admin, "PATCH", e.ID, "", map[string]any{"calendar_id": theirs[0].ID}); r.Status != 404 || r.ErrorCode() != "not_found" {
+		t.Fatalf("someone else's calendar: %d %s", r.Status, r.Body)
+	}
+	if r, _ := edit(t, srv, admin, "PATCH", e.ID, "", map[string]any{"calendar_id": "nope"}); r.Status != 404 {
+		t.Fatalf("unknown calendar: %d", r.Status)
+	}
+	if r, _ := edit(t, srv, admin, "PATCH", e.ID, "?scope=this&occurrence="+k1106, map[string]any{"calendar_id": mine.ID}); r.Status != 422 || r.ErrorCode() != "validation_error" {
+		t.Fatalf("one occurrence cannot change calendar: %d %s", r.Status, r.Body)
+	}
+	// from an occurrence on: the new series lands in the chosen calendar, the old one stays
+	r, got := edit(t, srv, admin, "PATCH", e.ID, "?scope=following&occurrence="+k1118, map[string]any{"calendar_id": mine.ID})
+	if r.Status != 200 || got.Created == nil || got.Created.CalendarID != mine.ID || got.CalendarID != e.CalendarID {
+		t.Fatalf("%d %s", r.Status, r.Body)
+	}
+}

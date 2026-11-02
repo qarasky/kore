@@ -32,6 +32,7 @@ var ErrOccurrenceNotFound = errors.New("occurrence not found")
 // (even empty) replaces them. Changing Start without End keeps the duration.
 type Patch struct {
 	Title, Notes, Location, Start, End, TZ, RRule *string
+	CalendarID                                    *string
 	AllDay                                        *bool
 	Reminders                                     *[]Reminder
 }
@@ -224,10 +225,28 @@ func Update(ctx context.Context, db *sql.DB, a Actor, id string, p Patch, scope 
 	return res, tx.Commit()
 }
 
+// checkCalendar makes sure id is one of the user's live calendars.
+func checkCalendar(ctx context.Context, tx *sql.Tx, userID, id string) error {
+	var n int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM calendars WHERE id=? AND user_id=? AND deleted_at IS NULL`, id, userID).Scan(&n); err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func updateAll(ctx context.Context, tx *sql.Tx, a Actor, e Event, p Patch) (EditResult, error) {
 	before := e
 	if err := applyPatch(&e, p); err != nil {
 		return EditResult{}, err
+	}
+	if p.CalendarID != nil {
+		if err := checkCalendar(ctx, tx, a.UserID, *p.CalendarID); err != nil {
+			return EditResult{}, err
+		}
+		e.CalendarID = *p.CalendarID
 	}
 	if err := saveEvent(ctx, tx, &e, a.Label); err != nil {
 		return EditResult{}, err
@@ -243,8 +262,8 @@ func updateAll(ctx context.Context, tx *sql.Tx, a Actor, e Event, p Patch) (Edit
 }
 
 func updateThis(ctx context.Context, tx *sql.Tx, a Actor, e Event, p Patch, key string) (EditResult, error) {
-	if p.TZ != nil || p.RRule != nil {
-		return EditResult{}, invalid("tz and rrule can only change for the whole series or from an occurrence on")
+	if p.TZ != nil || p.RRule != nil || p.CalendarID != nil {
+		return EditResult{}, invalid("tz, rrule and calendar can only change for the whole series or from an occurrence on")
 	}
 	ovs, err := loadOverrides(ctx, tx, []string{e.ID})
 	if err != nil {
@@ -343,6 +362,12 @@ func updateFollowing(ctx context.Context, tx *sql.Tx, a Actor, e Event, p Patch,
 	scheduled := next
 	if err := applyPatch(&next, p); err != nil {
 		return EditResult{}, err
+	}
+	if p.CalendarID != nil {
+		if err := checkCalendar(ctx, tx, a.UserID, *p.CalendarID); err != nil {
+			return EditResult{}, err
+		}
+		next.CalendarID = *p.CalendarID
 	}
 	if err := insertEvent(ctx, tx, a.UserID, next); err != nil {
 		return EditResult{}, err

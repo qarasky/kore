@@ -107,15 +107,16 @@ func ifMatch(w http.ResponseWriter, r *http.Request) (*int, bool) {
 
 func (s *server) handlePatchEvent(w http.ResponseWriter, r *http.Request) {
 	var b struct {
-		Title     *string            `json:"title"`
-		Notes     *string            `json:"notes"`
-		Location  *string            `json:"location"`
-		Start     *string            `json:"start"`
-		End       *string            `json:"end"`
-		TZ        *string            `json:"tz"`
-		AllDay    *bool              `json:"all_day"`
-		RRule     *string            `json:"rrule"`
-		Reminders *[]events.Reminder `json:"reminders"`
+		Title      *string            `json:"title"`
+		Notes      *string            `json:"notes"`
+		Location   *string            `json:"location"`
+		Start      *string            `json:"start"`
+		End        *string            `json:"end"`
+		TZ         *string            `json:"tz"`
+		AllDay     *bool              `json:"all_day"`
+		RRule      *string            `json:"rrule"`
+		Reminders  *[]events.Reminder `json:"reminders"`
+		CalendarID *string            `json:"calendar_id"`
 	}
 	im, ok := ifMatch(w, r)
 	if !ok || !decode(w, r, &b) {
@@ -123,7 +124,7 @@ func (s *server) handlePatchEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	scope, key := scopeParams(r)
 	res, err := events.Update(r.Context(), s.db, actor(r), r.PathValue("id"), events.Patch{Title: b.Title, Notes: b.Notes, Location: b.Location,
-		Start: b.Start, End: b.End, TZ: b.TZ, AllDay: b.AllDay, RRule: b.RRule, Reminders: b.Reminders}, scope, key, im)
+		Start: b.Start, End: b.End, TZ: b.TZ, AllDay: b.AllDay, RRule: b.RRule, Reminders: b.Reminders, CalendarID: b.CalendarID}, scope, key, im)
 	if err != nil {
 		eventError(w, err)
 		return

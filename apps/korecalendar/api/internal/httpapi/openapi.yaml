@@ -233,7 +233,7 @@ paths:
       summary: Change an event, one occurrence, or this and following occurrences
       description: |
         Send only the fields to change. Changing `start` without `end` keeps the duration.
-        `scope=this` stores a change for one occurrence (title, notes, location, start, end, all_day, reminders; not tz or rrule).
+        `scope=this` stores a change for one occurrence (title, notes, location, start, end, all_day, reminders; not tz, rrule or calendar_id).
         `scope=following` splits the series at `occurrence`: the old series ends before it and a new series (returned as `created`) starts from it
         and takes the edit. On the first occurrence it is the same as `all`.
         A schedule change (start, tz, rrule, all_day) drops overrides and exclusions that no longer match an occurrence; dropped overrides are listed in `dropped_overrides`.
@@ -450,6 +450,7 @@ components:
     EventPatch:
       type: object
       properties:
+        calendar_id: { type: string, description: Move the event to another of your calendars (whole series or `following` only; one occurrence stays in its calendar). }
         title: { type: string }
         notes: { type: string }
         location: { type: string }

@@ -104,7 +104,7 @@ function CustomRule({ rule, start, weekStart, onChange }: { rule: Rule; start: s
   return (
     <div className="flex flex-col gap-3 rounded-ui border border-border p-3" data-testid="custom-rule">
       <div className="flex items-center gap-2">
-        <label htmlFor={`${id}-n`} className="text-sub text-muted">
+        <label htmlFor={`${id}-n`} className="text-sub whitespace-nowrap text-muted">
           {t("recurrence.every")}
         </label>
         <input

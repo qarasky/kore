@@ -116,6 +116,7 @@ curl -s -X PATCH -H "Authorization: Bearer $TOK" -H 'Content-Type: application/j
 ```
 
 (Abbreviated: the real response has every event field.) On the first occurrence, `following` is the same as `all`.
+To move an event to another calendar, `PATCH` it with `calendar_id` (for the whole series, or `following`; a single occurrence stays in its calendar).
 `DELETE` takes the same scopes. A full `DELETE` is a soft delete that you can undo for 30 days with `POST /api/events/{id}/restore`. Deleting a calendar
 (`DELETE /api/calendars/{id}?force=1`, required when it still has events) is undoable the same way with `POST /api/calendars/{id}/restore`,
 which brings back the events deleted with it.
