@@ -12,6 +12,10 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${apiUrl}/api/:path*` }];
   },
+  async headers() {
+    // The service worker must always be fetched fresh so updates reach browsers.
+    return [{ source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }] }];
+  },
   turbopack: {
     rules: {
       "*.css": {
