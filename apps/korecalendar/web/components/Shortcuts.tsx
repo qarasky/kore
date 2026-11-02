@@ -17,6 +17,9 @@ import { useShell } from "./ShellContext";
 
 const VIEW_OF: Partial<Record<ShortcutId, View>> = { viewDay: "day", viewWeek: "week", viewMonth: "month", viewAgenda: "agenda" };
 
+/** How long a key press counts as "still on its way" if the page never confirms it. */
+const PENDING_MS = 1500;
+
 const keyLabel = (k: string) => (k === "ArrowLeft" ? "←" : k === "ArrowRight" ? "→" : k);
 
 /** Registers the keyboard shortcuts and renders the dialogs they open. */
@@ -27,10 +30,18 @@ export function Shortcuts() {
   const [help, setHelp] = useState(false);
   const [goTo, setGoTo] = useState(false);
   const latest = useRef({ view, day, today, prefs, openNew, router });
+  // Where the last key press sent us, until the page catches up: a second press
+  // before the first navigation lands must continue from there, not from the old day.
+  const pending = useRef<{ view: View; day: string; at: number } | null>(null);
 
   useEffect(() => {
     latest.current = { view, day, today, prefs, openNew, router };
   });
+
+  // The page has caught up with where we were heading.
+  useEffect(() => {
+    pending.current = null;
+  }, [view, day]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -47,15 +58,21 @@ export function Shortcuts() {
       // Dialogs (editor, scope prompt, this help) own the keyboard while open.
       if (document.querySelector("dialog[open]")) return;
       const s = latest.current;
-      const current = s.view ?? s.prefs.view;
-      const go = (v: View, d: string) => s.router.push(calendarHref(v, d));
+      const p = pending.current && Date.now() - pending.current.at < PENDING_MS ? pending.current : null;
+      const shownView = p?.view ?? s.view;
+      const shownDay = p?.day ?? s.day;
+      const current = shownView ?? s.prefs.view;
+      const go = (v: View, d: string) => {
+        pending.current = { view: v, day: d, at: Date.now() };
+        s.router.push(calendarHref(v, d));
+      };
       e.preventDefault();
       switch (id) {
         case "today":
           return go(current, s.today);
         case "prev":
         case "next":
-          return s.view ? go(s.view, navigate(s.view, s.day, id === "prev" ? -1 : 1)) : undefined;
+          return shownView ? go(shownView, navigate(shownView, shownDay, id === "prev" ? -1 : 1)) : undefined;
         case "create":
           return s.openNew();
         case "search":
@@ -68,7 +85,7 @@ export function Shortcuts() {
           const v = VIEW_OF[id];
           if (v) {
             writePref(PREF_COOKIES.view, v);
-            go(v, s.day);
+            go(v, shownDay);
           }
         }
       }
