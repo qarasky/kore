@@ -39,3 +39,48 @@ export function restoreEvent(id: string): Promise<Event> {
 }
 
 export type { EditResult };
+
+import type { Calendar, ImportResult, Token, User } from "./types";
+
+export function updateTimezone(timezone: string): Promise<User> {
+  return api<User>("/api/me", { method: "PATCH", body: JSON.stringify({ timezone }) });
+}
+
+export function createCalendar(name: string, color: string): Promise<Calendar> {
+  return api<Calendar>("/api/calendars", { method: "POST", body: JSON.stringify({ name, color }) });
+}
+
+export function updateCalendar(id: string, patch: { name?: string; color?: string }): Promise<Calendar> {
+  return api<Calendar>(`/api/calendars/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) });
+}
+
+/** Deletes a calendar; one with events is refused (409) unless `force`, which takes its events along (restorable for 30 days). */
+export function deleteCalendar(id: string, force = false): Promise<void> {
+  return api<void>(`/api/calendars/${encodeURIComponent(id)}${force ? "?force=1" : ""}`, { method: "DELETE" });
+}
+
+export function restoreCalendar(id: string): Promise<Calendar> {
+  return api<Calendar>(`/api/calendars/${encodeURIComponent(id)}/restore`, { method: "POST" });
+}
+
+export function createToken(name: string): Promise<{ id: string; name: string; token: string }> {
+  return api("/api/tokens", { method: "POST", body: JSON.stringify({ name }) });
+}
+
+export function revokeToken(id: string): Promise<void> {
+  return api<void>(`/api/tokens/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function listTokens(): Promise<Token[]> {
+  return api<Token[]>("/api/tokens");
+}
+
+/** Imports the text of an .ics file. */
+export function importIcs(text: string, calendarId?: string): Promise<ImportResult> {
+  const q = calendarId ? `?calendar_id=${encodeURIComponent(calendarId)}` : "";
+  return api<ImportResult>(`/api/import${q}`, { method: "POST", body: text, headers: { "content-type": "text/calendar" } });
+}
+
+export function createUser(email: string, password: string, role: "user" | "admin"): Promise<User> {
+  return api<User>("/api/admin/users", { method: "POST", body: JSON.stringify({ email, password, role }) });
+}
