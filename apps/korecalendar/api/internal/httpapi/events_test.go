@@ -254,3 +254,62 @@ func TestTooManyOccurrencesAcrossEventsIsRangeTooLarge(t *testing.T) {
 		t.Fatalf("%d %.200s", r.Status, r.Body)
 	}
 }
+
+type changeSet struct {
+	Cursor   int64    `json:"cursor"`
+	Upserted []event  `json:"upserted"`
+	Deleted  []string `json:"deleted"`
+	More     bool     `json:"more"`
+}
+
+func TestChangesEndpoint(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	tok := testsrv.Login(t, srv)
+	a := mkEvent(t, srv, tok, weekly("A"))
+	b := mkEvent(t, srv, tok, weekly("B"))
+	var cs changeSet
+	r := testsrv.Do(t, srv, tok, "GET", "/api/changes?since=0", nil)
+	r.Decode(t, &cs)
+	if r.Status != 200 || len(cs.Upserted) != 2 || cs.More || cs.Cursor == 0 {
+		t.Fatalf("%d %s", r.Status, r.Body)
+	}
+	testsrv.Do(t, srv, tok, "DELETE", "/api/events/"+a.ID, nil)
+	var next changeSet
+	testsrv.Do(t, srv, tok, "GET", "/api/changes?since="+itoa(cs.Cursor), nil).Decode(t, &next)
+	if len(next.Deleted) != 1 || next.Deleted[0] != a.ID || len(next.Upserted) != 0 || next.Cursor <= cs.Cursor {
+		t.Fatalf("%+v", next)
+	}
+	var small changeSet
+	testsrv.Do(t, srv, tok, "GET", "/api/changes?since=0&limit=1", nil).Decode(t, &small)
+	if len(small.Upserted)+len(small.Deleted) != 1 || !small.More {
+		t.Fatalf("limit=1: %+v", small)
+	}
+	_ = b
+}
+
+func itoa(n int64) string {
+	if n == 0 {
+		return "0"
+	}
+	s := ""
+	for ; n > 0; n /= 10 {
+		s = string(rune('0'+n%10)) + s
+	}
+	return s
+}
+
+func TestChangesParamErrors(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	tok := testsrv.Login(t, srv)
+	for _, q := range []string{"since=-1", "since=abc", "since=0&limit=abc", "since=0&limit=-5"} {
+		if r := testsrv.Do(t, srv, tok, "GET", "/api/changes?"+q, nil); r.Status != 422 || r.ErrorCode() != "validation_error" {
+			t.Errorf("%s: %d %s", q, r.Status, r.Body)
+		}
+	}
+	if r := testsrv.Do(t, srv, tok, "GET", "/api/changes", nil); r.Status != 200 {
+		t.Errorf("defaults: %d", r.Status)
+	}
+	if r := testsrv.Do(t, srv, "", "GET", "/api/changes", nil); r.Status != 401 {
+		t.Errorf("anonymous: %d", r.Status)
+	}
+}
