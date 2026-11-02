@@ -1,0 +1,16 @@
+# KoreCalendar configuration for running the binary directly
+# (`korecalendar -config korecal.toml`). Copy to korecal.toml and edit.
+# Every setting can also come from a KORECAL_* environment variable
+# (KORECAL_PORT, KORECAL_BIND, KORECAL_DATA_DIR, KORECAL_PUBLIC_URL).
+
+# Port to listen on (default 8080).
+# port = 8080
+
+# Address to bind (default 127.0.0.1; use 0.0.0.0 for all interfaces).
+# bind = "127.0.0.1"
+
+# Directory for the database (required). Initialize it once with `korecalendar init`.
+data_dir = "./data"
+
+# Optional: the public https address, sent to push services as the operator contact.
+# public_url = "https://calendar.example.com"

@@ -1,0 +1,96 @@
+# KoreCalendar: Caddy (the only published service) -> api.
+# Configure with .env only (see .env.example). The web app joins this stack in a later release.
+# `docker compose build` builds the api image from ./api.
+name: korecalendar
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  caddy:
+    image: caddy:2.11-alpine
+    restart: unless-stopped
+    ports:
+      - "${KORECAL_BIND:-127.0.0.1}:${KORECAL_PORT:-8080}:80"
+    volumes:
+      - type: bind
+        source: ./Caddyfile
+        target: /etc/caddy/Caddyfile
+        read_only: true
+        bind:
+          create_host_path: false
+    environment:
+      # Trusted proxy range in the Caddyfile: must match networks.edge.
+      KORECAL_SUBNET: ${KORECAL_SUBNET:-172.31.255.0/24}
+    tmpfs:
+      - /data
+      - /config
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    networks: [edge, internal]
+    stop_grace_period: 40s
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/api/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    logging: *logging
+
+  api:
+    build: ./api
+    image: ghcr.io/qarasky/korecalendar-api:${KORECAL_VERSION:-latest}
+    restart: unless-stopped
+    # Files in the data dir are created as this host user.
+    user: "${KORECAL_UID:-1000}:${KORECAL_GID:-1000}"
+    environment:
+      # Inside the container: listen on all interfaces (only Caddy reaches it,
+      # over the internal network) and keep data in /data. Where the calendar
+      # is reachable on the host is KORECAL_BIND/KORECAL_PORT, used by caddy above.
+      KORECAL_BIND: 0.0.0.0
+      KORECAL_PORT: "8080"
+      KORECAL_DATA_DIR: /data
+      KORECAL_PUBLIC_URL: ${KORECAL_PUBLIC_URL:-}
+    volumes:
+      # Never auto-created: if the volume is not mounted, compose fails
+      # instead of writing into an empty directory on the root disk.
+      - type: bind
+        source: ${KORECAL_DATA_DIR:?set KORECAL_DATA_DIR in .env}
+        target: /data
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /tmp
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    # internal: Caddy reaches the api here. egress: the api needs outbound HTTPS
+    # to deliver browser push notifications (it refuses private addresses itself).
+    networks: [internal, egress]
+    # In-flight requests get 30 s to finish on `docker compose stop/down`.
+    stop_grace_period: 40s
+    logging: *logging
+
+networks:
+  # Only Caddy is on a network with a published port. Its fixed subnet is what
+  # the Caddyfile trusts (connections from the Docker host arrive from its
+  # gateway); change KORECAL_SUBNET in .env if it collides with a network you use.
+  edge:
+    ipam:
+      config:
+        - subnet: ${KORECAL_SUBNET:-172.31.255.0/24}
+  # Caddy and the api talk here; nothing on it can reach the internet.
+  internal:
+    internal: true
+  # Outbound only, for the api's web push deliveries. No ports are published on it.
+  egress: {}

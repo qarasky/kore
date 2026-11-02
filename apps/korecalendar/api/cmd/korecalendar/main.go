@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"flag"
 	"fmt"
@@ -14,11 +15,15 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/qarasky/korecalendar/api/internal/config"
+	"github.com/qarasky/korecalendar/api/internal/events"
 	"github.com/qarasky/korecalendar/api/internal/httpapi"
+	"github.com/qarasky/korecalendar/api/internal/push"
+	"github.com/qarasky/korecalendar/api/internal/reminders"
 	"github.com/qarasky/korecalendar/api/internal/store"
 	"github.com/qarasky/korecalendar/api/internal/volume"
 )
@@ -143,9 +148,56 @@ func newServer(addr string, h http.Handler) *http.Server {
 	}
 }
 
-// serve checks the volume, opens the store and serves until ctx is done,
-// then shuts down gracefully and closes the database.
 func serve(ctx context.Context, cfg config.Config, logger *log.Logger) error {
+	return serveWith(ctx, cfg, logger, nil)
+}
+
+// background starts the reminder scheduler and the hourly purge of events
+// deleted more than 30 days ago. The returned stop cancels them and waits.
+func background(ctx context.Context, db *sql.DB, cfg config.Config, logger *log.Logger) (stop func(), err error) {
+	web, err := push.New(db)
+	if err != nil {
+		return nil, fmt.Errorf("web push: %w", err)
+	}
+	if strings.HasPrefix(cfg.PublicURL, "https://") {
+		web.Subscriber = cfg.PublicURL
+	}
+	sched := reminders.NewScheduler(db, []reminders.Channel{web}, time.Now)
+	bg, cancel := context.WithCancel(ctx)
+	var wg sync.WaitGroup
+	wg.Go(func() { sched.Run(bg) })
+	wg.Go(func() {
+		every(bg, time.Hour, func(ctx context.Context) {
+			n, err := events.PurgeDeleted(ctx, db, time.Now().Add(-events.RestoreWindow))
+			if err != nil && ctx.Err() == nil {
+				logger.Printf("purge deleted events: %v", err)
+			} else if n > 0 {
+				logger.Printf("purged %d events deleted more than 30 days ago", n)
+			}
+		})
+	})
+	return func() { cancel(); wg.Wait() }, nil
+}
+
+// every runs fn now and then every d until ctx is done.
+func every(ctx context.Context, d time.Duration, fn func(context.Context)) {
+	fn(ctx)
+	t := time.NewTicker(d)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			fn(ctx)
+		}
+	}
+}
+
+// serveWith checks the volume, opens the store, starts the background work and
+// serves until ctx is done, then stops everything and closes the database.
+// onBackgroundStopped (tests only) runs once the background work has ended.
+func serveWith(ctx context.Context, cfg config.Config, logger *log.Logger, onBackgroundStopped func()) error {
 	if err := volume.Check(cfg.DataDir); err != nil {
 		return fmt.Errorf("volume: %w", err)
 	}
@@ -156,6 +208,16 @@ func serve(ctx context.Context, cfg config.Config, logger *log.Logger) error {
 	defer func() {
 		if err := db.Close(); err != nil {
 			logger.Printf("closing database: %v", err)
+		}
+	}()
+	stop, err := background(ctx, db, cfg, logger)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		stop()
+		if onBackgroundStopped != nil {
+			onBackgroundStopped()
 		}
 	}()
 	addr := net.JoinHostPort(cfg.Bind, strconv.Itoa(cfg.Port))
