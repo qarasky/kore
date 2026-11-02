@@ -1,5 +1,6 @@
 import { buildApi, resetApi } from "./harness/api-server";
 import { buildWeb, hasBuild, startWeb } from "./harness/web-server";
+import { EXTERNAL } from "./harness/env";
 import { stopProcess } from "./harness/proc";
 
 /**
@@ -8,6 +9,7 @@ import { stopProcess } from "./harness/proc";
  * `E2E_SKIP_BUILD=1` reuses an existing web build.
  */
 export default async function globalSetup(): Promise<() => Promise<void>> {
+  if (EXTERNAL) return async () => {}; // someone else runs the stack
   buildApi();
   if (process.env.E2E_SKIP_BUILD !== "1" || !hasBuild()) buildWeb();
   await resetApi();

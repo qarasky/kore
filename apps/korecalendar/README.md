@@ -4,16 +4,19 @@
 
 A small self-hosted personal calendar whose **API is the product**. An AI agent or a script can do everything the UI can: create
 and manage events, recurring series with single exclusions and single-occurrence changes, reminders, and `.ics` import and export.
-Go API + SQLite behind Caddy, in the same shape as [Kore](https://github.com/qarasky/kore). The web app and the Android app come in
-later phases and use exactly the same API.
+Go API + SQLite and a Next.js web app behind Caddy, in the same shape as [Kore](https://github.com/qarasky/kore). The web app
+(and the Android app, in a later phase) uses exactly the same public API.
 
-Status: **phase 1 (API and core) is done.** See [`docs/superpowers/`](docs/superpowers/) for the design and plans.
+Status: **phase 1 (API and core) and phase 2 (web app) are done;** the Android app is next. See [`docs/superpowers/`](docs/superpowers/) for the design and plans.
 
+- **[Web app](docs/web.md)**: what the UI does, shortcuts, drag behaviour, notifications.
 - **[API guide](docs/api.md)**: real requests and responses for the common jobs.
 - **[OpenAPI contract](docs/openapi.yaml)**: also served at `GET /api/openapi.json`, no login needed.
 
 ## Features
 
+- **A web app that reads like Proton Calendar or Google Calendar**: day, week, month and agenda views, quick create by dragging, drag to move and
+  resize, keyboard shortcuts, an event editor with a recurrence builder, and a phone layout.
 - **Events and recurring series** with RFC 5545 rules (daily to yearly, `2TU`, `BYSETPOS`, `COUNT`/`UNTIL`, extra dates), expanded in the
   event's own time zone so a 9:00 event stays at 9:00 across DST.
 - **Skip one occurrence, change one occurrence, change this and all later ones**, or the whole series. Deleted events and calendars can be restored for 30 days.
@@ -25,7 +28,17 @@ Status: **phase 1 (API and core) is done.** See [`docs/superpowers/`](docs/super
 
 ## Install
 
-You need Docker with the Compose plugin and a directory for the data.
+You need Docker with the Compose plugin. The installer asks a few questions, writes `.env`, initializes the data directory, pulls the
+images and starts everything:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/qarasky/korecalendar/main/install.sh | bash
+```
+
+Open the address it prints and **create your account** (the first account becomes the administrator). Then, for an AI agent or
+a script, create an access token under Settings; see the [API guide](docs/api.md#get-a-token).
+
+Or by hand:
 
 ```sh
 git clone https://github.com/qarasky/korecalendar && cd korecalendar
@@ -39,9 +52,8 @@ docker compose run --rm --no-deps api korecalendar init
 docker compose up -d
 ```
 
-Then create the first account (it becomes the admin) and an access token for your agent; see the [API guide](docs/api.md#get-a-token).
-
 The calendar listens on `127.0.0.1:8080` by default (`KORECAL_BIND` / `KORECAL_PORT`). Use `0.0.0.0` to reach it from your LAN or Tailscale.
+Caddy sends `/api/*` to the API and everything else to the web app.
 
 ### HTTPS and notifications
 
@@ -61,13 +73,15 @@ Everything is in one SQLite database, `korecal.db`, in the data directory. Copy 
 ```sh
 cd api && go vet ./... && go test -race -count=1 ./...
 go build -o korecalendar ./cmd/korecalendar    # then: ./korecalendar init -config korecal.toml && ./korecalendar -config korecal.toml
+cd ../web && npm ci && npm run typecheck && npm run lint && npm test && npm run e2e     # see web/README.md
 ```
 
-Requires Go 1.26 or newer. The configuration is a small TOML file (`korecalendar.example.toml`) or `KORECAL_*` environment variables.
+Requires Go 1.26 or newer and Node 24. The configuration is a small TOML file (`korecalendar.example.toml`) or `KORECAL_*` environment variables.
 
 ## Known limits
 
 - An event added shortly before it starts may not reach a phone in time (the Android app, in a later phase, syncs in the background
   without a push service).
+- The web app is dark and English only, and has no password-change screen yet. See [docs/web.md](docs/web.md#known-limits).
 - No sharing, invitations or CalDAV. `.ics` export has no `VTIMEZONE` blocks (IANA zone names only).
 - Reminders go to browsers only for now; Telegram and email are planned.

@@ -1,6 +1,6 @@
-# KoreCalendar: Caddy (the only published service) -> api.
-# Configure with .env only (see .env.example). The web app joins this stack in a later release.
-# `docker compose build` builds the api image from ./api.
+# KoreCalendar: Caddy (the only published service) -> web (UI) and api.
+# Configure with .env only (see .env.example).
+# `docker compose build` builds the api image from ./api and the web image from ./web.
 name: korecalendar
 
 x-logging: &logging
@@ -36,6 +36,8 @@ services:
     networks: [edge, internal]
     stop_grace_period: 40s
     depends_on:
+      web:
+        condition: service_healthy
       api:
         condition: service_healthy
     healthcheck:
@@ -44,6 +46,28 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+    logging: *logging
+
+  web:
+    build:
+      context: ./web
+      args:
+        API_URL: http://api:8080
+    image: ghcr.io/qarasky/korecalendar-web:${KORECAL_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:8080
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    networks: [internal]
+    depends_on:
+      api:
+        condition: service_healthy
     logging: *logging
 
   api:
@@ -89,7 +113,7 @@ networks:
     ipam:
       config:
         - subnet: ${KORECAL_SUBNET:-172.31.255.0/24}
-  # Caddy and the api talk here; nothing on it can reach the internet.
+  # Caddy, web and api talk here; nothing on it can reach the internet.
   internal:
     internal: true
   # Outbound only, for the api's web push deliveries. No ports are published on it.

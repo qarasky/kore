@@ -1,5 +1,5 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { API_DIR, API_PORT, API_URL, BINARY, CONFIG_FILE, DATA_DIR, WORK_DIR } from "./env";
+import { API_DIR, API_PORT, API_URL, BINARY, CONFIG_FILE, DATA_DIR, EXTERNAL, WORK_DIR } from "./env";
 import { httpOk, run, startProcess, stopProcess, waitFor, waitGone } from "./proc";
 
 const HEALTH = `${API_URL}/api/healthz`;
@@ -28,6 +28,13 @@ export async function stopApi(): Promise<void> {
 
 /** Stop the API, wipe its data, initialise a fresh data directory and start it: a clean slate. */
 export async function resetApi(): Promise<void> {
+  if (EXTERNAL) {
+    const cmd = process.env.E2E_RESET_CMD;
+    if (!cmd) throw new Error("E2E_BASE_URL is set, so E2E_RESET_CMD (a command that empties the API's data) is required");
+    run("bash", ["-c", cmd]);
+    await waitFor("the API after the reset", () => httpOk(HEALTH));
+    return;
+  }
   await stopApi();
   rmSync(DATA_DIR, { recursive: true, force: true });
   mkdirSync(DATA_DIR, { recursive: true });

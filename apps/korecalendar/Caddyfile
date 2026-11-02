@@ -1,4 +1,5 @@
 # KoreCalendar reverse proxy: the only published service (see docker-compose.yml).
+# /api/* goes to the Go api, everything else to the Next.js web app.
 # TLS is terminated in front of Caddy (Cloudflare Tunnel, Tailscale HTTPS) or not
 # at all (LAN), so Caddy itself speaks plain HTTP. Browser notifications need HTTPS.
 {
@@ -41,9 +42,22 @@
 		}
 	}
 
-	# The web app arrives in a later release; until then say what is here.
+	# The web app (Next.js SSR).
 	handle {
-		header Content-Type "text/plain; charset=utf-8"
-		respond "KoreCalendar API. Contract: /api/openapi.json" 200
+		encode zstd gzip
+		header {
+			X-Content-Type-Options nosniff
+			Referrer-Policy same-origin
+			X-Frame-Options DENY
+			# Next.js App Router streams its payload in inline <script> tags and
+			# React sets inline styles, so 'unsafe-inline' is needed without
+			# per-request nonces. Everything else is limited to this origin: no
+			# external hosts, no eval, no plugins, no framing. worker-src 'self'
+			# is for the notification service worker (/sw.js).
+			Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		}
+		reverse_proxy web:3000 {
+			flush_interval -1
+		}
 	}
 }

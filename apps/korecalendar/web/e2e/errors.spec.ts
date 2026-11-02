@@ -1,12 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { startApi, stopApi } from "./harness/api-server";
-import { DEAD_WEB_URL } from "./harness/env";
+import { DEAD_WEB_URL, EXTERNAL } from "./harness/env";
 import { startDeadWeb, stopDeadWeb } from "./harness/web-server";
 import { apiSession, createEventViaApi, editor, eventBlocks, fillEditor, freshOwner, login, openEditor, openNewEvent, openWeek, saveEditor, today, weekOf, api } from "./helpers";
 
 const [, , wed] = weekOf(today("UTC"));
 
 test.describe.serial("when things go wrong", () => {
+  test.skip(EXTERNAL, "needs to stop and start the API process itself");
   let token = "";
   test.beforeAll(async () => {
     token = await freshOwner({ timezone: "UTC" });
