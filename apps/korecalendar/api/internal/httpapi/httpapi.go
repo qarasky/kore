@@ -52,6 +52,9 @@ func (s *server) handler() http.Handler {
 	mux.Handle("DELETE /api/events/{id}", authed(s.handleDeleteEvent))
 	mux.Handle("POST /api/events/{id}/restore", authed(s.handleRestoreEvent))
 	mux.Handle("GET /api/occurrences", authed(s.handleOccurrences))
+	mux.Handle("GET /api/push/key", authed(s.handlePushKey))
+	mux.Handle("POST /api/push/subscriptions", authed(s.handleSubscribe))
+	mux.Handle("DELETE /api/push/subscriptions/{id}", authed(s.handleUnsubscribe))
 	mux.Handle("POST /api/admin/users", admin(s.handleAdminCreateUser))
 	return mux
 }
