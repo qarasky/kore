@@ -24,40 +24,85 @@ func New(db *sql.DB, dataDir string) http.Handler {
 	return s.handler()
 }
 
+type access int
+
+// Who may call a route. Anyone; any signed-in caller (session or access
+// token); a signed-in session only (tokens get 403, so a leaked agent token
+// cannot mint tokens); an admin (anyone else gets 404, hiding the route).
+const (
+	accessPublic access = iota
+	accessUser
+	accessSession
+	accessAdmin
+)
+
+func (a access) String() string {
+	return [...]string{"public", "user", "session", "admin"}[a]
+}
+
+type route struct {
+	pattern string // "METHOD /path/{id}", as registered on the mux
+	access  access
+	h       http.HandlerFunc
+}
+
+// routes is the one list of endpoints. docs/openapi.yaml must describe each of
+// them (a test enforces it).
+func (s *server) routes() []route {
+	return []route{
+		{"GET /api/healthz", accessPublic, func(w http.ResponseWriter, r *http.Request) { writeJSON(w, http.StatusOK, map[string]bool{"ok": true}) }},
+		{"GET /api/openapi.json", accessPublic, s.handleOpenAPI},
+		{"POST /api/setup", accessPublic, s.handleSetup},
+		{"POST /api/login", accessPublic, s.handleLogin},
+		{"POST /api/logout", accessUser, s.handleLogout},
+		{"GET /api/me", accessUser, s.handleMe},
+		{"PATCH /api/me", accessUser, s.handlePatchMe},
+		{"GET /api/tokens", accessSession, s.handleListTokens},
+		{"POST /api/tokens", accessSession, s.handleCreateToken},
+		{"DELETE /api/tokens/{id}", accessSession, s.handleRevokeToken},
+		{"GET /api/calendars", accessUser, s.handleListCalendars},
+		{"POST /api/calendars", accessUser, s.handleCreateCalendar},
+		{"PATCH /api/calendars/{id}", accessUser, s.handlePatchCalendar},
+		{"DELETE /api/calendars/{id}", accessUser, s.handleDeleteCalendar},
+		{"POST /api/events", accessUser, s.idempotent(s.handleCreateEvent)},
+		{"GET /api/events/{id}", accessUser, s.handleGetEvent},
+		{"PATCH /api/events/{id}", accessUser, s.handlePatchEvent},
+		{"DELETE /api/events/{id}", accessUser, s.handleDeleteEvent},
+		{"POST /api/events/{id}/restore", accessUser, s.handleRestoreEvent},
+		{"GET /api/occurrences", accessUser, s.handleOccurrences},
+		{"POST /api/import", accessUser, s.handleImport},
+		{"GET /api/export", accessUser, s.handleExport},
+		{"GET /api/changes", accessUser, s.handleChanges},
+		{"GET /api/push/key", accessUser, s.handlePushKey},
+		{"POST /api/push/subscriptions", accessUser, s.handleSubscribe},
+		{"DELETE /api/push/subscriptions/{id}", accessUser, s.handleUnsubscribe},
+		{"POST /api/admin/users", accessAdmin, s.handleAdminCreateUser},
+	}
+}
+
+// Routes lists every registered "METHOD /path" pattern.
+func Routes() []string {
+	var out []string
+	for _, r := range (&server{}).routes() {
+		out = append(out, r.pattern)
+	}
+	return out
+}
+
 func (s *server) handler() http.Handler {
 	mux := http.NewServeMux()
 	require := auth.Require(s.db)
-	authed := func(h http.HandlerFunc) http.Handler { return require(h) }
-	sessionOnly := func(h http.HandlerFunc) http.Handler { return require(auth.RequireSession(h)) }
-	admin := func(h http.HandlerFunc) http.Handler { return require(auth.RequireAdmin(h)) }
-
-	mux.HandleFunc("GET /api/healthz", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
-	})
-	mux.HandleFunc("POST /api/setup", s.handleSetup)
-	mux.HandleFunc("POST /api/login", s.handleLogin)
-	mux.Handle("POST /api/logout", authed(s.handleLogout))
-	mux.Handle("GET /api/me", authed(s.handleMe))
-	mux.Handle("PATCH /api/me", authed(s.handlePatchMe))
-	mux.Handle("GET /api/tokens", sessionOnly(s.handleListTokens))
-	mux.Handle("POST /api/tokens", sessionOnly(s.handleCreateToken))
-	mux.Handle("DELETE /api/tokens/{id}", sessionOnly(s.handleRevokeToken))
-	mux.Handle("GET /api/calendars", authed(s.handleListCalendars))
-	mux.Handle("POST /api/calendars", authed(s.handleCreateCalendar))
-	mux.Handle("PATCH /api/calendars/{id}", authed(s.handlePatchCalendar))
-	mux.Handle("DELETE /api/calendars/{id}", authed(s.handleDeleteCalendar))
-	mux.Handle("POST /api/events", authed(s.idempotent(s.handleCreateEvent)))
-	mux.Handle("GET /api/events/{id}", authed(s.handleGetEvent))
-	mux.Handle("PATCH /api/events/{id}", authed(s.handlePatchEvent))
-	mux.Handle("DELETE /api/events/{id}", authed(s.handleDeleteEvent))
-	mux.Handle("POST /api/events/{id}/restore", authed(s.handleRestoreEvent))
-	mux.Handle("GET /api/occurrences", authed(s.handleOccurrences))
-	mux.Handle("POST /api/import", authed(s.handleImport))
-	mux.Handle("GET /api/export", authed(s.handleExport))
-	mux.Handle("GET /api/changes", authed(s.handleChanges))
-	mux.Handle("GET /api/push/key", authed(s.handlePushKey))
-	mux.Handle("POST /api/push/subscriptions", authed(s.handleSubscribe))
-	mux.Handle("DELETE /api/push/subscriptions/{id}", authed(s.handleUnsubscribe))
-	mux.Handle("POST /api/admin/users", admin(s.handleAdminCreateUser))
+	for _, r := range s.routes() {
+		var h http.Handler = r.h
+		switch r.access {
+		case accessUser:
+			h = require(h)
+		case accessSession:
+			h = require(auth.RequireSession(h))
+		case accessAdmin:
+			h = require(auth.RequireAdmin(h))
+		}
+		mux.Handle(r.pattern, h)
+	}
 	return mux
 }
