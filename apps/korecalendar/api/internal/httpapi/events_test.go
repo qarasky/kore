@@ -193,3 +193,62 @@ func TestCreateWritesAChange(t *testing.T) {
 		t.Fatalf("upsert changes = %d", n)
 	}
 }
+
+type occurrence struct {
+	EventID  string `json:"event_id"`
+	Key      string `json:"key"`
+	Title    string `json:"title"`
+	Start    string `json:"start"`
+	StartUTC string `json:"start_utc"`
+}
+
+func TestOccurrencesEndpoint(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	tok := testsrv.Login(t, srv)
+	mkEvent(t, srv, tok, weekly("Gym"))
+	r := testsrv.Do(t, srv, tok, "GET", "/api/occurrences?from=2026-11-04T00:00:00Z&to=2026-11-18T00:00:00Z", nil)
+	var got []occurrence
+	r.Decode(t, &got)
+	if r.Status != 200 || len(got) != 4 || got[0].Title != "Gym" || got[0].StartUTC != "2026-11-04T15:00:00Z" {
+		t.Fatalf("%d %s", r.Status, r.Body)
+	}
+	q := testsrv.Do(t, srv, tok, "GET", "/api/occurrences?from=2026-11-04T00:00:00Z&to=2026-11-18T00:00:00Z&q=nomatch", nil)
+	var none []occurrence
+	q.Decode(t, &none)
+	if q.Status != 200 || len(none) != 0 || string(q.Body) == "null\n" {
+		t.Fatalf("search: %d %s", q.Status, q.Body)
+	}
+}
+
+func TestOccurrencesParamErrors(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	tok := testsrv.Login(t, srv)
+	for path, wantStatus := range map[string]int{
+		"/api/occurrences": 422,
+		"/api/occurrences?from=yesterday&to=2026-11-18T00:00:00Z":            422,
+		"/api/occurrences?from=2026-11-18T00:00:00Z&to=2026-11-04T00:00:00Z": 422,
+	} {
+		if r := testsrv.Do(t, srv, tok, "GET", path, nil); r.Status != wantStatus || r.ErrorCode() != "validation_error" {
+			t.Errorf("%s: %d %s", path, r.Status, r.Body)
+		}
+	}
+	r := testsrv.Do(t, srv, tok, "GET", "/api/occurrences?from=2026-01-01T00:00:00Z&to=2027-06-01T00:00:00Z", nil)
+	if r.Status != 400 || r.ErrorCode() != "range_too_large" {
+		t.Fatalf("big range: %d %s", r.Status, r.Body)
+	}
+	if r := testsrv.Do(t, srv, "", "GET", "/api/occurrences?from=2026-11-04T00:00:00Z&to=2026-11-05T00:00:00Z", nil); r.Status != 401 {
+		t.Fatalf("anonymous: %d", r.Status)
+	}
+}
+
+func TestTooManyOccurrencesAcrossEventsIsRangeTooLarge(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	tok := testsrv.Login(t, srv)
+	for i := 0; i < 13; i++ { // 13 daily series x 399 days > 5000
+		mkEvent(t, srv, tok, map[string]any{"title": "d", "start": "2026-01-01T09:00:00", "tz": "UTC", "rrule": "FREQ=DAILY"})
+	}
+	r := testsrv.Do(t, srv, tok, "GET", "/api/occurrences?from=2026-02-01T00:00:00Z&to=2027-03-06T00:00:00Z", nil)
+	if r.Status != 400 || r.ErrorCode() != "range_too_large" {
+		t.Fatalf("%d %.200s", r.Status, r.Body)
+	}
+}

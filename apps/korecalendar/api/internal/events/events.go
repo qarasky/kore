@@ -159,25 +159,35 @@ func Get(ctx context.Context, db *sql.DB, userID, id string) (Event, error) {
 	return load(ctx, db, userID, id, false)
 }
 
-func load(ctx context.Context, q queryer, userID, id string, includeDeleted bool) (Event, error) {
+const eventCols = `id,calendar_id,title,notes,location,start_local,end_local,tz,all_day,rrule,version,
+	created_by,updated_by,created_at,updated_at,deleted_at`
+
+type scanner interface{ Scan(dest ...any) error }
+
+// scanEvent reads one row of eventCols; collections are attached separately.
+func scanEvent(sc scanner) (Event, error) {
 	var e Event
 	var deleted sql.NullInt64
+	err := sc.Scan(&e.ID, &e.CalendarID, &e.Title, &e.Notes, &e.Location, &e.Start, &e.End, &e.TZ, &e.AllDay, &e.RRule, &e.Version,
+		&e.CreatedBy, &e.UpdatedBy, &e.CreatedAt, &e.UpdatedAt, &deleted)
+	if deleted.Valid {
+		e.DeletedAt = &deleted.Int64
+	}
+	e.RDates, e.Exdates, e.Reminders = []string{}, []string{}, []Reminder{}
+	return e, err
+}
+
+func load(ctx context.Context, q queryer, userID, id string, includeDeleted bool) (Event, error) {
 	where := "id=? AND user_id=?"
 	if !includeDeleted {
 		where += " AND " + liveSQL
 	}
-	err := q.QueryRowContext(ctx, `SELECT id,calendar_id,title,notes,location,start_local,end_local,tz,all_day,rrule,version,
-		created_by,updated_by,created_at,updated_at,deleted_at FROM events WHERE `+where, id, userID).
-		Scan(&e.ID, &e.CalendarID, &e.Title, &e.Notes, &e.Location, &e.Start, &e.End, &e.TZ, &e.AllDay, &e.RRule, &e.Version,
-			&e.CreatedBy, &e.UpdatedBy, &e.CreatedAt, &e.UpdatedAt, &deleted)
+	e, err := scanEvent(q.QueryRowContext(ctx, `SELECT `+eventCols+` FROM events WHERE `+where, id, userID))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Event{}, ErrNotFound
 	}
 	if err != nil {
 		return Event{}, err
-	}
-	if deleted.Valid {
-		e.DeletedAt = &deleted.Int64
 	}
 	if e.Exdates, err = column(ctx, q, `SELECT key FROM event_exdates WHERE event_id=? ORDER BY key`, id); err != nil {
 		return Event{}, err
@@ -190,7 +200,6 @@ func load(ctx context.Context, q queryer, userID, id string, includeDeleted bool
 		return Event{}, err
 	}
 	defer rows.Close()
-	e.Reminders = []Reminder{}
 	for rows.Next() {
 		var r Reminder
 		if err := rows.Scan(&r.MinutesBefore); err != nil {
@@ -199,6 +208,75 @@ func load(ctx context.Context, q queryer, userID, id string, includeDeleted bool
 		e.Reminders = append(e.Reminders, r)
 	}
 	return e, rows.Err()
+}
+
+// liveEvents returns the user's live events that could have an occurrence
+// near [fromWall, toWall] (wall-time strings, already padded for zone
+// offsets), optionally limited to calendarIDs, with collections attached.
+func liveEvents(ctx context.Context, q queryer, userID string, calendarIDs []string, fromWall, toWall string) ([]Event, error) {
+	query := `SELECT ` + eventCols + ` FROM events WHERE user_id=? AND ` + liveSQL + ` AND start_local<=?
+		AND (rrule<>'' OR end_local>=? OR EXISTS (SELECT 1 FROM event_rdates r WHERE r.event_id=events.id))`
+	args := []any{userID, toWall, fromWall}
+	if len(calendarIDs) > 0 {
+		in, a := inList(calendarIDs)
+		query += ` AND calendar_id IN (` + in + `)`
+		args = append(args, a...)
+	}
+	rows, err := q.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	var list []Event
+	for rows.Next() {
+		e, err := scanEvent(rows)
+		if err != nil {
+			rows.Close()
+			return nil, err
+		}
+		list = append(list, e)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(list) == 0 {
+		return list, nil
+	}
+	idx := map[string]*Event{}
+	ids := make([]string, len(list))
+	for i := range list {
+		idx[list[i].ID] = &list[i]
+		ids[i] = list[i].ID
+	}
+	in, a := inList(ids)
+	for _, spec := range []struct {
+		query string
+		add   func(e *Event, v string, n int)
+	}{
+		{`SELECT event_id,key,0 FROM event_exdates WHERE event_id IN (` + in + `) ORDER BY key`, func(e *Event, v string, _ int) { e.Exdates = append(e.Exdates, v) }},
+		{`SELECT event_id,start_local,0 FROM event_rdates WHERE event_id IN (` + in + `) ORDER BY start_local`, func(e *Event, v string, _ int) { e.RDates = append(e.RDates, v) }},
+		{`SELECT event_id,'',minutes_before FROM event_reminders WHERE override_key='' AND event_id IN (` + in + `) ORDER BY minutes_before DESC`,
+			func(e *Event, _ string, n int) { e.Reminders = append(e.Reminders, Reminder{MinutesBefore: n}) }},
+	} {
+		rs, err := q.QueryContext(ctx, spec.query, a...)
+		if err != nil {
+			return nil, err
+		}
+		for rs.Next() {
+			var id, v string
+			var n int
+			if err := rs.Scan(&id, &v, &n); err != nil {
+				rs.Close()
+				return nil, err
+			}
+			spec.add(idx[id], v, n)
+		}
+		rs.Close()
+		if err := rs.Err(); err != nil {
+			return nil, err
+		}
+	}
+	return list, nil
 }
 
 func column(ctx context.Context, q queryer, query string, args ...any) ([]string, error) {
