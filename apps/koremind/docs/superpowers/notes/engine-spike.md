@@ -17,3 +17,6 @@ Run with `bun run backend/scripts/spike-engine.ts` (isolated XDG dirs; never tou
 - That the model actually calls the web search tool and its event names (`session.tool.*` expected), and permission action name `websearch`.
 - Image attachments end to end, thinking `variant` on a model that has variants, time to first token.
 - Backend overhead measurement (`backend/scripts/latency.ts`).
+
+## Backend overhead (Task 9, fake engine with 20 ms scripted delay)
+`bun run backend/scripts/latency.ts`: first stream frame 7 ms, first delta 30 ms against a 20 ms engine delay, so the backend adds about 10 ms. Real engine through the full backend reaches OpenCode and returns its free-limit error mapped to `no_provider` (happy path still needs the free limit to reset or a key).
