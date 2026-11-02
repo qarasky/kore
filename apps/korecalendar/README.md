@@ -16,7 +16,7 @@ Status: **phase 1 (API and core) is done.** See [`docs/superpowers/`](docs/super
 
 - **Events and recurring series** with RFC 5545 rules (daily to yearly, `2TU`, `BYSETPOS`, `COUNT`/`UNTIL`, extra dates), expanded in the
   event's own time zone so a 9:00 event stays at 9:00 across DST.
-- **Skip one occurrence, change one occurrence, change this and all later ones**, or the whole series. Deleted events can be restored for 30 days.
+- **Skip one occurrence, change one occurrence, change this and all later ones**, or the whole series. Deleted events and calendars can be restored for 30 days.
 - **Built for agents:** long-lived revocable access tokens, `Idempotency-Key` for safe retries, `If-Match` versions, stable error codes, and
   a record of who last changed each event (you, or the token's name).
 - **Reminders** to browsers over Web Push, de-duplicated and restart-safe.

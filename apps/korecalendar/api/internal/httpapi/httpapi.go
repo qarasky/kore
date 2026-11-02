@@ -64,6 +64,7 @@ func (s *server) routes() []route {
 		{"POST /api/calendars", accessUser, s.handleCreateCalendar},
 		{"PATCH /api/calendars/{id}", accessUser, s.handlePatchCalendar},
 		{"DELETE /api/calendars/{id}", accessUser, s.handleDeleteCalendar},
+		{"POST /api/calendars/{id}/restore", accessUser, s.handleRestoreCalendar},
 		{"POST /api/events", accessUser, s.idempotent(s.handleCreateEvent)},
 		{"GET /api/events/{id}", accessUser, s.handleGetEvent},
 		{"PATCH /api/events/{id}", accessUser, s.handlePatchEvent},

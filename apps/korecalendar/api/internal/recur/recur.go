@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	_ "time/tzdata" // zone data for minimal container images
@@ -96,7 +97,34 @@ func parseRule(rule string) (rrule.ROption, error) {
 	if opt.Count > 0 && !opt.Until.IsZero() {
 		return rrule.ROption{}, unsupported("COUNT and UNTIL cannot both be set")
 	}
+	if err := checkParts(rule, opt.Freq); err != nil {
+		return rrule.ROption{}, err
+	}
 	return *opt, nil
+}
+
+// checkParts refuses values the rule engine would quietly reinterpret: a
+// COUNT or INTERVAL below 1 (read as "forever" and "1") and a BYDAY such as
+// 2TU on a daily or weekly repeat (read as plain TU).
+func checkParts(rule string, freq rrule.Frequency) error {
+	for _, part := range strings.Split(rule, ";") {
+		k, v, _ := strings.Cut(part, "=")
+		switch strings.ToUpper(k) {
+		case "COUNT", "INTERVAL":
+			if n, err := strconv.Atoi(v); err != nil || n < 1 {
+				return unsupported("%s must be a whole number of at least 1", strings.ToUpper(k))
+			}
+		case "BYDAY":
+			if freq != rrule.MONTHLY && freq != rrule.YEARLY {
+				for _, day := range strings.Split(v, ",") {
+					if len(strings.TrimSpace(day)) > 2 {
+						return unsupported("BYDAY with a number, such as 2TU, only works with monthly or yearly repeats")
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // ValidateRule reports whether rule is in the supported subset; errors wrap
@@ -176,7 +204,11 @@ func (s Series) compile() (*compiled, error) {
 		}
 		if !c.opt.Until.IsZero() {
 			c.until = c.opt.Until
-			if !s.AllDay && ruleUntilIsDateOnly(s.RRule) {
+			switch {
+			case s.AllDay: // the date of UNTIL is the last day, in the event's zone
+				u := c.opt.Until
+				c.until = c.instant(time.Date(u.Year(), u.Month(), u.Day(), 0, 0, 0, 0, time.UTC))
+			case ruleUntilIsDateOnly(s.RRule):
 				c.until = c.instant(c.opt.Until.Add(24*time.Hour - time.Second))
 			}
 			c.opt.Until = time.Time{}
@@ -189,12 +221,13 @@ func (s Series) compile() (*compiled, error) {
 	return c, nil
 }
 
-// instant maps a floating wall time into the series' zone. A wall time that
+// instant maps a floating wall time into the series' zone (all-day dates become
+// local midnight, so a local-day query only matches that day). A wall time that
 // does not exist (DST gap) uses the offset before the gap, as RFC 5545 says
 // (02:30 becomes 03:30 after a spring-forward); an ambiguous one (DST
 // overlap) means its first occurrence. Go's time.Date guarantees neither.
 func (c *compiled) instant(w time.Time) time.Time {
-	if c.allDay || c.loc == time.UTC {
+	if c.loc == time.UTC {
 		return w
 	}
 	_, o1 := w.Add(-24 * time.Hour).In(c.loc).Zone()

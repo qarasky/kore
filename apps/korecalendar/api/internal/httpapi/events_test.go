@@ -1,6 +1,7 @@
 package httpapi_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/qarasky/korecalendar/api/internal/testsrv"
@@ -164,22 +165,98 @@ func TestAttributionRecordsTokenName(t *testing.T) {
 	}
 }
 
-func TestDeleteNonEmptyCalendarNeedsForce(t *testing.T) {
+func TestDeleteNonEmptyCalendarNeedsForceAndCanBeUndone(t *testing.T) {
 	srv, db := testsrv.New(t)
 	tok := testsrv.Login(t, srv)
-	e := mkEvent(t, srv, tok, weekly("x"))
-	r := testsrv.Do(t, srv, tok, "DELETE", "/api/calendars/"+e.CalendarID, nil)
+	var work cal
+	testsrv.Do(t, srv, tok, "POST", "/api/calendars", map[string]string{"name": "Work", "color": "#7b6cf0"}).Decode(t, &work)
+	kept := mkEvent(t, srv, tok, map[string]any{"calendar_id": work.ID, "title": "Standup", "start": "2026-11-04T09:00:00", "tz": "UTC", "rrule": "FREQ=DAILY"})
+	earlier := mkEvent(t, srv, tok, map[string]any{"calendar_id": work.ID, "title": "Deleted earlier", "start": "2026-11-04T10:00:00", "tz": "UTC"})
+	testsrv.Do(t, srv, tok, "DELETE", "/api/events/"+earlier.ID, nil)
+
+	// without force: refused, nothing changes
+	r := testsrv.Do(t, srv, tok, "DELETE", "/api/calendars/"+work.ID, nil)
 	if r.Status != 409 || r.ErrorCode() != "calendar_not_empty" {
 		t.Fatalf("%d %s", r.Status, r.Body)
 	}
-	if r := testsrv.Do(t, srv, tok, "DELETE", "/api/calendars/"+e.CalendarID+"?force=1", nil); r.Status != 204 {
+	// with force: the calendar and its events disappear, but only softly
+	if r := testsrv.Do(t, srv, tok, "DELETE", "/api/calendars/"+work.ID+"?force=1", nil); r.Status != 204 {
 		t.Fatalf("forced: %d %s", r.Status, r.Body)
 	}
-	var events, deletes int
-	db.QueryRow(`SELECT count(*) FROM events`).Scan(&events)
-	db.QueryRow(`SELECT count(*) FROM changes WHERE kind='delete' AND event_id=?`, e.ID).Scan(&deletes)
-	if events != 0 || deletes != 1 {
-		t.Fatalf("events=%d delete changes=%d", events, deletes)
+	var list []cal
+	testsrv.Do(t, srv, tok, "GET", "/api/calendars", nil).Decode(t, &list)
+	if len(list) != 1 || list[0].Name != "Personal" {
+		t.Fatalf("calendars after delete: %+v", list)
+	}
+	if got := occKeys(t, srv, tok, "2026-11-04T00:00:00Z", "2026-11-06T00:00:00Z"); len(got) != 0 {
+		t.Fatalf("deleted calendar's events still listed: %v", got)
+	}
+	if r := testsrv.Do(t, srv, tok, "GET", "/api/events/"+kept.ID, nil); r.Status != 404 {
+		t.Fatalf("event of a deleted calendar readable: %d", r.Status)
+	}
+	var rows, deletes int
+	db.QueryRow(`SELECT count(*) FROM events WHERE id=?`, kept.ID).Scan(&rows)
+	db.QueryRow(`SELECT count(*) FROM changes WHERE kind='delete' AND event_id=?`, kept.ID).Scan(&deletes)
+	if rows != 1 || deletes != 1 {
+		t.Fatalf("event row kept=%d (want 1), delete changes=%d (want 1)", rows, deletes)
+	}
+	// nothing can be filed into, imported into or exported from it
+	body := weekly("x")
+	body["calendar_id"] = work.ID
+	if r := testsrv.Do(t, srv, tok, "POST", "/api/events", body); r.Status != 404 {
+		t.Fatalf("create in deleted calendar: %d", r.Status)
+	}
+	// ...but it can be restored, and brings back what it lost with it, not what was deleted earlier
+	r = testsrv.Do(t, srv, tok, "POST", "/api/calendars/"+work.ID+"/restore", nil)
+	var back cal
+	r.Decode(t, &back)
+	if r.Status != 200 || back.ID != work.ID || back.Name != "Work" {
+		t.Fatalf("restore: %d %s", r.Status, r.Body)
+	}
+	if got := occKeys(t, srv, tok, "2026-11-04T00:00:00Z", "2026-11-06T00:00:00Z"); !reflect.DeepEqual(got, []string{"2026-11-04T09:00:00", "2026-11-05T09:00:00"}) {
+		t.Fatalf("after restore: %v", got)
+	}
+	if r := testsrv.Do(t, srv, tok, "GET", "/api/events/"+earlier.ID, nil); r.Status != 404 {
+		t.Fatalf("an event deleted before the calendar came back: %d", r.Status)
+	}
+	var cs changeSet
+	testsrv.Do(t, srv, tok, "GET", "/api/changes?since=0", nil).Decode(t, &cs)
+	live := false
+	for _, e := range cs.Upserted {
+		live = live || e.ID == kept.ID
+	}
+	if !live {
+		t.Fatalf("restored event is not in the sync feed as an upsert: %+v", cs)
+	}
+}
+
+func TestCalendarRestoreRules(t *testing.T) {
+	srv, db := testsrv.New(t)
+	admin := testsrv.Login(t, srv)
+	other := testsrv.AddUser(t, srv, admin, "u@example.com")
+	var c cal
+	testsrv.Do(t, srv, admin, "POST", "/api/calendars", map[string]string{"name": "Temp", "color": "#112233"}).Decode(t, &c)
+	testsrv.Do(t, srv, admin, "DELETE", "/api/calendars/"+c.ID, nil)
+	if r := testsrv.Do(t, srv, other, "POST", "/api/calendars/"+c.ID+"/restore", nil); r.Status != 404 || r.ErrorCode() != "not_found" {
+		t.Fatalf("other user: %d %s", r.Status, r.Body)
+	}
+	db.Exec(`UPDATE calendars SET deleted_at = strftime('%s','now') - 31*86400 WHERE id=?`, c.ID)
+	if r := testsrv.Do(t, srv, admin, "POST", "/api/calendars/"+c.ID+"/restore", nil); r.Status != 404 {
+		t.Fatalf("after 31 days: %d", r.Status)
+	}
+}
+
+func TestRestoringAnEventIntoADeletedCalendarIsRefused(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	tok := testsrv.Login(t, srv)
+	var work cal
+	testsrv.Do(t, srv, tok, "POST", "/api/calendars", map[string]string{"name": "Work", "color": "#7b6cf0"}).Decode(t, &work)
+	e := mkEvent(t, srv, tok, map[string]any{"calendar_id": work.ID, "title": "x", "start": "2026-11-04T09:00:00", "tz": "UTC"})
+	testsrv.Do(t, srv, tok, "DELETE", "/api/events/"+e.ID, nil)
+	testsrv.Do(t, srv, tok, "DELETE", "/api/calendars/"+work.ID+"?force=1", nil)
+	r := testsrv.Do(t, srv, tok, "POST", "/api/events/"+e.ID+"/restore", nil)
+	if r.Status != 422 || r.ErrorCode() != "validation_error" {
+		t.Fatalf("%d %s", r.Status, r.Body)
 	}
 }
 
@@ -311,5 +388,18 @@ func TestChangesParamErrors(t *testing.T) {
 	}
 	if r := testsrv.Do(t, srv, "", "GET", "/api/changes", nil); r.Status != 401 {
 		t.Errorf("anonymous: %d", r.Status)
+	}
+}
+
+func TestOccurrencesOfALocalDayDoNotIncludeTheNextDaysAllDayEvents(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	tok := testsrv.Login(t, srv)
+	testsrv.Do(t, srv, tok, "PATCH", "/api/me", map[string]string{"timezone": "America/New_York"})
+	mkEvent(t, srv, tok, map[string]any{"title": "Today's birthday", "start": "2026-11-04", "all_day": true})
+	mkEvent(t, srv, tok, map[string]any{"title": "Tomorrow's birthday", "start": "2026-11-05", "all_day": true})
+	// November 4 in New York is 05:00Z to 05:00Z
+	got := occs(t, srv, tok, "2026-11-04T05:00:00Z", "2026-11-05T05:00:00Z")
+	if len(got) != 1 || got[0].Title != "Today's birthday" || got[0].StartUTC != "2026-11-04T05:00:00Z" {
+		t.Fatalf("got %+v", got)
 	}
 }

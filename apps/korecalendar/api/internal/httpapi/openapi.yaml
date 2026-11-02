@@ -8,7 +8,8 @@ info:
     **Times.** An event's `start` and `end` are local wall-clock strings in its `tz` (an IANA zone):
     `2026-11-04T16:00:00`, or a date `2026-11-04` for all-day events, where `end` is exclusive.
     Recurring events expand in that zone, so a 9:00 event stays at 9:00 across DST changes.
-    Occurrences also carry `start_utc` / `end_utc` (RFC 3339, `Z`).
+    Occurrences also carry `start_utc` / `end_utc` (RFC 3339, `Z`); for an all-day event these are local midnight in its `tz`,
+    so asking for a local day's range returns only that day's all-day events.
 
     **Occurrence key.** An occurrence is identified by its original start (its *key*), for example
     `2026-11-06T16:00:00`. Use it as `?occurrence=` to change, move or delete one occurrence of a series.
@@ -16,7 +17,8 @@ info:
 
     **Recurrence.** `rrule` is an RFC 5545 rule without the `RRULE:` prefix. Supported: `FREQ` daily, weekly,
     monthly or yearly; `INTERVAL`; `COUNT` or `UNTIL` (not both); `BYDAY` including ordinals such as `2TU`;
-    `BYMONTHDAY`; `BYMONTH`; `BYSETPOS`; `WKST`. Hourly and finer rules are rejected (`unsupported_rrule`).
+    `BYMONTHDAY`; `BYMONTH`; `BYSETPOS`; `WKST`. Hourly and finer rules are rejected (`unsupported_rrule`), as is anything that would
+    be silently reinterpreted: `COUNT` or `INTERVAL` below 1, or `BYDAY=2TU` on a daily or weekly repeat.
     `rdates` add extra occurrences; `exdates` list excluded ones.
 
     **Scopes.** `PATCH` and `DELETE` on a recurring event take `?scope=this|following|all` (default `all`):
@@ -53,7 +55,7 @@ x-error-codes:
   version_conflict: The event changed since the `If-Match` version you sent (HTTP 412).
   idempotency_conflict: The Idempotency-Key was used with a different body, or its first request is still running (HTTP 409).
   range_too_large: More than 400 days or 5000 occurrences requested (HTTP 400).
-  calendar_not_empty: The calendar still has events; repeat with `?force=1` to delete them permanently (HTTP 409).
+  calendar_not_empty: The calendar still has events; repeat with `?force=1` to delete it with them, restorable for 30 days (HTTP 409).
   payload_too_large: The .ics file is over 5 MB (HTTP 413).
   busy: The server is hashing too many passwords right now; retry shortly (HTTP 503).
   internal: Something failed on the server (HTTP 500).
@@ -175,7 +177,9 @@ paths:
         "422": { $ref: "#/components/responses/Error" }
     delete:
       summary: Delete a calendar
-      description: A calendar with events is `409 calendar_not_empty` unless `?force=1`, which permanently deletes the calendar and its events (they cannot be restored).
+      description: |
+        A calendar with events is `409 calendar_not_empty` unless `?force=1`, which deletes the calendar together with its events.
+        Nothing is destroyed for 30 days: `POST /api/calendars/{id}/restore` brings the calendar and those events back.
       x-access: user
       parameters:
         - { $ref: "#/components/parameters/id" }
@@ -184,6 +188,17 @@ paths:
         "204": { description: Deleted. }
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
+  /api/calendars/{id}/restore:
+    post:
+      summary: Restore a deleted calendar (within 30 days)
+      description: |
+        Brings back the calendar and the events that were deleted with it, not events that were deleted before it.
+        Restoring a calendar that is not deleted changes nothing. An event of a deleted calendar cannot be restored on its own (`422`); restore the calendar first.
+      x-access: user
+      parameters: [{ $ref: "#/components/parameters/id" }]
+      responses:
+        "200": { description: The restored calendar., content: { application/json: { schema: { $ref: "#/components/schemas/Calendar" } } } }
+        "404": { $ref: "#/components/responses/Error" }
   /api/events:
     post:
       summary: Create an event or a recurring series

@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/qarasky/korecalendar/api/internal/calendars"
 	"github.com/qarasky/korecalendar/api/internal/config"
 	"github.com/qarasky/korecalendar/api/internal/events"
 	"github.com/qarasky/korecalendar/api/internal/httpapi"
@@ -168,11 +169,18 @@ func background(ctx context.Context, db *sql.DB, cfg config.Config, logger *log.
 	wg.Go(func() { sched.Run(bg) })
 	wg.Go(func() {
 		every(bg, time.Hour, func(ctx context.Context) {
-			n, err := events.PurgeDeleted(ctx, db, time.Now().Add(-events.RestoreWindow))
+			cutoff := time.Now().Add(-events.RestoreWindow)
+			n, err := events.PurgeDeleted(ctx, db, cutoff)
 			if err != nil && ctx.Err() == nil {
 				logger.Printf("purge deleted events: %v", err)
 			} else if n > 0 {
 				logger.Printf("purged %d events deleted more than 30 days ago", n)
+			}
+			c, err := calendars.PurgeDeleted(ctx, db, cutoff)
+			if err != nil && ctx.Err() == nil {
+				logger.Printf("purge deleted calendars: %v", err)
+			} else if c > 0 {
+				logger.Printf("purged %d calendars deleted more than 30 days ago", c)
 			}
 		})
 	})

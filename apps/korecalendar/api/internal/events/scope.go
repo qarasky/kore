@@ -8,6 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/qarasky/korecalendar/api/internal/calendars"
 	"github.com/qarasky/korecalendar/api/internal/recur"
 )
 
@@ -22,7 +23,7 @@ const (
 )
 
 // RestoreWindow is how long a deleted event can be restored.
-const RestoreWindow = 30 * 24 * time.Hour
+const RestoreWindow = calendars.RestoreWindow
 
 // ErrOccurrenceNotFound means the occurrence key is not an occurrence of the series.
 var ErrOccurrenceNotFound = errors.New("occurrence not found")
@@ -268,14 +269,18 @@ func updateThis(ctx context.Context, tx *sql.Tx, a Actor, e Event, p Patch, key 
 	if p.Location != nil {
 		ov.Location = p.Location
 	}
+	if p.AllDay != nil {
+		ov.AllDay = p.AllDay
+	}
 	if p.Start != nil {
+		// Moving the start without an end keeps the duration the occurrence already has.
+		if p.End == nil && ov.End != nil {
+			ov.End = shiftedEnd(e, ov, key, *p.Start)
+		}
 		ov.Start = p.Start
 	}
 	if p.End != nil {
 		ov.End = p.End
-	}
-	if p.AllDay != nil {
-		ov.AllDay = p.AllDay
 	}
 	if p.Reminders != nil {
 		rs, err := cleanReminders(*p.Reminders)
@@ -297,6 +302,29 @@ func updateThis(ctx context.Context, tx *sql.Tx, a Actor, e Event, p Patch, key 
 	return EditResult{Event: e}, recordChange(ctx, tx, a.UserID, e.ID, "upsert")
 }
 
+// shiftedEnd returns the end that keeps ov's current duration after its start
+// moves to newStart, or nil (fall back to the series' duration) if the values
+// do not parse.
+func shiftedEnd(e Event, ov Override, key, newStart string) *string {
+	allDay := e.AllDay
+	if ov.AllDay != nil {
+		allDay = *ov.AllDay
+	}
+	layout := layoutFor(allDay)
+	oldStart := key
+	if ov.Start != nil {
+		oldStart = *ov.Start
+	}
+	os, err1 := time.Parse(layout, oldStart)
+	oe, err2 := time.Parse(layout, *ov.End)
+	ns, err3 := time.Parse(layout, newStart)
+	if err1 != nil || err2 != nil || err3 != nil {
+		return nil
+	}
+	end := ns.Add(oe.Sub(os)).Format(layout)
+	return &end
+}
+
 func updateFollowing(ctx context.Context, tx *sql.Tx, a Actor, e Event, p Patch, key string) (EditResult, error) {
 	before, after, err := recur.SplitAt(e.Series(), key)
 	if err != nil {
@@ -308,6 +336,7 @@ func updateFollowing(ctx context.Context, tx *sql.Tx, a Actor, e Event, p Patch,
 	now := time.Now().Unix()
 	next := e
 	next.ID = newID()
+	next.ICSUID = "" // the .ics UID identifies the original series; a unique index forbids reusing it
 	next.Start, next.End, next.RRule = after.Start, after.End, after.RRule
 	next.RDates, next.Exdates = nonNilStrings(after.RDates), nonNilStrings(after.Exdates)
 	next.Version, next.CreatedBy, next.UpdatedBy, next.CreatedAt, next.UpdatedAt = 1, a.Label, a.Label, now, now
@@ -420,6 +449,13 @@ func Restore(ctx context.Context, db *sql.DB, a Actor, id string) (Event, error)
 	}
 	if time.Since(time.Unix(*e.DeletedAt, 0)) > RestoreWindow {
 		return Event{}, ErrNotFound
+	}
+	var liveCalendar int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM calendars WHERE id=? AND deleted_at IS NULL`, e.CalendarID).Scan(&liveCalendar); err != nil {
+		return Event{}, err
+	}
+	if liveCalendar == 0 {
+		return Event{}, invalid("the event's calendar is deleted; restore the calendar first")
 	}
 	e.DeletedAt = nil
 	if err := saveEvent(ctx, tx, &e, a.Label); err != nil {

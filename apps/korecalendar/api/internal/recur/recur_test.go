@@ -140,9 +140,29 @@ func TestAllDayEventsAreDates(t *testing.T) {
 	got := expand(t, s, "2026-11-01T00:00:00Z", "2026-11-20T00:00:00Z", 100)
 	wantKeys(t, got, "2026-11-02", "2026-11-09", "2026-11-16")
 	if got[0].Start != "2026-11-02" || got[0].End != "2026-11-03" ||
-		!got[0].StartUTC.Equal(ts(t, "2026-11-02T00:00:00Z")) || !got[0].EndUTC.Equal(ts(t, "2026-11-03T00:00:00Z")) {
-		t.Fatalf("all-day occurrence = %+v", got[0])
+		!got[0].StartUTC.Equal(ts(t, "2026-11-02T05:00:00Z")) || !got[0].EndUTC.Equal(ts(t, "2026-11-03T05:00:00Z")) {
+		t.Fatalf("all-day occurrence = %+v (want local midnight in New York, 05:00Z in November)", got[0])
 	}
+}
+
+func TestAllDayUntilIsADateNotAnInstant(t *testing.T) {
+	// UNTIL=20261104 means "through Nov 4" in every zone, including ones where
+	// local midnight of Nov 4 is hours after 00:00Z.
+	for _, tz := range []string{"America/New_York", "UTC", "Asia/Tokyo", "Pacific/Kiritimati"} {
+		for _, until := range []string{"UNTIL=20261104", "UNTIL=20261104T235959Z"} {
+			s := Series{Start: "2026-11-02", End: "2026-11-03", AllDay: true, TZ: tz, RRule: "FREQ=DAILY;" + until}
+			wantKeys(t, expand(t, s, "2026-10-30T00:00:00Z", "2026-11-10T00:00:00Z", 100), "2026-11-02", "2026-11-03", "2026-11-04")
+		}
+	}
+}
+
+func TestAllDayDayRangeDoesNotPullInTheNeighbouringDay(t *testing.T) {
+	s := Series{Start: "2026-11-04", End: "2026-11-05", AllDay: true, TZ: "America/New_York", RRule: "FREQ=DAILY"}
+	// Nov 4 in New York, 05:00Z to 05:00Z
+	wantKeys(t, expand(t, s, "2026-11-04T05:00:00Z", "2026-11-05T05:00:00Z", 100), "2026-11-04")
+	// and in Tokyo, where Nov 4 is 15:00Z on Nov 3 to 15:00Z on Nov 4
+	tokyo := Series{Start: "2026-11-04", End: "2026-11-05", AllDay: true, TZ: "Asia/Tokyo", RRule: "FREQ=DAILY"}
+	wantKeys(t, expand(t, tokyo, "2026-11-03T15:00:00Z", "2026-11-04T15:00:00Z", 100), "2026-11-04")
 }
 
 func TestRDateAddsOccurrence(t *testing.T) {
@@ -165,13 +185,17 @@ func TestMultiDayEventOverlappingRangeIsIncluded(t *testing.T) {
 
 func TestValidateRuleRejects(t *testing.T) {
 	for _, bad := range []string{"FREQ=HOURLY", "FREQ=SECONDLY", "FREQ=MINUTELY", "FREQ=DAILY;BYHOUR=9",
-		"FREQ=YEARLY;BYWEEKNO=1", "FREQ=DAILY;COUNT=3;UNTIL=20261231T000000Z", "garbage", "", "FREQ=WEEKLY;BYDAY=XX"} {
+		"FREQ=YEARLY;BYWEEKNO=1", "FREQ=DAILY;COUNT=3;UNTIL=20261231T000000Z", "garbage", "", "FREQ=WEEKLY;BYDAY=XX",
+		// values the rule engine would quietly reinterpret instead of refusing
+		"FREQ=DAILY;COUNT=0", "FREQ=DAILY;COUNT=-5", "FREQ=DAILY;INTERVAL=0", "FREQ=DAILY;INTERVAL=-2",
+		"FREQ=WEEKLY;BYDAY=2TU", "FREQ=DAILY;BYDAY=-1MO"} {
 		if err := ValidateRule(bad); !errors.Is(err, ErrUnsupportedRule) {
 			t.Errorf("ValidateRule(%q) = %v, want ErrUnsupportedRule", bad, err)
 		}
 	}
 	for _, ok := range []string{"FREQ=WEEKLY;BYDAY=WE,FR", "FREQ=MONTHLY;BYDAY=2TU", "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1",
-		"FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=29", "FREQ=WEEKLY;INTERVAL=2;WKST=SU;COUNT=5", "RRULE:FREQ=DAILY;UNTIL=20261231T235959Z", "FREQ=DAILY;UNTIL=20261231"} {
+		"FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=29", "FREQ=WEEKLY;INTERVAL=2;WKST=SU;COUNT=5", "RRULE:FREQ=DAILY;UNTIL=20261231T235959Z", "FREQ=DAILY;UNTIL=20261231",
+		"FREQ=WEEKLY;BYDAY=MO,WE,FR", "FREQ=YEARLY;BYMONTH=11;BYDAY=4TH", "FREQ=MONTHLY;BYDAY=-1FR"} {
 		if err := ValidateRule(ok); err != nil {
 			t.Errorf("ValidateRule(%q) = %v, want nil", ok, err)
 		}

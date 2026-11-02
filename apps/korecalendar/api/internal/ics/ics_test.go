@@ -153,3 +153,16 @@ func TestExportThenParsePreservesEverything(t *testing.T) {
 		t.Fatalf("uid %q", items[2].UID)
 	}
 }
+
+func TestAllDayEventsTakeTheUsersTimeZone(t *testing.T) {
+	// A date has no zone of its own; reminders count back from local midnight,
+	// so an imported birthday must live in the user's zone, not UTC.
+	items, _, _ := parseFile(t, "google.ics", "America/New_York")
+	holiday := items[1].Input
+	if !holiday.AllDay || holiday.TZ != "America/New_York" || holiday.Start != "2026-12-24" || holiday.End != "2026-12-27" {
+		t.Fatalf("all-day event %+v", holiday)
+	}
+	if timed := items[0].Input; timed.TZ != "Europe/Berlin" { // timed events keep their own zone
+		t.Fatalf("timed event zone %q", timed.TZ)
+	}
+}

@@ -277,6 +277,9 @@ func Parse(r io.Reader, defaultTZ string) (items []ParsedEvent, errs, warns []Is
 			warn(w)
 		}
 		tz := start.tz
+		if start.allDay { // a date has no zone of its own: it lives in the user's
+			tz = defaultTZ
+		}
 		end, perr := endWall(c, start, tz, defaultTZ)
 		if perr != nil {
 			fail(perr.Error())

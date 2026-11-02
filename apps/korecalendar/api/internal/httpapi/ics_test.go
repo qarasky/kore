@@ -180,3 +180,30 @@ func TestImportDefaultsToFirstCalendarAndKeepsExistingOnes(t *testing.T) {
 		t.Fatalf("event moved to %s, want it to stay in %s", e.CalendarID, work.ID)
 	}
 }
+
+func TestSplittingAnImportedSeriesThisAndFollowing(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	tok := testsrv.Login(t, srv)
+	importICS(t, srv, tok, "", fixture(t, "google.ics"))
+	got := occs(t, srv, tok, "2026-01-01T00:00:00Z", "2026-06-01T00:00:00Z")
+	var id string
+	for _, o := range got {
+		if o.Title == "Team sync" {
+			id = o.EventID
+		}
+	}
+	if id == "" {
+		t.Fatalf("imported series not found in %+v", got)
+	}
+	r, res := edit(t, srv, tok, "PATCH", id, "?scope=following&occurrence=2026-04-14T10:00:00", map[string]any{"title": "Team sync v2"})
+	if r.Status != 200 || res.Created == nil || res.Created.Title != "Team sync v2" {
+		t.Fatalf("%d %s", r.Status, r.Body)
+	}
+	titles := map[string]string{}
+	for _, o := range occs(t, srv, tok, "2026-01-01T00:00:00Z", "2026-06-01T00:00:00Z") {
+		titles[o.Key[:10]] = o.Title
+	}
+	if titles["2026-01-13"] != "Team sync" || titles["2026-04-14"] != "Team sync v2" || titles["2026-05-12"] != "Team sync v2" {
+		t.Fatalf("titles %v", titles)
+	}
+}

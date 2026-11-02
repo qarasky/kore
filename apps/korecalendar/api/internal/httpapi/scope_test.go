@@ -407,3 +407,21 @@ func TestChangesRowWrittenPerMutation(t *testing.T) {
 		t.Fatalf("new series upserts %d", up)
 	}
 }
+
+func TestMovingAnAlreadyMovedOccurrenceByStartKeepsItsDuration(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	tok := testsrv.Login(t, srv)
+	e := mkEvent(t, srv, tok, weekly("Gym"))
+	q := "?scope=this&occurrence=" + k1106
+	// a drag in a UI sends start and end; then an agent only says "push it to 20:00"
+	if r, _ := edit(t, srv, tok, "PATCH", e.ID, q, map[string]any{"start": "2026-11-06T18:00:00", "end": "2026-11-06T19:30:00"}); r.Status != 200 {
+		t.Fatalf("first move: %d %s", r.Status, r.Body)
+	}
+	if r, _ := edit(t, srv, tok, "PATCH", e.ID, q, map[string]any{"start": "2026-11-06T20:00:00"}); r.Status != 200 {
+		t.Fatalf("second move by start alone: %d %s", r.Status, r.Body)
+	}
+	got := occs(t, srv, tok, "2026-11-06T00:00:00Z", "2026-11-07T00:00:00Z")
+	if len(got) != 1 || got[0].Start != "2026-11-06T20:00:00" || got[0].End != "2026-11-06T21:30:00" {
+		t.Fatalf("got %+v, want 20:00 to 21:30 (the 1.5 h it already had)", got)
+	}
+}

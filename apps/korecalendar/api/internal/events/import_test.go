@@ -81,3 +81,18 @@ func TestImportIntoOtherUsersCalendarIsNotFound(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestFollowingSplitOfAnImportedSeriesWorks(t *testing.T) {
+	f := newFixture(t)
+	imp, err := f.importEvent(t, gymImport())
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := Update(context.Background(), f.db, f.actor(), imp.Event.ID, Patch{Title: str("Gym v2")}, ScopeFollowing, "2026-11-18T16:00:00", nil)
+	if err != nil {
+		t.Fatalf("splitting an imported series failed: %v", err)
+	}
+	if res.Created == nil || res.Created.ICSUID != "" || res.Event.ICSUID != "gym@example.com" {
+		t.Fatalf("the original keeps its UID and the new series has none: old=%q new=%+v", res.Event.ICSUID, res.Created)
+	}
+}

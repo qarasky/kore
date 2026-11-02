@@ -44,6 +44,8 @@ name (here `claude`).
   change when that occurrence is moved to another time.
 - **Errors are always** `{"error":{"code":"…","message":"…"}}`. The `code` is stable; branch on it. They are listed in
   `x-error-codes` in the OpenAPI file.
+- **All-day events are dates.** Their `start`/`end` are dates in the event's `tz`, and their `start_utc`/`end_utc` are local midnight in that
+  zone, so a request for one local day returns only that day's all-day events.
 - **Another person's data is a 404**, never a 403.
 
 ## Create a recurring event
@@ -65,9 +67,10 @@ curl -s $B/api/events -H "Authorization: Bearer $TOK" -H 'Content-Type: applicat
 Sending the same request again with the same key returns this same response (header `Idempotent-Replayed: true`) and creates nothing.
 The same key with a different body is `409 idempotency_conflict`.
 
-Supported rules: daily, weekly, monthly and yearly repeats with `INTERVAL`, `COUNT` or `UNTIL`, `BYDAY` (including `2TU`, `-1FR`),
-`BYMONTHDAY`, `BYMONTH`, `BYSETPOS`, `WKST`, plus `rdates` for extra dates. Anything else (hourly, `BYWEEKNO`, …) is
-`422 unsupported_rrule`; nothing is silently approximated.
+Supported rules: daily, weekly, monthly and yearly repeats with `INTERVAL`, `COUNT` or `UNTIL`, `BYDAY` (including `2TU`, `-1FR` on
+monthly and yearly repeats), `BYMONTHDAY`, `BYMONTH`, `BYSETPOS`, `WKST`, plus `rdates` for extra dates. Anything else (hourly,
+`BYWEEKNO`, …) and anything that would otherwise be read differently than written (`COUNT=0`, `INTERVAL=0`, `FREQ=WEEKLY;BYDAY=2TU`)
+is `422 unsupported_rrule`; nothing is silently approximated.
 
 ## Skip one occurrence
 
@@ -112,7 +115,9 @@ curl -s -X PATCH -H "Authorization: Bearer $TOK" -H 'Content-Type: application/j
 ```
 
 (Abbreviated: the real response has every event field.) On the first occurrence, `following` is the same as `all`.
-`DELETE` takes the same scopes. A full `DELETE` is a soft delete that you can undo for 30 days with `POST /api/events/{id}/restore`.
+`DELETE` takes the same scopes. A full `DELETE` is a soft delete that you can undo for 30 days with `POST /api/events/{id}/restore`. Deleting a calendar
+(`DELETE /api/calendars/{id}?force=1`, required when it still has events) is undoable the same way with `POST /api/calendars/{id}/restore`,
+which brings back the events deleted with it.
 
 If you change the schedule of a whole series (start, zone, rule), changes to individual occurrences that no longer match are dropped,
 and listed in `dropped_overrides`.
