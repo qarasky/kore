@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   allowedDeleteScopes,
+  droppedOverrides,
   formFromEvent,
   newFormValues,
+  nextAttempt,
   planCreate,
   planDelete,
   planMove,
@@ -335,5 +337,37 @@ describe("newFormValues", () => {
 
   it("makes an all-day event on one day", () => {
     expect(newFormValues({ ...base, day: "2026-11-05", minutes: 0, allDay: true })).toMatchObject({ allDay: true, startDay: "2026-11-05", endDay: "2026-11-05" });
+  });
+});
+
+describe("nextAttempt (one Idempotency-Key per distinct create)", () => {
+  const form = (title: string) => planCreate({ ...newFormValues({ calendarId: "c1", tz: "UTC", day: "2026-11-04", minutes: 540, durationMinutes: 60 }), title });
+  const req = (title: string) => form(title).requests[0];
+
+  it("gives the first attempt a fresh key", () => {
+    expect(nextAttempt(null, req("Dentist"), () => "k1")).toEqual({ fingerprint: expect.any(String), key: "k1" });
+  });
+
+  it("keeps the key when the same request is sent again (a retry after a timeout must be replayed, not duplicated)", () => {
+    const first = nextAttempt(null, req("Dentist"), () => "k1");
+    expect(nextAttempt(first, req("Dentist"), () => "k2").key).toBe("k1");
+  });
+
+  it("takes a new key once the person has changed what is being created (the API refuses a key reused with another body)", () => {
+    const first = nextAttempt(null, req("Dentist"), () => "k1");
+    expect(nextAttempt(first, req("Dentist (changed)"), () => "k2").key).toBe("k2");
+  });
+});
+
+describe("droppedOverrides (changed occurrences a series edit reset)", () => {
+  it("counts the keys the API lists in dropped_overrides", () => {
+    expect(droppedOverrides([{ id: "g1", dropped_overrides: ["2026-11-09T09:00:00", "2026-11-16T09:00:00"] }])).toBe(2);
+  });
+  it("adds up across the requests of a plan and ignores responses without the field", () => {
+    expect(droppedOverrides([{ id: "a" }, { id: "b", dropped_overrides: ["x"] }, null, undefined, { dropped_overrides: ["y", "z"] }])).toBe(3);
+  });
+  it("is zero when nothing was dropped", () => {
+    expect(droppedOverrides([])).toBe(0);
+    expect(droppedOverrides([{ dropped_overrides: [] }])).toBe(0);
   });
 });

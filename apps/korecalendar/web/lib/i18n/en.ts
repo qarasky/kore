@@ -217,6 +217,8 @@ const en = {
   "toast.saved": "Event saved",
   "toast.deleted": "Event deleted",
   "toast.moved": "Event moved",
+  "toast.droppedOne": "1 changed occurrence no longer fit the new schedule and was reset.",
+  "toast.droppedMany": "{count} changed occurrences no longer fit the new schedule and were reset.",
   "toast.restored": "Event restored",
   "confirm.deleteTitle": "Delete event?",
   "confirm.deleteBody": "“{title}” will be deleted. You can undo this right afterwards.",

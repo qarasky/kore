@@ -8,7 +8,7 @@
  * An occurrence is identified by its key (its original start).
  */
 import { addDays, diffDays } from "./dates";
-import type { MessageKey } from "./i18n";
+import { t, type MessageKey } from "./i18n";
 import { buildRule, parseRule, shiftRuleByDays, type Recurrence, type RuleContext } from "./rrule";
 import type { Event, Occurrence } from "./types";
 import { diffMinutes, formatTimeInput, parseTimeInput, parseWall, shiftWall, wallString } from "./wall";
@@ -32,7 +32,14 @@ export type FormValues = {
   reminders: number[];
 };
 
-export type Request = { method: "POST" | "PATCH" | "DELETE"; path: string; body?: Record<string, unknown>; ifMatch?: number };
+export type Request = {
+  method: "POST" | "PATCH" | "DELETE";
+  path: string;
+  body?: Record<string, unknown>;
+  ifMatch?: number;
+  /** Sent as `Idempotency-Key` so a retried create is replayed, not repeated. */
+  idempotencyKey?: string;
+};
 export type Plan = { requests: Request[]; allowedScopes: Scope[]; warnings: MessageKey[] };
 
 const ALL_SCOPES: Scope[] = ["this", "following", "all"];
@@ -143,6 +150,37 @@ export function planCreate(f: FormValues): Plan {
   };
   if (rrule !== "") body.rrule = rrule;
   return { requests: [{ method: "POST", path: "/api/events", body }], allowedScopes: ["all"], warnings: [] };
+}
+
+/** The last create the person tried and the key it was sent with. */
+export type Attempt = { fingerprint: string; key: string };
+
+/**
+ * The key for sending `req`: the same one as the previous attempt when it is the
+ * same request (a retry after a timeout, whose first try may have landed), a new
+ * one when the person changed something (the API refuses a key reused with a
+ * different body).
+ */
+export function nextAttempt(prev: Attempt | null, req: Request, newKey: () => string): Attempt {
+  const fingerprint = `${req.method} ${req.path} ${JSON.stringify(req.body ?? null)}`;
+  return prev && prev.fingerprint === fingerprint ? prev : { fingerprint, key: newKey() };
+}
+
+/** How many changed occurrences a series edit reset, from the PATCH responses (`dropped_overrides`). */
+export function droppedOverrides(results: readonly unknown[]): number {
+  let n = 0;
+  for (const r of results) {
+    const list = (r as { dropped_overrides?: unknown } | null | undefined)?.dropped_overrides;
+    if (Array.isArray(list)) n += list.length;
+  }
+  return n;
+}
+
+/** "N changed occurrences … were reset", or null when a series edit reset none. */
+export function droppedMessage(results: readonly unknown[]): string | null {
+  const n = droppedOverrides(results);
+  if (n === 0) return null;
+  return n === 1 ? t("toast.droppedOne") : t("toast.droppedMany", { count: n });
 }
 
 function occurrenceQuery(scope: Scope, key: string): string {

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useState, useTransition, type ReactNode } from "react";
 import { ScopeDialog } from "@/components/ScopeDialog";
 import { useToast } from "@/components/Toast";
-import { planMove, type Scope } from "@/lib/editPlan";
+import { droppedMessage, planMove, type Scope } from "@/lib/editPlan";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
 import { fetchEvent, runPlan } from "@/lib/mutations";
@@ -35,13 +35,16 @@ export function useMoveCommit(): { commit: (occ: Occurrence, move: Move) => Prom
         setWorking(false);
         return;
       }
+      let results: unknown[];
       try {
-        await runPlan(plan);
+        results = await runPlan(plan);
       } catch (e) {
         toast(errorMessage(e), { kind: "error" });
         setWorking(false);
         return;
       }
+      const dropped = droppedMessage(results);
+      if (dropped) toast(dropped);
       const single = !occ.is_recurring;
       toast(t("toast.moved"), {
         action: single

@@ -5,11 +5,14 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useEventDelete } from "@/hooks/useEventDelete";
 import { addDays, diffDays } from "@/lib/dates";
 import {
+  droppedMessage,
   formFromEvent,
   newFormValues,
+  nextAttempt,
   planCreate,
   planUpdate,
   validateForm,
+  type Attempt,
   type FormValues,
   type Scope,
 } from "@/lib/editPlan";
@@ -103,6 +106,7 @@ function EditorForm({ mode, master, onClose }: { mode: EditorMode; master: Event
   const [errors, setErrors] = useState<ReturnType<typeof validateForm>>({});
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<{ message: string; conflict: boolean } | null>(null);
+  const attempt = useRef<Attempt | null>(null);
   const [scopePrompt, setScopePrompt] = useState<{ allowed: Scope[]; warning?: string } | null>(null);
 
   const recurring = isEdit && (occ?.is_recurring ?? master!.rrule !== "");
@@ -134,14 +138,21 @@ function EditorForm({ mode, master, onClose }: { mode: EditorMode; master: Event
   }
 
   async function execute(scope: Scope) {
+    if (busy) return; // Ctrl+Enter twice must not send twice
     setBusy(true);
     setProblem(null);
     try {
       if (isEdit) {
-        await runPlan(planUpdate({ master: master!, occurrence: occ, form, scope }));
+        const results = await runPlan(planUpdate({ master: master!, occurrence: occ, form, scope }));
         toast(t("toast.saved"));
+        const dropped = droppedMessage(results);
+        if (dropped) toast(dropped);
       } else {
-        await runPlan(planCreate(form));
+        // A retry of the same form after an error is replayed by the API instead of creating a second event.
+        const plan = planCreate(form);
+        attempt.current = nextAttempt(attempt.current, plan.requests[0], () => crypto.randomUUID());
+        plan.requests[0].idempotencyKey = attempt.current.key;
+        await runPlan(plan);
         toast(t("toast.created"));
       }
       router.refresh();
@@ -154,6 +165,7 @@ function EditorForm({ mode, master, onClose }: { mode: EditorMode; master: Event
   }
 
   async function save() {
+    if (busy) return;
     const found = validateForm(form);
     setErrors(found);
     if (found.title || found.end) return;

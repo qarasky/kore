@@ -19,6 +19,7 @@ import type { EditResult, Event } from "./types";
 export async function sendRequest<T = unknown>(req: Request): Promise<T> {
   const headers: Record<string, string> = {};
   if (req.ifMatch !== undefined) headers["If-Match"] = `"${req.ifMatch}"`;
+  if (req.idempotencyKey) headers["Idempotency-Key"] = req.idempotencyKey;
   return api<T>(req.path, { method: req.method, body: req.body ? JSON.stringify(req.body) : undefined, headers });
 }
 
