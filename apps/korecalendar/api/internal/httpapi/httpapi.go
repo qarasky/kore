@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/qarasky/korecalendar/api/internal/auth"
+	"github.com/qarasky/korecalendar/api/internal/dav"
 )
 
 type server struct {
@@ -106,5 +107,14 @@ func (s *server) handler() http.Handler {
 		}
 		mux.Handle(r.pattern, h)
 	}
+	// CalDAV is a separate protocol with its own authentication (Basic, access
+	// tokens only) and XML errors; it is not part of the /api contract.
+	d := dav.New(s.db, dav.Options{
+		Limiter:   auth.NewLimiter(5, 15*time.Minute),
+		IPLimiter: auth.NewLimiter(30, 15*time.Minute),
+		ClientKey: limitKey,
+	})
+	mux.Handle(dav.Prefix+"/", d)
+	mux.Handle("/.well-known/caldav", d)
 	return mux
 }

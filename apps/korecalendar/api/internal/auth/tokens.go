@@ -88,4 +88,14 @@ func principalForToken(ctx context.Context, db *sql.DB, tok string) (Principal, 
 	return p, true
 }
 
+// TokenPrincipal authenticates an access token (never a session token): who
+// it belongs to, with Via "token". Used where only tokens may be offered, such
+// as the CalDAV endpoint's Basic password.
+func TokenPrincipal(ctx context.Context, db *sql.DB, tok string) (Principal, bool) {
+	if !isToken(tok) {
+		return Principal{}, false
+	}
+	return principalForToken(ctx, db, tok)
+}
+
 func isToken(tok string) bool { return strings.HasPrefix(tok, TokenPrefix) }
