@@ -72,6 +72,23 @@ const en = {
   "grid.nowLine": "Current time",
   "grid.continues": "continues",
 
+  "month.more": "+{count} more",
+  "month.moreLabel": "Show {count} more events on {date}",
+  "month.weekdays": "Days of the week",
+
+  "agenda.empty": "Nothing planned in this period.",
+  "agenda.today": "Today",
+  "agenda.allDay": "All day",
+  "agenda.continues": "continues",
+  "agenda.until": "until {time}",
+
+  "search.title": "Search",
+  "search.resultsFor": "Results for “{q}”",
+  "search.prompt": "Type something in the search box to find events by title, notes or location.",
+  "search.none": "No events match “{q}”.",
+  "search.range": "Searched from {from} to {to}.",
+  "search.count": "{count} found",
+
   "calendars.heading": "My calendars",
   "calendars.show": "Show {name}",
   "calendars.none": "No calendars yet",

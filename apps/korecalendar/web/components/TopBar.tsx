@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { formatDayTitle } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { calendarHref, navigate } from "@/lib/range";
@@ -16,6 +17,9 @@ import { Wordmark } from "./wordmark";
 export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const { view, day, today, prefs } = useShell();
   const { openNew } = useEditor();
+  const pathname = usePathname();
+  const search = useSearchParams();
+  const query = pathname === "/search" ? (search.get("q") ?? "") : "";
 
   return (
     <header className="flex h-topbar shrink-0 items-center gap-2 px-3">
@@ -47,7 +51,7 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         </Link>
       )}
       <div className="flex-1" />
-      <SearchBox />
+      <SearchBox key={query} initial={query} />
       <div className="hidden md:block">
         <ViewSwitcher />
       </div>

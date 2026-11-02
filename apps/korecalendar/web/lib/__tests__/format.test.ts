@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDayTitle, formatRange, formatTime, hourLabel, monthName, weekdayShort } from "@/lib/format";
+import { formatFullDate, formatDayTitle, formatRange, formatTime, hourLabel, monthName, weekdayShort } from "@/lib/format";
 
 describe("format", () => {
   it("formats times in 24h and 12h", () => {
@@ -26,6 +26,10 @@ describe("format", () => {
     expect(formatRange("2026-11-04T15:00:00Z", "2026-11-04T16:00:00Z", "Europe/Berlin", "24h")).toBe("Wed, 4 Nov · 16:00–17:00");
     expect(formatRange("2026-11-04T22:00:00Z", "2026-11-05T09:30:00Z", "UTC", "24h")).toBe("Wed, 4 Nov 22:00 – Thu, 5 Nov 09:30");
     expect(formatRange("2026-11-04T15:00:00Z", "2026-11-04T16:00:00Z", "Europe/Berlin", "12h")).toBe("Wed, 4 Nov · 4:00–5:00 PM");
+  });
+
+  it("writes a full date", () => {
+    expect(formatFullDate("2026-08-04")).toBe("4 Aug 2026");
   });
 
   it("names weekdays and months", () => {

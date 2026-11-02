@@ -17,6 +17,11 @@ export function monthName(i: number): string {
   return months.format(new Date(Date.UTC(2026, i, 1)));
 }
 
+/** 0 = January: "Nov". */
+export function monthShortName(i: number): string {
+  return monthsShort.format(new Date(Date.UTC(2026, i, 1)));
+}
+
 function monthShort(month: number): string {
   return monthsShort.format(new Date(Date.UTC(2026, month - 1, 1)));
 }
@@ -45,6 +50,11 @@ export function hourLabel(hour: number, clock: Clock): string {
 export function formatDayShort(day: string): string {
   const { month, day: d } = parseDay(day);
   return `${weekdayShort(weekday(day))}, ${d} ${monthShort(month)}`;
+}
+
+/** "4 Nov 2026". */
+export function formatFullDate(day: string): string {
+  return dmy(day, true);
 }
 
 function dmy(day: string, withYear: boolean): string {
