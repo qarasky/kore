@@ -42,6 +42,10 @@ func (s *server) handler() http.Handler {
 	mux.Handle("GET /api/tokens", sessionOnly(s.handleListTokens))
 	mux.Handle("POST /api/tokens", sessionOnly(s.handleCreateToken))
 	mux.Handle("DELETE /api/tokens/{id}", sessionOnly(s.handleRevokeToken))
+	mux.Handle("GET /api/calendars", authed(s.handleListCalendars))
+	mux.Handle("POST /api/calendars", authed(s.handleCreateCalendar))
+	mux.Handle("PATCH /api/calendars/{id}", authed(s.handlePatchCalendar))
+	mux.Handle("DELETE /api/calendars/{id}", authed(s.handleDeleteCalendar))
 	mux.Handle("POST /api/admin/users", admin(s.handleAdminCreateUser))
 	return mux
 }

@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/qarasky/korecalendar/api/internal/auth"
+	"github.com/qarasky/korecalendar/api/internal/calendars"
 	"github.com/qarasky/korecalendar/api/internal/users"
 )
 
@@ -84,6 +85,10 @@ func (s *server) handleSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	case err != nil:
 		errJSON(w, http.StatusInternalServerError, "internal", "could not create the account")
+		return
+	}
+	if _, err := calendars.CreateDefault(r.Context(), s.db, u.ID); err != nil {
+		errJSON(w, http.StatusInternalServerError, "internal", "could not create the default calendar")
 		return
 	}
 	s.startSession(w, r, u, http.StatusCreated)
@@ -189,6 +194,10 @@ func (s *server) handleAdminCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	case err != nil:
 		errJSON(w, http.StatusInternalServerError, "internal", "could not create the user")
+		return
+	}
+	if _, err := calendars.CreateDefault(r.Context(), s.db, u.ID); err != nil {
+		errJSON(w, http.StatusInternalServerError, "internal", "could not create the default calendar")
 		return
 	}
 	writeJSON(w, http.StatusCreated, u)
