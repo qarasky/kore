@@ -9,16 +9,17 @@
 # existing install is left alone. Read it before you run it; it is short.
 #
 # Run from inside a clone (git clone ... && cd korecalendar && ./install.sh) it
-# builds the images from that checkout; the install directory then links to it,
-# so keep the clone. This is the way to install while the repository is private.
+# builds the images from that checkout and installs in place (the .env is written
+# there). This is the way to install while the repository is private.
 #
 # If the images cannot be pulled (they are not published yet), the installer
 # clones the repository into <install dir>/src and builds them there instead;
 # that needs git, and takes a few minutes the first time.
 #
 # Non-interactive use: set any of these (and it will not ask):
-#   KORECAL_DIR=~/korecalendar     where the compose files and .env go
-#   KORECAL_DATA_DIR=<dir>/data    where the database lives
+#   KORECAL_DIR=~/korecalendar     where the compose files and .env go (default: the
+#                                  checkout when run from one, else ~/korecalendar)
+#   KORECAL_DATA_DIR=<dir>-data    where the database lives (default: next to it)
 #   KORECAL_BIND=127.0.0.1|0.0.0.0 KORECAL_PORT=8080
 #   KORECAL_VERSION=latest         image tag
 #   KORECAL_REF=main               git ref (branch or tag) the files come from
@@ -35,6 +36,7 @@ REF="${KORECAL_REF:-main}"
 RAW="https://raw.githubusercontent.com/${REPO}/${REF}"
 REPO_URL="${KORECAL_REPO_URL:-https://github.com/${REPO}.git}"
 SOURCE_INSTALL=0
+IN_PLACE=0
 
 if [ -t 1 ]; then B=$'\033[1m'; G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; N=$'\033[0m'; else B=; G=; Y=; R=; N=; fi
 say()  { printf '%s\n' "$*"; }
@@ -92,18 +94,20 @@ docker compose version >/dev/null 2>&1 || die "The Docker Compose plugin is miss
 docker info >/dev/null 2>&1 || die "Cannot talk to the Docker daemon. Is it running, and is your user in the 'docker' group? (sudo usermod -aG docker \$USER, then log in again)"
 
 # --- Already installed? ---------------------------------------------------
-KORECAL_DIR="${KORECAL_DIR:-$HOME/korecalendar}"
+# Run from a checkout, the installation lives in that checkout by default (so a later
+# `git pull` brings the new compose files); otherwise in ~/korecalendar.
+KORECAL_DIR="${KORECAL_DIR:-${KORECAL_SOURCE_DIR:-$HOME/korecalendar}}"
 KORECAL_DIR="${KORECAL_DIR/#\~/$HOME}"
 if [ -f "$KORECAL_DIR/.env" ]; then
   say "KoreCalendar is already installed in $KORECAL_DIR (found .env); leaving it alone."
-  say "To update:  see docs/deploy.md (Updating) in the repository"
+  say "To update, see docs/deploy.md (Updating)."
   exit 0
 fi
 
 # --- Questions ------------------------------------------------------------
 step "Configuring KoreCalendar"
 ask KORECAL_DIR "Install directory (compose files and .env)" "$KORECAL_DIR"
-ask KORECAL_DATA_DIR "Data directory (the database)" "$KORECAL_DIR/data"
+ask KORECAL_DATA_DIR "Data directory (the database)" "${KORECAL_DIR%/}-data"
 ask KORECAL_BIND "Listen on (127.0.0.1 = this machine only, 0.0.0.0 = LAN/Tailscale too)" "127.0.0.1"
 ask KORECAL_PORT "Port" "8080"
 
@@ -117,6 +121,12 @@ case "$KORECAL_DATA_DIR" in /*) ;; *) KORECAL_DATA_DIR="$PWD/$KORECAL_DATA_DIR" 
 case "$KORECAL_DIR$KORECAL_DATA_DIR" in *\'*|*$'\n'*) die "paths must not contain a single quote or a newline" ;; esac
 KORECAL_UID="$(id -u)"
 KORECAL_GID="$(id -g)"
+
+# The directory may have been changed at the prompt: the same "already installed" rule applies.
+if [ -f "$KORECAL_DIR/.env" ]; then
+  say "KoreCalendar is already installed in $KORECAL_DIR (found .env); leaving it alone."
+  exit 0
+fi
 
 # --- Data directory -------------------------------------------------------
 step "Preparing the data directory $KORECAL_DATA_DIR"
@@ -138,14 +148,22 @@ fi
 
 # --- Files ----------------------------------------------------------------
 step "Writing the compose files to $KORECAL_DIR"
-mkdir -p "$KORECAL_DIR"
-fetch docker-compose.yml "$KORECAL_DIR/docker-compose.yml"
-fetch Caddyfile "$KORECAL_DIR/Caddyfile"
-if [ -n "${KORECAL_SOURCE_DIR:-}" ]; then
-  # A local install builds its images from the checkout.
-  SRC="$(cd "$KORECAL_SOURCE_DIR" && pwd)"
-  ln -sfn "$SRC/api" "$KORECAL_DIR/api"
-  ln -sfn "$SRC/web" "$KORECAL_DIR/web"
+if ! mkdir -p "$KORECAL_DIR" 2>/dev/null; then
+  command -v sudo >/dev/null 2>&1 || die "cannot create $KORECAL_DIR (try a path you can write to)"
+  sudo mkdir -p "$KORECAL_DIR" && sudo chown "$KORECAL_UID:$KORECAL_GID" "$KORECAL_DIR"
+fi
+# Installing in place (the install directory is the checkout itself): nothing to copy or link.
+IN_PLACE=0
+if [ -n "${KORECAL_SOURCE_DIR:-}" ] && [ "$(cd "$KORECAL_DIR" && pwd -P)" = "$(cd "$KORECAL_SOURCE_DIR" && pwd -P)" ]; then IN_PLACE=1; fi
+if [ "$IN_PLACE" = 0 ]; then
+  fetch docker-compose.yml "$KORECAL_DIR/docker-compose.yml"
+  fetch Caddyfile "$KORECAL_DIR/Caddyfile"
+  if [ -n "${KORECAL_SOURCE_DIR:-}" ]; then
+    # A local install builds its images from the checkout.
+    SRC="$(cd "$KORECAL_SOURCE_DIR" && pwd)"
+    ln -sfn "$SRC/api" "$KORECAL_DIR/api"
+    ln -sfn "$SRC/web" "$KORECAL_DIR/web"
+  fi
 fi
 umask 077
 cat >"$KORECAL_DIR/.env" <<EOF2
@@ -231,11 +249,14 @@ fi
 say
 printf '%sKoreCalendar is running.%s\n' "$G" "$N"
 say "  Open it:   http://${HOST}:${KORECAL_PORT}   (the first account you create becomes the administrator)"
-say "  Files:     $KORECAL_DIR   (docker-compose.yml, .env)"
+say "  Files:     $KORECAL_DIR   (docker-compose.yml, Caddyfile, .env)"
 say "  Data:      $KORECAL_DATA_DIR"
 say
-if [ "$SOURCE_INSTALL" = 1 ]; then
-  say "Update later:        cd ${KORECAL_SOURCE_DIR:-$KORECAL_DIR/src} && git pull && cd $KORECAL_DIR && docker compose build && docker compose up -d"
+if [ "$IN_PLACE" = 1 ]; then
+  say "Update later:        back up the database first (docs/deploy.md), then: cd $KORECAL_DIR && git pull && docker compose build --pull && docker compose up -d --wait"
+elif [ "$SOURCE_INSTALL" = 1 ]; then
+  UPSRC="${KORECAL_SOURCE_DIR:-$KORECAL_DIR/src}"
+  say "Update later:        back up the database first (docs/deploy.md), then: cd $UPSRC && git pull && cp docker-compose.yml Caddyfile $KORECAL_DIR/ && cd $KORECAL_DIR && docker compose build --pull && docker compose up -d --wait"
 else
   say "Update later:        cd $KORECAL_DIR && docker compose pull && docker compose up -d"
 fi
