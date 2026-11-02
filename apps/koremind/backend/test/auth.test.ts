@@ -82,3 +82,39 @@ test("stale login attempt rows are pruned", async () => {
   await auth.login(creds, "6.6.6.6");
   expect((db.query("select count(*) c from login_attempts").get() as { c: number }).c).toBe(0);
 });
+
+test("a pairing code signs a new device in as the same user, once", async () => {
+  let t = 1_000_000;
+  const { auth } = setup(() => t);
+  const owner = await auth.register(creds);
+  const pair = auth.startPair(owner.user.id);
+  expect(pair.code.length).toBeGreaterThanOrEqual(20);
+  expect(pair.expiresAt).toBe(t + 120_000);
+  const device = await auth.redeemPair(pair.code, "1.1.1.1");
+  expect(device.user.id).toBe(owner.user.id);
+  expect(device.token).not.toBe(owner.token);
+  expect(auth.verify(device.token)?.id).toBe(owner.user.id);
+  expect(await code(auth.redeemPair(pair.code, "1.1.1.1"))).toBe("bad_code"); // single use
+});
+
+test("pairing codes expire after two minutes and unknown codes fail the same way", async () => {
+  let t = 1_000_000;
+  const { auth } = setup(() => t);
+  const owner = await auth.register(creds);
+  const pair = auth.startPair(owner.user.id);
+  t += 120_001;
+  expect(await code(auth.redeemPair(pair.code, "1.1.1.1"))).toBe("bad_code");
+  expect(await code(auth.redeemPair("nope", "1.1.1.1"))).toBe("bad_code");
+});
+
+test("guessing pairing codes is rate limited per address, and a new code replaces the old one", async () => {
+  const { auth } = setup();
+  const owner = await auth.register(creds);
+  for (let i = 0; i < 10; i++) await code(auth.redeemPair(`guess${i}`, "9.9.9.9"));
+  expect(await code(auth.redeemPair("guess-final", "9.9.9.9"))).toBe("rate_limited");
+  expect(await code(auth.redeemPair("x", "8.8.8.8"))).toBe("bad_code"); // another address is unaffected
+  const first = auth.startPair(owner.user.id);
+  const second = auth.startPair(owner.user.id);
+  expect(await code(auth.redeemPair(first.code, "7.7.7.7"))).toBe("bad_code");
+  expect(await code(auth.redeemPair(second.code, "7.7.7.7"))).toBe("ok");
+});

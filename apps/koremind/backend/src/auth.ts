@@ -3,7 +3,7 @@ import type { AuthRequest, AuthResponse, User } from "@zero/shared";
 
 export class AuthError extends Error {
   constructor(
-    public code: "setup_closed" | "bad_credentials" | "rate_limited",
+    public code: "setup_closed" | "bad_credentials" | "rate_limited" | "bad_code",
     message: string,
     public retryAfterSec?: number,
   ) {
@@ -13,6 +13,8 @@ export class AuthError extends Error {
 
 const TOKEN_TTL_MS = 30 * 24 * 3600 * 1000;
 const MAX_ATTEMPTS = 5;
+const PAIR_TTL_MS = 2 * 60 * 1000;
+const PAIR_MAX_ATTEMPTS = 10;
 const WINDOW_MS = 15 * 60 * 1000;
 
 const sha256 = (s: string) => new Bun.CryptoHasher("sha256").update(s).digest("hex");
@@ -61,6 +63,33 @@ export function createAuth(db: Database, now: () => number = Date.now) {
         throw new AuthError("bad_credentials", "Wrong email or password");
       }
       db.run("delete from login_attempts where key=?", [key]);
+      return issue(toUser(user));
+    },
+
+    /** A short-lived, single-use code a new device can trade for its own session. One live code per user. */
+    startPair(userId: string): { code: string; expiresAt: number } {
+      const code = Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("base64url");
+      const expiresAt = now() + PAIR_TTL_MS;
+      db.transaction(() => {
+        db.run("delete from pair_codes where user_id=? or expires_at<?", [userId, now()]);
+        db.run("insert into pair_codes(code_hash,user_id,expires_at) values(?,?,?)", [sha256(code), userId, expiresAt]);
+      })();
+      return { code, expiresAt };
+    },
+
+    async redeemPair(code: string, ip: string): Promise<AuthResponse> {
+      const key = `pair|${ip}`;
+      const t = now();
+      db.run("delete from login_attempts where window_start < ?", [t - WINDOW_MS]);
+      const row = db.query("select count, window_start from login_attempts where key=?").get(key) as { count: number; window_start: number } | null;
+      if (row && row.count >= PAIR_MAX_ATTEMPTS) throw new AuthError("rate_limited", "Too many attempts", Math.ceil((row.window_start + WINDOW_MS - t) / 1000));
+      const hit = db.query("select user_id from pair_codes where code_hash=? and expires_at>?").get(sha256(code), t) as { user_id: string } | null;
+      if (!hit) {
+        db.run("insert or replace into login_attempts(key,count,window_start) values(?,?,?)", [key, (row?.count ?? 0) + 1, row?.window_start ?? t]);
+        throw new AuthError("bad_code", "That code isn't valid or has expired");
+      }
+      db.run("delete from pair_codes where code_hash=?", [sha256(code)]);
+      const user = db.query("select * from users where id=?").get(hit.user_id) as UserRow;
       return issue(toUser(user));
     },
 

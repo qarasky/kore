@@ -1,4 +1,4 @@
-import { AuthRequest, Settings, SendMessageRequest, type StreamEvent } from "@zero/shared";
+import { AuthRequest, PairRedeem, Settings, SendMessageRequest, type PairStart, type StreamEvent } from "@zero/shared";
 import { z } from "zod";
 import { AuthError } from "./auth";
 import type { Services } from "./services";
@@ -44,13 +44,22 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
     if (m === "POST" && path === "/auth/register") return json(200, await s.auth.register(await body(req, AuthRequest), caller ?? undefined));
     if (m === "POST" && path === "/auth/login") return json(200, await s.auth.login(await body(req, AuthRequest), ip));
 
+    if (m === "POST" && path === "/auth/pair/redeem") return json(200, await s.auth.redeemPair((await body(req, PairRedeem)).code, ip));
+
     if (!caller) return fail(401, "unauthorized", "Sign in required");
     const u = caller.id;
     let r: RegExpMatchArray | null;
 
     if (m === "POST" && path === "/auth/logout") { s.auth.logout(tokenOf(req, url)); return ok(); }
+    if (m === "POST" && path === "/auth/pair") {
+      const { code, expiresAt } = s.auth.startPair(u);
+      const urls = s.addresses();
+      const link = `zero://pair?${[`c=${encodeURIComponent(code)}`, ...urls.map((x) => `u=${encodeURIComponent(x)}`)].join("&")}`;
+      const out: PairStart = { code, expiresAt, urls, link };
+      return json(200, out);
+    }
     if (m === "GET" && path === "/me") return json(200, caller);
-    if (m === "GET" && path === "/models") return json(200, await s.models.providers());
+    if (m === "GET" && path === "/models") return json(200, await s.models.providers(u));
     if (m === "GET" && path === "/favorites") return json(200, s.models.favorites(u));
     if (m === "PUT" && path === "/favorites") { await s.models.setFavorites(u, await body(req, z.array(z.string()))); return json(200, s.models.favorites(u)); }
     if (m === "GET" && path === "/providers") return json(200, await s.models.connections());
@@ -85,7 +94,9 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
     }
     if ((r = path.match(/^\/chats\/([^/]+)\/messages$/)) && m === "POST") {
       if (!s.chats.has(u, r[1])) return fail(404, "not_found", "Chat not found");
-      const it = s.chats.send(u, r[1], await body(req, SendMessageRequest), req.signal)[Symbol.asyncIterator]();
+      const sendReq = await body(req, SendMessageRequest);
+      if (!(await s.models.allowed(u, sendReq.model.providerId, sendReq.model.modelId))) return fail(400, "model_not_allowed", "That model isn't available. Pick another one in the model picker.");
+      const it = s.chats.send(u, r[1], sendReq, req.signal)[Symbol.asyncIterator]();
       const enc = new TextEncoder();
       let nextEv: Promise<IteratorResult<StreamEvent>> | null = null;
       const stream = new ReadableStream<Uint8Array>({
@@ -139,7 +150,7 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
       catch (e) {
         if (e instanceof HttpError) return fail(e.status, e.code, e.message);
         if (e instanceof AuthError) {
-          const status = e.code === "rate_limited" ? 429 : e.code === "setup_closed" ? 403 : 401;
+          const status = e.code === "rate_limited" ? 429 : e.code === "setup_closed" ? 403 : 401; // bad_code and bad_credentials: 401
           return fail(status, e.code, e.message, e.retryAfterSec ? { retryAfterSec: e.retryAfterSec } : {});
         }
         if (e instanceof Error && /UNIQUE constraint/.test(e.message)) return fail(409, "conflict", "That email is already registered");

@@ -71,15 +71,15 @@ test("settings default, round trip and per-user", () => {
   const db = openDb(":memory:");
   for (const u of ["u1", "u2"]) db.run("insert into users(id,email,password_hash,is_owner,created_at) values(?,?,?,0,1)", [u, `${u}@x.co`, "h"]);
   const s = createSettings(db);
-  expect(s.get("u1")).toEqual({ memoryEnabled: true, displayName: "", tone: "", about: "" });
-  s.put("u1", { memoryEnabled: false, displayName: "Sky", tone: "short", about: "dev" });
+  expect(s.get("u1")).toEqual({ memoryEnabled: true, displayName: "", tone: "", about: "", disabledProviders: [], freeOnlyProviders: [] });
+  s.put("u1", { memoryEnabled: false, displayName: "Sky", tone: "short", about: "dev", disabledProviders: [], freeOnlyProviders: [] });
   expect(s.get("u1").displayName).toBe("Sky");
   expect(s.get("u2").displayName).toBe("");
 });
 
 test("buildSystem includes memory entries and personalization", () => {
   const s = createSettings(openDb(":memory:"));
-  const text = s.buildSystem({ memoryEnabled: true, displayName: "Sky", tone: "casual", about: "backend dev" }, [{ id: "a", text: "Likes tea", updatedAt: 1 }]);
+  const text = s.buildSystem({ memoryEnabled: true, displayName: "Sky", tone: "casual", about: "backend dev", disabledProviders: [], freeOnlyProviders: [] }, [{ id: "a", text: "Likes tea", updatedAt: 1 }]);
   expect(text).toContain("Sky");
   expect(text).toContain("casual");
   expect(text).toContain("backend dev");

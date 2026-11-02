@@ -16,7 +16,8 @@ const engine = process.env.ZERO_FAKE_ENGINE
   : await createOpencodeEngine({ dataDir: config.dataDir, bin: process.env.ZERO_OPENCODE_BIN });
 
 const version = (await Bun.file(join(import.meta.dir, "../package.json")).json()).version ?? "0.1.0";
-const services = createServices({ db: openDb(join(config.dataDir, "zero.sqlite")), dataDir: config.dataDir, engine, version });
+let servicePort = config.port;
+const services = createServices({ db: openDb(join(config.dataDir, "zero.sqlite")), dataDir: config.dataDir, engine, version, addresses: () => listAddresses(networkInterfaces(), servicePort, process.env).map((a) => a.url) });
 const app = createApp(services, { trustProxy: process.env.ZERO_TRUST_PROXY === "1" });
 
 const server = Bun.serve({
@@ -26,6 +27,7 @@ const server = Bun.serve({
   fetch: (req, srv) => app.fetch(req, srv.requestIP(req)?.address),
 });
 
+servicePort = server.port ?? config.port;
 console.log(`Zero backend ${version} is running${process.env.ZERO_FAKE_ENGINE ? " (fake engine)" : ""}. Point the apps at:`);
 for (const a of listAddresses(networkInterfaces(), server.port ?? config.port, process.env)) console.log(`  ${a.label.padEnd(9)} ${a.url}`);
 

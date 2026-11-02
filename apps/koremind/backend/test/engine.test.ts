@@ -93,6 +93,20 @@ test("mapModels marks a provider connected only when a key connection exists", (
   expect(mapModels([{ id: "opencode", name: "OpenCode" }], models, undefined, new Set(["opencode"]))[0].connected).toBe(true);
 });
 
+test("mapModels marks free models by their price tiers and gives every listed provider a status", () => {
+  const free = { cost: [{ input: 0, output: 0, cache: { read: 0, write: 0 } }] };
+  const paid = { cost: [{ input: 0.05, output: 0.5 }] };
+  const mixed = { cost: [{ input: 0, output: 0 }, { input: 1, output: 2 }] };
+  const m = (id: string, extra: object) => ({ id, modelID: id, providerID: "openrouter", name: id, capabilities: { input: ["text"] }, variants: [], enabled: true, status: "active", ...extra });
+  const out = mapModels([{ id: "openrouter", name: "OpenRouter" }, { id: "openai", name: "Codex" }], [m("a:free", free), m("b", paid), m("c", mixed), m("d", {})], undefined, new Set(["openrouter"]));
+  const or = out.find((p) => p.id === "openrouter")!;
+  expect(or.models.map((x) => [x.id, x.free])).toEqual([["a:free", true], ["b", false], ["c", false], ["d", false]]);
+  expect(or.status).toBe("ready");
+  expect(out.find((p) => p.id === "openai")).toMatchObject({ status: "needs_connection", connected: false, models: [] });
+  // OpenCode's free tier works without a key.
+  expect(mapModels([{ id: "opencode", name: "OpenCode" }], [], undefined, new Set())[0]).toMatchObject({ status: "ready", connected: false });
+});
+
 test("mapConnections offers OpenCode, Codex and OpenRouter with their login methods, and nothing else", () => {
   const integrations = [
     { id: "anthropic", name: "Anthropic", methods: [{ type: "key" }], connections: [] },
@@ -102,9 +116,10 @@ test("mapConnections offers OpenCode, Codex and OpenRouter with their login meth
   ];
   const out = mapConnections(integrations);
   expect(out.map((c) => c.id)).toEqual(["opencode", "openai", "openrouter"]);
-  expect(out.find((c) => c.id === "openai")).toEqual({ id: "openai", name: "Codex", connected: false, methods: ["key", "signin"] });
-  expect(out.find((c) => c.id === "openrouter")).toEqual({ id: "openrouter", name: "OpenRouter", connected: true, methods: ["key"] });
+  expect(out.find((c) => c.id === "openai")).toEqual({ id: "openai", name: "Codex", connected: false, methods: ["key", "signin"], supportsFreeFilter: false });
+  expect(out.find((c) => c.id === "openrouter")).toEqual({ id: "openrouter", name: "OpenRouter", connected: true, methods: ["key"], supportsFreeFilter: true });
   expect(out.find((c) => c.id === "opencode")?.methods).toEqual(["key"]);
+  expect(out.map((c) => [c.id, c.supportsFreeFilter])).toEqual([["opencode", true], ["openai", false], ["openrouter", true]]);
 });
 
 test("disconnecting removes saved credentials by id; an env-only connection cannot be removed from the app", () => {

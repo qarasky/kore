@@ -13,6 +13,13 @@ const MIGRATIONS: string[] = [
   create table favorites(user_id text not null references users(id) on delete cascade, model_key text not null, primary key(user_id, model_key));
   create table login_attempts(key text primary key, count integer not null, window_start integer not null);
   `,
+  `
+  create table pair_codes(code_hash text primary key, user_id text not null references users(id) on delete cascade, expires_at integer not null);
+  create index pair_codes_user on pair_codes(user_id);
+  create table notes(id text primary key, user_id text not null references users(id) on delete cascade, chat_id text not null references chats(id) on delete cascade, title text not null, body text not null, created_at integer not null, updated_at integer not null);
+  create index notes_chat on notes(chat_id, created_at);
+  alter table messages add column activity_json text not null default '[]';
+  `,
 ];
 
 export function openDb(path: string): Database {
