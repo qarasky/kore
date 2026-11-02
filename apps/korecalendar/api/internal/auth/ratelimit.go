@@ -104,6 +104,19 @@ func (l *Limiter) Attempt(key string) bool {
 	return true
 }
 
+// Blocked reports whether key is at the limit, recording nothing. Use it with
+// Attempt-on-failure where every request carries credentials and parallel
+// successes must not use up the budget (CalDAV); logins reserve up front with
+// Attempt instead.
+func (l *Limiter) Blocked(key string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	now := l.now()
+	l.sweep(now)
+	b := l.prune(key, now)
+	return b != nil && len(b.ts) >= l.max
+}
+
 // Reset clears key (after a successful login).
 func (l *Limiter) Reset(key string) {
 	l.mu.Lock()

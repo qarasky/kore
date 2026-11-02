@@ -192,3 +192,41 @@ test.describe.serial("motion", () => {
     await expect(eventBlocks(page, "Stand-up")).toHaveCount(0, { timeout: 2000 });
   });
 });
+
+test.describe("a multi-day event in the month view", () => {
+  test("shows fully in every cell it covers and does not flicker when the page refreshes", async ({ page }) => {
+    const token = await freshOwner({ timezone: "UTC" });
+    const [d1, d2, d3] = [wed, addDays(wed, 1), addDays(wed, 2)];
+    await createEventViaApi(token, { title: "Trip", start: d1, end: addDays(d3, 1), all_day: true });
+    await login(page);
+    await page.goto(`/calendar/month?date=${wed}`);
+    const chip = (d: string) => page.locator(`[data-testid=month-cell][data-day="${d}"] [data-testid=event][data-title="Trip"]`);
+    for (const d of [d1, d2, d3]) await expect(chip(d)).toBeVisible();
+
+    // Sample every chip's opacity for 1.5 s while a refresh happens (toggle a calendar off and on).
+    const samples = page.evaluate(
+      (days) =>
+        new Promise<number[]>((resolve) => {
+          const out: number[] = [];
+          const t0 = performance.now();
+          const tick = () => {
+            for (const d of days) {
+              const el = document.querySelector(`[data-testid=month-cell][data-day="${d}"] [data-testid=event][data-title="Trip"]`);
+              if (el) out.push(Number(getComputedStyle(el).opacity));
+            }
+            if (performance.now() - t0 < 1500) requestAnimationFrame(tick);
+            else resolve(out);
+          };
+          requestAnimationFrame(tick);
+        }),
+      [d1, d2, d3],
+    );
+    await page.getByRole("checkbox", { name: "Show Personal" }).click();
+    await page.getByRole("checkbox", { name: "Show Personal" }).click();
+    const frames = await samples;
+    // While Personal is hidden the chips legitimately fade out; look only at the settled end state and at the start.
+    const last3 = frames.slice(-3);
+    expect(last3.every((o) => o > 0.99)).toBe(true);
+    for (const d of [d1, d2, d3]) await expect(chip(d)).toHaveCSS("opacity", "1");
+  });
+});

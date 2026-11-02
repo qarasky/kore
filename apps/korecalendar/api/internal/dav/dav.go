@@ -55,7 +55,11 @@ func New(db *sql.DB, o Options) http.Handler {
 			http.Error(w, "the request body is larger than 5 MB", http.StatusRequestEntityTooLarge)
 			return
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, maxBody)
+		// Not on an empty body: a MaxBytesReader never reports EOF for a zero-length
+		// read, which would turn an empty PROPFIND (RFC 4918: allprop) into a 400.
+		if r.ContentLength != 0 {
+			r.Body = http.MaxBytesReader(w, r.Body, maxBody)
+		}
 		ctx := auth.WithPrincipal(r.Context(), p)
 		if r.Method == http.MethodDelete {
 			ctx = context.WithValue(ctx, ifMatchKey{}, r.Header.Get("If-Match"))
@@ -90,7 +94,9 @@ func authenticate(w http.ResponseWriter, r *http.Request, db *sql.DB, o Options)
 	}
 	ip := o.ClientKey(r)
 	emailKey := strings.ToLower(email) + "|" + ip
-	if !o.Limiter.Attempt(emailKey) || !o.IPLimiter.Attempt(ip) {
+	// Every CalDAV request carries credentials and clients run many in
+	// parallel, so (unlike a login) only failures count against the budget.
+	if o.Limiter.Blocked(emailKey) || o.IPLimiter.Blocked(ip) {
 		w.Header().Set("Retry-After", strconv.Itoa(int(retryAfter/time.Second)))
 		http.Error(w, "too many failed attempts", http.StatusTooManyRequests)
 		return auth.Principal{}, false
@@ -101,10 +107,11 @@ func authenticate(w http.ResponseWriter, r *http.Request, db *sql.DB, o Options)
 		ok = err == nil && strings.EqualFold(u.Email, email)
 	}
 	if !ok {
+		o.Limiter.Attempt(emailKey)
+		o.IPLimiter.Attempt(ip)
 		challenge(w)
 		return auth.Principal{}, false
 	}
 	o.Limiter.Reset(emailKey)
-	o.IPLimiter.Forgive(ip)
 	return p, true
 }

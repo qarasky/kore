@@ -482,6 +482,23 @@ func Restore(ctx context.Context, db *sql.DB, a Actor, id string) (Event, error)
 	if liveCalendar == 0 {
 		return Event{}, invalid("the event's calendar is deleted; restore the calendar first")
 	}
+	// An event made in the app has no ics_uid, so its UID on the wire is its own
+	// id. If a CalDAV client re-used that UID while it was deleted, two live
+	// events would share one UID (and one href); the restored one gets its own.
+	uid := e.ICSUID
+	if uid == "" {
+		uid = e.ID
+	}
+	var clash int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM events WHERE user_id=? AND id<>? AND `+liveSQL+` AND (ics_uid=? OR id=?)`, a.UserID, e.ID, uid, uid).Scan(&clash); err != nil {
+		return Event{}, err
+	}
+	if clash > 0 {
+		e.ICSUID = newID()
+		if _, err := tx.ExecContext(ctx, `UPDATE events SET ics_uid=? WHERE id=? AND user_id=?`, e.ICSUID, e.ID, a.UserID); err != nil {
+			return Event{}, err
+		}
+	}
 	e.DeletedAt = nil
 	if err := saveEvent(ctx, tx, &e, a.Label); err != nil {
 		return Event{}, err

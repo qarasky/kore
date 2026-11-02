@@ -172,3 +172,37 @@ func TestFindLiveByUID(t *testing.T) {
 		t.Fatalf("deleted: %v", err)
 	}
 }
+
+// A restored event must never share its UID with a live one: an event made in
+// the web app has no ics_uid, so its UID on the wire is its own id.
+func TestRestoreAfterItsIDWasReusedAsAUIDGivesTheRestoredEventAFreshUID(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	native := f.create(t, Input{Title: "Made in the app", Start: "2026-11-04T09:00:00", TZ: "UTC"})
+	Delete(ctx, f.db, f.actor(), native.ID, ScopeAll, "", nil)
+	// a CalDAV client puts its cached copy back under that UID (= the old id)
+	r, err := f.put(f.cal.ID, Imported{UID: native.ID, Input: Input{Title: "Client copy", Start: "2026-11-04T09:00:00", End: "2026-11-04T10:00:00", TZ: "UTC"}}, PutOptions{SameCalendar: true, FreeDeletedUID: true})
+	if err != nil || !r.Created || r.Event.ID == native.ID {
+		t.Fatalf("%+v %v", r, err)
+	}
+	restored, err := Restore(ctx, f.db, f.actor(), native.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wire := func(e Event) string {
+		if e.ICSUID != "" {
+			return e.ICSUID
+		}
+		return e.ID
+	}
+	if wire(restored) == wire(r.Event) {
+		t.Fatalf("two live events share the UID %q: restored=%+v created=%+v", wire(r.Event), restored, r.Event)
+	}
+	// both still resolve, each by its own UID
+	if e, err := FindLiveByUID(ctx, f.db, f.user.ID, wire(r.Event)); err != nil || e.ID != r.Event.ID {
+		t.Fatalf("%+v %v", e, err)
+	}
+	if e, err := FindLiveByUID(ctx, f.db, f.user.ID, wire(restored)); err != nil || e.ID != native.ID {
+		t.Fatalf("%+v %v", e, err)
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/qarasky/korecalendar/api/internal/testsrv"
@@ -194,5 +195,32 @@ func TestNothingSecretInTheLog(t *testing.T) {
 	raw(t, srv, a.email, a.token, "PROPFIND", "/dav/", principalProp, "Depth", "0")
 	if s := buf.String(); strings.Contains(s, "supersecretvalue") || strings.Contains(s, a.token) {
 		t.Fatalf("a credential reached the log: %s", s)
+	}
+}
+
+func TestParallelRequestsWithValidCredentialsAreNeverRateLimited(t *testing.T) {
+	srv, a, _ := two(t)
+	var wg sync.WaitGroup
+	statuses := make([]int, 40)
+	for i := range statuses {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			statuses[i] = raw(t, srv, a.email, a.token, "PROPFIND", "/dav/", principalProp, "Depth", "0").status
+		}()
+	}
+	wg.Wait()
+	for i, s := range statuses {
+		if s != 207 {
+			t.Fatalf("request %d of 40 parallel valid requests answered %d", i, s)
+		}
+	}
+}
+
+func TestAnEmptyPropfindBodyMeansAllprop(t *testing.T) {
+	srv, a, _ := two(t)
+	r := raw(t, srv, a.email, a.token, "PROPFIND", "/dav/"+a.id+"/calendars/", "", "Depth", "0")
+	if r.status != 207 {
+		t.Fatalf("got %d %s (RFC 4918 9.1: no body = allprop)", r.status, r.body)
 	}
 }

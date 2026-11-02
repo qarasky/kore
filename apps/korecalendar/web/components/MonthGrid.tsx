@@ -10,6 +10,7 @@ import { useMoveCommit } from "@/hooks/useMoveCommit";
 import { chipsForDay, groupByDay } from "@/lib/agenda";
 import { isSameMonth, parseDay, weekday } from "@/lib/dates";
 import { monthShortName, weekdayShort } from "@/lib/format";
+import { layoutKey } from "@/lib/motion";
 import { t } from "@/lib/i18n";
 import { calendarHref } from "@/lib/range";
 import type { Occurrence } from "@/lib/types";
@@ -31,6 +32,13 @@ export function MonthGrid({ day, days, occurrences }: { day: string; days: strin
   const mover = useMoveCommit();
   const drag = useMonthDrag((occ, deltaDays) => void mover.commit(occ, { deltaDays, deltaMinutes: 0 }));
   const groups = useMemo(() => groupByDay(occurrences, days, tz), [occurrences, days, tz]);
+  // A multi-day event has a chip in every cell it covers. Only the first of them takes part in shared
+  // layout (the glide between cells), so no two chips ever share one layoutId.
+  const leadCell = useMemo(() => {
+    const first = new Map<string, string>();
+    for (const g of groups) for (const occ of g.items) if (!first.has(layoutKey(occ))) first.set(layoutKey(occ), g.day);
+    return first;
+  }, [groups]);
   const colors = useMemo(() => new Map(calendars.map((c) => [c.id, c.color])), [calendars]);
   const colorOf = (id: string) => colors.get(id) ?? "#5b8def";
 
@@ -80,6 +88,7 @@ export function MonthGrid({ day, days, occurrences }: { day: string; days: strin
                   key={occ.event_id + occ.key}
                   occ={occ}
                   day={d}
+                  shared={leadCell.get(layoutKey(occ)) === d}
                   color={colorOf(occ.calendar_id)}
                   tz={tz}
                   clock={prefs.clock}
