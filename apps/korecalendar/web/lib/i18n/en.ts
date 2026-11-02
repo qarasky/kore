@@ -89,6 +89,11 @@ const en = {
   "search.range": "Searched from {from} to {to}.",
   "search.count": "{count} found",
 
+  "dialog.working": "Working…",
+  "color.choose": "Colour {color}",
+  "color.custom": "Custom colour",
+  "color.customHint": "Hex, like #7b6cf0",
+
   "calendars.heading": "My calendars",
   "calendars.show": "Show {name}",
   "calendars.none": "No calendars yet",
