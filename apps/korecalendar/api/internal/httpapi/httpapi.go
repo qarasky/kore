@@ -28,6 +28,7 @@ func (s *server) handler() http.Handler {
 	mux := http.NewServeMux()
 	require := auth.Require(s.db)
 	authed := func(h http.HandlerFunc) http.Handler { return require(h) }
+	sessionOnly := func(h http.HandlerFunc) http.Handler { return require(auth.RequireSession(h)) }
 	admin := func(h http.HandlerFunc) http.Handler { return require(auth.RequireAdmin(h)) }
 
 	mux.HandleFunc("GET /api/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -38,6 +39,9 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /api/logout", authed(s.handleLogout))
 	mux.Handle("GET /api/me", authed(s.handleMe))
 	mux.Handle("PATCH /api/me", authed(s.handlePatchMe))
+	mux.Handle("GET /api/tokens", sessionOnly(s.handleListTokens))
+	mux.Handle("POST /api/tokens", sessionOnly(s.handleCreateToken))
+	mux.Handle("DELETE /api/tokens/{id}", sessionOnly(s.handleRevokeToken))
 	mux.Handle("POST /api/admin/users", admin(s.handleAdminCreateUser))
 	return mux
 }

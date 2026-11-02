@@ -78,6 +78,9 @@ func authenticate(r *http.Request, db *sql.DB) (Principal, bool) {
 	if tok == "" {
 		return Principal{}, false
 	}
+	if isToken(tok) {
+		return principalForToken(r.Context(), db, tok)
+	}
 	u, err := UserForToken(r.Context(), db, tok)
 	if err != nil {
 		return Principal{}, false
@@ -101,4 +104,16 @@ func writeErr(w http.ResponseWriter, status int, code, msg string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"code": code, "message": msg}})
+}
+
+// RequireSession must run after Require. It rejects token principals with
+// 403 forbidden, so a leaked agent token cannot manage tokens.
+func RequireSession(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if p, ok := FromContext(r.Context()); !ok || p.Via != "session" {
+			writeErr(w, http.StatusForbidden, "forbidden", "this action needs a signed-in session, not an access token")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
