@@ -11,13 +11,16 @@ import { createServices } from "./services";
 
 const config = loadConfig(process.env);
 mkdirSync(config.dataDir, { recursive: true });
+// The local OpenCode engine reaches Zero's notes tools over loopback with this per-run secret.
+const mcpSecret = Buffer.from(crypto.getRandomValues(new Uint8Array(24))).toString("base64url");
+const notesServer = { type: "remote", url: `http://127.0.0.1:${config.port}/mcp`, oauth: false, codemode: false, headers: { authorization: `Bearer ${mcpSecret}` }, timeout: { execution: 120_000 } };
 const engine = process.env.ZERO_FAKE_ENGINE
   ? new FakeEngine({ reply: (a) => [{ type: "delta", text: `(fake engine) You said: ${a.text}` }], delayMs: 20, titleReply: "Fake engine chat", completeDelayMs: 400 })
-  : await createOpencodeEngine({ dataDir: config.dataDir, bin: process.env.ZERO_OPENCODE_BIN });
+  : await createOpencodeEngine({ dataDir: config.dataDir, bin: process.env.ZERO_OPENCODE_BIN, config: { mcp: { servers: { zero: notesServer } } } });
 
 const version = (await Bun.file(join(import.meta.dir, "../package.json")).json()).version ?? "0.1.0";
 let servicePort = config.port;
-const services = createServices({ db: openDb(join(config.dataDir, "zero.sqlite")), dataDir: config.dataDir, engine, version, addresses: () => listAddresses(networkInterfaces(), servicePort, process.env).map((a) => a.url) });
+const services = createServices({ db: openDb(join(config.dataDir, "zero.sqlite")), dataDir: config.dataDir, engine, version, mcpSecret, addresses: () => listAddresses(networkInterfaces(), servicePort, process.env).map((a) => a.url) });
 const app = createApp(services, { trustProxy: process.env.ZERO_TRUST_PROXY === "1" });
 
 const server = Bun.serve({

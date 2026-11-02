@@ -130,7 +130,9 @@ test("disconnecting removes saved credentials by id; an env-only connection cann
 });
 
 test("the assistant is told its one tool and that memory is automatic", () => {
-  expect(AGENT_SYSTEM).toContain("only tool is web search");
+  expect(AGENT_SYSTEM).toContain("web search");
+  for (const tool of ["save_note", "read_notes", "edit_note"]) expect(AGENT_SYSTEM).toContain(tool);
+  expect(AGENT_SYSTEM).toContain("approve");
   expect(AGENT_SYSTEM).toContain("remember");
 });
 
@@ -166,7 +168,7 @@ test.skipIf(!Bun.which("opencode"))("opencode end to end on a mock OpenRouter: c
     expect(evs.map((e) => e.type)).toContain("delta");
     const answer = calls[0];
     expect(answer.tools).toEqual(expect.arrayContaining(["websearch"]));
-    expect(answer.system).toContain("only tool is web search");
+    expect(answer.system).toContain("save_note");
 
     const before = calls.length;
     const title = await eng.complete({ kind: "title", system: "You name chats so a person can find them.", text: "User: hi", model });
@@ -178,3 +180,75 @@ test.skipIf(!Bun.which("opencode"))("opencode end to end on a mock OpenRouter: c
     expect((await eng.listConnections()).find((c) => c.id === "openrouter")?.connected).toBe(false);
   } finally { eng.close(); mock.stop(); }
 }, 90_000);
+
+// The whole chain with nothing faked but the model: OpenCode -> Zero's /mcp -> notes -> approval card -> back to the model.
+test.skipIf(!Bun.which("opencode"))("a model saves a note through OpenCode and Zero's MCP endpoint, and asks approval to read another chat", async () => {
+  const { createApp } = await import("../src/http");
+  const { createServices } = await import("../src/services");
+  const { openDb } = await import("../src/db");
+  type Call = { tools: string[]; last: string };
+  const calls: Call[] = [];
+  let step = 0;
+  const toolCall = (name: string, args: object) => {
+    const chunk = (d: unknown, fin?: string) => `data: ${JSON.stringify({ id: "x", object: "chat.completion.chunk", created: 1, model: "m", choices: [{ index: 0, delta: d, finish_reason: fin ?? null }] })}\n\n`;
+    return chunk({ role: "assistant", tool_calls: [{ index: 0, id: `call_${step}`, type: "function", function: { name, arguments: JSON.stringify(args) } }] }) + chunk({}, "tool_calls") + "data: [DONE]\n\n";
+  };
+  const text = (t: string) => {
+    const chunk = (d: unknown, fin?: string) => `data: ${JSON.stringify({ id: "x", object: "chat.completion.chunk", created: 1, model: "m", choices: [{ index: 0, delta: d, finish_reason: fin ?? null }] })}\n\n`;
+    return chunk({ role: "assistant", content: t }) + chunk({}, "stop") + "data: [DONE]\n\n";
+  };
+  const script: ((c: Call) => string)[] = [
+    (c) => toolCall(c.tools.find((n) => n.endsWith("save_note"))!, { title: "Milk", body: "2 litres" }),
+    () => toolCall("zero_read_notes", { chat: "Lisbon trip" }),
+    () => text("Noted, and I looked at your Lisbon notes."),
+  ];
+  const mock = Bun.serve({
+    port: 0,
+    async fetch(req) {
+      const u = new URL(req.url);
+      if (!u.pathname.endsWith("/chat/completions")) return new Response("{}", { headers: { "content-type": "application/json" } });
+      const body = (await req.json()) as any;
+      const last = JSON.stringify(body.messages.at(-1)).slice(0, 400);
+      const c = { tools: (body.tools ?? []).map((t: any) => t.function?.name), last };
+      if (/name chats/i.test(JSON.stringify(body.messages))) return new Response(text("A title"), { headers: { "content-type": "text/event-stream" } });
+      calls.push(c);
+      return new Response((script[step++] ?? (() => text("done")))(c), { headers: { "content-type": "text/event-stream" } });
+    },
+  });
+  let app!: ReturnType<typeof createApp>;
+  const secret = "e2e-secret";
+  const zero = Bun.serve({ port: 0, fetch: (req, srv) => app.fetch(req, srv.requestIP(req)?.address) });
+  const engine = await createOpencodeEngine({
+    dataDir: mkdtempSync(join(tmpdir(), "zero-e2e-")),
+    config: {
+      providers: { openrouter: { settings: { baseURL: `http://127.0.0.1:${mock.port}/v1`, apiKey: "x" } } },
+      mcp: { servers: { zero: { type: "remote", url: `http://127.0.0.1:${zero.port}/mcp`, oauth: false, codemode: false, headers: { authorization: `Bearer ${secret}` }, timeout: { execution: 60000 } } } },
+    },
+  });
+  try {
+    const services = createServices({ db: openDb(":memory:"), dataDir: mkdtempSync(join(tmpdir(), "zero-e2e-d-")), engine, version: "t", mcpSecret: secret, approvalTimeoutMs: 20_000 });
+    app = createApp(services);
+    await engine.setProviderKey("openrouter", "sk-test");
+    const model = { providerId: "openrouter", modelId: (await engine.listProviders()).find((p) => p.id === "openrouter")!.models[0].id };
+    const owner = await services.auth.register({ email: "me@home.lan", password: "correct horse" });
+    const u = owner.user.id;
+    const other = services.chats.create(u);
+    services.chats.rename(u, other.id, "Lisbon trip");
+    await services.notes.save({ userId: u, chatId: other.id }, { title: "Hotel", body: "Alfama" });
+    const here = services.chats.create(u);
+
+    const evs: any[] = [];
+    for await (const e of services.chats.send(u, here.id, { text: "note that I need milk, then check my Lisbon trip notes", attachmentIds: [], model }, new AbortController().signal)) {
+      evs.push(e);
+      if (e.type === "approval") services.approvals.answer(u, here.id, e.id, true);
+    }
+    expect(calls[0].tools.some((n) => n.endsWith("save_note"))).toBe(true);
+    expect(calls[0].tools.filter((n) => /note/.test(n)).sort()).toEqual(["zero_edit_note", "zero_read_notes", "zero_save_note"]);
+    expect(evs.map((e) => e.type)).toEqual(expect.arrayContaining(["activity", "approval", "approval_closed", "delta", "done"]));
+    expect(evs.filter((e) => e.type === "activity").map((e) => [e.kind, e.chat ?? null])).toEqual([["saved", null], ["read", "Lisbon trip"]]);
+    expect((await services.notes.read({ userId: u, chatId: here.id }, {})).text).toContain("2 litres");
+    // the model was given the other chat's notes only after approval
+    expect(calls[2].last).toContain("Alfama");
+    expect(services.chats.get(u, here.id)!.messages.at(-1)!.activity).toHaveLength(2);
+  } finally { engine.close(); mock.stop(); zero.stop(); }
+}, 120_000);

@@ -8,6 +8,8 @@ export type FakeOptions = {
   /** Reply for chat-title requests. Empty (default) means "no title". A function may throw. */
   titleReply?: string | (() => string);
   completeDelayMs?: number;
+  /** Runs after the first status event, before the scripted reply. Tests use it to act like the model calling tools. */
+  during?: (a: PromptArgs) => Promise<void>;
   delayMs?: number;
 };
 
@@ -67,6 +69,7 @@ export class FakeEngine implements Engine {
   async *prompt(a: PromptArgs): AsyncIterable<EngineEvent> {
     this.prompts.push(a);
     yield { type: "status", state: "thinking" };
+    if (this.o.during) await this.o.during(a);
     const events = this.o.reply ? this.o.reply(a) : [{ type: "delta", text: `echo: ${a.text}` } as EngineEvent];
     for (const ev of events) {
       if (a.signal.aborted) return;

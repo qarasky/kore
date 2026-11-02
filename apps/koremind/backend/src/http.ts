@@ -1,4 +1,4 @@
-import { AuthRequest, PairRedeem, Settings, SendMessageRequest, type PairStart, type StreamEvent } from "@zero/shared";
+import { ApprovalAnswer, AuthRequest, PairRedeem, Settings, SendMessageRequest, type PairStart, type StreamEvent } from "@zero/shared";
 import { z } from "zod";
 import { AuthError } from "./auth";
 import type { Services } from "./services";
@@ -44,6 +44,17 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
     if (m === "POST" && path === "/auth/register") return json(200, await s.auth.register(await body(req, AuthRequest), caller ?? undefined));
     if (m === "POST" && path === "/auth/login") return json(200, await s.auth.login(await body(req, AuthRequest), ip));
 
+    // The local OpenCode engine reaches the notes tools here. Loopback only, and it must know the per-run secret.
+    if (path === "/mcp") {
+      if (!isLoopback(socketIp)) return fail(403, "forbidden", "Local only");
+      if (req.headers.get("authorization") !== `Bearer ${s.mcpSecret}`) return fail(401, "unauthorized", "Bad secret");
+      if (m !== "POST") return new Response(null, { status: m === "DELETE" ? 200 : 405 });
+      let raw: unknown;
+      try { raw = await req.json(); } catch { return json(400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }); }
+      const r = await s.mcp.handle(raw);
+      return r.body === undefined ? new Response(null, { status: r.status }) : json(r.status, r.body);
+    }
+
     if (m === "POST" && path === "/auth/pair/redeem") return json(200, await s.auth.redeemPair((await body(req, PairRedeem)).code, ip));
 
     if (!caller) return fail(401, "unauthorized", "Sign in required");
@@ -86,6 +97,12 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
       if (m === "GET") return json(200, s.chats.get(u, id));
       if (m === "PATCH") { s.chats.rename(u, id, (await body(req, z.object({ title: z.string() }))).title); return ok(); }
       if (m === "DELETE") { await s.chats.remove(u, id); return ok(); }
+    }
+    if ((r = path.match(/^\/chats\/([^/]+)\/approvals\/([^/]+)$/)) && m === "POST") {
+      if (!s.chats.has(u, r[1])) return fail(404, "not_found", "Chat not found");
+      const { allow } = await body(req, ApprovalAnswer);
+      if (!s.approvals.answer(u, r[1], decodeURIComponent(r[2]), allow)) return fail(404, "not_found", "That request is no longer open");
+      return ok();
     }
     if ((r = path.match(/^\/chats\/([^/]+)\/abort$/)) && m === "POST") {
       if (!s.chats.has(u, r[1])) return fail(404, "not_found", "Chat not found");
