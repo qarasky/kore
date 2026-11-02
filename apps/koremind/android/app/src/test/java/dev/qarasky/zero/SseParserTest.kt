@@ -33,4 +33,14 @@ class SseParserTest {
         val out = SseParser().feed(": ping\n\ndata: {oops\n\ndata: {\"type\":\"delta\",\"text\":\"ok\"}\n\n".toByteArray())
         assertEquals(listOf(StreamEvent.Delta("ok")), out)
     }
+
+    @Test fun `SseParser parses a title event that arrives after done`() {
+        val out = SseParser().feed(("data: {\"type\":\"done\",\"messageId\":\"m\"}\n\n" + "data: {\"type\":\"title\",\"title\":\"Lisbon trip\"}\n\n").toByteArray())
+        assertEquals(listOf(StreamEvent.Done("m"), StreamEvent.Title("Lisbon trip")), out)
+    }
+
+    @Test fun `SseParser ignores event types it does not know`() {
+        val out = SseParser().feed("data: {\"type\":\"future\",\"x\":1}\n\ndata: {\"type\":\"delta\",\"text\":\"ok\"}\n\n".toByteArray())
+        assertEquals(listOf(StreamEvent.Delta("ok")), out)
+    }
 }

@@ -52,7 +52,7 @@ private val type = Typography(
 
 @Composable
 fun ZeroTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = scheme, typography = type, shapes = Shapes(small = UiShape, medium = UiShape, large = UiShape), content = content)
+    MaterialTheme(colorScheme = scheme, typography = type, shapes = Shapes(small = UiShape, medium = UiShape, large = UiShape)) { ProvideMotion(content) }
 }
 
 val CodeFont = FontFamily.Monospace

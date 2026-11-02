@@ -1,6 +1,17 @@
 package dev.qarasky.zero.ui.chat
 
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -20,6 +31,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -56,6 +68,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -71,11 +84,19 @@ import dev.qarasky.zero.ui.ErrorText
 import dev.qarasky.zero.ui.model.ModelSheet
 import dev.qarasky.zero.ui.model.lacksVision
 import dev.qarasky.zero.ui.model.thinkingLabel
+import dev.qarasky.zero.ui.theme.Appear
+import dev.qarasky.zero.ui.theme.LocalMotion
 import dev.qarasky.zero.ui.theme.ZeroColors
+import dev.qarasky.zero.ui.theme.animateRow
+import dev.qarasky.zero.ui.theme.enterExpand
+import dev.qarasky.zero.ui.theme.enterRise
+import dev.qarasky.zero.ui.theme.exitFade
+import dev.qarasky.zero.ui.theme.exitShrink
+import dev.qarasky.zero.ui.theme.quickSpec
 import kotlinx.coroutines.launch
 
 @Composable
-fun ChatScreen(vm: AppViewModel, onSettings: () -> Unit) {
+fun ChatScreen(vm: AppViewModel, onSettings: () -> Unit, onProviders: () -> Unit) {
     val state by vm.chat.collectAsStateWithLifecycle()
     val chats by vm.chats.collectAsStateWithLifecycle()
     val chatId by vm.chatId.collectAsStateWithLifecycle()
@@ -84,6 +105,8 @@ fun ChatScreen(vm: AppViewModel, onSettings: () -> Unit) {
     val scope = rememberCoroutineScope()
     val empty = state.messages.isEmpty() && state.draft == null
     val title = chats.firstOrNull { it.id == chatId }?.title ?: stringResource(R.string.app_name)
+    val on = LocalMotion.current
+    val listKey = rememberListKey(chatId)
 
     ModalNavigationDrawer(
         drawerState = drawer,
@@ -104,21 +127,36 @@ fun ChatScreen(vm: AppViewModel, onSettings: () -> Unit) {
         Column(Modifier.fillMaxSize().background(ZeroColors.Bg).statusBarsPadding().navigationBarsPadding().imePadding()) {
             Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { scope.launch { drawer.open() } }) { Icon(Icons.Filled.Menu, stringResource(R.string.menu)) }
-                Text(if (empty) stringResource(R.string.app_name) else title, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+                val shownTitle = if (empty) stringResource(R.string.app_name) else title
+                AnimatedContent(shownTitle, Modifier.weight(1f), label = "title", transitionSpec = { fadeIn(quickSpec(on)) togetherWith fadeOut(quickSpec(on)) }) { t ->
+                    Text(t, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+                }
                 if (chatId != null && !empty) IconButton(onClick = { chatId?.let(vm::deleteChat) }) { Icon(Icons.Filled.Delete, stringResource(R.string.delete_chat), tint = ZeroColors.Muted) }
                 else Spacer(Modifier.size(48.dp))
             }
-            if (empty) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { Text(stringResource(R.string.home_greeting), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold) }
-            else MessageList(state, Modifier.weight(1f))
+            if (empty) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { Appear { Text(stringResource(R.string.home_greeting), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold) } }
+            else androidx.compose.runtime.key(listKey) { MessageList(state, Modifier.weight(1f)) }
 
-            if (state.connectProvider) Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).border(1.dp, ZeroColors.Warning.copy(alpha = 0.4f), RoundedCornerShape(6.dp)).background(ZeroColors.Surface, RoundedCornerShape(6.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(stringResource(R.string.connect_provider), fontWeight = FontWeight.Medium)
-                Text(stringResource(R.string.connect_provider_hint), color = ZeroColors.Muted, style = MaterialTheme.typography.bodySmall)
-                Text(stringResource(R.string.open_settings), color = ZeroColors.Accent, modifier = Modifier.clickable(onClick = onSettings).padding(vertical = 4.dp))
-            } else state.error?.let { Box(Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) { ErrorText(it.message) } }
+            AnimatedVisibility(state.connectProvider, enter = enterExpand(on), exit = exitShrink(on)) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).border(1.dp, ZeroColors.Warning.copy(alpha = 0.4f), RoundedCornerShape(6.dp)).background(ZeroColors.Surface, RoundedCornerShape(6.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(stringResource(R.string.connect_provider), fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.connect_provider_hint), color = ZeroColors.Muted, style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.open_settings), color = ZeroColors.Accent, modifier = Modifier.clickable(onClick = onProviders).padding(vertical = 4.dp))
+                }
+            }
+            Box(Modifier.padding(horizontal = 20.dp)) { ErrorText(if (state.connectProvider) null else state.error?.message) }
             Composer(vm, busy)
         }
     }
+}
+
+/** A key that stays the same while a new chat gets its id, but changes when you switch chats, so opened messages don't animate in. */
+@Composable
+private fun rememberListKey(chatId: String?): Any {
+    class Holder { var prev: String? = null; var key: Any = Any() }
+    val h = remember { Holder() }
+    if (chatId != h.prev) { if (h.prev != null) h.key = Any(); h.prev = chatId }
+    return h.key
 }
 
 @Composable
@@ -126,10 +164,14 @@ private fun MessageList(state: ChatUiState, modifier: Modifier) {
     val list = rememberLazyListState()
     val count = state.messages.size + if (state.draft != null) 1 else 0
     val tail = state.draft?.text?.length ?: 0
+    // Messages already on screen when the list opens don't animate; new ones rise into place.
+    val shown = remember { state.messages.map { it.id }.toSet() }
     LaunchedEffect(count, tail) { if (count > 0) list.scrollToItem(count - 1, scrollOffset = Int.MAX_VALUE / 2) }
     LazyColumn(modifier.fillMaxWidth(), state = list, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        items(state.messages, key = { it.id }) { m -> if (m.role == "user") UserBubble(m) else AssistantMessage(m.text, m.sources) }
-        state.draft?.let { d -> item(key = "draft") { AssistantMessage(d.text, d.sources, d.status) } }
+        items(state.messages, key = { it.id }) { m ->
+            if (m.role == "user") Appear(animate = m.id !in shown) { UserBubble(m) } else AssistantMessage(m.text, m.sources)
+        }
+        state.draft?.let { d -> item(key = "draft") { Appear { AssistantMessage(d.text, d.sources, d.status) } } }
     }
 }
 
@@ -144,17 +186,25 @@ private fun Composer(vm: AppViewModel, busy: Boolean) {
     var menu by remember { mutableStateOf(false) }
     var sheet by remember { mutableStateOf(false) }
     val resolver = LocalContext.current.contentResolver
+    val on = LocalMotion.current
     val photos = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia()) { uris -> uris.forEach { vm.attach(resolver, it) } }
     val files = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris -> uris.forEach { vm.attach(resolver, it) } }
+    val sendLabel = stringResource(R.string.send)
+    val stopLabel = stringResource(R.string.stop)
     val currentModel = providers.firstOrNull { it.id == choice?.providerId }?.models?.firstOrNull { it.id == choice?.modelId }
 
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
         Column(Modifier.fillMaxWidth().background(ZeroColors.Surface, RoundedCornerShape(20.dp)).border(1.dp, ZeroColors.Border, RoundedCornerShape(20.dp)).padding(8.dp)) {
-            if (pending.isNotEmpty()) Row(Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                pending.forEach { p ->
-                    Row(Modifier.background(ZeroColors.Raised, RoundedCornerShape(6.dp)).padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(p.attachment.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium, modifier = Modifier.widthIn(max = 140.dp))
-                        IconButton(onClick = { vm.removePending(p.attachment.id) }, Modifier.size(28.dp)) { Icon(Icons.Filled.Close, stringResource(R.string.delete), Modifier.size(14.dp)) }
+            AnimatedVisibility(pending.isNotEmpty(), enter = enterExpand(on), exit = exitShrink(on)) {
+                // Keep showing the chips that are on their way out.
+                val shownPending = remember { mutableStateOf(pending) }
+                if (pending.isNotEmpty()) shownPending.value = pending
+                LazyRow(Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(shownPending.value, key = { it.attachment.id }) { p ->
+                        Row(animateRow(on).background(ZeroColors.Raised, RoundedCornerShape(6.dp)).padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(p.attachment.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium, modifier = Modifier.widthIn(max = 140.dp))
+                            IconButton(onClick = { vm.removePending(p.attachment.id) }, Modifier.size(28.dp)) { Icon(Icons.Filled.Close, stringResource(R.string.delete), Modifier.size(14.dp)) }
+                        }
                     }
                 }
             }
@@ -176,11 +226,18 @@ private fun Composer(vm: AppViewModel, busy: Boolean) {
                     Icon(Icons.Filled.KeyboardArrowDown, null, tint = ZeroColors.Muted, modifier = Modifier.size(18.dp))
                 }
                 Spacer(Modifier.weight(1f))
-                if (busy) Box(Modifier.size(40.dp).background(ZeroColors.Text, CircleShape).clickable { vm.stop() }.semantics { contentDescription = "Stop" }, contentAlignment = Alignment.Center) { Box(Modifier.size(12.dp).background(ZeroColors.Bg, RoundedCornerShape(2.dp))) }
-                else {
-                    val can = canSend(text, pending.size, busy = false, hasModel = currentModel != null)
-                    Box(Modifier.size(40.dp).background(if (can) ZeroColors.Accent else ZeroColors.Raised, CircleShape).clickable(enabled = can) { vm.send(text.trim()); text = "" }.semantics { contentDescription = "Send" }, contentAlignment = Alignment.Center) {
-                        Icon(Icons.AutoMirrored.Filled.Send, null, tint = if (can) Color.White else ZeroColors.Muted, modifier = Modifier.size(18.dp))
+                val can = canSend(text, pending.size, busy = false, hasModel = currentModel != null)
+                AnimatedContent(
+                    busy, label = "send-stop",
+                    transitionSpec = { (fadeIn(quickSpec(on)) + scaleIn(quickSpec(on), initialScale = 0.8f)) togetherWith (fadeOut(quickSpec(on)) + scaleOut(quickSpec(on), targetScale = 0.8f)) },
+                ) { isBusy ->
+                    if (isBusy) Box(Modifier.size(40.dp).background(ZeroColors.Text, CircleShape).clickable { vm.stop() }.semantics { contentDescription = stopLabel }, contentAlignment = Alignment.Center) { Box(Modifier.size(12.dp).background(ZeroColors.Bg, RoundedCornerShape(2.dp))) }
+                    else {
+                        val bg by animateColorAsState(if (can) ZeroColors.Accent else ZeroColors.Raised, quickSpec(on), label = "send-bg")
+                        val scale by animateFloatAsState(if (can) 1f else 0.92f, quickSpec(on), label = "send-scale")
+                        Box(Modifier.size(40.dp).graphicsLayer { scaleX = scale; scaleY = scale }.background(bg, CircleShape).clickable(enabled = can) { vm.send(text.trim()); text = "" }.semantics { contentDescription = sendLabel }, contentAlignment = Alignment.Center) {
+                            Icon(Icons.AutoMirrored.Filled.Send, null, tint = if (can) Color.White else ZeroColors.Muted, modifier = Modifier.size(18.dp))
+                        }
                     }
                 }
             }
@@ -200,7 +257,8 @@ private fun HistoryDrawer(chats: List<dev.qarasky.zero.data.ChatSummary>, active
         LazyColumn(Modifier.weight(1f).padding(top = 12.dp, start = 8.dp, end = 8.dp)) {
             if (chats.isEmpty()) item { Text(stringResource(R.string.no_chats), color = ZeroColors.Muted, modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall) }
             items(chats, key = { it.id }) { c ->
-                Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).background(if (c.id == activeId) ZeroColors.Raised else Color.Transparent, RoundedCornerShape(6.dp)).clickable { onOpen(c.id) }.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                val bg by animateColorAsState(if (c.id == activeId) ZeroColors.Raised else Color.Transparent, quickSpec(LocalMotion.current), label = "chat-row")
+                Row(animateRow(LocalMotion.current).fillMaxWidth().heightIn(min = 44.dp).background(bg, RoundedCornerShape(6.dp)).clickable { onOpen(c.id) }.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(c.title, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
                     IconButton(onClick = { onDelete(c.id) }, Modifier.size(36.dp)) { Icon(Icons.Filled.Delete, stringResource(R.string.delete_chat), Modifier.size(16.dp), tint = ZeroColors.Muted) }
                 }

@@ -3,6 +3,7 @@ package dev.qarasky.zero
 import dev.qarasky.zero.data.StreamEvent
 import dev.qarasky.zero.ui.chat.ChatUiState
 import dev.qarasky.zero.ui.chat.beginTurn
+import dev.qarasky.zero.ui.chat.endsTurn
 import dev.qarasky.zero.ui.chat.reduce
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -57,5 +58,17 @@ class ChatReducerTest {
     @Test fun `aborted error shows no error message`() {
         val s = run(StreamEvent.Delta("x"), StreamEvent.Error("aborted", "Stopped"))
         assertNull(s.error)
+    }
+
+    @Test fun `a title after done changes nothing in the conversation`() {
+        val done = run(StreamEvent.Delta("Hi!"), StreamEvent.Done("m9"))
+        assertEquals(done, reduce(done, StreamEvent.Title("Greeting")))
+    }
+
+    @Test fun `done and error end the turn so the composer is usable before the title arrives`() {
+        assertTrue(endsTurn(StreamEvent.Done("m")))
+        assertTrue(endsTurn(StreamEvent.Error("engine", "boom")))
+        assertTrue(!endsTurn(StreamEvent.Title("t")))
+        assertTrue(!endsTurn(StreamEvent.Delta("x")))
     }
 }

@@ -1,5 +1,10 @@
 package dev.qarasky.zero.ui.chat
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -49,6 +54,9 @@ import dev.qarasky.zero.data.Attachment
 import dev.qarasky.zero.data.ChatMessage
 import dev.qarasky.zero.data.Source
 import dev.qarasky.zero.ui.theme.CodeFont
+import dev.qarasky.zero.ui.theme.LocalMotion
+import dev.qarasky.zero.ui.theme.layoutSpec
+import dev.qarasky.zero.ui.theme.quickSpec
 import dev.qarasky.zero.ui.theme.ZeroColors
 
 /** The Zero mark: a ring of four arcs with the 1 / 0.6 / 0.3 / 0.6 opacity ramp. Drawn, not downloaded. */
@@ -98,11 +106,15 @@ fun AttachmentChips(items: List<Attachment>) {
 
 @Composable
 fun AssistantMessage(text: String, sources: List<Source>, status: String? = null) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (status != null) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(if (status == "searching") stringResource(R.string.searching) else stringResource(R.string.thinking), color = ZeroColors.Muted, style = MaterialTheme.typography.bodySmall)
-                Dots()
+    val on = LocalMotion.current
+    Column(Modifier.fillMaxWidth().animateContentSize(layoutSpec(on)), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Thinking, searching and the first words cross-fade into each other instead of jumping.
+        AnimatedContent(status, label = "status", transitionSpec = { fadeIn(quickSpec(on)) togetherWith fadeOut(quickSpec(on)) }) { st ->
+            if (st != null) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(if (st == "searching") stringResource(R.string.searching) else stringResource(R.string.thinking), color = ZeroColors.Muted, style = MaterialTheme.typography.bodySmall)
+                    Dots()
+                }
             }
         }
         if (text.isNotEmpty()) MarkdownText(text)
