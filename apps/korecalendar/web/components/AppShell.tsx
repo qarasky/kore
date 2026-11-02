@@ -9,6 +9,7 @@ import type { Prefs } from "@/lib/prefs";
 import type { Calendar, User } from "@/lib/types";
 import { EditorProvider } from "./EditorProvider";
 import { ShellProvider } from "./ShellContext";
+import { Shortcuts } from "./Shortcuts";
 import { Sidebar } from "./Sidebar";
 import { ToastProvider } from "./Toast";
 import { TopBar } from "./TopBar";
@@ -31,6 +32,7 @@ export function AppShell({ me, calendars, prefs, children }: { me: User; calenda
     <ShellProvider value={{ me, calendars, prefs, view, day, today }}>
       <ToastProvider>
         <EditorProvider>
+          <Shortcuts />
           <div className="flex h-full flex-col">
             <TopBar onOpenMenu={() => setDrawer(true)} />
             <div className="flex min-h-0 flex-1 gap-2 px-2 pb-2">
