@@ -2,7 +2,7 @@
 
 import { AnimatePresence, m } from "motion/react";
 import { duration, ease } from "@/lib/motion";
-import { useState, type FormEvent } from "react";
+import { useState, useSyncExternalStore, type FormEvent } from "react";
 import { useMutate } from "@/hooks/useMutate";
 import { t } from "@/lib/i18n";
 import { createToken, revokeToken } from "@/lib/mutations";
@@ -12,12 +12,20 @@ import { ConfirmDialog } from "../ConfirmDialog";
 import { CopyButton } from "../CopyButton";
 import { Field, inputClass } from "../Field";
 import { KeyRoundIcon } from "../icons";
+import { useShell } from "../ShellContext";
 import { SettingsSection } from "./Section";
 
 const date = (unix: number) => new Date(unix * 1000).toLocaleDateString("en", { year: "numeric", month: "short", day: "numeric" });
 
 /** Personal access tokens for agents and scripts: the secret is shown once, on creation. */
 export function TokensManager({ initial }: { initial: Token[] }) {
+  const { me } = useShell();
+  // The address this page was opened from (empty on the server and until hydrated).
+  const origin = useSyncExternalStore(
+    () => () => {},
+    () => window.location.origin,
+    () => "",
+  );
   const { run, pending } = useMutate();
   const [name, setName] = useState("");
   const [revealed, setRevealed] = useState<{ name: string; token: string } | null>(null);
@@ -101,6 +109,25 @@ export function TokensManager({ initial }: { initial: Token[] }) {
         />
       ) : null}
       </AnimatePresence>
+
+      <div data-testid="caldav" className="mt-8 border-t border-border pt-5">
+        <h3 className="text-sub font-semibold">{t("caldav.title")}</h3>
+        <p className="mt-1 text-sub text-muted">{t("caldav.intro")}</p>
+        <dl className="mt-3 grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2 text-sub">
+          <dt className="text-muted">{t("caldav.address")}</dt>
+          <dd className="flex items-center gap-2">
+            <code className="min-w-0 rounded-ui border border-border bg-bg/60 px-3 py-1.5 font-mono text-meta break-all select-all">{origin}/dav/</code>
+            <CopyButton value={`${origin}/dav/`} />
+          </dd>
+          <dt className="text-muted">{t("caldav.user")}</dt>
+          <dd className="flex items-center gap-2">
+            <code className="min-w-0 rounded-ui border border-border bg-bg/60 px-3 py-1.5 font-mono text-meta break-all select-all">{me.email}</code>
+            <CopyButton value={me.email} />
+          </dd>
+        </dl>
+        <p className="mt-3 text-meta text-muted">{t("caldav.passwordNote")}</p>
+        <p className="mt-1 text-meta text-muted">{t("caldav.docs")}</p>
+      </div>
     </SettingsSection>
   );
 }

@@ -13,7 +13,7 @@ Calls marked **(my call)** were made by the designer, not the owner. The owner's
 
 In:
 
-- **Discovery:** `/.well-known/caldav` redirects to `/dav/`; the current-user principal; the calendar-home-set; each of the user's live calendars as a calendar collection (name, colour as `calendar-color`, `supported-calendar-component-set` = `VEVENT` only).
+- **Discovery:** `/.well-known/caldav` redirects (301, without credentials) to `/dav/`; the current-user principal; the calendar-home-set; each of the user's live calendars as a calendar collection (name and `supported-calendar-component-set` = `VEVENT` only; the library cannot advertise a colour).
 - **Resources:** one `.ics` resource per event series: the master `VEVENT` plus its `EXDATE`s, `RDATE`s and `RECURRENCE-ID` overrides, exactly what `GET /api/export` already writes. `GET`, `PUT`, `DELETE`, `HEAD`.
 - **Queries:** `PROPFIND` (Depth 0 and 1), `REPORT calendar-query` (including a `time-range` filter) and `calendar-multiget`. Whatever the chosen library does not serve itself is written by us.
 - **Concurrency:** strong `ETag` per resource; `If-Match` and `If-None-Match: *` honoured on `PUT` and `DELETE`; 412 on a lost race.
@@ -33,10 +33,10 @@ Out (anti-goals for this phase):
 
 | CalDAV | KoreCalendar |
 | --- | --- |
-| principal `/dav/principals/{user_id}/` | the authenticated user (another user's id: **404**, never 403) |
-| calendar-home-set `/dav/calendars/` | the user's live calendars |
-| calendar collection `/dav/calendars/{calendar_id}/` | a calendar (soft-deleted ones are absent) |
-| resource `/dav/calendars/{calendar_id}/{uid}.ics` | one event series: master + exclusions + overrides |
+| principal `/dav/{user_id}/` | the authenticated user (another user's id: **404**, never 403) |
+| calendar-home-set `/dav/{user_id}/calendars/` | the user's live calendars |
+| calendar collection `/dav/{user_id}/calendars/{calendar_id}/` | a calendar (soft-deleted ones are absent) |
+| resource `/dav/{user_id}/calendars/{calendar_id}/{uid}.ics` | one event series: master + exclusions + overrides |
 | `UID` | `events.ics_uid` when the event came from a CalDAV client or an import; otherwise the event's own id (exports already use it) |
 | `ETag` | the event's `version` (and its id), quoted: it changes on every edit, including a single-occurrence edit |
 | `PUT` | `events.Import`: same UID updates in place, keeping its calendar and replacing overrides; unknown UID creates. `If-Match` is checked against `version` **inside the same transaction** (a new optional field on `Imported`) |
@@ -56,6 +56,10 @@ A `PUT` replaces the resource, and what is stored is what the model can hold: ti
 - A `PUT` never returns an `ETag`, so a client re-reads the resource and sees what was actually stored (RFC 4791 allows this when the server changes the data).
 - A `PUT` without `VALARM`s **clears the reminders** set in the web app, exactly as the REST import does for an updated UID: the resource a client sent is the resource.
 - An integration that keeps its own ids in `X-` properties should keep them in its own store (or use the REST API, which has `Idempotency-Key` and stable ids); it will not get them back from CalDAV.
+
+## Corrections found while planning
+
+Reading the library showed three things the first draft got wrong, all small: its path scheme is fixed by depth (so the paths above), it cannot advertise a calendar colour, and it answers a failed precondition with 409 (RFC 4791 says 403) and a successful `PUT` always with 201. `If-Match` on `DELETE` is not passed to the backend by the library and is carried in the request context by our wrapper instead.
 
 ## Interfaces and placement
 

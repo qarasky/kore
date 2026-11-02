@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
+  OWNER,
   api,
   calendars,
   chooseOption,
@@ -15,7 +16,7 @@ import {
   weekOf,
   addDays,
 } from "./helpers";
-import { BASE_URL } from "./harness/env";
+import { API_URL, BASE_URL } from "./harness/env";
 
 const [mon, tue, wed] = weekOf(today("UTC"));
 
@@ -141,6 +142,30 @@ test.describe.serial("settings", () => {
     await expect(page.getByTestId("token-row")).toHaveCount(0);
     const after = await request.get(`${BASE_URL}/api/me`, { headers: { Authorization: `Bearer ${secret}` } });
     expect(after.status()).toBe(401);
+  });
+
+  test("CalDAV: the Settings block gives the address and user name, and a token works as the password", async ({ page, request }) => {
+    await page.goto("/settings/tokens");
+    const block = page.getByTestId("caldav");
+    await expect(block).toBeVisible();
+    await expect(block).toContainText("/dav/");
+    await expect(block).toContainText(OWNER.email);
+    await expect(block).toContainText("access token");
+
+    await page.locator("#token-name").fill("calendar-app");
+    await page.getByRole("button", { name: "Create token" }).click();
+    const secret = await page.getByTestId("token-secret").innerText();
+    const basic = (pw: string) => "Basic " + Buffer.from(`${OWNER.email}:${pw}`).toString("base64");
+    const propfind = `<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/></d:prop></d:propfind>`;
+    const ask = (pw: string) =>
+      request.fetch(`${API_URL}/dav/`, { method: "PROPFIND", data: propfind, headers: { Authorization: basic(pw), Depth: "0", "Content-Type": "application/xml" } });
+    // CalDAV is served by the API itself (Caddy routes /dav/* to it in production; Next's dev server cannot proxy PROPFIND).
+    const ok = await ask(secret);
+    expect(ok.status()).toBe(207);
+    expect(await ok.text()).toContain("current-user-principal");
+    expect((await ask(OWNER.password)).status()).toBe(401); // the account password is not accepted
+    const wellKnown = await request.get(`${API_URL}/.well-known/caldav`, { maxRedirects: 0 });
+    expect(wellKnown.status()).toBe(301);
   });
 
   test("an admin adds a user who signs in and sees none of the admin's events", async ({ page, browser }) => {

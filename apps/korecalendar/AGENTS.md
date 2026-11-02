@@ -29,8 +29,9 @@ TDD for behaviour: failing test first.
 
 - **SQLite transactions.** The DSN uses `_txlock=immediate`. Inside a tx use only the `*sql.Tx`. Never hold a tx open during network or file I/O.
 - **Live events.** An event is live iff `deleted_at IS NULL`. Use the shared constant, not ad-hoc predicates.
-- **Privacy.** Another user's data is a 404, never a 403.
+- **Privacy.** Another user's data is a 404, never a 403. This holds for every method under `/dav/` too (`internal/dav`).
 - **Errors.** Every API error is `{"error":{"code":"<stable_code>","message":"..."}}` via `errJSON`; codes are documented in `docs/openapi.yaml`.
 - **Times.** Event `start`/`end` are local wall-clock strings in the event's `tz`; recurrence expands in that zone. The occurrence key is the nominal wall-time start.
 - **Web UI.** Every string goes through `t()` (`web/lib/i18n/en.ts`). No native `<select>` (use `components/Select`), no `dangerouslySetInnerHTML`. Positions on the grid are wall-clock minutes in the user's zone taken from `start_utc`/`end_utc`; never recompute recurrence on the client. A repeat rule the editor can't express (`{kind:"raw"}`) is passed through untouched.
+- **CalDAV.** `/dav/` (package `internal/dav`, library `go-webdav`) goes through the same `events`/`calendars`/`ics` packages as the REST API; it never writes SQL itself. Auth is HTTP Basic with the email and an **access token** only (not the account password, sessions or cookies). Its errors are XML, outside the OpenAPI contract. See `docs/caldav.md` for what a PUT keeps and drops.
 - **Security posture.** No external resource loads. Never trust client-supplied forwarding headers except from the trusted proxy (see `Caddyfile`).

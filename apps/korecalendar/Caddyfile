@@ -34,8 +34,11 @@
 	# Nothing here is meant for search engines.
 	header X-Robots-Tag "noindex, nofollow"
 
-	# The API. No response compression: .ics exports are small and clients vary.
-	handle /api/* {
+	# The API and CalDAV (/dav/*, and the /.well-known/caldav discovery redirect).
+	# No response compression: .ics exports are small and clients vary. Every
+	# method passes through (PROPFIND, REPORT, ...); no web CSP headers.
+	@backend path /api/* /dav/* /.well-known/caldav
+	handle @backend {
 		header X-Content-Type-Options nosniff
 		reverse_proxy api:8080 {
 			flush_interval -1

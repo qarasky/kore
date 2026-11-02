@@ -34,6 +34,8 @@ curl -s $B/api/tokens -H "Authorization: Bearer $SESSION" -H 'Content-Type: appl
 From now on send `Authorization: Bearer $TOK`. Every event records who last changed it: `"user"` for a session, or the token's
 name (here `claude`).
 
+Prefer a standard protocol? The same calendars are served over CalDAV: see [caldav.md](caldav.md).
+
 ## Things to know first
 
 - **Times are wall-clock strings in the event's own zone.** `"2026-11-04T16:00:00"` with `"tz":"Europe/Berlin"` means 16:00 in Berlin,

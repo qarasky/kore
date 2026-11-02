@@ -5,6 +5,10 @@ info:
   description: |
     The API is the product: everything the web and Android apps do goes through it.
 
+    **CalDAV.** The same calendars are also served over CalDAV (RFC 4791) at `/dav/` (discovery: `/.well-known/caldav`),
+    for apps and libraries that speak it. It is a separate protocol (HTTP Basic: your email and an access token,
+    XML errors) and is **not** part of this contract; see `docs/caldav.md`.
+
     **Times.** An event's `start` and `end` are local wall-clock strings in its `tz` (an IANA zone):
     `2026-11-04T16:00:00`, or a date `2026-11-04` for all-day events, where `end` is exclusive.
     Recurring events expand in that zone, so a 9:00 event stays at 9:00 across DST changes.

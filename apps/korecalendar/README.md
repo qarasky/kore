@@ -12,6 +12,7 @@ Status: **phase 1 (API and core) and phase 2 (web app) are done;** the Android a
 - **[Web app](docs/web.md)**: what the UI does, shortcuts, drag behaviour, notifications.
 - **[API guide](docs/api.md)**: real requests and responses for the common jobs.
 - **[OpenAPI contract](docs/openapi.yaml)**: also served at `GET /api/openapi.json`, no login needed.
+- **[CalDAV](docs/caldav.md)**: the same calendars for CalDAV clients and libraries, at `/dav/`.
 
 ## Features
 
@@ -23,7 +24,7 @@ Status: **phase 1 (API and core) and phase 2 (web app) are done;** the Android a
 - **Built for agents:** long-lived revocable access tokens, `Idempotency-Key` for safe retries, `If-Match` versions, stable error codes, and
   a record of who last changed each event (you, or the token's name).
 - **Reminders** to browsers over Web Push, de-duplicated and restart-safe.
-- **Several calendars** with colours, text search, a change feed for sync, `.ics` import/export.
+- **Several calendars** with colours, text search, a change feed for sync, `.ics` import/export, and **CalDAV** for apps and libraries that speak it ([docs/caldav.md](docs/caldav.md)).
 - **Accounts like Kore**: the first account is the admin and can add others. Everyone's data is private (another person's item is a 404).
 
 ## Install
@@ -83,5 +84,5 @@ Requires Go 1.26 or newer and Node 24. The configuration is a small TOML file (`
 - An event added shortly before it starts may not reach a phone in time (the Android app, in a later phase, syncs in the background
   without a push service).
 - The web app is dark and English only, and has no password-change screen yet. See [docs/web.md](docs/web.md#known-limits).
-- No sharing, invitations or CalDAV. `.ics` export has no `VTIMEZONE` blocks (IANA zone names only).
+- No sharing or invitations. `.ics` export and CalDAV have no `VTIMEZONE` blocks (IANA zone names only), and CalDAV has no `sync-collection`: see [docs/caldav.md](docs/caldav.md#known-limits).
 - Reminders go to browsers only for now; Telegram and email are planned.
