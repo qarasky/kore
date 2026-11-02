@@ -25,12 +25,34 @@ type ImportResult struct {
 	SkippedOverrides []string // keys of overrides that are not occurrences of the series
 }
 
+// PutOptions are the preconditions of Put, all decided inside the same
+// transaction as the write.
+type PutOptions struct {
+	// IfVersion: the live event with the UID must be at this version
+	// (ErrVersionConflict), and must exist (ErrNotFound).
+	IfVersion *int
+	// CreateOnly: a live event with the UID is ErrExists.
+	CreateOnly bool
+	// SameCalendar: a live event with the UID in another calendar than
+	// calendarID is ErrUIDConflict (it is never moved).
+	SameCalendar bool
+	// FreeDeletedUID: a soft-deleted event with the UID gives the UID up (it
+	// stays restorable, without it) and a new event is created, instead of
+	// the deleted one being restored.
+	FreeDeletedUID bool
+}
+
 // Import stores an event from an .ics file. An event with the same UID (or
 // whose own id equals the UID, as exported by this calendar) is updated in
 // place, keeping its calendar and replacing its overrides; otherwise a new
 // event is created in calendarID (empty = the user's first calendar).
 // Exclusions and overrides that are not occurrences of the series are dropped.
 func Import(ctx context.Context, db *sql.DB, a Actor, calendarID string, im Imported) (ImportResult, error) {
+	return Put(ctx, db, a, calendarID, im, PutOptions{})
+}
+
+// Put is Import with preconditions: what a CalDAV client's PUT needs.
+func Put(ctx context.Context, db *sql.DB, a Actor, calendarID string, im Imported, o PutOptions) (ImportResult, error) {
 	u, err := users.Get(ctx, db, a.UserID)
 	if err != nil {
 		return ImportResult{}, err
@@ -63,7 +85,8 @@ func Import(ctx context.Context, db *sql.DB, a Actor, calendarID string, im Impo
 	var res ImportResult
 	var existingID string
 	if im.UID != "" {
-		err := tx.QueryRowContext(ctx, `SELECT id FROM events WHERE user_id=? AND (ics_uid=? OR id=?) ORDER BY ics_uid IS NULL LIMIT 1`,
+		// A live match wins over a deleted one; an exact UID match over an id match.
+		err := tx.QueryRowContext(ctx, `SELECT id FROM events WHERE user_id=? AND (ics_uid=? OR id=?) ORDER BY deleted_at IS NOT NULL, ics_uid IS NULL LIMIT 1`,
 			a.UserID, im.UID, im.UID).Scan(&existingID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return ImportResult{}, err
@@ -74,6 +97,26 @@ func Import(ctx context.Context, db *sql.DB, a Actor, calendarID string, im Impo
 		if e, err = load(ctx, tx, a.UserID, existingID, true); err != nil {
 			return ImportResult{}, err
 		}
+		live := e.DeletedAt == nil
+		switch {
+		case live && o.CreateOnly:
+			return ImportResult{}, ErrExists
+		case live && o.IfVersion != nil && *o.IfVersion != e.Version:
+			return ImportResult{}, ErrVersionConflict
+		case live && o.SameCalendar && calendarID != "" && e.CalendarID != calendarID:
+			return ImportResult{}, ErrUIDConflict
+		case !live && o.FreeDeletedUID:
+			// The deleted event keeps its row (and its restorability) but not the UID.
+			if _, err := tx.ExecContext(ctx, `UPDATE events SET ics_uid=NULL WHERE id=? AND user_id=?`, e.ID, a.UserID); err != nil {
+				return ImportResult{}, err
+			}
+			existingID = ""
+		}
+	}
+	if existingID == "" && o.IfVersion != nil {
+		return ImportResult{}, ErrNotFound
+	}
+	if existingID != "" {
 		e.Title, e.Notes, e.Location = in.Title, in.Notes, in.Location
 		e.Start, e.End, e.TZ, e.AllDay, e.RRule = in.Start, in.End, in.TZ, in.AllDay, in.RRule
 		e.RDates, e.Reminders, e.DeletedAt = nonNil(in.RDates), nonNilR(in.Reminders), nil
@@ -139,4 +182,19 @@ func ListForExport(ctx context.Context, db *sql.DB, userID string, calendarIDs [
 	}
 	ovs, err := loadOverrides(ctx, db, ids)
 	return evs, ovs, err
+}
+
+// FindLiveByUID returns the user's live event whose .ics UID (or, for events
+// made here, whose id) is uid. An exact UID match wins over an id match.
+func FindLiveByUID(ctx context.Context, db *sql.DB, userID, uid string) (Event, error) {
+	var id string
+	err := db.QueryRowContext(ctx, `SELECT id FROM events WHERE user_id=? AND (ics_uid=? OR id=?) AND `+liveSQL+` ORDER BY ics_uid IS NULL LIMIT 1`,
+		userID, uid, uid).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Event{}, ErrNotFound
+	}
+	if err != nil {
+		return Event{}, err
+	}
+	return load(ctx, db, userID, id, false)
 }

@@ -12,6 +12,8 @@ import (
 var (
 	ErrNotFound        = errors.New("event not found")
 	ErrVersionConflict = errors.New("event was changed by someone else")
+	ErrExists          = errors.New("an event with that UID already exists")
+	ErrUIDConflict     = errors.New("that UID belongs to an event in another calendar")
 	ErrValidation      = errors.New("invalid event")
 )
 
