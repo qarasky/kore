@@ -1,5 +1,13 @@
 # Zero: design
 
+> **Amendments since this spec was written (2026-11-03).** This is the original product design; the owner later approved the changes below. Where they conflict with the text, they win. For how things work today see `README.md`, `DESIGN.md` and `docs/api.md`.
+> - **Tools:** web search is no longer the only tool. The assistant can save, read and edit **notes** (per chat, per user). Reaching into another chat's notes needs the owner's approval through an Allow/Deny card. Memory is still not a tool.
+> - **Providers:** besides OpenCode there are **Codex** (OpenAI via ChatGPT sign-in or an API key) and **OpenRouter** (API key). Each can be turned off per user, and OpenCode and OpenRouter can be limited to free models. Unusable providers are dimmed in the model picker with an explanation.
+> - **Settings:** now five sections (Models, Providers, Personalization, Memory, Account) with autosave. Memory moved inside Settings.
+> - **Sign-in:** a signed-in web session can show a QR code that signs the Android app in as the same account.
+> - **Chat titles:** after the first answer the chosen model names the chat.
+> - **Engine:** the OpenCode SDK could not be used (see `docs/superpowers/notes/engine-spike.md`); Zero talks to `opencode serve` over HTTP.
+
 A personal AI assistant with its own apps: a native Android app and a web UI, both talking to a backend that runs on the owner's home server. It should feel like the ChatGPT app: you open it and ask. It is the opposite of OpenClaw, which the owner hated.
 
 Calls marked **(my call)** were made by the designer, not the owner. Everything else was decided by the owner.
@@ -35,7 +43,7 @@ Zero is built to fix those four, in that spirit.
 Not in v1, and not to be built:
 
 - Telegram, Discord, or any messaging-channel integration.
-- Any tool other than web search (reading, writing, terminal and search are the later wishlist, not now).
+- Any tool other than web search and notes (reading files, writing files and a terminal are the later wishlist, not now).
 - Voice input or output.
 - A light theme.
 - iOS.
