@@ -27,7 +27,7 @@ The owner wants a calendar that looks and feels like Proton Calendar or Google C
 Not in v1, and not to be built:
 
 - Invitations, attendees, free/busy, meeting rooms, or shared calendars between users **(my call)**.
-- CalDAV/CardDAV server **(my call)**. `.ics` import and export is in; the CalDAV protocol is out.
+- CardDAV, and CalDAV scheduling (invitations, free/busy). `.ics` import and export is in. A CalDAV (calendar sync) endpoint was out of scope originally and was added later at the owner's request: see [the CalDAV design](2026-11-02-caldav-design.md).
 - Telegram and email reminders. They come later, so reminders must go through a channel interface that makes adding them cheap.
 - iOS. A light theme. Public-internet tunnel or TLS setup beyond what Kore's Caddy stack does.
 - Google Play Services, FCM, or any Google dependency on Android.
