@@ -18,7 +18,6 @@ function setup(engineOpts: ConstructorParameters<typeof FakeEngine>[0] = {}, dep
     buildSystem: () => "SYSTEM",
     readUpload: (id) => (id === "up1" ? { name: "a.png", mime: "image/png", dataUrl: "data:image/png;base64,AA==" } : null),
     onTurnComplete: (_u, a, b) => { completed.push([a, b]); },
-    hasProvider: async () => true,
     ...deps,
   });
   return { db, engine, chats, completed };
@@ -93,14 +92,6 @@ test("onTurnComplete is called once after done and not on error", async () => {
   const c2 = bad.chats.create("u1");
   await collect(bad.chats.send("u1", c2.id, req("q"), new AbortController().signal));
   expect(bad.completed).toEqual([]);
-});
-
-test("send with no provider yields no_provider error", async () => {
-  const { chats } = setup({}, { hasProvider: async () => false });
-  const c = chats.create("u1");
-  const evs = await collect(chats.send("u1", c.id, req("hi"), new AbortController().signal));
-  const last = evs[evs.length - 1];
-  expect(last.type === "error" && last.code).toBe("no_provider");
 });
 
 test("engine noProvider error becomes no_provider", async () => {

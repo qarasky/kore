@@ -45,6 +45,7 @@ export function createAuth(db: Database, now: () => number = Date.now) {
       const email = req.email.toLowerCase();
       const key = `${ip}|${email}`;
       const t = now();
+      db.run("delete from login_attempts where window_start < ?", [t - WINDOW_MS]);
       const row = db.query("select count, window_start from login_attempts where key=?").get(key) as
         | { count: number; window_start: number } | null;
       const active = row && t - row.window_start < WINDOW_MS ? row : null;

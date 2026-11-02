@@ -72,3 +72,13 @@ test("logout invalidates the token", async () => {
   auth.logout(r.token);
   expect(auth.verify(r.token)).toBeNull();
 });
+
+test("stale login attempt rows are pruned", async () => {
+  let t = 1_000_000;
+  const { db, auth } = setup(() => t);
+  await auth.register(creds);
+  await code(auth.login({ ...creds, password: "wrong password" }, "5.5.5.5"));
+  t += 16 * 60 * 1000;
+  await auth.login(creds, "6.6.6.6");
+  expect((db.query("select count(*) c from login_attempts").get() as { c: number }).c).toBe(0);
+});

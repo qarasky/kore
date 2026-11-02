@@ -19,9 +19,6 @@ export function createModels(db: Database, engine: Engine) {
         for (const k of clean) db.run("insert into favorites(user_id,model_key) values(?,?)", [userId, k]);
       })();
     },
-    async hasConnectedProvider() {
-      return (await providers()).some((p) => p.connected);
-    },
   };
 }
 export type Models = ReturnType<typeof createModels>;

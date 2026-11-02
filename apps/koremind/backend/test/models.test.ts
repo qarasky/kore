@@ -35,9 +35,3 @@ test("connect and disconnect forward to the engine", async () => {
   await models.disconnect("opencode");
   expect(engine.keys.has("opencode")).toBe(false);
 });
-
-test("hasConnectedProvider is false when no provider is connected", async () => {
-  const none = new FakeEngine({ providers: [{ id: "opencode", name: "OpenCode", connected: false, models: [] }] });
-  expect(await setup(none).models.hasConnectedProvider()).toBe(false);
-  expect(await setup().models.hasConnectedProvider()).toBe(true);
-});

@@ -6,7 +6,6 @@ export type ChatsDeps = {
   buildSystem(userId: string): string;
   readUpload(id: string, userId: string): EngineFile | null;
   onTurnComplete(userId: string, userText: string, assistantText: string): void;
-  hasProvider(): Promise<boolean>;
 };
 
 type ChatRow = { id: string; user_id: string; title: string; engine_session_id: string | null; updated_at: number };
@@ -71,10 +70,6 @@ export function createChats(db: Database, engine: Engine, deps: ChatsDeps) {
       for (const aid of req.attachmentIds) db.run("update attachments set message_id=? where id=? and user_id=?", [userMsgId, aid, userId]);
       db.run("update chats set updated_at=?, title=case when ?=0 then ? else title end where id=?", [now, prior, req.text.trim().slice(0, 48) || "New chat", chatId]);
 
-      if (!(await deps.hasProvider())) {
-        yield { type: "error", code: "no_provider", message: "Connect a provider in Settings to start chatting." };
-        return;
-      }
       const files: EngineFile[] = [];
       for (const aid of req.attachmentIds) {
         const f = deps.readUpload(aid, userId);

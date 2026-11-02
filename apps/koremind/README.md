@@ -30,6 +30,7 @@ OpenCode's free models work with no key, but the free quota is limited. When it 
 | `ZERO_DATA_DIR` | `./data` (database, uploads, memory, OpenCode state) |
 | `ZERO_WEB_PORT` | `3210` |
 | `ZERO_PUBLIC_URL` | unset; shown as the `domain` address |
+| `ZERO_TRUST_PROXY=1` | believe `x-forwarded-for` from any peer (a tunnel on this machine is trusted automatically) |
 | `ZERO_FAKE_ENGINE=1` | run without OpenCode (scripted replies) for development |
 | `ZERO_OPENCODE_BIN` | `opencode` |
 

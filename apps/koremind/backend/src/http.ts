@@ -1,4 +1,4 @@
-import { AuthRequest, Settings, SendMessageRequest } from "@zero/shared";
+import { AuthRequest, Settings, SendMessageRequest, type StreamEvent } from "@zero/shared";
 import { z } from "zod";
 import { AuthError } from "./auth";
 import type { Services } from "./services";
@@ -17,7 +17,10 @@ class HttpError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
 }
 
-export function createApp(s: Services, opts: { trustProxy?: boolean } = {}) {
+const isLoopback = (ip?: string) => ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+
+export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs?: number } = {}) {
+  const keepAliveMs = opts.keepAliveMs ?? 15_000;
   async function body<T>(req: Request, schema: z.ZodType<T>): Promise<T> {
     let raw: unknown;
     try { raw = await req.json(); } catch { throw new HttpError(400, "bad_request", "Invalid JSON"); }
@@ -34,7 +37,8 @@ export function createApp(s: Services, opts: { trustProxy?: boolean } = {}) {
     if (m === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
     if (m === "GET" && path === "/health") return json(200, { name: "zero", version: s.version, setupRequired: s.auth.setupRequired() });
 
-    const ip = (opts.trustProxy ? req.headers.get("x-forwarded-for")?.split(",")[0].trim() : undefined) ?? socketIp ?? "unknown";
+    // A tunnel (cloudflared, tailscale serve) on this machine arrives from loopback: believe its forwarded address, nobody else's.
+    const ip = (opts.trustProxy || isLoopback(socketIp) ? req.headers.get("x-forwarded-for")?.split(",")[0].trim() : undefined) ?? socketIp ?? "unknown";
     const caller = s.auth.verify(tokenOf(req, url));
 
     if (m === "POST" && path === "/auth/register") return json(200, await s.auth.register(await body(req, AuthRequest), caller ?? undefined));
@@ -50,6 +54,7 @@ export function createApp(s: Services, opts: { trustProxy?: boolean } = {}) {
     if (m === "GET" && path === "/favorites") return json(200, s.models.favorites(u));
     if (m === "PUT" && path === "/favorites") { await s.models.setFavorites(u, await body(req, z.array(z.string()))); return json(200, s.models.favorites(u)); }
     if ((r = path.match(/^\/providers\/([^/]+)\/key$/))) {
+      if (!caller.isOwner) return fail(403, "forbidden", "Only the owner can change provider keys");
       if (m === "PUT") { await s.models.connect(decodeURIComponent(r[1]), (await body(req, z.object({ key: z.string().min(1) }))).key); return ok(); }
       if (m === "DELETE") { await s.models.disconnect(decodeURIComponent(r[1])); return ok(); }
     }
@@ -72,10 +77,19 @@ export function createApp(s: Services, opts: { trustProxy?: boolean } = {}) {
       if (!s.chats.has(u, r[1])) return fail(404, "not_found", "Chat not found");
       const it = s.chats.send(u, r[1], await body(req, SendMessageRequest), req.signal)[Symbol.asyncIterator]();
       const enc = new TextEncoder();
+      let nextEv: Promise<IteratorResult<StreamEvent>> | null = null;
       const stream = new ReadableStream<Uint8Array>({
         async pull(c) {
-          const { value, done } = await it.next();
-          if (done) c.close(); else c.enqueue(enc.encode(`data: ${JSON.stringify(value)}\n\n`));
+          nextEv ??= it.next();
+          for (;;) {
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            const r = await Promise.race([nextEv, new Promise<null>((res) => { timer = setTimeout(() => res(null), keepAliveMs); })]);
+            clearTimeout(timer);
+            if (r === null) { c.enqueue(enc.encode(": ping\n\n")); continue; }
+            nextEv = null;
+            if (r.done) c.close(); else c.enqueue(enc.encode(`data: ${JSON.stringify(r.value)}\n\n`));
+            return;
+          }
         },
         async cancel() { await it.return?.(undefined); },
       });

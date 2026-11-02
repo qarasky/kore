@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { ModelInfo, ProviderInfo } from "@zero/shared";
+import { CLOSED, IDLE, Pump } from "./pump";
 import type { Engine, EngineEvent, PromptArgs } from "./types";
 
 // Talks to `opencode serve` (v2 API, see docs/superpowers/notes/engine-spike.md). No SDK: the published SDK targets an older server.
@@ -40,7 +41,7 @@ export function mapEvent(sessionId: string, raw: Raw): EngineEvent[] {
   }
 }
 
-export function mapModels(providers: { id: string; name: string }[], models: any[], defaultModelId?: string): ProviderInfo[] {
+export function mapModels(providers: { id: string; name: string }[], models: any[], defaultModelId?: string, connected?: Set<string>): ProviderInfo[] {
   return providers
     .map((p) => {
       const ms = models.filter((m) => m.providerID === p.id && m.enabled !== false && m.status !== "disabled");
@@ -52,7 +53,7 @@ export function mapModels(providers: { id: string; name: string }[], models: any
         thinkingLevels: (m.variants ?? []).map((v: any) => String(v.id ?? v)),
         isDefault: m.id === defId,
       }));
-      return { id: p.id, name: p.name, connected: true, models: out };
+      return { id: p.id, name: p.name, connected: connected ? connected.has(p.id) : true, models: out };
     })
     .filter((p) => p.models.length > 0);
 }
@@ -75,7 +76,7 @@ export const zeroOpencodeConfig = {
   },
 };
 
-type Listener = (e: EngineEvent[]) => void;
+const IDLE_MS = 120_000;
 
 export async function createOpencodeEngine(opts: { dataDir: string; bin?: string }): Promise<Engine> {
   const xdg = join(opts.dataDir, "opencode");
@@ -102,6 +103,12 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
   }
   (async () => { while (!(await reader.read()).done); })();
   const { url } = banner;
+  let dead = false;
+  const pumps = new Set<Pump<EngineEvent>>();
+  void proc.exited.then(() => {
+    dead = true;
+    for (const p of pumps) p.push({ type: "error", message: "The assistant engine stopped. Restart Zero." });
+  });
   const auth = "Basic " + btoa("opencode:" + banner.password);
   const call = async (method: string, path: string, body?: unknown) => {
     const r = await fetch(url + path, { method, headers: { authorization: auth, "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -141,9 +148,10 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
   let defaultModel: { providerId: string; modelId: string } | null = null;
 
   const listProviders = async (): Promise<ProviderInfo[]> => {
-    const [p, m, d] = await Promise.all([call("GET", "/api/provider"), call("GET", "/api/model"), call("GET", "/api/model/default")]);
+    const [p, m, d, ig] = await Promise.all([call("GET", "/api/provider"), call("GET", "/api/model"), call("GET", "/api/model/default"), call("GET", "/api/integration")]);
     const providers = (p.json?.data ?? []).filter((x: any) => x.id === "opencode").map((x: any) => ({ id: x.id, name: x.name }));
-    const out = mapModels(providers, m.json?.data ?? [], d.json?.data?.id);
+    const connected = new Set<string>((ig.json?.data ?? []).filter((i: any) => Array.isArray(i.connections) && i.connections.length > 0).map((i: any) => String(i.id)));
+    const out = mapModels(providers, m.json?.data ?? [], d.json?.data?.id, connected);
     const def = out[0]?.models.find((x) => x.isDefault);
     if (def) defaultModel = { providerId: out[0].id, modelId: def.id };
     return out;
@@ -158,13 +166,14 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
   };
 
   async function* prompt(a: PromptArgs): AsyncIterable<EngineEvent> {
-    const queue: EngineEvent[] = [];
-    let wake: (() => void) | null = null;
+    if (dead) { yield { type: "error", message: "The assistant engine stopped. Restart Zero." }; return; }
+    const pump = new Pump<EngineEvent>(IDLE_MS);
+    pumps.add(pump);
     const set = listeners.get(a.sessionId) ?? new Set();
     listeners.set(a.sessionId, set);
-    const onRaw = (raw: Raw) => { const evs = mapEvent(a.sessionId, raw); if (evs.length) { queue.push(...evs); wake?.(); } };
+    const onRaw = (raw: Raw) => { pump.touch(); for (const ev of mapEvent(a.sessionId, raw)) pump.push(ev); };
     set.add(onRaw);
-    const onAbort = () => { call("POST", `/api/session/${a.sessionId}/interrupt`); wake?.(); };
+    const onAbort = () => { void call("POST", `/api/session/${a.sessionId}/interrupt`).catch(() => {}); pump.close(); };
     a.signal.addEventListener("abort", onAbort);
     try {
       yield { type: "status", state: "thinking" };
@@ -178,16 +187,15 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
       const text = first && a.system ? `<context>\n${a.system}\n</context>\n\n${a.text}` : a.text;
       const r = await call("POST", `/api/session/${a.sessionId}/prompt`, { text, ...(a.files.length ? { files: a.files.map((f) => ({ uri: f.dataUrl, name: f.name })) } : {}) });
       if (!r.ok) { yield { type: "error", message: String(r.json?.message ?? `Engine rejected the prompt (${r.status})`) }; return; }
-      while (!a.signal.aborted) {
-        while (queue.length) {
-          const ev = queue.shift()!;
-          yield ev;
-          if (ev.type === "done" || ev.type === "error") return;
-        }
-        await new Promise<void>((res) => { wake = res; setTimeout(res, 30_000); });
-        wake = null;
+      for (;;) {
+        const v = await pump.next();
+        if (v === CLOSED) return;
+        if (v === IDLE) { yield { type: "error", message: "The assistant stopped responding. Try again." }; return; }
+        yield v;
+        if (v.type === "done" || v.type === "error") return;
       }
     } finally {
+      pumps.delete(pump);
       set.delete(onRaw);
       a.signal.removeEventListener("abort", onAbort);
     }

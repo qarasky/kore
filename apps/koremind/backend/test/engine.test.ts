@@ -86,3 +86,9 @@ test.skipIf(!process.env.ZERO_LIVE)("live: opencode lists models and streams a r
     expect(["done", "error"]).toContain(last.type);
   } finally { eng.close(); }
 }, 60_000);
+
+test("mapModels marks a provider connected only when a key connection exists", () => {
+  const models = [{ id: "m", modelID: "m", providerID: "opencode", name: "M", capabilities: { input: ["text"] }, variants: [], enabled: true, status: "active" }];
+  expect(mapModels([{ id: "opencode", name: "OpenCode" }], models, undefined, new Set())[0].connected).toBe(false);
+  expect(mapModels([{ id: "opencode", name: "OpenCode" }], models, undefined, new Set(["opencode"]))[0].connected).toBe(true);
+});
