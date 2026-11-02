@@ -1,5 +1,5 @@
 "use client";
-import type { Settings } from "@zero/shared";
+import type { ProviderConnection, Settings } from "@zero/shared";
 import { ChevronRight, Star } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
@@ -20,6 +20,11 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [keyFor, setKeyFor] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
+  const [connections, setConnections] = useState<ProviderConnection[]>([]);
+  const [signingIn, setSigningIn] = useState<string | null>(null);
+
+  const loadConnections = async () => { if (api) setConnections(await api.providers().catch(() => [])); };
+  useEffect(() => { void loadConnections(); }, [api]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { api?.settings().then(setSettings).catch(() => {}); }, [api]);
   const names = Object.fromEntries(providers.flatMap((p) => p.models.map((m) => [`${p.id}/${m.id}`, m.name])));
@@ -32,8 +37,31 @@ export default function SettingsPage() {
   }
   async function saveKey(id: string) {
     setError("");
-    try { await api?.setProviderKey(id, keyFor[id] ?? ""); setKeyFor((k) => ({ ...k, [id]: "" })); await reload(); }
+    try { await api?.setProviderKey(id, keyFor[id] ?? ""); setKeyFor((k) => ({ ...k, [id]: "" })); await Promise.all([reload(), loadConnections()]); }
     catch (e) { setError(e instanceof Error ? e.message : t.genericError); }
+  }
+  async function disconnect(id: string) {
+    setError("");
+    try { await api?.removeProviderKey(id); await Promise.all([reload(), loadConnections()]); }
+    catch (e) { setError(e instanceof Error ? e.message : t.genericError); }
+  }
+  async function signIn(id: string) {
+    if (!api) return;
+    setError("");
+    setSigningIn(id);
+    try {
+      const start = await api.startSignIn(id);
+      window.open(start.url, "_blank", "noopener");
+      const until = Date.now() + 5 * 60_000;
+      while (Date.now() < until) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const { status } = await api.signInStatus(id, start.attemptId);
+        if (status === "complete") { await Promise.all([reload(), loadConnections()]); return; }
+        if (status === "failed") { setError(t.signInFailed); return; }
+      }
+      setError(t.signInFailed);
+    } catch (e) { setError(e instanceof Error ? e.message : t.genericError); }
+    finally { setSigningIn(null); }
   }
 
   return (
@@ -56,14 +84,25 @@ export default function SettingsPage() {
           </Section>
 
           <Section title={t.providersSection}>
-            {providers.map((p) => (
+            {connections.map((p) => (
               <div key={p.id} className="flex flex-col gap-2 rounded-ui bg-surface p-3">
-                <div className="flex items-center justify-between"><span className="text-sub font-medium">{p.name}</span><span className="text-meta text-muted">{p.connected ? t.connected : t.notConnected}</span></div>
-                <Field label={t.apiKey} type="password" autoComplete="off" value={keyFor[p.id] ?? ""} onChange={(e) => setKeyFor((k) => ({ ...k, [p.id]: e.target.value }))} />
-                <div className="flex gap-2">
-                  <Button onClick={() => void saveKey(p.id)} disabled={!keyFor[p.id]}>{t.saveKey}</Button>
-                  <Button variant="ghost" onClick={async () => { await api?.removeProviderKey(p.id); await reload(); }}>{t.removeKey}</Button>
-                </div>
+                <div className="flex items-center justify-between"><span className="text-sub font-medium">{p.name}</span><span className="text-meta text-muted">{p.connected ? t.connected : p.id === "opencode" ? t.freeTier : t.notConnected}</span></div>
+                {p.methods.includes("signin") && !p.connected && (
+                  <div className="flex flex-col gap-1">
+                    <div><Button onClick={() => void signIn(p.id)} disabled={signingIn === p.id}>{t.signInChatgpt}</Button></div>
+                    <p className="text-meta text-muted">{signingIn === p.id ? t.signInWaiting : t.signInSameMachine}</p>
+                  </div>
+                )}
+                {p.methods.includes("key") && (
+                  <>
+                    <Field label={t.apiKey} type="password" autoComplete="off" value={keyFor[p.id] ?? ""} onChange={(e) => setKeyFor((k) => ({ ...k, [p.id]: e.target.value }))} />
+                    <div className="flex gap-2">
+                      <Button onClick={() => void saveKey(p.id)} disabled={!keyFor[p.id]}>{t.saveKey}</Button>
+                      {p.connected && <Button variant="ghost" onClick={() => void disconnect(p.id)}>{p.methods.includes("signin") ? t.disconnect : t.removeKey}</Button>}
+                    </div>
+                  </>
+                )}
+                {!p.methods.includes("key") && p.connected && <div><Button variant="ghost" onClick={() => void disconnect(p.id)}>{t.disconnect}</Button></div>}
               </div>
             ))}
             <ErrorText>{error}</ErrorText>

@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qarasky.zero.R
 import dev.qarasky.zero.data.MemoryEntry
+import dev.qarasky.zero.data.ProviderConnection
 import dev.qarasky.zero.data.Settings
 import dev.qarasky.zero.ui.AppViewModel
 import dev.qarasky.zero.ui.BackBar
@@ -62,8 +63,11 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit, onMemory: () -> Unit, o
     var saved by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val keys = remember { mutableStateMapOf<String, String>() }
+    var connections by remember { mutableStateOf<List<ProviderConnection>>(emptyList()) }
+    suspend fun loadConnections() { connections = try { vm.api?.providers() ?: emptyList() } catch (_: Exception) { emptyList() } }
     val names = providers.flatMap { p -> p.models.map { "${p.id}/${it.id}" to it.name } }.toMap()
 
+    LaunchedEffect(Unit) { loadConnections() }
     LaunchedEffect(Unit) { settings = try { vm.api?.settings() } catch (_: Exception) { null } }
 
     Column(Modifier.fillMaxSize().background(ZeroColors.Bg).statusBarsPadding().navigationBarsPadding()) {
@@ -83,15 +87,16 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit, onMemory: () -> Unit, o
                 }
             }
             Section(stringResource(R.string.providers_section)) {
-                providers.forEach { p ->
+                connections.forEach { p ->
                     Column(Modifier.fillMaxWidth().background(ZeroColors.Surface, RoundedCornerShape(6.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row { Text(p.name, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge); Text(if (p.connected) stringResource(R.string.connected) else stringResource(R.string.not_connected), color = ZeroColors.Muted, style = MaterialTheme.typography.bodySmall) }
+                        Row { Text(p.name, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge); Text(if (p.connected) stringResource(R.string.connected) else if (p.id == "opencode") stringResource(R.string.free_tier) else stringResource(R.string.not_connected), color = ZeroColors.Muted, style = MaterialTheme.typography.bodySmall) }
+                        if ("signin" in p.methods && !p.connected) Text(stringResource(R.string.sign_in_on_web), color = ZeroColors.Muted, style = MaterialTheme.typography.bodySmall)
                         ZeroField(stringResource(R.string.api_key), keys[p.id] ?: "", { keys[p.id] = it }, password = true)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             ZeroButton(stringResource(R.string.save_key), enabled = !keys[p.id].isNullOrBlank(), onClick = {
-                                scope.launch { try { vm.api?.setProviderKey(p.id, keys[p.id].orEmpty()); keys[p.id] = ""; vm.refreshModels(); error = null } catch (e: Exception) { error = e.message } }
+                                scope.launch { try { vm.api?.setProviderKey(p.id, keys[p.id].orEmpty()); keys[p.id] = ""; vm.refreshModels(); loadConnections(); error = null } catch (e: Exception) { error = e.message } }
                             })
-                            ZeroButton(stringResource(R.string.remove_key), ghost = true, onClick = { scope.launch { try { vm.api?.removeProviderKey(p.id); vm.refreshModels() } catch (e: Exception) { error = e.message } } })
+                            ZeroButton(stringResource(R.string.remove_key), ghost = true, onClick = { scope.launch { try { vm.api?.removeProviderKey(p.id); vm.refreshModels(); loadConnections() } catch (e: Exception) { error = e.message } } })
                         }
                     }
                 }

@@ -27,6 +27,19 @@ export const ProviderInfo = z.object({
 });
 export type ProviderInfo = z.infer<typeof ProviderInfo>;
 
+/** A provider the owner can connect in Settings. `signin` = browser sign-in (Codex uses ChatGPT). */
+export const ProviderConnection = z.object({
+  id: z.string(),
+  name: z.string(),
+  connected: z.boolean(),
+  methods: z.array(z.enum(["key", "signin"])),
+});
+export type ProviderConnection = z.infer<typeof ProviderConnection>;
+export const SignInStart = z.object({ attemptId: z.string(), url: z.string(), instructions: z.string() });
+export type SignInStart = z.infer<typeof SignInStart>;
+export const SignInStatus = z.object({ status: z.enum(["pending", "complete", "failed"]) });
+export type SignInStatus = z.infer<typeof SignInStatus>;
+
 export const ChatSummary = z.object({ id: z.string(), title: z.string(), updatedAt: z.number() });
 export type ChatSummary = z.infer<typeof ChatSummary>;
 

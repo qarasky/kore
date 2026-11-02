@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { FakeEngine } from "../src/engine/fake";
-import { mapEvent, mapModels, parseServerBanner } from "../src/engine/opencode";
+import { mapConnections, mapEvent, mapModels, parseServerBanner } from "../src/engine/opencode";
 import type { EngineEvent, PromptArgs } from "../src/engine/types";
 
 const args = (over: Partial<PromptArgs> = {}): PromptArgs => ({
@@ -91,4 +91,17 @@ test("mapModels marks a provider connected only when a key connection exists", (
   const models = [{ id: "m", modelID: "m", providerID: "opencode", name: "M", capabilities: { input: ["text"] }, variants: [], enabled: true, status: "active" }];
   expect(mapModels([{ id: "opencode", name: "OpenCode" }], models, undefined, new Set())[0].connected).toBe(false);
   expect(mapModels([{ id: "opencode", name: "OpenCode" }], models, undefined, new Set(["opencode"]))[0].connected).toBe(true);
+});
+
+test("mapConnections offers OpenCode, Codex and OpenRouter with their login methods, and nothing else", () => {
+  const integrations = [
+    { id: "anthropic", name: "Anthropic", methods: [{ type: "key" }], connections: [] },
+    { id: "openrouter", name: "OpenRouter", methods: [{ type: "key" }, { type: "env", names: ["OPENROUTER_API_KEY"] }], connections: [{ id: "c1" }] },
+    { id: "openai", name: "OpenAI", methods: [{ type: "key" }, { id: "chatgpt-token-sharing", type: "oauth", label: "Sign in with ChatGPT" }], connections: [] },
+  ];
+  const out = mapConnections(integrations);
+  expect(out.map((c) => c.id)).toEqual(["opencode", "openai", "openrouter"]);
+  expect(out.find((c) => c.id === "openai")).toEqual({ id: "openai", name: "Codex", connected: false, methods: ["key", "signin"] });
+  expect(out.find((c) => c.id === "openrouter")).toEqual({ id: "openrouter", name: "OpenRouter", connected: true, methods: ["key"] });
+  expect(out.find((c) => c.id === "opencode")?.methods).toEqual(["key"]);
 });

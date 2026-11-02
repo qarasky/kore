@@ -53,6 +53,16 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
     if (m === "GET" && path === "/models") return json(200, await s.models.providers());
     if (m === "GET" && path === "/favorites") return json(200, s.models.favorites(u));
     if (m === "PUT" && path === "/favorites") { await s.models.setFavorites(u, await body(req, z.array(z.string()))); return json(200, s.models.favorites(u)); }
+    if (m === "GET" && path === "/providers") return json(200, await s.models.connections());
+    if ((r = path.match(/^\/providers\/([^/]+)\/signin(?:\/([^/]+))?$/))) {
+      if (!caller.isOwner) return fail(403, "forbidden", "Only the owner can change providers");
+      const pid = decodeURIComponent(r[1]);
+      if (m === "POST" && !r[2]) {
+        try { return json(200, await s.models.startSignIn(pid)); }
+        catch (e) { return fail(502, "engine_error", e instanceof Error ? e.message : "Could not start sign-in"); }
+      }
+      if (m === "GET" && r[2]) return json(200, await s.models.signInStatus(pid, decodeURIComponent(r[2])));
+    }
     if ((r = path.match(/^\/providers\/([^/]+)\/key$/))) {
       if (!caller.isOwner) return fail(403, "forbidden", "Only the owner can change provider keys");
       if (m === "PUT") { await s.models.connect(decodeURIComponent(r[1]), (await body(req, z.object({ key: z.string().min(1) }))).key); return ok(); }
