@@ -44,9 +44,18 @@ Out (anti-goals for this phase):
 | `PUT` whose file name is not `{UID}.ics` | refused: `valid-calendar-object-resource`. Every client in the field names resources after the UID; keeping name and UID the same avoids a second identity per event **(my call)** |
 | `PUT` of a rule outside the supported set (hourly, `BYWEEKNO`, …) | refused: `valid-calendar-object-resource`, with the same per-event reason the `.ics` import reports; nothing is approximated |
 | `DELETE` | the event's soft delete (restorable for 30 days from the web app or `POST /api/events/{id}/restore`) |
+| `PUT` to a UID whose event is soft-deleted (or went down with a deleted calendar) | the UID counts as **free**: a new event is created and the deleted row keeps its restorability but gives up its `ics_uid`, in the same transaction. `If-None-Match: *` treats such a UID as free. `PUT` never restores a deleted event. This makes the standard move ("delete from calendar A, put into calendar B") work at once **(my call; it is a change to `Import`'s contract and to restore: a restored event whose UID was reused keeps its own id as its UID)** |
 | `calendar-query` with `time-range` | the series that have at least one occurrence in the range, found with the same expansion the REST `occurrences` endpoint uses (so DST and exclusions are right) |
 
 Times stay as the model has them: wall-clock in the event's IANA zone. On the way out an event is written with `TZID=<IANA name>`; on the way in a `TZID` that is not an IANA name is mapped as the importer already does, or refused with the reason.
+
+## What a `PUT` keeps and drops
+
+A `PUT` replaces the resource, and what is stored is what the model can hold: title, notes, location, start and end (with zone), all-day, `RRULE`/`RDATE`/`EXDATE`, changed occurrences, and `VALARM`s that fire before the start. The rest is **not stored**: `ATTENDEE`, `ORGANIZER`, `CATEGORIES`, `URL`, `STATUS`/`TRANSP`/`CLASS`, `X-` properties, alarms that are not "before start". A floating or unknown-`TZID` time is mapped to the user's zone; exclusions and changed occurrences that match no occurrence are dropped; a `STATUS:CANCELLED` master is skipped. This is the importer's existing behaviour, and CalDAV reuses it **(my call)**: refusing such PUTs would reject ordinary client output, and storing arbitrary properties needs a new table and rules for when an edit makes them stale, which is not worth it before an integration needs it. Consequences, all stated in `docs/caldav.md`:
+
+- A `PUT` never returns an `ETag`, so a client re-reads the resource and sees what was actually stored (RFC 4791 allows this when the server changes the data).
+- A `PUT` without `VALARM`s **clears the reminders** set in the web app, exactly as the REST import does for an updated UID: the resource a client sent is the resource.
+- An integration that keeps its own ids in `X-` properties should keep them in its own store (or use the REST API, which has `Idempotency-Key` and stable ids); it will not get them back from CalDAV.
 
 ## Interfaces and placement
 
