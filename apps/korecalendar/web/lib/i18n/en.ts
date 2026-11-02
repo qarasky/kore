@@ -46,6 +46,38 @@ const en = {
   "error.busy": "The server is busy. Try again in a moment.",
   "error.internal": "The server hit an error. Try again.",
 
+  "nav.today": "Today",
+  "nav.previous": "Previous",
+  "nav.next": "Next",
+  "nav.newEvent": "New event",
+  "nav.menu": "Menu",
+  "nav.backToCalendar": "Back to calendar",
+  "nav.main": "Main navigation",
+  "nav.sidebar": "Calendar sidebar",
+  "nav.search": "Search events",
+  "nav.searchPlaceholder": "Search",
+  "nav.viewSwitcher": "Calendar view",
+  "nav.settings": "Settings",
+
+  "view.day": "Day",
+  "view.week": "Week",
+  "view.month": "Month",
+  "view.agenda": "Agenda",
+
+  "calendars.heading": "My calendars",
+  "calendars.show": "Show {name}",
+  "calendars.none": "No calendars yet",
+  "calendars.miniMonth": "Choose a day",
+  "calendars.previousMonth": "Previous month",
+  "calendars.nextMonth": "Next month",
+
+  "account.menu": "Account",
+  "account.signedInAs": "Signed in as {email}",
+  "account.shortcuts": "Keyboard shortcuts",
+  "account.signOut": "Sign out",
+
+  "toast.dismiss": "Dismiss",
+
   "errorPage.unreachableTitle": "Can't reach the server",
   "errorPage.unreachableBody": "The calendar can't talk to its server right now. Your data is safe.",
   "errorPage.genericTitle": "Something went wrong",
