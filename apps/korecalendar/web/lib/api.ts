@@ -71,6 +71,10 @@ async function toError(res: Response): Promise<ApiError> {
   } catch {
     // Not JSON (e.g. a proxy error page); fall through.
   }
+  // The API always answers in its own JSON shape, even for its 500s. A bare
+  // 5xx is the proxy in front of it (Next's rewrite, Caddy) saying it couldn't
+  // connect: the same situation as a refused connection.
+  if (res.status >= 500 && res.status <= 504) return new ApiError(503, "unreachable");
   return new ApiError(res.status, `http_${res.status}`);
 }
 

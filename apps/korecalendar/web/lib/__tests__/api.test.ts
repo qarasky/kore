@@ -4,7 +4,7 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({ get: (name: string) => (name === "korecal_session" ? { value: "tok123" } : undefined) }),
 }));
 
-import { api, ApiError, isApiError } from "@/lib/api";
+import { api, API_UNREACHABLE_DIGEST, ApiError, isApiError } from "@/lib/api";
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(body === undefined ? null : JSON.stringify(body), {
@@ -59,10 +59,23 @@ describe("api()", () => {
     expect(err).toMatchObject({ status: 429, code: "rate_limited", retryAfterSec: 900 });
   });
 
-  it("falls back to http_<status> when the error is not JSON", async () => {
-    reply = async () => new Response("<html>bad gateway</html>", { status: 502 });
+  it("falls back to http_<status> when a client error is not JSON", async () => {
+    reply = async () => new Response("<html>nope</html>", { status: 404 });
     const err = await api("/api/me").catch((e) => e);
-    expect(err).toMatchObject({ status: 502, code: "http_502" });
+    expect(err).toMatchObject({ status: 404, code: "http_404" });
+  });
+
+  it.each([500, 502, 503, 504])("treats a non-JSON %i (a proxy that cannot reach the API) as an unreachable server", async (status) => {
+    reply = async () => new Response("Internal Server Error", { status });
+    const err = await api("/api/me").catch((e) => e);
+    expect(err).toMatchObject({ status: 503, code: "unreachable" });
+    expect((err as ApiError).digest).toBe(API_UNREACHABLE_DIGEST);
+  });
+
+  it("keeps the API's own 500 error (JSON) as it is", async () => {
+    reply = async () => jsonResponse(500, { error: { code: "internal", message: "boom" } });
+    const err = await api("/api/me").catch((e) => e);
+    expect(err).toMatchObject({ status: 500, code: "internal" });
   });
 
   it("reports a network failure as an unreachable server", async () => {

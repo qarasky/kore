@@ -20,7 +20,7 @@ export function hasBuild(): boolean {
 
 async function start(name: string, port: number, url: string, apiUrl: string): Promise<void> {
   startProcess(name, "node", [SERVER], { cwd: WEB_DIR, env: { PORT: String(port), HOSTNAME: "127.0.0.1", API_URL: apiUrl } });
-  await waitFor(`the ${name} server`, () => httpOk(`${url}/login`));
+  await waitFor(`the ${name} server`, () => httpOk(`${url}/sw.js`));
 }
 
 export const startWeb = () => start("web", WEB_PORT, BASE_URL, API_URL);
@@ -30,7 +30,7 @@ export const startDeadWeb = () => start("web-dead", DEAD_WEB_PORT, DEAD_WEB_URL,
 
 export async function stopDeadWeb(): Promise<void> {
   stopProcess("web-dead");
-  await waitGone(`${DEAD_WEB_URL}/login`);
+  await waitGone(`${DEAD_WEB_URL}/sw.js`);
 }
 
 export function stopWeb(): void {
