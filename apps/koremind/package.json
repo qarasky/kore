@@ -7,7 +7,7 @@
     "web"
   ],
   "scripts": {
-    "test": "bun test backend shared web",
+    "test": "bun test backend shared web scripts",
     "start": "bun run scripts/dev.ts"
   }
 }
