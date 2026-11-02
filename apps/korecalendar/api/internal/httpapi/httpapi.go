@@ -52,6 +52,7 @@ func (s *server) routes() []route {
 	return []route{
 		{"GET /api/healthz", accessPublic, func(w http.ResponseWriter, r *http.Request) { writeJSON(w, http.StatusOK, map[string]bool{"ok": true}) }},
 		{"GET /api/openapi.json", accessPublic, s.handleOpenAPI},
+		{"GET /api/setup", accessPublic, s.handleSetupStatus},
 		{"POST /api/setup", accessPublic, s.handleSetup},
 		{"POST /api/login", accessPublic, s.handleLogin},
 		{"POST /api/logout", accessUser, s.handleLogout},

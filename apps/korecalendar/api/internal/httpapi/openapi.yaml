@@ -75,6 +75,13 @@ paths:
       responses:
         "200": { description: The OpenAPI 3.1 description of this API., content: { application/json: { schema: { type: object } } } }
   /api/setup:
+    get:
+      summary: Whether first-run setup is still open
+      description: "`setup_required` is true only while no account exists. The sign-in page uses it to offer \"Create account\"."
+      x-access: public
+      security: []
+      responses:
+        "200": { description: The setup state., content: { application/json: { schema: { type: object, properties: { setup_required: { type: boolean } } } } } }
     post:
       summary: Create the first account (becomes admin)
       description: Works only while no account exists; afterwards `409 setup_closed`. Also creates a default calendar "Personal".

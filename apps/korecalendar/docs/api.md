@@ -9,6 +9,7 @@ Examples use `$B` for the server address and `$TOK` for an access token.
 ## Get a token
 
 The first account is created once, on a fresh install, and becomes the admin. It also gets a calendar named "Personal".
+`GET /api/setup` answers `{"setup_required": true}` until then, which is how the web app decides whether to offer "Create account".
 
 ```bash
 curl -s $B/api/setup -H 'Content-Type: application/json' \

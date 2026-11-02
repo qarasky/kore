@@ -65,6 +65,16 @@ func busy(w http.ResponseWriter) {
 	errJSON(w, http.StatusServiceUnavailable, "busy", "the server is busy, try again shortly")
 }
 
+// handleSetupStatus tells the sign-in page whether to offer first-run setup.
+func (s *server) handleSetupStatus(w http.ResponseWriter, r *http.Request) {
+	n, err := users.Count(r.Context(), s.db)
+	if err != nil {
+		errJSON(w, http.StatusInternalServerError, "internal", "could not read the setup state")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"setup_required": n == 0})
+}
+
 func (s *server) handleSetup(w http.ResponseWriter, r *http.Request) {
 	var c credentials
 	if !decode(w, r, &c) || !validCreds(w, c) {
