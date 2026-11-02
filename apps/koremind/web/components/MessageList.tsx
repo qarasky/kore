@@ -1,9 +1,11 @@
 "use client";
 import type { ChatMessage } from "@zero/shared";
 import { FileText, Globe } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef } from "react";
 import { Markdown } from "./Markdown";
 import type { Draft } from "@/lib/chat-state";
+import { fadeUp } from "@/lib/motion";
 import { useSession } from "@/lib/session";
 import { t } from "@/lib/strings";
 
@@ -20,8 +22,14 @@ export function MessageList({ messages, draft }: { messages: ChatMessage[]; draf
   return (
     <div ref={scroller} onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }} className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6">
-        {messages.map((m) => (m.role === "user" ? <UserBubble key={m.id} m={m} api={api} /> : <Assistant key={m.id} text={m.text} sources={m.sources} />))}
-        {draft && <Assistant text={draft.text} sources={draft.sources} status={draft.status} />}
+        <AnimatePresence initial={false}>
+          {messages.map((m) => (
+            <motion.div key={m.id} variants={fadeUp} initial="hidden" animate="show">
+              {m.role === "user" ? <UserBubble m={m} api={api} /> : <Assistant text={m.text} sources={m.sources} />}
+            </motion.div>
+          ))}
+          {draft && <motion.div key="draft" variants={fadeUp} initial="hidden" animate="show"><Assistant text={draft.text} sources={draft.sources} status={draft.status} /></motion.div>}
+        </AnimatePresence>
         <div ref={end} />
       </div>
     </div>
@@ -46,21 +54,23 @@ function UserBubble({ m, api }: { m: ChatMessage; api: ReturnType<typeof useSess
 function Assistant({ text, sources, status }: { text: string; sources: { title: string; url: string }[]; status?: Draft["status"] }) {
   return (
     <div className="flex flex-col gap-3">
-      {status && (
-        <div className="flex items-center gap-2 text-meta text-muted" role="status">
-          {status === "searching" ? <Globe size={14} aria-hidden /> : null}
-          <span>{status === "searching" ? t.searching : t.thinking}</span>
-          <span className="dot-pulse" aria-hidden><i /><i /><i /></span>
-        </div>
-      )}
+      <AnimatePresence initial={false} mode="wait">
+        {status && (
+          <motion.div key={status} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.14 }} className="flex items-center gap-2 text-meta text-muted" role="status">
+            {status === "searching" ? <Globe size={14} aria-hidden /> : null}
+            <span>{status === "searching" ? t.searching : t.thinking}</span>
+            <span className="dot-pulse" aria-hidden><i /><i /><i /></span>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {text && <Markdown text={text} />}
       {sources.length > 0 && (
         <div className="flex flex-wrap gap-2">
           <span className="sr-only">{t.sources}</span>
-          {sources.map((s) => (
-            <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer" className="flex max-w-60 items-center gap-1 rounded-ui border border-border px-2 py-1 text-2xs text-muted hover:text-text">
+          {sources.map((s, i) => (
+            <motion.a key={s.url} initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.04, duration: 0.18 }} href={s.url} target="_blank" rel="noopener noreferrer" className="flex max-w-60 items-center gap-1 rounded-ui border border-border px-2 py-1 text-2xs text-muted hover:text-text">
               <Globe size={12} aria-hidden /><span className="truncate">{s.title}</span>
-            </a>
+            </motion.a>
           ))}
         </div>
       )}

@@ -1,5 +1,6 @@
 "use client";
 import type { Attachment } from "@zero/shared";
+import { motion } from "motion/react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
@@ -88,16 +89,16 @@ export default function ChatScreen() {
       ) : null}
     >
       {empty ? (
-        <div className="flex flex-1 items-center justify-center px-6"><p className="text-display font-semibold tracking-[-0.02em]">{t.homeGreeting}</p></div>
+        <div className="flex flex-1 items-center justify-center px-6"><motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.2, 0, 0, 1] }} className="text-display font-semibold tracking-[-0.02em]">{t.homeGreeting}</motion.p></div>
       ) : (
         <MessageList messages={state.messages} draft={state.draft} />
       )}
       {state.connectProvider && (
-        <div className="mx-auto mb-2 w-full max-w-3xl px-4"><div className="rounded-ui border border-warning/40 bg-surface p-3 text-sub">
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mx-auto mb-2 w-full max-w-3xl px-4"><div className="rounded-ui border border-warning/40 bg-surface p-3 text-sub">
           <p className="font-medium">{t.connectProvider}</p>
           <p className="mt-1 text-meta text-muted">{t.connectProviderHint}</p>
-          <Link href="/settings" className="mt-2 inline-block text-meta text-accent underline">{t.openSettings}</Link>
-        </div></div>
+          <Link href="/settings#providers" className="mt-2 inline-block text-meta text-accent underline">{t.openSettings}</Link>
+        </div></motion.div>
       )}
       {state.error && !state.connectProvider && <div className="mx-auto mb-2 w-full max-w-3xl px-4"><ErrorText>{state.error.message}</ErrorText></div>}
       <Composer busy={busy} onSend={send} onStop={stop} />

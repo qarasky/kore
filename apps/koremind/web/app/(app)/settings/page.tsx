@@ -1,134 +1,90 @@
 "use client";
-import type { ProviderConnection, Settings } from "@zero/shared";
-import { ChevronRight, Star } from "lucide-react";
-import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import type { Settings } from "@zero/shared";
+import { Brain, CircleUser, Cpu, Plug, UserRound, type LucideIcon } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useState } from "react";
+import { AccountSection } from "@/components/settings/Account";
+import { MemorySection } from "@/components/settings/Memory";
+import { ModelsSection } from "@/components/settings/Models";
+import { PersonalizationSection } from "@/components/settings/Personalization";
+import { ProvidersSection } from "@/components/settings/Providers";
 import { Shell } from "@/components/Shell";
-import { Button, ErrorText, Field } from "@/components/ui";
 import { useModelChoice } from "@/lib/contexts";
+import { quick, smooth, spring } from "@/lib/motion";
+import { SECTIONS, isSection, type SectionId } from "@/lib/settings-model";
 import { useSession } from "@/lib/session";
 import { t } from "@/lib/strings";
+import { useAutosave } from "@/lib/use-autosave";
 
-const Section = ({ title, children }: { title: string; children: ReactNode }) => (
-  <section className="border-b border-border py-5"><h2 className="mb-3 text-heading font-semibold">{title}</h2><div className="flex flex-col gap-3">{children}</div></section>
-);
+const ICONS: Record<SectionId, LucideIcon> = { models: Cpu, providers: Plug, personalization: UserRound, memory: Brain, account: CircleUser };
 
 export default function SettingsPage() {
-  const { api, baseUrl, user, signOut } = useSession();
-  const { providers, favorites, toggleFavorite, reload } = useModelChoice();
+  const { api } = useSession();
+  const { providers, favorites, toggleFavorite } = useModelChoice();
+  const [section, setSection] = useState<SectionId>("models");
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [saved, setSaved] = useState(false);
-  const [keyFor, setKeyFor] = useState<Record<string, string>>({});
-  const [error, setError] = useState("");
-  const [connections, setConnections] = useState<ProviderConnection[]>([]);
-  const [signingIn, setSigningIn] = useState<string | null>(null);
-
-  const loadConnections = async () => { if (api) setConnections(await api.providers().catch(() => [])); };
-  useEffect(() => { void loadConnections(); }, [api]); // eslint-disable-line react-hooks/exhaustive-deps
+  const save = useAutosave(settings, (s) => api!.putSettings(s));
 
   useEffect(() => { api?.settings().then(setSettings).catch(() => {}); }, [api]);
-  const names = Object.fromEntries(providers.flatMap((p) => p.models.map((m) => [`${p.id}/${m.id}`, m.name])));
-
-  async function saveSettings() {
-    if (!api || !settings) return;
-    setSettings(await api.putSettings(settings));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
-  }
-  async function saveKey(id: string) {
-    setError("");
-    try { await api?.setProviderKey(id, keyFor[id] ?? ""); setKeyFor((k) => ({ ...k, [id]: "" })); await Promise.all([reload(), loadConnections()]); }
-    catch (e) { setError(e instanceof Error ? e.message : t.genericError); }
-  }
-  async function disconnect(id: string) {
-    setError("");
-    try { await api?.removeProviderKey(id); await Promise.all([reload(), loadConnections()]); }
-    catch (e) { setError(e instanceof Error ? e.message : t.genericError); }
-  }
-  async function signIn(id: string) {
-    if (!api) return;
-    setError("");
-    setSigningIn(id);
-    try {
-      const start = await api.startSignIn(id);
-      window.open(start.url, "_blank", "noopener");
-      const until = Date.now() + 5 * 60_000;
-      while (Date.now() < until) {
-        await new Promise((r) => setTimeout(r, 2000));
-        const { status } = await api.signInStatus(id, start.attemptId);
-        if (status === "complete") { await Promise.all([reload(), loadConnections()]); return; }
-        if (status === "failed") { setError(t.signInFailed); return; }
-      }
-      setError(t.signInFailed);
-    } catch (e) { setError(e instanceof Error ? e.message : t.genericError); }
-    finally { setSigningIn(null); }
-  }
+  useEffect(() => {
+    const read = () => { const h = window.location.hash.slice(1); if (isSection(h)) setSection(h); };
+    read();
+    window.addEventListener("hashchange", read);
+    return () => window.removeEventListener("hashchange", read);
+  }, []);
+  const go = (id: SectionId) => { setSection(id); window.history.replaceState(null, "", `#${id}`); };
 
   return (
-    <Shell title={t.settings}>
+    <Shell title={t.settings} right={<SaveBadge state={save} />}>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-xl px-4 pb-10">
-          <Section title={t.backendSection}>
-            <p className="break-all text-sub text-muted">{baseUrl}</p>
-            <Link href="/connect" className="text-meta text-accent underline">{t.changeServer}</Link>
-          </Section>
+        <div className="mx-auto w-full max-w-4xl px-4 pb-12 md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-10">
+          <nav aria-label={t.settings} className="sticky top-0 z-10 -mx-4 mb-4 flex gap-1 overflow-x-auto bg-bg/90 px-4 py-2 backdrop-blur md:static md:mx-0 md:mb-0 md:flex-col md:overflow-visible md:bg-transparent md:px-0 md:py-1 md:backdrop-blur-none">
+            {SECTIONS.map((s) => {
+              const Icon = ICONS[s.id];
+              const active = section === s.id;
+              return (
+                <button
+                  key={s.id} type="button" onClick={() => go(s.id)} aria-current={active ? "page" : undefined}
+                  className={`relative flex min-h-control shrink-0 items-center gap-2 rounded-ui px-3 text-sub transition-colors ${active ? "text-text" : "text-muted hover:text-text"}`}
+                >
+                  {active && <motion.span layoutId="settings-nav-pill" transition={spring} className="absolute inset-0 rounded-ui bg-raised" />}
+                  <Icon size={16} aria-hidden className="relative" />
+                  <span className="relative whitespace-nowrap">{s.label}</span>
+                </button>
+              );
+            })}
+          </nav>
 
-          <Section title={t.favoritesSection}>
-            {favorites.length === 0 && <p className="text-meta text-muted">{t.noFavorites}</p>}
-            {favorites.map((k) => (
-              <div key={k} className="flex min-h-control items-center justify-between rounded-ui bg-surface px-3">
-                <span className="text-sub">{names[k] ?? k}</span>
-                <button type="button" aria-label={t.removeFavorite} onClick={() => void toggleFavorite(k)} className="grid size-control-sm place-items-center"><Star size={16} className="fill-accent text-accent" /></button>
-              </div>
-            ))}
-          </Section>
-
-          <Section title={t.providersSection}>
-            {connections.map((p) => (
-              <div key={p.id} className="flex flex-col gap-2 rounded-ui bg-surface p-3">
-                <div className="flex items-center justify-between"><span className="text-sub font-medium">{p.name}</span><span className="text-meta text-muted">{p.connected ? t.connected : p.id === "opencode" ? t.freeTier : t.notConnected}</span></div>
-                {p.methods.includes("signin") && !p.connected && (
-                  <div className="flex flex-col gap-1">
-                    <div><Button onClick={() => void signIn(p.id)} disabled={signingIn === p.id}>{t.signInChatgpt}</Button></div>
-                    <p className="text-meta text-muted">{signingIn === p.id ? t.signInWaiting : t.signInSameMachine}</p>
-                  </div>
-                )}
-                {p.methods.includes("key") && (
-                  <>
-                    <Field label={t.apiKey} type="password" autoComplete="off" value={keyFor[p.id] ?? ""} onChange={(e) => setKeyFor((k) => ({ ...k, [p.id]: e.target.value }))} />
-                    <div className="flex gap-2">
-                      <Button onClick={() => void saveKey(p.id)} disabled={!keyFor[p.id]}>{t.saveKey}</Button>
-                      {p.connected && <Button variant="ghost" onClick={() => void disconnect(p.id)}>{p.methods.includes("signin") ? t.disconnect : t.removeKey}</Button>}
-                    </div>
-                  </>
-                )}
-                {!p.methods.includes("key") && p.connected && <div><Button variant="ghost" onClick={() => void disconnect(p.id)}>{t.disconnect}</Button></div>}
-              </div>
-            ))}
-            <ErrorText>{error}</ErrorText>
-          </Section>
-
-          <Section title={t.personalization}>
-            {settings && (
-              <>
-                <Field label={t.displayName} value={settings.displayName} onChange={(e) => setSettings({ ...settings, displayName: e.target.value })} />
-                <Field label={t.tone} hint={t.toneHint} value={settings.tone} onChange={(e) => setSettings({ ...settings, tone: e.target.value })} />
-                <label className="block">
-                  <span className="mb-1 block text-meta text-muted">{t.about}</span>
-                  <textarea rows={3} value={settings.about} onChange={(e) => setSettings({ ...settings, about: e.target.value })} className="w-full rounded-ui border border-border bg-surface px-3 py-2 text-sub focus:border-accent" />
-                </label>
-                <div className="flex items-center gap-3"><Button onClick={() => void saveSettings()}>{t.save}</Button>{saved && <span className="text-meta text-muted" role="status">{t.saved}</span>}</div>
-              </>
-            )}
-            <Link href="/settings/memory" className="flex min-h-control items-center justify-between rounded-ui bg-surface px-3 text-sub hover:bg-raised">{t.memory}<ChevronRight size={16} aria-hidden /></Link>
-          </Section>
-
-          <Section title={t.account}>
-            <p className="text-sub text-muted">{user?.email}</p>
-            <div><Button variant="ghost" onClick={() => void signOut()}>{t.signOut}</Button></div>
-          </Section>
+          <div className="min-w-0 max-w-xl pt-2 md:pt-1">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={section}
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0, transition: smooth }} exit={{ opacity: 0, y: -4, transition: quick }}
+              >
+                {section === "models" && <ModelsSection providers={providers} favorites={favorites} toggleFavorite={toggleFavorite} />}
+                {section === "providers" && <ProvidersSection />}
+                {section === "personalization" && settings && <PersonalizationSection settings={settings} onChange={setSettings} />}
+                {section === "memory" && settings && <MemorySection settings={settings} onChange={setSettings} />}
+                {section === "account" && <AccountSection />}
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
       </div>
     </Shell>
+  );
+}
+
+function SaveBadge({ state }: { state: ReturnType<typeof useAutosave> }) {
+  return (
+    <div className="flex h-control items-center justify-end text-2xs text-muted" role="status" aria-live="polite">
+      <AnimatePresence mode="wait" initial={false}>
+        {state !== "idle" && (
+          <motion.span key={state} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={quick} className={state === "error" ? "text-danger" : ""}>
+            {state === "saving" ? t.autoSaving : state === "saved" ? t.autoSaved : t.autoError}
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
