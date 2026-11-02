@@ -8,6 +8,10 @@
 # first account is created in the browser afterwards. Safe to re-run: an
 # existing install is left alone. Read it before you run it; it is short.
 #
+# Run from inside a clone (git clone ... && cd korecalendar && ./install.sh) it
+# builds the images from that checkout; the install directory then links to it,
+# so keep the clone. This is the way to install while the repository is private.
+#
 # If the images cannot be pulled (they are not published yet), the installer
 # clones the repository into <install dir>/src and builds them there instead;
 # that needs git, and takes a few minutes the first time.
@@ -37,6 +41,14 @@ say()  { printf '%s\n' "$*"; }
 step() { printf '%s==>%s %s\n' "$B" "$N" "$*"; }
 warn() { printf '%swarning:%s %s\n' "$Y" "$N" "$*" >&2; }
 die()  { printf '%serror:%s %s\n' "$R" "$N" "$*" >&2; exit 1; }
+
+# Run from inside a checkout of the repository: build from it (see above).
+if [ -z "${KORECAL_SOURCE_DIR:-}" ] && [ -f "${BASH_SOURCE[0]:-}" ]; then
+  HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if [ -f "$HERE/docker-compose.yml" ] && [ -f "$HERE/api/Dockerfile" ] && [ -f "$HERE/web/Dockerfile" ]; then
+    KORECAL_SOURCE_DIR="$HERE"
+  fi
+fi
 
 # Prompts read from the terminal even when the script itself comes from a pipe.
 INTERACTIVE=0
