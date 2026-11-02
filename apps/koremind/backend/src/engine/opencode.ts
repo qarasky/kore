@@ -59,6 +59,13 @@ export function mapConnections(integrations: any[]): ProviderConnection[] {
   });
 }
 
+/** Which saved credentials to delete to disconnect an integration. Env-based connections can't be removed from the app. */
+export function credentialIdsFor(integration: any): { ids: string[]; envOnly: boolean } {
+  const conns: any[] = Array.isArray(integration?.connections) ? integration.connections : [];
+  const ids = conns.filter((c) => c?.type === "credential" && c.id).map((c) => String(c.id));
+  return { ids, envOnly: ids.length === 0 && conns.some((c) => c?.type === "env") };
+}
+
 export function mapModels(providers: { id: string; name: string }[], models: any[], defaultModelId?: string, connected?: Set<string>): ProviderInfo[] {
   return providers
     .map((p) => {
@@ -76,7 +83,8 @@ export function mapModels(providers: { id: string; name: string }[], models: any
     .filter((p) => p.models.length > 0);
 }
 
-const AGENT_SYSTEM = "You are Zero, a concise, friendly personal assistant. Answer directly. Use web search only when you need current facts.";
+// OpenCode 2.2 always registers an (inert) `skill` tool that no config can hide, so the model is told plainly what it has.
+export const AGENT_SYSTEM = "You are Zero, a concise, friendly personal assistant. Answer directly. Your only tool is web search; use it only when you need current facts, and never mention or try other tools. You remember useful things about the user between chats automatically: what you remember is given to you at the start of a chat, so never say you cannot remember.";
 
 export const zeroOpencodeConfig = {
   default_agent: "zero",
@@ -96,7 +104,7 @@ export const zeroOpencodeConfig = {
 
 const IDLE_MS = 120_000;
 
-export async function createOpencodeEngine(opts: { dataDir: string; bin?: string }): Promise<Engine> {
+export async function createOpencodeEngine(opts: { dataDir: string; bin?: string; config?: Record<string, unknown> }): Promise<Engine> {
   const xdg = join(opts.dataDir, "opencode");
   for (const d of ["data", "config", "state", "cache"]) mkdirSync(join(xdg, d), { recursive: true });
   const proc = Bun.spawn([opts.bin ?? "opencode", "serve", "--hostname=127.0.0.1", "--port=0"], {
@@ -104,7 +112,7 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
       ...process.env,
       XDG_DATA_HOME: join(xdg, "data"), XDG_CONFIG_HOME: join(xdg, "config"),
       XDG_STATE_HOME: join(xdg, "state"), XDG_CACHE_HOME: join(xdg, "cache"),
-      OPENCODE_CONFIG_CONTENT: JSON.stringify(zeroOpencodeConfig),
+      OPENCODE_CONFIG_CONTENT: JSON.stringify({ ...zeroOpencodeConfig, ...opts.config }),
     },
     stdout: "pipe", stderr: "ignore",
   });
@@ -183,7 +191,8 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
 
   const createSession = async (model?: { providerId: string; modelId: string }) => {
     const m = model ?? defaultModel ?? (await listProviders().then(() => defaultModel));
-    const r = await call("POST", "/api/session", m ? { model: { id: m.modelId, providerID: m.providerId } } : {});
+    // A title of our own stops OpenCode making a second model call just to name the session; Zero names chats itself.
+    const r = await call("POST", "/api/session", { title: "Zero", ...(m ? { model: { id: m.modelId, providerID: m.providerId } } : {}) });
     if (!r.ok) throw new Error(`could not create engine session (${r.status})`);
     if (m) sessionModel.set(r.json.data.id, `${m.providerId}/${m.modelId}/`);
     return r.json.data.id as string;
@@ -251,21 +260,36 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
       return { status: st === "complete" ? "complete" : st === "pending" ? "pending" : "failed" };
     },
     async setProviderKey(id, key) {
-      const r = await call("POST", `/api/integration/${encodeURIComponent(id)}/connect/key`, { key });
-      if (!r.ok) throw new Error(`could not connect provider (${r.status})`);
+      // A freshly started engine can answer 404 for a few seconds while its provider catalog loads.
+      let r = await call("POST", `/api/integration/${encodeURIComponent(id)}/connect/key`, { key });
+      for (let n = 0; r.status === 404 && n < 6; n++) {
+        await Bun.sleep(700);
+        r = await call("POST", `/api/integration/${encodeURIComponent(id)}/connect/key`, { key });
+      }
+      if (!r.ok) throw new Error(`Could not connect this provider (${r.status})`);
     },
-    async removeProviderKey(id) { await call("DELETE", `/api/integration/${encodeURIComponent(id)}`); },
+    async removeProviderKey(id) {
+      const ig = await call("GET", `/api/integration/${encodeURIComponent(id)}`);
+      const { ids, envOnly } = credentialIdsFor(ig.json?.data);
+      if (envOnly) throw new Error("This provider is connected through an environment variable on the server. Remove the variable to disconnect it.");
+      for (const cid of ids) {
+        const r = await call("DELETE", `/api/credential/${encodeURIComponent(cid)}`);
+        if (!r.ok) throw new Error(`Could not disconnect (${r.status})`);
+      }
+    },
     createSession,
     async deleteSession(id) { listeners.delete(id); sessionModel.delete(id); used.delete(id); await call("DELETE", `/api/session/${id}`); },
     prompt,
-    async complete({ system, text }) {
-      const sid = await createSession();
+    async complete({ system, text, model }) {
+      const m = model ?? defaultModel ?? { providerId: "opencode", modelId: "big-pickle" };
+      const sid = await createSession(m);
       let out = "";
-      for await (const e of prompt({ sessionId: sid, system, text, files: [], model: defaultModel ?? { providerId: "opencode", modelId: "big-pickle" }, signal: new AbortController().signal })) {
-        if (e.type === "delta") out += e.text;
-        if (e.type === "error") throw new Error(e.message);
-      }
-      void call("DELETE", `/api/session/${sid}`);
+      try {
+        for await (const e of prompt({ sessionId: sid, system, text, files: [], model: m, signal: new AbortController().signal })) {
+          if (e.type === "delta") out += e.text;
+          if (e.type === "error") throw new Error(e.message);
+        }
+      } finally { void call("DELETE", `/api/session/${sid}`); }
       return out;
     },
     close() { closed = true; proc.kill(); },

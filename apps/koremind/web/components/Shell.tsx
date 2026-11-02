@@ -23,7 +23,11 @@ export function Shell({ title, right, children }: { title: string; right?: React
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center gap-2 px-2 md:px-4">
           <button type="button" aria-label={t.menu} onClick={() => setOpen(true)} className="grid size-control place-items-center rounded-ui hover:bg-raised md:hidden"><Menu size={20} /></button>
-          <h1 className="min-w-0 flex-1 truncate text-center text-heading font-medium md:text-left">{title}</h1>
+          <h1 className="min-w-0 flex-1 truncate text-center text-heading font-medium md:text-left">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span key={title} className="inline-block max-w-full truncate align-bottom" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.14 }}>{title}</motion.span>
+            </AnimatePresence>
+          </h1>
           <div className="min-w-10">{right}</div>
         </header>
         {children}

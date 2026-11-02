@@ -60,6 +60,9 @@ export default function ChatScreen() {
       }
       for await (const ev of api.send(chatId.current, { text, attachmentIds: attachments.map((a) => a.id), model: { providerId: choice.providerId, modelId: choice.modelId }, thinking: choice.thinking }, ac.signal)) {
         update((s) => applyEvent(s, ev));
+        // The stream stays open a moment after `done` for the generated title; the composer must not wait for it.
+        if (ev.type === "done") setBusy(false);
+        if (ev.type === "title") void refresh();
       }
     } catch (e) {
       update((s) => applyEvent(s, { type: "error", code: "engine", message: e instanceof Error ? e.message : t.genericError }));

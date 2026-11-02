@@ -36,6 +36,8 @@ export function applyEvent(s: ChatState, ev: StreamEvent): ChatState {
         draft: null,
         messages: [...s.messages, { id: ev.messageId, role: "assistant", text: d.text, attachments: [], sources: d.sources, createdAt: Date.now() }],
       };
+    case "title":
+      return s; // the chat list shows it; the transcript is unchanged
     case "error": {
       const partial = d.text || d.sources.length
         ? [...s.messages, { id: localId(), role: "assistant" as const, text: d.text, attachments: [], sources: d.sources, createdAt: Date.now() }]

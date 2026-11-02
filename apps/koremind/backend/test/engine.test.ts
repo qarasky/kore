@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { FakeEngine } from "../src/engine/fake";
-import { mapConnections, mapEvent, mapModels, parseServerBanner } from "../src/engine/opencode";
+import { AGENT_SYSTEM, credentialIdsFor, mapConnections, mapEvent, mapModels, parseServerBanner } from "../src/engine/opencode";
 import type { EngineEvent, PromptArgs } from "../src/engine/types";
 
 const args = (over: Partial<PromptArgs> = {}): PromptArgs => ({
@@ -106,3 +106,60 @@ test("mapConnections offers OpenCode, Codex and OpenRouter with their login meth
   expect(out.find((c) => c.id === "openrouter")).toEqual({ id: "openrouter", name: "OpenRouter", connected: true, methods: ["key"] });
   expect(out.find((c) => c.id === "opencode")?.methods).toEqual(["key"]);
 });
+
+test("disconnecting removes saved credentials by id; an env-only connection cannot be removed from the app", () => {
+  expect(credentialIdsFor({ connections: [{ type: "credential", id: "cred_1" }, { type: "env", name: "OPENROUTER_API_KEY" }, { type: "credential", id: "cred_2" }] })).toEqual({ ids: ["cred_1", "cred_2"], envOnly: false });
+  expect(credentialIdsFor({ connections: [{ type: "env", name: "OPENROUTER_API_KEY" }] })).toEqual({ ids: [], envOnly: true });
+  expect(credentialIdsFor({ connections: [] })).toEqual({ ids: [], envOnly: false });
+  expect(credentialIdsFor(undefined)).toEqual({ ids: [], envOnly: false });
+});
+
+test("the assistant is told its one tool and that memory is automatic", () => {
+  expect(AGENT_SYSTEM).toContain("only tool is web search");
+  expect(AGENT_SYSTEM).toContain("remember");
+});
+
+// Real opencode against a local mock model server: no network, no account. Skipped when opencode isn't installed.
+test.skipIf(!Bun.which("opencode"))("opencode end to end on a mock OpenRouter: connect, answer with one tool-free-ish prompt, title on the chosen model, disconnect", async () => {
+  const calls: { tools: string[]; system: string; last: string }[] = [];
+  const mock = Bun.serve({
+    port: 0,
+    async fetch(req) {
+      const u = new URL(req.url);
+      if (!u.pathname.endsWith("/chat/completions")) return new Response("{}", { headers: { "content-type": "application/json" } });
+      const body = (await req.json()) as any;
+      calls.push({ tools: (body.tools ?? []).map((t: any) => t.function?.name), system: String(body.messages?.[0]?.content ?? ""), last: String(body.messages?.at(-1)?.content ?? "") });
+      const isTitle = /name chats/i.test(String(body.messages?.at(-1)?.content ?? "")) || /name chats/i.test(JSON.stringify(body.messages));
+      const chunk = (d: unknown, fin?: string) => `data: ${JSON.stringify({ id: "x", object: "chat.completion.chunk", created: 1, model: "m", choices: [{ index: 0, delta: d, finish_reason: fin ?? null }] })}\n\n`;
+      return new Response(chunk({ role: "assistant", content: isTitle ? "Greeting Chat." : "pong" }) + chunk({}, "stop") + "data: [DONE]\n\n", { headers: { "content-type": "text/event-stream" } });
+    },
+  });
+  const eng = await createOpencodeEngine({
+    dataDir: mkdtempSync(join(tmpdir(), "zero-mock-")),
+    config: { providers: { openrouter: { settings: { baseURL: `http://127.0.0.1:${mock.port}/v1`, apiKey: "x" } } } },
+  });
+  try {
+    expect((await eng.listConnections()).find((c) => c.id === "openrouter")?.connected).toBe(false);
+    await eng.setProviderKey("openrouter", "sk-test");
+    expect((await eng.listConnections()).find((c) => c.id === "openrouter")?.connected).toBe(true);
+    const or = (await eng.listProviders()).find((p) => p.id === "openrouter")!;
+    expect(or.models.length).toBeGreaterThan(10);
+    const model = { providerId: "openrouter", modelId: or.models[0].id };
+
+    const sid = await eng.createSession(model);
+    const evs = await collect(eng.prompt(args({ sessionId: sid, text: "hi", model })));
+    expect(evs.map((e) => e.type)).toContain("delta");
+    const answer = calls[0];
+    expect(answer.tools).toEqual(expect.arrayContaining(["websearch"]));
+    expect(answer.system).toContain("only tool is web search");
+
+    const before = calls.length;
+    const title = await eng.complete({ kind: "title", system: "You name chats so a person can find them.", text: "User: hi", model });
+    expect(title).toContain("Greeting Chat");
+    // Zero names chats itself, so the engine must not add a naming call of its own.
+    expect(calls.length - before).toBe(1);
+
+    await eng.removeProviderKey("openrouter");
+    expect((await eng.listConnections()).find((c) => c.id === "openrouter")?.connected).toBe(false);
+  } finally { eng.close(); mock.stop(); }
+}, 90_000);

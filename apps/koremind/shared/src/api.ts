@@ -70,6 +70,8 @@ export const StreamEvent = z.discriminatedUnion("type", [
   z.object({ type: z.literal("delta"), text: z.string() }),
   z.object({ type: z.literal("source"), title: z.string(), url: z.string() }),
   z.object({ type: z.literal("done"), messageId: z.string() }),
+  /** Sent after `done` on a new chat, once the chosen model has named it. Best effort. */
+  z.object({ type: z.literal("title"), title: z.string() }),
   z.object({
     type: z.literal("error"),
     code: z.enum(["no_provider", "attachment_too_large", "engine", "aborted"]),

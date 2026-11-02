@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { MemoryEntry } from "@zero/shared";
-import type { Engine } from "./engine/types";
+import type { Engine, ModelRef } from "./engine/types";
 
 const LINE = /^- (.*) <!--id:([a-z0-9]+) t:(\d+)-->$/;
 const clean = (t: string) => t.replace(/<!--|-->/g, "").replace(/\s+/g, " ").trim().slice(0, 300);
@@ -36,11 +36,13 @@ export function createMemory(dir: string, engine: Engine, isEnabled: (userId: st
     remove(userId: string, id: string) {
       write(userId, read(userId).filter((e) => e.id !== id));
     },
-    async extractAfterTurn(userId: string, userText: string, assistantText: string): Promise<void> {
+    async extractAfterTurn(userId: string, userText: string, assistantText: string, model?: ModelRef): Promise<void> {
       try {
         if (!isEnabled(userId)) return;
         const existing = read(userId);
         const reply = await engine.complete({
+          kind: "memory",
+          model,
           system: EXTRACT_SYSTEM,
           text: `Existing memory:\n${existing.map((e) => `- ${e.text}`).join("\n") || "(empty)"}\n\nUser said: ${userText}\nAssistant replied: ${assistantText.slice(0, 1500)}`,
         });

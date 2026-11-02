@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Wordmark } from "@/components/Mark";
-import { Button, ErrorText, Field } from "@/components/ui";
+import { Appear, Button, ErrorText, Field } from "@/components/ui";
 import { createApi } from "@/lib/api";
 import { normalizeBackendUrl } from "@/lib/backend-url";
 import { useSession } from "@/lib/session";
@@ -34,13 +34,13 @@ export default function ConnectPage() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 px-6">
-      <Wordmark />
-      <form onSubmit={submit} className="flex flex-col gap-4">
+      <Appear><Wordmark /></Appear>
+      <Appear delay={0.06}><form onSubmit={submit} className="flex flex-col gap-4">
         <h1 className="text-display font-semibold tracking-[-0.02em]">{t.connectTitle}</h1>
         <Field label={t.backendUrl} hint={t.connectHint} value={value} onChange={(e) => setValue(e.target.value)} autoFocus inputMode="url" autoCapitalize="none" autoCorrect="off" />
         <ErrorText>{error}</ErrorText>
         <Button type="submit" disabled={busy}>{busy ? t.checking : t.connectAction}</Button>
-      </form>
+      </form></Appear>
     </main>
   );
 }

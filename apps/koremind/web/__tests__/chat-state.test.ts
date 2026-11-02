@@ -86,3 +86,11 @@ test("lacksVision warns only for images on a text-only model", () => {
   expect(lacksVision(pdf, textOnly)).toBe(false);
   expect(lacksVision(img, undefined)).toBe(false);
 });
+
+test("a title event after done changes nothing in the transcript", () => {
+  let s = beginTurn(emptyChat, "hi", []);
+  s = applyEvent(s, { type: "delta", text: "yo" });
+  s = applyEvent(s, { type: "done", messageId: "m1" });
+  const after = applyEvent(s, { type: "title", title: "Greeting" });
+  expect(after).toEqual(s);
+});

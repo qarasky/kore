@@ -1,10 +1,13 @@
 import type { ProviderConnection, ProviderInfo, SignInStart, SignInStatus } from "@zero/shared";
-import type { Engine, EngineEvent, PromptArgs } from "./types";
+import type { Engine, EngineEvent, ModelRef, PromptArgs } from "./types";
 
 export type FakeOptions = {
   providers?: ProviderInfo[];
   reply?: (a: PromptArgs) => EngineEvent[];
   completeReply?: string;
+  /** Reply for chat-title requests. Empty (default) means "no title". A function may throw. */
+  titleReply?: string | (() => string);
+  completeDelayMs?: number;
   delayMs?: number;
 };
 
@@ -23,6 +26,7 @@ export class FakeEngine implements Engine {
   sessions = new Set<string>();
   prompts: PromptArgs[] = [];
   keys = new Map<string, string>();
+  completes: { kind: "title" | "memory"; system: string; text: string; model?: ModelRef }[] = [];
   signIns = new Map<string, { providerId: string; done: boolean }>();
   constructor(private o: FakeOptions = {}) {}
 
@@ -48,7 +52,13 @@ export class FakeEngine implements Engine {
   async removeProviderKey(id: string) { this.keys.delete(id); }
   async createSession() { const id = `fs_${crypto.randomUUID()}`; this.sessions.add(id); return id; }
   async deleteSession(id: string) { this.sessions.delete(id); }
-  async complete() { return this.o.completeReply ?? '{"add":[]}'; }
+  async complete(a: { kind?: "title" | "memory"; system: string; text: string; model?: ModelRef }) {
+    const kind = a.kind ?? "memory";
+    this.completes.push({ kind, system: a.system, text: a.text, model: a.model });
+    if (this.o.completeDelayMs) await Bun.sleep(this.o.completeDelayMs);
+    if (kind === "title") { const r = this.o.titleReply; return typeof r === "function" ? r() : (r ?? ""); }
+    return this.o.completeReply ?? '{"add":[]}';
+  }
   close() {}
 
   async *prompt(a: PromptArgs): AsyncIterable<EngineEvent> {

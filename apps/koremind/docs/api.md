@@ -31,7 +31,7 @@ Source of truth: `shared/src/api.ts` (zod). All bodies are JSON unless noted. Au
 | `GET /settings`, `PUT /settings` | yes | `Settings` `{memoryEnabled,displayName,tone,about}` | `Settings` |
 
 ## StreamEvent (SSE `data:` lines)
-`{"type":"status","state":"thinking"|"searching"}`, `{"type":"delta","text":"..."}`, `{"type":"source","title":"...","url":"..."}`, `{"type":"done","messageId":"..."}`, `{"type":"error","code":"no_provider"|"attachment_too_large"|"engine"|"aborted","message":"..."}`. A stream ends after `done` or `error`.
+`{"type":"status","state":"thinking"|"searching"}`, `{"type":"delta","text":"..."}`, `{"type":"source","title":"...","url":"..."}`, `{"type":"done","messageId":"..."}`, `{"type":"title","title":"..."}` (first turn of a chat only, best effort, sent after `done`), `{"type":"error","code":"no_provider"|"attachment_too_large"|"engine"|"aborted","message":"..."}`. A stream ends after `error`, or after `done` (and, on the first turn of a chat, up to ~8 s later after the `title` event). Clients should treat the turn as finished at `done` and keep reading only for `title`.
 
 ## Examples
 ```
