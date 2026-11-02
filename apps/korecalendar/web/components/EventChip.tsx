@@ -16,6 +16,8 @@ export function EventChip({
   tz,
   clock,
   onOpen,
+  onPointerDown,
+  dragging = false,
 }: {
   occ: Occurrence;
   /** The cell's day, to tell where a multi-day event starts. */
@@ -24,6 +26,8 @@ export function EventChip({
   tz: string;
   clock: Clock;
   onOpen: (el: HTMLElement) => void;
+  onPointerDown?: (e: React.PointerEvent) => void;
+  dragging?: boolean;
 }) {
   const tint = calendarTint(color);
   const title = occ.title || t("grid.untitled");
@@ -40,7 +44,9 @@ export function EventChip({
         e.stopPropagation();
         onOpen(e.currentTarget);
       }}
+      onPointerDown={onPointerDown}
       className={
+        (dragging ? "opacity-40 " : "") +
         "flex min-h-5 w-full min-w-0 items-center gap-1 rounded-[4px] px-1 text-left text-2xs hover:brightness-125 " +
         (occ.all_day ? "font-medium text-text" : "hover:bg-raised")
       }

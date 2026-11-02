@@ -68,6 +68,8 @@ const en = {
   "grid.eventLabel": "{title}, {when}",
   "grid.goToDay": "Open {date}",
   "grid.repeats": "Repeats",
+  "grid.resize": "Resize {title}",
+  "grid.dragHint": "Alt and arrow keys move, Shift and Up or Down resize",
   "grid.untitled": "(no title)",
   "grid.nowLine": "Current time",
   "grid.continues": "continues",

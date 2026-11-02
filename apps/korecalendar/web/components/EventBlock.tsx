@@ -16,12 +16,22 @@ export function EventBlock({
   tz,
   clock,
   onOpen,
+  state = "normal",
+  onPointerDown,
+  onResizeStart,
+  onKeyDown,
 }: {
   placed: Placed;
   color: string;
   tz: string;
   clock: Clock;
   onOpen: (el: HTMLElement) => void;
+  /** `source` is the block being dragged (dimmed); `ghost` is where it would land. */
+  state?: "normal" | "source" | "ghost";
+  onPointerDown?: (e: React.PointerEvent) => void;
+  /** Present when the bottom edge can be dragged to resize. */
+  onResizeStart?: (e: React.PointerEvent) => void;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
 }) {
   const { occ, col, cols, span, top, height, continuesBefore, continuesAfter } = placed;
   const tint = calendarTint(color);
@@ -42,8 +52,12 @@ export function EventBlock({
         e.stopPropagation();
         onOpen(e.currentTarget);
       }}
+      onPointerDown={onPointerDown}
+      onKeyDown={onKeyDown}
       className={
-        "absolute overflow-hidden border-l-[3px] px-1.5 text-left text-2xs leading-tight text-text transition-[filter] hover:brightness-125 " +
+        "absolute touch-manipulation overflow-hidden border-l-[3px] px-1.5 text-left text-2xs leading-tight text-text transition-[filter] hover:brightness-125 " +
+        (state === "source" ? "opacity-40 " : "") +
+        (state === "ghost" ? "pointer-events-none z-30 ring-2 ring-accent " : "") +
         (continuesBefore ? "rounded-t-none " : "rounded-t-[4px] ") +
         (continuesAfter ? "rounded-b-none " : "rounded-b-[4px] ") +
         "rounded-r-[4px]"
@@ -78,6 +92,16 @@ export function EventBlock({
           </span>
         </span>
       )}
+      {onResizeStart ? (
+        <span
+          data-resize-handle
+          role="presentation"
+          aria-label={t("grid.resize", { title })}
+          onPointerDown={onResizeStart}
+          onClick={(e) => e.stopPropagation()}
+          className="absolute inset-x-0 bottom-0 h-1.5 cursor-ns-resize"
+        />
+      ) : null}
     </button>
   );
 }

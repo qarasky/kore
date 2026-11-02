@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
+import { useMonthDrag } from "@/hooks/useMonthDrag";
+import { useMoveCommit } from "@/hooks/useMoveCommit";
 import { chipsForDay, groupByDay } from "@/lib/agenda";
 import { isSameMonth, parseDay, weekday } from "@/lib/dates";
 import { monthShortName, weekdayShort } from "@/lib/format";
@@ -21,12 +23,14 @@ export function MonthGrid({ day, days, occurrences }: { day: string; days: strin
   const { me, prefs, calendars, today } = useShell();
   const { openNew, openOccurrence } = useEditor();
   const tz = me.timezone;
+  const mover = useMoveCommit();
+  const drag = useMonthDrag((occ, deltaDays) => void mover.commit(occ, { deltaDays, deltaMinutes: 0 }));
   const groups = useMemo(() => groupByDay(occurrences, days, tz), [occurrences, days, tz]);
   const colors = useMemo(() => new Map(calendars.map((c) => [c.id, c.color])), [calendars]);
   const colorOf = (id: string) => colors.get(id) ?? "#5b8def";
 
   return (
-    <div className="flex h-full min-h-[34rem] flex-col" data-testid="month-grid">
+    <div className="flex h-full min-h-[34rem] flex-col" data-testid="month-grid" onClickCapture={drag.swallowClick}>
       <div role="row" aria-label={t("month.weekdays")} className="grid grid-cols-7 border-b border-border">
         {days.slice(0, 7).map((d) => (
           <div key={d} role="columnheader" className="py-2 text-center text-meta text-muted">
@@ -44,7 +48,7 @@ export function MonthGrid({ day, days, occurrences }: { day: string; days: strin
               key={d}
               data-testid="month-cell"
               data-day={d}
-              className={`flex min-h-[5.5rem] min-w-0 cursor-default flex-col gap-0.5 border-t border-l border-border p-1 ${isSameMonth(d, day) ? "" : "bg-bg/30"}`}
+              className={`flex min-h-[5.5rem] min-w-0 cursor-default flex-col gap-0.5 border-t border-l border-border p-1 ${isSameMonth(d, day) ? "" : "bg-bg/30"} ${drag.over === d ? "bg-accent/15 ring-1 ring-accent ring-inset" : ""}`}
               onClick={() => openNew({ day: d, minutes: 9 * 60, durationMinutes: 60 })}
             >
               <Link
@@ -67,6 +71,8 @@ export function MonthGrid({ day, days, occurrences }: { day: string; days: strin
                   tz={tz}
                   clock={prefs.clock}
                   onOpen={(el) => openOccurrence(occ, el)}
+                  onPointerDown={(e) => drag.start(e, occ, d)}
+                  dragging={drag.dragging === occ.event_id + occ.key}
                 />
               ))}
               {more > 0 ? (
@@ -85,6 +91,7 @@ export function MonthGrid({ day, days, occurrences }: { day: string; days: strin
           );
         })}
       </div>
+      {mover.dialog}
     </div>
   );
 }
