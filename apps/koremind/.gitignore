@@ -1,0 +1,9 @@
+.superpowers/
+node_modules/
+data/
+.env
+*.log
+android/local.properties
+android/.gradle/
+android/**/build/
+web/.next/

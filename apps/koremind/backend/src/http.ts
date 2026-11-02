@@ -1,0 +1,141 @@
+import { AuthRequest, Settings, SendMessageRequest, type StreamEvent } from "@zero/shared";
+import { z } from "zod";
+import { AuthError } from "./auth";
+import type { Services } from "./services";
+import { UploadError } from "./uploads";
+
+const CORS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-headers": "authorization, content-type",
+  "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+};
+const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { ...CORS, "content-type": "application/json" } });
+const fail = (status: number, code: string, message: string, extra: object = {}) => json(status, { error: { code, message, ...extra } });
+const ok = () => json(200, { ok: true });
+
+class HttpError extends Error {
+  constructor(public status: number, public code: string, message: string) { super(message); }
+}
+
+const isLoopback = (ip?: string) => ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+
+export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs?: number } = {}) {
+  const keepAliveMs = opts.keepAliveMs ?? 15_000;
+  async function body<T>(req: Request, schema: z.ZodType<T>): Promise<T> {
+    let raw: unknown;
+    try { raw = await req.json(); } catch { throw new HttpError(400, "bad_request", "Invalid JSON"); }
+    const r = schema.safeParse(raw);
+    if (!r.success) throw new HttpError(400, "bad_request", r.error.issues[0]?.message ?? "Invalid request");
+    return r.data;
+  }
+  const tokenOf = (req: Request, url: URL) => req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? url.searchParams.get("token") ?? "";
+
+  async function route(req: Request, socketIp?: string): Promise<Response> {
+    const url = new URL(req.url);
+    const path = url.pathname;
+    const m = req.method;
+    if (m === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+    if (m === "GET" && path === "/health") return json(200, { name: "zero", version: s.version, setupRequired: s.auth.setupRequired() });
+
+    // A tunnel (cloudflared, tailscale serve) on this machine arrives from loopback: believe its forwarded address, nobody else's.
+    const ip = (opts.trustProxy || isLoopback(socketIp) ? req.headers.get("x-forwarded-for")?.split(",")[0].trim() : undefined) ?? socketIp ?? "unknown";
+    const caller = s.auth.verify(tokenOf(req, url));
+
+    if (m === "POST" && path === "/auth/register") return json(200, await s.auth.register(await body(req, AuthRequest), caller ?? undefined));
+    if (m === "POST" && path === "/auth/login") return json(200, await s.auth.login(await body(req, AuthRequest), ip));
+
+    if (!caller) return fail(401, "unauthorized", "Sign in required");
+    const u = caller.id;
+    let r: RegExpMatchArray | null;
+
+    if (m === "POST" && path === "/auth/logout") { s.auth.logout(tokenOf(req, url)); return ok(); }
+    if (m === "GET" && path === "/me") return json(200, caller);
+    if (m === "GET" && path === "/models") return json(200, await s.models.providers());
+    if (m === "GET" && path === "/favorites") return json(200, s.models.favorites(u));
+    if (m === "PUT" && path === "/favorites") { await s.models.setFavorites(u, await body(req, z.array(z.string()))); return json(200, s.models.favorites(u)); }
+    if ((r = path.match(/^\/providers\/([^/]+)\/key$/))) {
+      if (!caller.isOwner) return fail(403, "forbidden", "Only the owner can change provider keys");
+      if (m === "PUT") { await s.models.connect(decodeURIComponent(r[1]), (await body(req, z.object({ key: z.string().min(1) }))).key); return ok(); }
+      if (m === "DELETE") { await s.models.disconnect(decodeURIComponent(r[1])); return ok(); }
+    }
+
+    if (m === "GET" && path === "/chats") return json(200, s.chats.list(u));
+    if (m === "POST" && path === "/chats") return json(200, s.chats.create(u));
+    if ((r = path.match(/^\/chats\/([^/]+)$/))) {
+      const id = r[1];
+      if (!s.chats.has(u, id)) return fail(404, "not_found", "Chat not found");
+      if (m === "GET") return json(200, s.chats.get(u, id));
+      if (m === "PATCH") { s.chats.rename(u, id, (await body(req, z.object({ title: z.string() }))).title); return ok(); }
+      if (m === "DELETE") { await s.chats.remove(u, id); return ok(); }
+    }
+    if ((r = path.match(/^\/chats\/([^/]+)\/abort$/)) && m === "POST") {
+      if (!s.chats.has(u, r[1])) return fail(404, "not_found", "Chat not found");
+      s.chats.abort(r[1]);
+      return ok();
+    }
+    if ((r = path.match(/^\/chats\/([^/]+)\/messages$/)) && m === "POST") {
+      if (!s.chats.has(u, r[1])) return fail(404, "not_found", "Chat not found");
+      const it = s.chats.send(u, r[1], await body(req, SendMessageRequest), req.signal)[Symbol.asyncIterator]();
+      const enc = new TextEncoder();
+      let nextEv: Promise<IteratorResult<StreamEvent>> | null = null;
+      const stream = new ReadableStream<Uint8Array>({
+        async pull(c) {
+          nextEv ??= it.next();
+          for (;;) {
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            const r = await Promise.race([nextEv, new Promise<null>((res) => { timer = setTimeout(() => res(null), keepAliveMs); })]);
+            clearTimeout(timer);
+            if (r === null) { c.enqueue(enc.encode(": ping\n\n")); continue; }
+            nextEv = null;
+            if (r.done) c.close(); else c.enqueue(enc.encode(`data: ${JSON.stringify(r.value)}\n\n`));
+            return;
+          }
+        },
+        async cancel() { await it.return?.(undefined); },
+      });
+      return new Response(stream, { headers: { ...CORS, "content-type": "text/event-stream", "cache-control": "no-cache", "x-accel-buffering": "no" } });
+    }
+
+    if (m === "POST" && path === "/uploads") {
+      const file = (await req.formData().catch(() => null))?.get("file");
+      if (!(file instanceof File)) return fail(400, "bad_request", "Send a file in the 'file' field");
+      try { return json(200, await s.uploads.save(u, file)); }
+      catch (e) {
+        if (e instanceof UploadError) return e.code === "too_large" ? fail(413, "attachment_too_large", e.message) : fail(415, "unsupported", e.message);
+        throw e;
+      }
+    }
+    if ((r = path.match(/^\/uploads\/([^/]+)$/)) && m === "GET") {
+      const res = s.uploads.stream(r[1], u);
+      if (!res) return fail(404, "not_found", "File not found");
+      for (const [k, v] of Object.entries(CORS)) res.headers.set(k, v);
+      return res;
+    }
+
+    if (m === "GET" && path === "/memory") return json(200, s.memory.list(u));
+    if ((r = path.match(/^\/memory\/([^/]+)$/))) {
+      if (m === "PUT") { s.memory.update(u, r[1], (await body(req, z.object({ text: z.string() }))).text); return ok(); }
+      if (m === "DELETE") { s.memory.remove(u, r[1]); return ok(); }
+    }
+    if (m === "GET" && path === "/settings") return json(200, s.settings.get(u));
+    if (m === "PUT" && path === "/settings") { const v = await body(req, Settings); s.settings.put(u, v); return json(200, v); }
+
+    return fail(404, "not_found", "No such route");
+  }
+
+  return {
+    async fetch(req: Request, socketIp?: string): Promise<Response> {
+      try { return await route(req, socketIp); }
+      catch (e) {
+        if (e instanceof HttpError) return fail(e.status, e.code, e.message);
+        if (e instanceof AuthError) {
+          const status = e.code === "rate_limited" ? 429 : e.code === "setup_closed" ? 403 : 401;
+          return fail(status, e.code, e.message, e.retryAfterSec ? { retryAfterSec: e.retryAfterSec } : {});
+        }
+        if (e instanceof Error && /UNIQUE constraint/.test(e.message)) return fail(409, "conflict", "That email is already registered");
+        console.error("unhandled", e instanceof Error ? e.message : e);
+        return fail(500, "internal", "Something went wrong");
+      }
+    },
+  };
+}
