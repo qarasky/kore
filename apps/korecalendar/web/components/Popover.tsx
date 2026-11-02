@@ -48,12 +48,16 @@ export function Popover({
   useEffect(() => {
     const el = ref.current;
     el?.focus();
+    // A dialog opened from the popover (the delete confirmation) is outside its
+    // element but is not "elsewhere": pressing in it must not dismiss the popover
+    // that owns it, or the dialog unmounts before its click lands.
+    const inDialog = (n: EventTarget | null) => n instanceof Element && n.closest("dialog") !== null;
     const onDown = (e: PointerEvent) => {
       const n = e.target as Node;
-      if (!el?.contains(n) && !anchor.contains(n)) close();
+      if (!el?.contains(n) && !anchor.contains(n) && !inDialog(n)) close();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && !inDialog(e.target)) {
         e.stopPropagation();
         close();
       }

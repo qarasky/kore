@@ -99,7 +99,9 @@ export function EventBlock({
           aria-label={t("grid.resize", { title })}
           onPointerDown={onResizeStart}
           onClick={(e) => e.stopPropagation()}
-          className="absolute inset-x-0 bottom-0 h-1.5 cursor-ns-resize"
+          // At most 30% of a short block, so the middle of a 15-minute event still opens it.
+          style={{ height: "min(0.375rem, 30%)" }}
+          className="absolute inset-x-0 bottom-0 cursor-ns-resize"
         />
       ) : null}
     </button>

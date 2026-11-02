@@ -120,6 +120,33 @@ export async function occurrences(token: string, fromDay: string, toDay: string)
   return api(token, "GET", `/api/occurrences?from=${fromDay}T00:00:00Z&to=${toDay}T00:00:00Z`);
 }
 
+export interface ApiEventFull {
+  id: string;
+  calendar_id: string;
+  title: string;
+  notes: string;
+  location: string;
+  start: string;
+  end: string;
+  tz: string;
+  all_day: boolean;
+  rrule: string;
+  exdates: string[];
+  reminders: { minutes_before: number }[];
+  version: number;
+}
+
+/** Every live event whose occurrences fall within ±200 days of today (there is no list-events endpoint). */
+export async function allEvents(token: string): Promise<ApiEventFull[]> {
+  const occ = await occurrences(token, addDays(today("UTC"), -200), addDays(today("UTC"), 190));
+  const ids = [...new Set(occ.map((o) => o.event_id))];
+  return Promise.all(ids.map((id) => api<ApiEventFull>(token, "GET", `/api/events/${id}`)));
+}
+
+export async function eventsTitled(token: string, title: string): Promise<ApiEventFull[]> {
+  return (await allEvents(token)).filter((e) => e.title === title);
+}
+
 export async function calendars(token: string): Promise<{ id: string; name: string; color: string }[]> {
   return api(token, "GET", "/api/calendars");
 }
@@ -153,4 +180,104 @@ export async function minutesWithin(locator: Locator, container: Locator): Promi
   const [b, c] = await Promise.all([locator.boundingBox(), container.boundingBox()]);
   if (!b || !c) throw new Error("not visible");
   return { top: ((b.y - c.y) / c.height) * 1440, bottom: ((b.y + b.height - c.y) / c.height) * 1440 };
+}
+
+// ---- the event editor
+
+export interface EditorFields {
+  title?: string;
+  allDay?: boolean;
+  startDate?: string;
+  startTime?: string;
+  endDate?: string;
+  endTime?: string;
+  location?: string;
+  notes?: string;
+}
+
+export function editor(page: Page): Locator {
+  return page.locator("dialog[open]").filter({ has: page.locator("input[name=title]") });
+}
+
+/** Click "New event" and wait for the editor. */
+export async function openNewEvent(page: Page): Promise<Locator> {
+  await page.getByRole("button", { name: "New event", exact: true }).first().click();
+  const dialog = editor(page);
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
+/** Click an event block and then "Edit" in its popover. */
+export async function openEditor(page: Page, block: Locator): Promise<Locator> {
+  await block.click();
+  const popover = page.getByTestId("event-popover");
+  await expect(popover).toBeVisible();
+  await popover.getByRole("button", { name: "Edit" }).click();
+  const dialog = editor(page);
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
+/** Type into the editor's plain fields. (Start before end: changing the start moves the end with it.) */
+export async function fillEditor(dialog: Locator, f: EditorFields): Promise<void> {
+  if (f.title !== undefined) await dialog.getByRole("textbox", { name: "Title" }).fill(f.title);
+  if (f.allDay !== undefined) {
+    const sw = dialog.getByRole("switch", { name: "All day" });
+    if ((await sw.getAttribute("aria-checked")) !== String(f.allDay)) await sw.click();
+  }
+  if (f.startDate !== undefined) await dialog.getByLabel("Start date").fill(f.startDate);
+  if (f.startTime !== undefined) await dialog.getByLabel("Start time").fill(f.startTime);
+  if (f.endDate !== undefined) await dialog.getByLabel("End date").fill(f.endDate);
+  if (f.endTime !== undefined) await dialog.getByLabel("End time").fill(f.endTime);
+  if (f.location !== undefined) await dialog.getByLabel("Location").fill(f.location);
+  if (f.notes !== undefined) await dialog.getByLabel("Notes").fill(f.notes);
+}
+
+export async function saveEditor(dialog: Locator): Promise<void> {
+  await dialog.getByRole("button", { name: "Save" }).click();
+}
+
+/** The toast with `text`. */
+export function toast(page: Page, text: string | RegExp): Locator {
+  return page.getByRole("status").filter({ hasText: text });
+}
+
+/** Answer a "which events?" dialog. */
+export async function chooseScope(page: Page, scope: "This event" | "This and following events" | "All events", confirm: string): Promise<void> {
+  const dialog = page.locator("dialog[open]").filter({ has: page.locator("fieldset") });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel(scope, { exact: true }).check();
+  await dialog.getByRole("button", { name: confirm, exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+}
+
+/** Open the popover of the occurrence of `title` in `day`'s column (week view). */
+export function occurrenceIn(page: Page, day: string, title: string): Locator {
+  return column(page, day).locator(`[data-testid=event][data-title="${title}"]`);
+}
+
+/** The ICS text for one event (UTC), as an agent or another calendar would export it. */
+export function icsEvent(f: { uid: string; summary: string; start: string; end: string; rrule?: string }): string {
+  const z = (s: string) => s.replace(/[-:]/g, "") + "Z";
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//korecalendar e2e//EN",
+    "BEGIN:VEVENT",
+    `UID:${f.uid}`,
+    "DTSTAMP:20260101T000000Z",
+    `DTSTART:${z(f.start)}`,
+    `DTEND:${z(f.end)}`,
+    `SUMMARY:${f.summary}`,
+    ...(f.rrule ? [`RRULE:${f.rrule}`] : []),
+    "END:VEVENT",
+    "END:VCALENDAR",
+    "",
+  ].join("\r\n");
+}
+
+export async function importIcs(token: string, ics: string): Promise<{ imported: number; created: number; errors: unknown[] }> {
+  const res = await fetch(`${API_URL}/api/import`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/calendar" }, body: ics });
+  if (res.status >= 300) throw new Error(`import failed: ${res.status} ${await res.text()}`);
+  return res.json();
 }
