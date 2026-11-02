@@ -20,6 +20,8 @@ describe("format", () => {
     expect(formatDayTitle("2026-11-01", "week", "mon")).toBe("26 Oct – 1 Nov 2026");
     expect(formatDayTitle("2026-12-31", "week", "mon")).toBe("28 Dec 2026 – 3 Jan 2027");
     expect(formatDayTitle("2026-11-04", "agenda", "mon")).toBe("4 Nov – 3 Dec 2026");
+    expect(formatDayTitle("2026-11-04", "week", "mon", true)).toBe("3–5 Nov 2026");
+    expect(formatDayTitle("2026-11-30", "week", "mon", true)).toBe("29 Nov – 1 Dec 2026");
   });
 
   it("formats an event's time range in a zone", () => {

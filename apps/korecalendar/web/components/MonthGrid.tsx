@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo } from "react";
+import { COMPACT_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
 import { useMonthDrag } from "@/hooks/useMonthDrag";
 import { useMoveCommit } from "@/hooks/useMoveCommit";
 import { chipsForDay, groupByDay } from "@/lib/agenda";
@@ -23,6 +25,8 @@ export function MonthGrid({ day, days, occurrences }: { day: string; days: strin
   const { me, prefs, calendars, today } = useShell();
   const { openNew, openOccurrence } = useEditor();
   const tz = me.timezone;
+  const router = useRouter();
+  const compact = useMediaQuery(COMPACT_QUERY);
   const mover = useMoveCommit();
   const drag = useMonthDrag((occ, deltaDays) => void mover.commit(occ, { deltaDays, deltaMinutes: 0 }));
   const groups = useMemo(() => groupByDay(occurrences, days, tz), [occurrences, days, tz]);
@@ -49,7 +53,7 @@ export function MonthGrid({ day, days, occurrences }: { day: string; days: strin
               data-testid="month-cell"
               data-day={d}
               className={`flex min-h-[5.5rem] min-w-0 cursor-default flex-col gap-0.5 border-t border-l border-border p-1 ${isSameMonth(d, day) ? "" : "bg-bg/30"} ${drag.over === d ? "bg-accent/15 ring-1 ring-accent ring-inset" : ""}`}
-              onClick={() => openNew({ day: d, minutes: 9 * 60, durationMinutes: 60 })}
+              onClick={() => (compact ? router.push(calendarHref("day", d)) : openNew({ day: d, minutes: 9 * 60, durationMinutes: 60 }))}
             >
               <Link
                 href={calendarHref("day", d)}
@@ -62,7 +66,14 @@ export function MonthGrid({ day, days, occurrences }: { day: string; days: strin
               >
                 {dom === 1 ? `${dom} ${monthShortName(month - 1)}` : dom}
               </Link>
-              {shown.map((occ) => (
+              {compact ? (
+                <div className="flex flex-wrap gap-0.5" aria-label={t("month.openDay", { date: d })}>
+                  {items.slice(0, 6).map((occ) => (
+                    <span key={occ.event_id + occ.key} data-testid="month-dot" className="size-1.5 rounded-full" style={{ background: colorOf(occ.calendar_id) }} />
+                  ))}
+                </div>
+              ) : null}
+              {(compact ? [] : shown).map((occ) => (
                 <EventChip
                   key={occ.event_id + occ.key}
                   occ={occ}
@@ -75,7 +86,7 @@ export function MonthGrid({ day, days, occurrences }: { day: string; days: strin
                   dragging={drag.dragging === occ.event_id + occ.key}
                 />
               ))}
-              {more > 0 ? (
+              {!compact && more > 0 ? (
                 <MoreEvents
                   count={more}
                   day={d}

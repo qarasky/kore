@@ -70,7 +70,7 @@ function dmy(day: string, withYear: boolean): string {
 }
 
 /** The period shown in the top bar. */
-export function formatDayTitle(day: string, view: View, weekStart: WeekStart): string {
+export function formatDayTitle(day: string, view: View, weekStart: WeekStart, compact = false): string {
   const { year, month } = parseDay(day);
   switch (view) {
     case "month":
@@ -78,6 +78,8 @@ export function formatDayTitle(day: string, view: View, weekStart: WeekStart): s
     case "day":
       return `${formatDayShort(day)} ${year}`;
     case "week": {
+      // A phone shows three days around the selected one, so its title does too.
+      if (compact) return formatSpan(addDays(day, -1), addDays(day, 1));
       const first = startOfWeek(day, weekStart);
       return formatSpan(first, addDays(first, 6));
     }

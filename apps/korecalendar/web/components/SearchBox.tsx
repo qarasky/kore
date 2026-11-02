@@ -6,7 +6,7 @@ import { t } from "@/lib/i18n";
 import { SearchIcon } from "./icons";
 
 /** The top bar's search field; submitting opens `/search?q=`. */
-export function SearchBox({ initial = "" }: { initial?: string }) {
+export function SearchBox({ initial = "", always = false }: { initial?: string; always?: boolean }) {
   const router = useRouter();
   const [q, setQ] = useState(initial);
 
@@ -17,7 +17,7 @@ export function SearchBox({ initial = "" }: { initial?: string }) {
   }
 
   return (
-    <form role="search" onSubmit={submit} className="relative hidden md:block">
+    <form role="search" onSubmit={submit} className={always ? "relative" : "relative hidden md:block"}>
       <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" size={16} />
       <input
         type="search"
@@ -27,7 +27,7 @@ export function SearchBox({ initial = "" }: { initial?: string }) {
         placeholder={t("nav.searchPlaceholder")}
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        className="min-h-control-sm w-44 rounded-ui border border-border bg-surface pr-3 pl-8 text-sub text-text outline-none transition-[width,border-color] placeholder:text-muted hover:border-border-strong focus:w-64 focus:border-accent"
+        className={`min-h-control-sm ${always ? "w-full" : "w-44"} rounded-ui border border-border bg-surface pr-3 pl-8 text-sub text-text outline-none transition-[width,border-color] placeholder:text-muted hover:border-border-strong ${always ? "" : "focus:w-64"} focus:border-accent`}
       />
     </form>
   );

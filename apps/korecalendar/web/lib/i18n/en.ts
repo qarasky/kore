@@ -357,6 +357,14 @@ const en = {
   "notify.phone": "On Android, reminders are set by the app itself.",
   "notify.checking": "Checking this browser…",
 
+  "nav.closeMenu": "Close menu",
+  "nav.drawer": "Menu",
+  "empty.noCalendarsTitle": "Add your first calendar",
+  "empty.noCalendarsBody": "Events live in calendars. Create one to start planning.",
+  "empty.noCalendarsAction": "Create a calendar",
+  "month.openDay": "Open {date}",
+  "loading.calendar": "Loading your calendar",
+
   "calendars.heading": "My calendars",
   "calendars.show": "Show {name}",
   "calendars.none": "No calendars yet",

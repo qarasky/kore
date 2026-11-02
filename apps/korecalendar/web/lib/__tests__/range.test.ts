@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calendarHref, navigate, parseView, viewDays, viewRange } from "@/lib/range";
+import { calendarHref, compactDays, loadRange, navigate, parseView, viewDays, viewRange } from "@/lib/range";
 
 const hours = (r: { from: Date; to: Date }) => (r.to.getTime() - r.from.getTime()) / 3_600_000;
 
@@ -62,5 +62,45 @@ describe("calendarHref and parseView", () => {
     expect(parseView("month")).toBe("month");
     expect(parseView("year")).toBeNull();
     expect(parseView(undefined)).toBeNull();
+  });
+});
+
+describe("compact (phone) week view", () => {
+  it("shows three days centred on the selected day", () => {
+    expect(compactDays("2026-11-04")).toEqual(["2026-11-03", "2026-11-04", "2026-11-05"]);
+    expect(compactDays("2026-12-31")).toEqual(["2026-12-30", "2026-12-31", "2027-01-01"]);
+  });
+
+  it("moves three days at a time instead of a week", () => {
+    expect(navigate("week", "2026-11-04", 1, true)).toBe("2026-11-07");
+    expect(navigate("week", "2026-11-04", -1, true)).toBe("2026-11-01");
+    expect(navigate("week", "2026-11-04", 1, false)).toBe("2026-11-11");
+    // other views are unaffected
+    expect(navigate("month", "2026-11-15", 1, true)).toBe("2026-12-15");
+    expect(navigate("day", "2026-11-04", 1, true)).toBe("2026-11-05");
+  });
+
+  it("is always inside the data a week view loads (one day either side)", () => {
+    for (const day of viewDays("week", "2026-11-04", "mon")) {
+      for (const d of compactDays(day)) {
+        expect(d >= "2026-11-01" && d <= "2026-11-09").toBe(true);
+      }
+    }
+  });
+});
+
+describe("loadRange (what the page fetches)", () => {
+  it("is the view's range for day, month and agenda", () => {
+    for (const view of ["day", "month", "agenda"] as const) {
+      expect(loadRange(view, "2026-11-04", "Europe/Berlin", "mon")).toEqual(viewRange(view, "2026-11-04", "Europe/Berlin", "mon"));
+    }
+  });
+
+  it("adds a day either side for the week so a phone's three days around the edge are covered", () => {
+    const base = viewRange("week", "2026-11-04", "Europe/Berlin", "mon");
+    const r = loadRange("week", "2026-11-04", "Europe/Berlin", "mon");
+    expect(r.days).toEqual(base.days);
+    expect(r.from.getTime()).toBe(Date.UTC(2026, 9, 31, 23, 0)); // Sun 1 Nov 00:00 Berlin
+    expect(r.to.getTime()).toBe(Date.UTC(2026, 10, 9, 23, 0)); // Tue 10 Nov 00:00 Berlin
   });
 });

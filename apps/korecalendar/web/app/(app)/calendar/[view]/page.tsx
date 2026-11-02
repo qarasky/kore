@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
+import { NoCalendars } from "@/components/EmptyState";
 import { CalendarView } from "@/components/CalendarView";
 import { api } from "@/lib/api";
 import { isValidDay } from "@/lib/dates";
 import { getPrefs } from "@/lib/prefs-server";
-import { parseView, viewRange } from "@/lib/range";
+import { loadRange, parseView, viewRange } from "@/lib/range";
 import { requireUser } from "@/lib/session";
 import { todayIn } from "@/lib/tz";
 import type { Calendar, Occurrence } from "@/lib/types";
@@ -26,9 +27,12 @@ export default async function CalendarPage({
   const day = date ?? todayIn(me.timezone);
 
   const prefs = await getPrefs();
-  const range = viewRange(view, day, me.timezone, prefs.weekStart);
+  const { days } = viewRange(view, day, me.timezone, prefs.weekStart);
+  const range = loadRange(view, day, me.timezone, prefs.weekStart);
   const calendars = await api<Calendar[]>("/api/calendars");
   const visible = calendars.filter((c) => !prefs.hidden.includes(c.id));
+
+  if (calendars.length === 0) return <NoCalendars />;
 
   let occurrences: Occurrence[] = [];
   if (visible.length > 0) {
@@ -38,5 +42,5 @@ export default async function CalendarPage({
     occurrences = await api<Occurrence[]>(`/api/occurrences?${q}`);
   }
 
-  return <CalendarView view={view} day={day} days={range.days} occurrences={occurrences} />;
+  return <CalendarView view={view} day={day} days={days} occurrences={occurrences} />;
 }

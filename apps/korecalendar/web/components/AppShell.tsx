@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useSearchParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { isValidDay } from "@/lib/dates";
 import { parseView } from "@/lib/range";
@@ -8,6 +8,7 @@ import { todayIn } from "@/lib/tz";
 import type { Prefs } from "@/lib/prefs";
 import type { Calendar, User } from "@/lib/types";
 import { EditorProvider } from "./EditorProvider";
+import { MobileNav } from "./MobileNav";
 import { ShellProvider } from "./ShellContext";
 import { Shortcuts } from "./Shortcuts";
 import { Sidebar } from "./Sidebar";
@@ -22,7 +23,11 @@ import { TopBar } from "./TopBar";
 export function AppShell({ me, calendars, prefs, children }: { me: User; calendars: Calendar[]; prefs: Prefs; children: ReactNode }) {
   const params = useParams<{ view?: string }>();
   const search = useSearchParams();
-  const [, setDrawer] = useState(false);
+  const pathname = usePathname();
+  // The drawer is open for the URL it was opened on; navigating anywhere closes it.
+  const here = `${pathname}?${search.toString()}`;
+  const [drawerFor, setDrawerFor] = useState<string | null>(null);
+  const drawerOpen = drawerFor === here;
   const today = todayIn(me.timezone);
   const date = search.get("date");
   const view = parseView(params.view);
@@ -34,12 +39,13 @@ export function AppShell({ me, calendars, prefs, children }: { me: User; calenda
         <EditorProvider>
           <Shortcuts />
           <div className="flex h-full flex-col">
-            <TopBar onOpenMenu={() => setDrawer(true)} />
+            <TopBar onOpenMenu={() => setDrawerFor(here)} />
             <div className="flex min-h-0 flex-1 gap-2 px-2 pb-2">
               <Sidebar />
               <main className="min-w-0 flex-1 overflow-hidden rounded-ui bg-surface">{children}</main>
             </div>
           </div>
+          {drawerOpen ? <MobileNav onClose={() => setDrawerFor(null)} /> : null}
         </EditorProvider>
       </ToastProvider>
     </ShellProvider>

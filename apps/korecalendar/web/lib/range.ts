@@ -32,13 +32,27 @@ export function viewRange(view: View, day: string, tz: string, weekStart: WeekSt
   return { days, from: localToUTC(days[0], 0, tz), to: localToUTC(addDays(days[days.length - 1], 1), 0, tz) };
 }
 
-/** The day to show after pressing previous (-1) or next (1); 0 keeps `day`. */
-export function navigate(view: View, day: string, dir: -1 | 0 | 1): string {
+/** What the calendar page fetches. The Week view loads a day either side of its
+ *  seven so the phone's three days around an edge day are never short of events. */
+export function loadRange(view: View, day: string, tz: string, weekStart: WeekStart): Range {
+  const r = viewRange(view, day, tz, weekStart);
+  if (view !== "week") return r;
+  return { days: r.days, from: localToUTC(addDays(r.days[0], -1), 0, tz), to: localToUTC(addDays(r.days[r.days.length - 1], 2), 0, tz) };
+}
+
+/** The three days a phone shows for the Week view: the selected day and one either side. */
+export function compactDays(day: string): string[] {
+  return daysFrom(addDays(day, -1), 3);
+}
+
+/** The day to show after pressing previous (-1) or next (1); 0 keeps `day`.
+ *  With `compact` (phone), the Week view steps three days instead of seven. */
+export function navigate(view: View, day: string, dir: -1 | 0 | 1, compact = false): string {
   switch (view) {
     case "day":
       return addDays(day, dir);
     case "week":
-      return addDays(day, 7 * dir);
+      return addDays(day, (compact ? 3 : 7) * dir);
     case "month":
       return addMonths(day, dir);
     case "agenda":
