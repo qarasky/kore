@@ -20,3 +20,16 @@ Run with `bun run backend/scripts/spike-engine.ts` (isolated XDG dirs; never tou
 
 ## Backend overhead (Task 9, fake engine with 20 ms scripted delay)
 `bun run backend/scripts/latency.ts`: first stream frame 7 ms, first delta 30 ms against a 20 ms engine delay, so the backend adds about 10 ms. Real engine through the full backend reaches OpenCode and returns its free-limit error mapped to `no_provider` (happy path still needs the free limit to reset or a key).
+
+
+## Later findings (2026-11-02 and 2026-11-03), all against `opencode` 2.2.5
+
+- **Disconnecting a provider:** there is no `DELETE /api/integration/{id}`. Remove the saved credential instead: `GET /api/integration/{id}` lists `connections` (`type: "credential"` with an `id`, or `type: "env"`), then `DELETE /api/credential/{credentialID}`. Env connections can't be removed through the API.
+- **Connecting a key right after start** can answer 404 ("Integration not found") for a few seconds while the provider catalog loads; retry.
+- **OAuth sign-in:** `POST /api/integration/openai/connect/oauth` `{methodID:"chatgpt-token-sharing"}` returns `{attemptID,url,instructions,mode:"auto"}`; the engine itself listens on a loopback port for the callback, so the browser must be on the same machine. Poll `GET .../connect/oauth/{attemptID}`. The first call on a fresh engine answers 500; retry.
+- **Models:** `cost` is an array of price tiers; a model is free when every tier has `input` and `output` of 0. After an OpenRouter key is connected the catalog grows from 8 to ~350 models.
+- **The `skill` tool** is always registered and described as "Load a specialized skill…"; none of `permissions`, per-agent `tools`, or global rules hides it. With every skill denied it is inert. The system prompt says what tools exist.
+- **Session titles:** OpenCode makes a second model call to name each session. Creating the session with a `title` of our own suppresses it. Zero names chats itself on the chosen model.
+- **Custom tools:** a remote MCP server in config (`mcp.servers.<name>`, `type: "remote"`, `oauth: false`, `codemode: false`, `headers`, `timeout.execution`) exposes its tools directly as `<server>_<tool>`. Permission action `zero_*` allows them. For calls made on behalf of a session OpenCode sends `params._meta["ai.opencode/sessionID"]`, which is how Zero maps a call back to a chat. Zero hosts the server itself at `/mcp`.
+- **Mocking a provider** for tests: `providers.<id>.settings.baseURL` in `OPENCODE_CONFIG_CONTENT` redirects a built-in provider (e.g. `openrouter`) to a local server. `backend/test/engine.test.ts` uses this to test connect, disconnect, titles and the notes tools against the real engine with no network.
+- **Models listing and config schema:** the config schema is at <https://opencode.ai/config.json>; the server's own API description is `GET /openapi.json` (needs the Basic auth header).

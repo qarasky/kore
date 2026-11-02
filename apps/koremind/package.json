@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "test": "bun test backend shared web scripts",
+    "build": "bun run --cwd web build",
     "start": "bun run scripts/dev.ts"
   }
 }

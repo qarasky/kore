@@ -64,9 +64,9 @@ Searches that found nothing useful: a rigorous UX audit of ChatGPT's or Linear's
 - A freshly connected provider may not appear until the engine reloads its catalog (S8). Zero retries internally and refreshes the picker after connecting.
 
 ### 2.6 Tool transparency (found in practice, then confirmed against the engine)
-- Zero's assistant has exactly one real tool, web search. OpenCode 2.2.5 also registers an inert `skill` tool that the model is shown and no config removes (verified: the `tools` array sent to the model is `skill, websearch`, and the skill list is empty because every skill is denied). Asked "what tools do you have", a model therefore lists skill and websearch.
-- Mitigation: tell the model plainly what it has ("your only tool is web search; never mention other tools") and that memory is automatic.
-- Memory is not a tool. Giving the model a memory tool would add latency and tokens to every turn; Zero injects memory at the start of a chat and updates it in a background step.
+- When this was first researched Zero had one real tool, web search. OpenCode 2.2.5 also registers an inert `skill` tool that the model is shown and no config removes (verified: the `tools` array sent to the model was `skill, websearch`, and the skill list is empty because every skill is denied). Asked "what tools do you have", a model therefore listed skill and websearch.
+- Mitigation: the system prompt tells the model plainly what it has and that memory is automatic. Since then Zero added three notes tools (`save_note`, `read_notes`, `edit_note`), so the model now sees five tools (the inert `skill` among them) and the prompt names the real four.
+- Memory is not a tool. Giving the model a memory tool would add latency and tokens to every turn; Zero injects memory at the start of a chat and updates it in a background step. Notes are different on purpose: they are things the user explicitly asks to have written down, so they are tools.
 
 ### 2.7 Chat titles
 - ChatGPT, Claude and others name chats automatically after the first exchange. Zero does the same with the model the owner has chosen, so it works for people who only have, for example, an OpenRouter key.
@@ -99,6 +99,8 @@ Searches that found nothing useful: a rigorous UX audit of ChatGPT's or Linear's
 10. Animations that block or delay content.
 
 ## 4. What this research did not settle
+- **Approval cards.** The "Zero wants to read the notes from X" card (Allow / Deny, 60 s timeout, allow lasts for the turn) was designed from OpenCode's own ask-permission model and common sense, not from a researched pattern. No source in section 1 covers it. Treat it as a first version to observe in use.
+- **Provider logos.** Taken from models.dev (the registry OpenCode uses). It has no separate Codex mark, so Codex shows OpenAI's.
 - No source gave touch-target sizes or accessibility guidance for composers (S6 says so). Zero follows its own Kore sizes: 40px controls, 32px compact.
 - No evidence on whether autosave vs explicit save is better for this audience. Chosen from S2 and S4 and kept reversible.
 - Android-specific patterns (bottom sheets, predictive back) were not researched beyond what the owner's brief and Material 3 give by default.

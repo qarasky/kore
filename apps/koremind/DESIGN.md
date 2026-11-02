@@ -7,7 +7,7 @@ How Zero looks, moves and talks. This is the contract for the web UI and the And
 2. **No wait.** The user's message shows instantly, a "thinking" indicator shows immediately, tokens stream as they arrive. Motion and polish never delay a reply.
 3. **Calm chat, dense chrome.** Messages are comfortable to read (15px, 1.6 line height). Everything around them (sidebar, settings, pickers) is compact like Kore.
 4. **Show state in words.** Connected, Free tier, Saving…, Saved. Colour supports the word, never replaces it.
-5. **Few things, honestly named.** Five settings sections. Presets named by outcome. The assistant says what it can really do.
+5. **Few things, honestly named.** Five settings sections. Presets named by outcome. The assistant says what it can really do (web search and notes), and anything that reaches into another chat asks first.
 6. **Dark only.** One theme, Kore's palette.
 7. **Nothing silent.** An action that fails says why, in the place it was triggered. A button never "does nothing".
 
