@@ -54,7 +54,7 @@ export function mapConnections(integrations: any[]): ProviderConnection[] {
     const methods: ProviderConnection["methods"] = [];
     const types = new Set<string>((i?.methods ?? []).map((m: any) => String(m?.type)));
     if (types.has("key") || o.id === "opencode") methods.push("key");
-    if (types.has("oauth")) methods.push("signin");
+    if (o.id === "openai" && types.has("oauth")) methods.push("signin"); // ChatGPT sign-in is for Codex only
     return { id: o.id, name: o.name, connected: Array.isArray(i?.connections) && i.connections.length > 0, methods };
   });
 }

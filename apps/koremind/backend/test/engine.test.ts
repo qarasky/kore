@@ -96,6 +96,7 @@ test("mapModels marks a provider connected only when a key connection exists", (
 test("mapConnections offers OpenCode, Codex and OpenRouter with their login methods, and nothing else", () => {
   const integrations = [
     { id: "anthropic", name: "Anthropic", methods: [{ type: "key" }], connections: [] },
+    { id: "opencode", name: "OpenCode", methods: [{ type: "key" }, { id: "go", type: "oauth", label: "OpenCode account" }], connections: [] },
     { id: "openrouter", name: "OpenRouter", methods: [{ type: "key" }, { type: "env", names: ["OPENROUTER_API_KEY"] }], connections: [{ id: "c1" }] },
     { id: "openai", name: "OpenAI", methods: [{ type: "key" }, { id: "chatgpt-token-sharing", type: "oauth", label: "Sign in with ChatGPT" }], connections: [] },
   ];
