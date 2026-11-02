@@ -132,3 +132,8 @@ func inList(ids []string) (string, []any) {
 	}
 	return string(ph), args
 }
+
+// OverridesFor returns the changed occurrences of the given events, by event id.
+func OverridesFor(ctx context.Context, db *sql.DB, eventIDs []string) (map[string][]Override, error) {
+	return loadOverrides(ctx, db, eventIDs)
+}
