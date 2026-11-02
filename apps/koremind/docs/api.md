@@ -11,6 +11,9 @@ Source of truth: `shared/src/api.ts` (zod). All bodies are JSON unless noted. Au
 | `GET /me` | yes | | `User` `{id,email,isOwner}` |
 | `GET /models` | yes | | `ProviderInfo[]` `{id,name,connected,models:[{id,name,vision,thinkingLevels[],isDefault}]}` |
 | `GET /favorites`, `PUT /favorites` | yes | `string[]` of `"providerId/modelId"` | `string[]` |
+| `GET /providers` | yes | | `[{id,name,connected,methods:("key"\|"signin")[]}]` for OpenCode, Codex (`openai`) and OpenRouter |
+| `POST /providers/:id/signin` | owner | | `{attemptId,url,instructions}`; open `url` in a browser on the server's computer (the engine listens for the callback on its localhost) |
+| `GET /providers/:id/signin/:attemptId` | owner | | `{status:"pending"\|"complete"\|"failed"}` |
 | `PUT /providers/:id/key` | yes | `{key}` | `{ok:true}` (never echoes the key) |
 | `DELETE /providers/:id/key` | yes | | `{ok:true}` |
 | `GET /chats` | yes | | `ChatSummary[]` `{id,title,updatedAt}` newest first |

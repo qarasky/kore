@@ -1,7 +1,9 @@
 "use client";
 import { Check, ChevronDown, Search, Star } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useModelChoice } from "@/lib/contexts";
+import { quick, spring } from "@/lib/motion";
 import { chipLabel, filterModels, thinkingLabel } from "@/lib/model-picker";
 import { t } from "@/lib/strings";
 
@@ -48,8 +50,12 @@ export function ModelPicker() {
         <span className="sr-only">{chipLabel(current.model.name, choice?.thinking)}</span>
       </button>
 
+      <AnimatePresence>
       {open && (
-        <div role="dialog" aria-label={t.searchModels} className="absolute bottom-full left-0 z-30 mb-2 flex w-[min(420px,calc(100vw-2rem))] overflow-hidden rounded-ui border border-border bg-surface shadow-2xl">
+        <motion.div role="dialog" aria-label={t.searchModels}
+          initial={{ opacity: 0, scale: 0.96, y: 6 }} animate={{ opacity: 1, scale: 1, y: 0, transition: quick }} exit={{ opacity: 0, scale: 0.97, y: 4, transition: { duration: 0.1 } }}
+          style={{ transformOrigin: "bottom left" }}
+          className="absolute bottom-full left-0 z-30 mb-2 flex w-[min(420px,calc(100vw-2rem))] overflow-hidden rounded-ui border border-border bg-surface shadow-2xl">
           <div className="flex w-14 flex-col items-center gap-2 border-r border-border py-3">
             <RailButton active={rail === "favorites"} label={t.favorites} onClick={() => setRail("favorites")}><Star size={20} /></RailButton>
             <div className="w-8 border-t border-border" />
@@ -69,7 +75,7 @@ export function ModelPicker() {
               {rows.map((r, i) => {
                 const active = r.providerId === choice?.providerId && r.model.id === choice?.modelId;
                 return (
-                  <li key={r.key} className={`flex min-h-control items-center gap-1 rounded-ui pr-1 ${active ? "bg-raised" : "hover:bg-raised/60"}`}>
+                  <motion.li key={r.key} initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.12, delay: Math.min(i, 8) * 0.012 }} className={`flex min-h-control items-center gap-1 rounded-ui pr-1 ${active ? "bg-raised" : "hover:bg-raised/60"}`}>
                     <button type="button" onClick={() => { select(r.providerId, r.model.id); setOpen(false); }} className="flex min-h-control flex-1 items-center gap-2 px-2 text-left text-sub">
                       <span className="truncate">{r.model.name}</span>
                       {!r.model.vision && <span className="shrink-0 text-2xs text-muted">{t.noPhotos}</span>}
@@ -79,7 +85,7 @@ export function ModelPicker() {
                       <Star size={16} className={favorites.includes(r.key) ? "fill-accent text-accent" : ""} />
                     </button>
                     {active && <Check size={16} className="mr-2 text-text" aria-hidden />}
-                  </li>
+                  </motion.li>
                 );
               })}
             </ul>
@@ -97,8 +103,9 @@ export function ModelPicker() {
               </div>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -107,7 +114,7 @@ function RailButton({ active, label, onClick, children }: { active: boolean; lab
   return (
     <button type="button" onClick={onClick} aria-label={label} title={label} className="relative grid min-h-control w-full place-items-center text-text">
       {children}
-      {active && <span className="absolute right-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-full bg-accent" />}
+      {active && <motion.span layoutId="rail-marker" transition={spring} className="absolute right-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-full bg-accent" />}
     </button>
   );
 }

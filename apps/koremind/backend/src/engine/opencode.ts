@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import type { ModelInfo, ProviderInfo } from "@zero/shared";
+import type { ModelInfo, ProviderConnection, ProviderInfo } from "@zero/shared";
 import { CLOSED, IDLE, Pump } from "./pump";
 import type { Engine, EngineEvent, PromptArgs } from "./types";
 
@@ -39,6 +39,24 @@ export function mapEvent(sessionId: string, raw: Raw): EngineEvent[] {
     default:
       return [];
   }
+}
+
+/** Providers Zero offers. Everything else OpenCode knows about stays hidden: few providers, no config sprawl. */
+const OFFERED: { id: string; name: string }[] = [
+  { id: "opencode", name: "OpenCode" },
+  { id: "openai", name: "Codex" },
+  { id: "openrouter", name: "OpenRouter" },
+];
+
+export function mapConnections(integrations: any[]): ProviderConnection[] {
+  return OFFERED.map((o) => {
+    const i = integrations.find((x) => x?.id === o.id);
+    const methods: ProviderConnection["methods"] = [];
+    const types = new Set<string>((i?.methods ?? []).map((m: any) => String(m?.type)));
+    if (types.has("key") || o.id === "opencode") methods.push("key");
+    if (o.id === "openai" && types.has("oauth")) methods.push("signin"); // ChatGPT sign-in is for Codex only
+    return { id: o.id, name: o.name, connected: Array.isArray(i?.connections) && i.connections.length > 0, methods };
+  });
 }
 
 export function mapModels(providers: { id: string; name: string }[], models: any[], defaultModelId?: string, connected?: Set<string>): ProviderInfo[] {
@@ -148,13 +166,19 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
   let defaultModel: { providerId: string; modelId: string } | null = null;
 
   const listProviders = async (): Promise<ProviderInfo[]> => {
-    const [p, m, d, ig] = await Promise.all([call("GET", "/api/provider"), call("GET", "/api/model"), call("GET", "/api/model/default"), call("GET", "/api/integration")]);
-    const providers = (p.json?.data ?? []).filter((x: any) => x.id === "opencode").map((x: any) => ({ id: x.id, name: x.name }));
+    const [m, d, ig] = await Promise.all([call("GET", "/api/model"), call("GET", "/api/model/default"), call("GET", "/api/integration")]);
+    const providers = OFFERED.map((o) => ({ id: o.id, name: o.name }));
     const connected = new Set<string>((ig.json?.data ?? []).filter((i: any) => Array.isArray(i.connections) && i.connections.length > 0).map((i: any) => String(i.id)));
     const out = mapModels(providers, m.json?.data ?? [], d.json?.data?.id, connected);
-    const def = out[0]?.models.find((x) => x.isDefault);
-    if (def) defaultModel = { providerId: out[0].id, modelId: def.id };
+    const home = out.find((x) => x.id === "opencode") ?? out[0];
+    const def = home?.models.find((x) => x.isDefault);
+    if (def) defaultModel = { providerId: home.id, modelId: def.id };
     return out;
+  };
+
+  const oauthMethod = (integration: any): string | undefined => {
+    const ms: any[] = (integration?.methods ?? []).filter((m: any) => m?.type === "oauth");
+    return (ms.find((m) => m.id === "chatgpt-token-sharing") ?? ms[0])?.id;
   };
 
   const createSession = async (model?: { providerId: string; modelId: string }) => {
@@ -203,6 +227,29 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
 
   return {
     listProviders,
+    async listConnections() {
+      const ig = await call("GET", "/api/integration");
+      return mapConnections(ig.json?.data ?? []);
+    },
+    async startSignIn(id) {
+      const ig = await call("GET", "/api/integration");
+      const methodID = oauthMethod((ig.json?.data ?? []).find((x: any) => x.id === id));
+      if (!methodID) throw new Error("This provider has no browser sign-in");
+      // The first OAuth call on a freshly started engine answers 500; the retry succeeds.
+      let r = await call("POST", `/api/integration/${encodeURIComponent(id)}/connect/oauth`, { methodID });
+      for (let n = 0; !r.ok && n < 3; n++) {
+        await Bun.sleep(300);
+        r = await call("POST", `/api/integration/${encodeURIComponent(id)}/connect/oauth`, { methodID });
+      }
+      if (!r.ok || !r.json?.data?.attemptID) throw new Error(`could not start sign-in (${r.status})`);
+      const d = r.json.data;
+      return { attemptId: String(d.attemptID), url: String(d.url), instructions: String(d.instructions ?? "") };
+    },
+    async signInStatus(id, attemptId) {
+      const r = await call("GET", `/api/integration/${encodeURIComponent(id)}/connect/oauth/${encodeURIComponent(attemptId)}`);
+      const st = r.json?.data?.status;
+      return { status: st === "complete" ? "complete" : st === "pending" ? "pending" : "failed" };
+    },
     async setProviderKey(id, key) {
       const r = await call("POST", `/api/integration/${encodeURIComponent(id)}/connect/key`, { key });
       if (!r.ok) throw new Error(`could not connect provider (${r.status})`);

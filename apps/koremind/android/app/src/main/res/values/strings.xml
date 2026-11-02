@@ -46,7 +46,9 @@
     <string name="favorites_section">Favorite models</string>
     <string name="providers_section">Connected providers</string>
     <string name="connected">Connected</string>
-    <string name="not_connected">Free tier, no key</string>
+    <string name="not_connected">Not connected</string>
+    <string name="free_tier">Free tier, no key</string>
+    <string name="sign_in_on_web">To sign in with ChatGPT, open Zero on the computer that runs it. Or paste an API key here.</string>
     <string name="no_model">No model available. Check that the server is running.</string>
     <string name="no_photos">No photos</string>
     <string name="no_photos_warning">This model can\'t read photos. Pick a model that can.</string>

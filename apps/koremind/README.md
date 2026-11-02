@@ -24,6 +24,8 @@ For the phone, install the app, type one of the printed addresses into **Backend
 
 OpenCode's free models work with no key, but the free quota is limited. When it runs out, Zero says so; add a key under **Settings → Connected providers**.
 
+Zero also offers **Codex** (OpenAI, sign in with ChatGPT or paste an API key) and **OpenRouter** (API key) under the same section. The ChatGPT sign-in must be finished in a browser on the computer that runs Zero.
+
 | Setting | Default |
 | --- | --- |
 | `ZERO_PORT` | `8787` |

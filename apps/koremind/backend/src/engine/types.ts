@@ -1,4 +1,4 @@
-import type { ProviderInfo } from "@zero/shared";
+import type { ProviderConnection, ProviderInfo, SignInStart, SignInStatus } from "@zero/shared";
 
 export type EngineEvent =
   | { type: "status"; state: "thinking" | "searching" }
@@ -22,6 +22,9 @@ export type PromptArgs = {
 
 export interface Engine {
   listProviders(): Promise<ProviderInfo[]>;
+  listConnections(): Promise<ProviderConnection[]>;
+  startSignIn(providerId: string): Promise<SignInStart>;
+  signInStatus(providerId: string, attemptId: string): Promise<SignInStatus>;
   setProviderKey(providerId: string, key: string): Promise<void>;
   removeProviderKey(providerId: string): Promise<void>;
   createSession(model?: { providerId: string; modelId: string }): Promise<string>;

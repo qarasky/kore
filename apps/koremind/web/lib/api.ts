@@ -1,5 +1,5 @@
 import type {
-  Attachment, AuthRequest, AuthResponse, ChatMessage, ChatSummary, Health, MemoryEntry, ProviderInfo, SendMessageRequest, Settings, StreamEvent, User,
+  Attachment, AuthRequest, AuthResponse, ChatMessage, ChatSummary, Health, MemoryEntry, ProviderConnection, ProviderInfo, SendMessageRequest, Settings, SignInStart, SignInStatus, StreamEvent, User,
 } from "@zero/shared";
 import { parseStream } from "./stream";
 
@@ -35,6 +35,9 @@ export function createApi(baseUrl: string, getToken: () => string | null) {
     logout: () => req<{ ok: true }>("POST", "/auth/logout"),
     me: () => req<User>("GET", "/me"),
     models: () => req<ProviderInfo[]>("GET", "/models"),
+    providers: () => req<ProviderConnection[]>("GET", "/providers"),
+    startSignIn: (id: string) => req<SignInStart>("POST", `/providers/${encodeURIComponent(id)}/signin`),
+    signInStatus: (id: string, attempt: string) => req<SignInStatus>("GET", `/providers/${encodeURIComponent(id)}/signin/${encodeURIComponent(attempt)}`),
     favorites: () => req<string[]>("GET", "/favorites"),
     setFavorites: (keys: string[]) => req<string[]>("PUT", "/favorites", keys),
     setProviderKey: (id: string, key: string) => req<{ ok: true }>("PUT", `/providers/${encodeURIComponent(id)}/key`, { key }),

@@ -157,3 +157,21 @@ test("slow replies keep the stream alive with comment pings", async () => {
   const evs = raw.split("\n\n").filter((f) => f.startsWith("data: ")).map((f) => JSON.parse(f.slice(6)));
   expect(evs[evs.length - 1].type).toBe("done");
 });
+
+test("provider list shows login methods; sign-in is owner-only and reports progress", async () => {
+  const { call, engine } = setup();
+  const owner = await register(call);
+  const list = (await (await call("GET", "/providers", { token: owner })).json()) as { id: string; methods: string[]; connected: boolean }[];
+  expect(list.map((p) => p.id)).toEqual(["opencode", "openai", "openrouter"]);
+  expect(list.find((p) => p.id === "openai")?.methods).toEqual(["key", "signin"]);
+
+  const start = (await (await call("POST", "/providers/openai/signin", { token: owner })).json()) as { attemptId: string; url: string };
+  expect(start.url).toStartWith("https://");
+  expect(((await (await call("GET", `/providers/openai/signin/${start.attemptId}`, { token: owner })).json()) as { status: string }).status).toBe("pending");
+  engine.finishSignIn(start.attemptId);
+  expect(((await (await call("GET", `/providers/openai/signin/${start.attemptId}`, { token: owner })).json()) as { status: string }).status).toBe("complete");
+  expect(((await (await call("GET", "/providers", { token: owner })).json()) as { id: string; connected: boolean }[]).find((p) => p.id === "openai")?.connected).toBe(true);
+
+  const second = (await (await call("POST", "/auth/register", { token: owner, body: { email: "kid@home.lan", password: "another pass" } })).json()) as { token: string };
+  expect((await call("POST", "/providers/openai/signin", { token: second.token })).status).toBe(403);
+});

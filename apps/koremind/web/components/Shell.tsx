@@ -1,7 +1,9 @@
 "use client";
 import { Menu } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useState, type ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
+import { quick, spring } from "@/lib/motion";
 import { t } from "@/lib/strings";
 
 /** Sidebar on wide screens; a drawer on narrow ones. `title` and `right` fill the top bar. */
@@ -10,12 +12,14 @@ export function Shell({ title, right, children }: { title: string; right?: React
   return (
     <div className="flex h-dvh">
       <div className="hidden md:block"><Sidebar /></div>
-      {open && (
-        <div className="fixed inset-0 z-40 md:hidden">
-          <button type="button" aria-label={t.back} className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
-          <div className="relative h-full w-64"><Sidebar onNavigate={() => setOpen(false)} /></div>
-        </div>
-      )}
+      <AnimatePresence>
+        {open && (
+          <div className="fixed inset-0 z-40 md:hidden">
+            <motion.button type="button" aria-label={t.back} className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={quick} />
+            <motion.div className="relative h-full w-64" initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }} transition={spring}><Sidebar onNavigate={() => setOpen(false)} /></motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center gap-2 px-2 md:px-4">
           <button type="button" aria-label={t.menu} onClick={() => setOpen(true)} className="grid size-control place-items-center rounded-ui hover:bg-raised md:hidden"><Menu size={20} /></button>

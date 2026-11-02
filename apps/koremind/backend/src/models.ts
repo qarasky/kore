@@ -6,6 +6,9 @@ export function createModels(db: Database, engine: Engine) {
   const providers = (): Promise<ProviderInfo[]> => engine.listProviders();
   return {
     providers,
+    connections: () => engine.listConnections(),
+    startSignIn: (id: string) => engine.startSignIn(id),
+    signInStatus: (id: string, attemptId: string) => engine.signInStatus(id, attemptId),
     connect: (id: string, key: string) => engine.setProviderKey(id, key),
     disconnect: (id: string) => engine.removeProviderKey(id),
     favorites(userId: string): string[] {
