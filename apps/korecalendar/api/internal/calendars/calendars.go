@@ -60,7 +60,7 @@ func CreateDefault(ctx context.Context, db *sql.DB, userID string) (Calendar, er
 
 // List returns the user's calendars in creation order.
 func List(ctx context.Context, db *sql.DB, userID string) ([]Calendar, error) {
-	rows, err := db.QueryContext(ctx, `SELECT id,name,color,created_at FROM calendars WHERE user_id=? ORDER BY created_at, id`, userID)
+	rows, err := db.QueryContext(ctx, `SELECT id,name,color,created_at FROM calendars WHERE user_id=? ORDER BY created_at, rowid`, userID)
 	if err != nil {
 		return nil, err
 	}

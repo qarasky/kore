@@ -3,6 +3,7 @@ package calendars
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/qarasky/korecalendar/api/internal/testutil"
@@ -63,5 +64,27 @@ func TestOtherUsersCalendarIsNotFound(t *testing.T) {
 	n := "x"
 	if _, err := Update(ctx, db, b.ID, c.ID, &n, nil); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Update: %v", err)
+	}
+}
+
+func TestListIsInCreationOrder(t *testing.T) {
+	db := testutil.NewDB(t)
+	ctx := context.Background()
+	u, _ := users.Create(ctx, db, "a@example.com", "x", "admin")
+	want := []string{}
+	for i := 0; i < 12; i++ { // created within the same second
+		name := string(rune('A' + i))
+		want = append(want, name)
+		if _, err := Create(ctx, db, u.ID, name, "#112233"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	list, _ := List(ctx, db, u.ID)
+	got := []string{}
+	for _, c := range list {
+		got = append(got, c.Name)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("order %v, want %v", got, want)
 	}
 }
