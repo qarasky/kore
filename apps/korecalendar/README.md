@@ -7,7 +7,7 @@ and manage events, recurring series with single exclusions and single-occurrence
 Go API + SQLite and a Next.js web app behind Caddy, in the same shape as [Kore](https://github.com/qarasky/kore). The web app
 (and the Android app, in a later phase) uses exactly the same public API.
 
-Status: **phase 1 (API and core) and phase 2 (web app) are done;** the Android app is next. See [`docs/superpowers/`](docs/superpowers/) for the design and plans.
+Status: **phase 1 (API and core) and phase 2 (web app) are done, plus CalDAV;** the Android app is next. See [`docs/superpowers/`](docs/superpowers/) for the design and plans.
 
 - **[Web app](docs/web.md)**: what the UI does, shortcuts, drag behaviour, notifications.
 - **[API guide](docs/api.md)**: real requests and responses for the common jobs.

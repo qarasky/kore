@@ -88,4 +88,5 @@ event stays restorable (without the UID).
 
 ## Verified with
 
-(filled in once the real-client run is done)
+- **Go tests:** the library's own CalDAV client drives the server in `api/internal/dav` (discovery, listing with ETags, `GET`, `PUT` with `If-Match`/`If-None-Match`, `DELETE`, `calendar-query` with a time range across a DST change, `calendar-multiget`, every refusal, and the privacy cases).
+- **A real third-party client:** python's `caldav` 3.7.0 (installed from PyPI in a throwaway `python:3-slim` container) against a running stack, with an access token as the password: it found the user's three calendars, saved a weekly event with an `EXDATE`, found it with a date-range search, read it back by UID, edited its summary, and deleted it. The web app's REST view showed the edit on every occurrence with the excluded date absent, `created_by`/`updated_by` = the token's name, and nothing after the delete. (6 Nov 2026 run.)
