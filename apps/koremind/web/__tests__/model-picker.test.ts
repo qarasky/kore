@@ -3,11 +3,11 @@ import type { ProviderInfo } from "@zero/shared";
 import { chipLabel, filterModels, thinkingLabel } from "../lib/model-picker";
 
 const providers: ProviderInfo[] = [
-  { id: "opencode", name: "OpenCode", connected: true, models: [
-    { id: "fast", name: "Fast One", vision: false, thinkingLevels: [], isDefault: true },
-    { id: "deep", name: "Deep Think", vision: true, thinkingLevels: ["low", "high"], isDefault: false },
+  { id: "opencode", name: "OpenCode", connected: true, status: "ready", models: [
+    { id: "fast", name: "Fast One", vision: false, thinkingLevels: [], isDefault: true, free: true },
+    { id: "deep", name: "Deep Think", vision: true, thinkingLevels: ["low", "high"], isDefault: false, free: false },
   ] },
-  { id: "other", name: "Other", connected: true, models: [{ id: "x", name: "Xtra", vision: false, thinkingLevels: [], isDefault: true }] },
+  { id: "other", name: "Other", connected: true, status: "ready", models: [{ id: "x", name: "Xtra", vision: false, thinkingLevels: [], isDefault: true, free: false }] },
 ];
 
 test("filterModels favorites rail returns only favorited models", () => {

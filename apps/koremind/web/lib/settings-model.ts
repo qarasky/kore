@@ -1,3 +1,4 @@
+import type { Settings } from "@zero/shared";
 import { t } from "./strings";
 
 /** Settings stay short: five sections, one visible at a time. */
@@ -31,3 +32,13 @@ export function providerStatus(p: { id: string; connected: boolean }): ProviderS
   if (p.connected) return "on";
   return p.id === "opencode" ? "free" : "off";
 }
+
+/** Turns an id on or off in a list without duplicates. */
+export const toggleInList = (list: string[], id: string, on: boolean): string[] => (on ? (list.includes(id) ? list : [...list, id]) : list.filter((x) => x !== id));
+export const providerEnabled = (s: Settings, id: string) => !s.disabledProviders.includes(id);
+export const withProviderEnabled = (s: Settings, id: string, enabled: boolean): Settings => ({ ...s, disabledProviders: toggleInList(s.disabledProviders, id, !enabled) });
+export const freeOnly = (s: Settings, id: string) => s.freeOnlyProviders.includes(id);
+export const withFreeOnly = (s: Settings, id: string, on: boolean): Settings => ({ ...s, freeOnlyProviders: toggleInList(s.freeOnlyProviders, id, on) });
+/** True when a change touched what the model picker shows, so it must be reloaded. */
+export const providerPrefsChanged = (a: Settings, b: Settings) =>
+  JSON.stringify([a.disabledProviders, a.freeOnlyProviders]) !== JSON.stringify([b.disabledProviders, b.freeOnlyProviders]);

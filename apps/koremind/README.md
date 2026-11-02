@@ -51,3 +51,9 @@ Docs: [design](docs/superpowers/specs/2026-11-02-zero-design.md), [plan](docs/su
 ## Design
 
 See [`DESIGN.md`](DESIGN.md) for how Zero looks and moves, and [`docs/research/design-research.md`](docs/research/design-research.md) for the research behind it.
+
+## Notes, approvals and phone pairing
+
+The assistant can save, read and edit notes (per chat, per user). Asking it to use another chat's notes pops an Allow/Deny card in the chat. Notes tools are served to the local OpenCode engine by Zero itself on loopback (`/mcp`, protected by a per-run secret), so notes live in Zero's own database.
+
+To sign a phone in without typing: Settings → Account → Show QR code on the web, then Scan QR code in the Android app.

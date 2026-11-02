@@ -1,15 +1,17 @@
 "use client";
-import type { ChatMessage } from "@zero/shared";
-import { FileText, Globe } from "lucide-react";
+import type { Activity, ChatMessage } from "@zero/shared";
+import { BookOpen, FileText, Globe, Lock, Pencil, StickyNote } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef } from "react";
 import { Markdown } from "./Markdown";
 import type { Draft } from "@/lib/chat-state";
-import { fadeUp } from "@/lib/motion";
+import { Button } from "./ui";
+import { activityText, approvalText, type PendingApproval } from "@/lib/notes-ui";
+import { fadeUp, quick } from "@/lib/motion";
 import { useSession } from "@/lib/session";
 import { t } from "@/lib/strings";
 
-export function MessageList({ messages, draft }: { messages: ChatMessage[]; draft: Draft | null }) {
+export function MessageList({ messages, draft, onApproval }: { messages: ChatMessage[]; draft: Draft | null; onApproval(id: string, allow: boolean): void }) {
   const { api } = useSession();
   const end = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -25,10 +27,10 @@ export function MessageList({ messages, draft }: { messages: ChatMessage[]; draf
         <AnimatePresence initial={false}>
           {messages.map((m) => (
             <motion.div key={m.id} variants={fadeUp} initial="hidden" animate="show">
-              {m.role === "user" ? <UserBubble m={m} api={api} /> : <Assistant text={m.text} sources={m.sources} />}
+              {m.role === "user" ? <UserBubble m={m} api={api} /> : <Assistant text={m.text} sources={m.sources} activity={m.activity} />}
             </motion.div>
           ))}
-          {draft && <motion.div key="draft" variants={fadeUp} initial="hidden" animate="show"><Assistant text={draft.text} sources={draft.sources} status={draft.status} /></motion.div>}
+          {draft && <motion.div key="draft" variants={fadeUp} initial="hidden" animate="show"><Assistant text={draft.text} sources={draft.sources} status={draft.status} activity={draft.activity} approvals={draft.approvals} expired={draft.expired} onApproval={onApproval} /></motion.div>}
         </AnimatePresence>
         <div ref={end} />
       </div>
@@ -51,7 +53,9 @@ function UserBubble({ m, api }: { m: ChatMessage; api: ReturnType<typeof useSess
   );
 }
 
-function Assistant({ text, sources, status }: { text: string; sources: { title: string; url: string }[]; status?: Draft["status"] }) {
+const ACTIVITY_ICON = { saved: StickyNote, edited: Pencil, read: BookOpen, denied: Lock } as const;
+
+function Assistant({ text, sources, status, activity = [], approvals = [], expired = false, onApproval }: { text: string; sources: { title: string; url: string }[]; status?: Draft["status"]; activity?: Activity[]; approvals?: PendingApproval[]; expired?: boolean; onApproval?(id: string, allow: boolean): void }) {
   return (
     <div className="flex flex-col gap-3">
       <AnimatePresence initial={false} mode="wait">
@@ -63,6 +67,32 @@ function Assistant({ text, sources, status }: { text: string; sources: { title: 
           </motion.div>
         )}
       </AnimatePresence>
+      <AnimatePresence initial={false}>
+        {approvals.map((a) => (
+          <motion.div key={a.id} layout initial={{ opacity: 0, y: 8, height: 0 }} animate={{ opacity: 1, y: 0, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={quick} className="overflow-hidden" role="alertdialog" aria-label={approvalText(a)}>
+            <div className="rounded-ui border border-warning/40 bg-surface p-3">
+              <p className="text-sub">{approvalText(a)}</p>
+              <div className="mt-3 flex gap-2">
+                <Button onClick={() => onApproval?.(a.id, true)}>{t.approvalAllow}</Button>
+                <Button variant="ghost" onClick={() => onApproval?.(a.id, false)}>{t.approvalDeny}</Button>
+              </div>
+            </div>
+          </motion.div>
+        ))}
+        {expired && approvals.length === 0 && <motion.p key="expired" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={quick} className="text-meta text-muted" role="status">{t.approvalExpired}</motion.p>}
+      </AnimatePresence>
+      {activity.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {activity.map((a, i) => {
+            const Icon = ACTIVITY_ICON[a.kind];
+            return (
+              <motion.span key={`${a.kind}-${a.title}-${a.chat ?? ""}-${i}`} initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: Math.min(i, 6) * 0.04, duration: 0.18 }} className={`flex max-w-72 items-center gap-1 rounded-ui border border-border px-2 py-1 text-2xs ${a.kind === "denied" ? "text-danger" : "text-muted"}`}>
+                <Icon size={12} aria-hidden /><span className="truncate">{activityText(a)}</span>
+              </motion.span>
+            );
+          })}
+        </div>
+      )}
       {text && <Markdown text={text} />}
       {sources.length > 0 && (
         <div className="flex flex-wrap gap-2">

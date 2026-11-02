@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -23,12 +24,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.qarasky.zero.R
 import dev.qarasky.zero.data.ApiException
 import dev.qarasky.zero.ui.AppViewModel
+import dev.qarasky.zero.ui.PairUi
 import dev.qarasky.zero.ui.ErrorText
 import dev.qarasky.zero.ui.ZeroButton
 import dev.qarasky.zero.ui.ZeroField
@@ -36,6 +39,24 @@ import dev.qarasky.zero.ui.chat.Wordmark
 import dev.qarasky.zero.ui.theme.Appear
 import dev.qarasky.zero.ui.theme.ZeroColors
 import kotlinx.coroutines.launch
+
+/** "Scan QR code": pairs with the code shown on the web (Settings → Account). Shows its own progress and errors. */
+@Composable
+private fun ScanQrSection(vm: AppViewModel, showHint: Boolean) {
+    val pair by vm.pairState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val working = pair is PairUi.Working
+    val error = (pair as? PairUi.Failed)?.let { stringResource(it.message) }
+    DisposableEffect(Unit) { onDispose { if (vm.pairState.value is PairUi.Failed) vm.pairHandled() } }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        ErrorText(error)
+        ZeroButton(
+            if (working) stringResource(R.string.pair_connecting) else stringResource(R.string.scan_qr), ghost = true, enabled = !working, modifier = Modifier.fillMaxWidth(),
+            onClick = { startQrScan(context, onResult = vm::startPair, onUnavailable = { vm.pairFailed(R.string.pair_scanner_unavailable) }) },
+        )
+        if (showHint) Text(stringResource(R.string.connect_scan_hint), style = MaterialTheme.typography.bodySmall, color = ZeroColors.Muted)
+    }
+}
 
 @Composable
 fun ConnectScreen(vm: AppViewModel, onConnected: () -> Unit) {
@@ -58,6 +79,7 @@ fun ConnectScreen(vm: AppViewModel, onConnected: () -> Unit) {
                     busy = false
                 }
             })
+            ScanQrSection(vm, showHint = true)
         } }
     }
 }
@@ -91,6 +113,7 @@ fun LoginScreen(vm: AppViewModel, onSignedIn: () -> Unit, onChangeServer: () -> 
                     busy = false
                 }
             })
+            ScanQrSection(vm, showHint = false)
             TextButton(onClick = onChangeServer) { Text(stringResource(R.string.change_server), color = ZeroColors.Muted) }
         } }
     }

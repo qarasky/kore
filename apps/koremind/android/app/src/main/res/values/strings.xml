@@ -101,4 +101,26 @@
     <string name="back">Back</string>
     <string name="menu">Menu</string>
     <string name="generic_error">Something went wrong.</string>
+    <string name="scan_qr">Scan QR code</string>
+    <string name="connect_scan_hint">Or scan the code shown in Settings → Account on the web.</string>
+    <string name="pair_connecting">Connecting…</string>
+    <string name="pair_invalid">That code isn\'t valid or has expired. Show a new one and try again.</string>
+    <string name="pair_unreachable">Couldn\'t reach the server from this phone. Check that it\'s on the same network.</string>
+    <string name="pair_scanner_unavailable">Scanning isn\'t available on this phone. Enter the address by hand.</string>
+    <string name="provider_needs_connection">Connect %1$s in Settings to use its models.</string>
+    <string name="provider_disabled">%1$s is turned off in Settings.</string>
+    <string name="free_tag">Free</string>
+    <string name="use_in_picker">Use in model picker</string>
+    <string name="only_free_models">Only free models</string>
+    <string name="only_free_hint">Hide paid models from the picker.</string>
+    <string name="activity_saved">Saved note “%1$s”</string>
+    <string name="activity_edited">Updated note “%1$s”</string>
+    <string name="activity_read">Read notes</string>
+    <string name="activity_read_other">Read notes from “%1$s”</string>
+    <string name="activity_denied">Access to “%1$s” was denied</string>
+    <string name="approval_read">Zero wants to read the notes from “%1$s”</string>
+    <string name="approval_edit">Zero wants to edit the notes in “%1$s”</string>
+    <string name="approval_allow">Allow</string>
+    <string name="approval_deny">Deny</string>
+    <string name="approval_expired">The request expired.</string>
 </resources>

@@ -175,3 +175,56 @@ test("provider list shows login methods; sign-in is owner-only and reports progr
   const second = (await (await call("POST", "/auth/register", { token: owner, body: { email: "kid@home.lan", password: "another pass" } })).json()) as { token: string };
   expect((await call("POST", "/providers/openai/signin", { token: second.token })).status).toBe(403);
 });
+
+test("provider settings change what /models returns, and a disallowed model is refused before streaming", async () => {
+  const { call, engine } = setup();
+  const token = await register(call);
+  await call("PUT", "/providers/openrouter/key", { token, body: { key: "sk-or" } });
+  const list = async () => (await (await call("GET", "/models", { token })).json()) as { id: string; status: string; models: { id: string; free: boolean }[] }[];
+  expect((await list()).map((p) => p.id)).toEqual(["opencode", "openai", "openrouter"]);
+  expect((await list()).find((p) => p.id === "openrouter")!.status).toBe("ready");
+
+  const put = (patch: object) => call("PUT", "/settings", { token, body: { memoryEnabled: true, displayName: "", tone: "", about: "", disabledProviders: [], freeOnlyProviders: [], ...patch } });
+  await put({ freeOnlyProviders: ["openrouter"] });
+  expect((await list()).find((p) => p.id === "openrouter")!.models.every((m) => m.free)).toBe(true);
+  const chat = (await (await call("POST", "/chats", { token })).json()) as { id: string };
+  const refused = await call("POST", `/chats/${chat.id}/messages`, { token, body: { text: "hi", attachmentIds: [], model: { providerId: "openrouter", modelId: "acme/pro" } } });
+  expect(refused.status).toBe(400);
+  expect(await refused.text()).toContain("model_not_allowed");
+  expect(engine.prompts).toHaveLength(0);
+
+  await put({ disabledProviders: ["openrouter"] });
+  expect((await list()).find((p) => p.id === "openrouter")!.status).toBe("disabled");
+  const ok = await call("POST", `/chats/${chat.id}/messages`, { token, body: { text: "hi", attachmentIds: [], model } });
+  expect(ok.status).toBe(200);
+  await ok.text();
+});
+
+test("older clients that omit the new settings fields still save", async () => {
+  const { call } = setup();
+  const token = await register(call);
+  const r = await call("PUT", "/settings", { token, body: { memoryEnabled: true, displayName: "Sky", tone: "", about: "" } });
+  expect(r.status).toBe(200);
+  expect(await r.json()).toMatchObject({ displayName: "Sky", disabledProviders: [], freeOnlyProviders: [] });
+});
+
+test("pairing over HTTP: signed-in start, anonymous redeem, link carries code and addresses", async () => {
+  const { call } = setup();
+  const token = await register(call);
+  expect((await call("POST", "/auth/pair")).status).toBe(401);
+  const pair = (await (await call("POST", "/auth/pair", { token })).json()) as { code: string; urls: string[]; link: string; expiresAt: number };
+  expect(pair.urls.length).toBeGreaterThan(0);
+  const link = new URL(pair.link);
+  expect(link.protocol).toBe("zero:");
+  expect(link.searchParams.get("c")).toBe(pair.code);
+  expect(link.searchParams.getAll("u")).toEqual(pair.urls);
+  const redeemed = await call("POST", "/auth/pair/redeem", { body: { code: pair.code } });
+  expect(redeemed.status).toBe(200);
+  const device = (await redeemed.json()) as { token: string; user: { email: string } };
+  expect(device.user.email).toBe(creds.email);
+  const me = await call("GET", "/me", { token: device.token });
+  expect(me.status).toBe(200);
+  const again = await call("POST", "/auth/pair/redeem", { body: { code: pair.code } });
+  expect(again.status).toBe(401);
+  expect(await again.text()).toContain("bad_code");
+});

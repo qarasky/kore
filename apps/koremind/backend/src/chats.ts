@@ -1,12 +1,15 @@
 import type { Database } from "bun:sqlite";
-import type { Attachment, ChatMessage, ChatSummary, SendMessageRequest, Source, StreamEvent } from "@zero/shared";
+import type { Activity, Attachment, ChatMessage, ChatSummary, SendMessageRequest, Source, StreamEvent } from "@zero/shared";
 import type { Engine, EngineFile, ModelRef } from "./engine/types";
+import { CLOSED, IDLE, Pump } from "./engine/pump";
 import { TITLE_SYSTEM, cleanTitle, titlePrompt } from "./title";
 
 export type ChatsDeps = {
   buildSystem(userId: string): string;
   readUpload(id: string, userId: string): EngineFile | null;
   onTurnComplete(userId: string, userText: string, assistantText: string, model: ModelRef): void;
+  /** The turn is over (finished, failed or stopped): approvals still waiting must close. */
+  onTurnEnd?(chatId: string): void;
 };
 
 type ChatRow = { id: string; user_id: string; title: string; engine_session_id: string | null; updated_at: number };
@@ -17,6 +20,8 @@ const TITLE_WAIT_MS = 8000;
 
 export function createChats(db: Database, engine: Engine, deps: ChatsDeps) {
   const active = new Map<string, AbortController>();
+  /** Events produced outside the engine stream while a turn runs (note activity, approval cards). */
+  const side = new Map<string, Pump<StreamEvent>>();
   /** Best effort: a title typed by the owner meanwhile, or any failure, leaves things as they are. */
   const nameChat = async (chatId: string, placeholder: string, model: ModelRef, userText: string, assistantText: string): Promise<string | null> => {
     try {
@@ -42,6 +47,15 @@ export function createChats(db: Database, engine: Engine, deps: ChatsDeps) {
 
     has: (userId: string, chatId: string) => !!row(userId, chatId),
 
+    /** Pushes an event into the turn currently running for this chat. Dropped when no turn is running. */
+    emit(chatId: string, ev: StreamEvent) { side.get(chatId)?.push(ev); },
+
+    /** Which user and chat an engine session belongs to. */
+    bySession(sessionId: string): { userId: string; chatId: string } | null {
+      const r = db.query("select id,user_id from chats where engine_session_id=?").get(sessionId) as { id: string; user_id: string } | null;
+      return r ? { userId: r.user_id, chatId: r.id } : null;
+    },
+
     get(userId: string, chatId: string): { chat: ChatSummary; messages: ChatMessage[] } | null {
       const c = row(userId, chatId);
       if (!c) return null;
@@ -50,6 +64,7 @@ export function createChats(db: Database, engine: Engine, deps: ChatsDeps) {
       const messages = ms.map((m): ChatMessage => ({
         id: m.id, role: m.role, text: m.text, createdAt: m.created_at,
         sources: JSON.parse(m.sources_json),
+        activity: JSON.parse(m.activity_json ?? "[]"),
         attachments: atts.filter((a) => a.message_id === m.id).map((a): Attachment => ({ id: a.id, name: a.name, mime: a.mime, size: a.size })),
       }));
       return { chat: summary(c), messages };
@@ -97,15 +112,16 @@ export function createChats(db: Database, engine: Engine, deps: ChatsDeps) {
 
       let text = "";
       const sources: Source[] = [];
+      const activity: Activity[] = [];
       let assistantId: string | null = null;
       let finished = false;
       const save = () => {
-        if (!text && !sources.length) return;
+        if (!text && !sources.length && !activity.length) return;
         if (!assistantId) {
           assistantId = newId();
-          db.run("insert into messages(id,chat_id,role,text,sources_json,created_at) values(?,?,'assistant',?,?,?)", [assistantId, chatId, text, JSON.stringify(sources), Date.now()]);
+          db.run("insert into messages(id,chat_id,role,text,sources_json,activity_json,created_at) values(?,?,'assistant',?,?,?,?)", [assistantId, chatId, text, JSON.stringify(sources), JSON.stringify(activity), Date.now()]);
         } else {
-          db.run("update messages set text=?, sources_json=? where id=?", [text, JSON.stringify(sources), assistantId]);
+          db.run("update messages set text=?, sources_json=?, activity_json=? where id=?", [text, JSON.stringify(sources), JSON.stringify(activity), assistantId]);
         }
         db.run("update chats set updated_at=? where id=?", [Date.now(), chatId]);
       };
@@ -118,33 +134,56 @@ export function createChats(db: Database, engine: Engine, deps: ChatsDeps) {
         }
         const system = prior === 0 ? deps.buildSystem(userId) : "";
         let sinceFlush = 0;
-        for await (const ev of engine.prompt({ sessionId, system, text: req.text, files, model: req.model, thinking: req.thinking, signal: ac.signal })) {
-          if (ev.type === "status") yield { type: "status", state: ev.state };
-          else if (ev.type === "delta") {
-            text += ev.text;
-            if (++sinceFlush >= 20) { save(); sinceFlush = 0; }
-            yield { type: "delta", text: ev.text };
-          } else if (ev.type === "source") {
-            sources.push({ title: ev.title, url: ev.url });
-            yield { type: "source", title: ev.title, url: ev.url };
-          } else if (ev.type === "done") {
-            save();
-            finished = true;
-            // Naming runs on the chosen model, concurrently with the finished answer. It must never delay or break the reply.
-            const naming = prior === 0 ? nameChat(chatId, placeholder, req.model, req.text, text) : null;
-            yield { type: "done", messageId: assistantId ?? newId() };
-            try { deps.onTurnComplete(userId, req.text, text, req.model); } catch { /* memory must never break chat */ }
-            if (naming) {
-              const title = await Promise.race([naming, Bun.sleep(TITLE_WAIT_MS).then(() => null)]);
-              if (title) yield { type: "title", title };
+        const engineIt = engine.prompt({ sessionId, system, text: req.text, files, model: req.model, thinking: req.thinking, signal: ac.signal })[Symbol.asyncIterator]();
+        const sidePump = new Pump<StreamEvent>(2_000_000_000);
+        side.set(chatId, sidePump);
+        let fromEngine = engineIt.next();
+        let fromSide = sidePump.next();
+        try {
+          for (;;) {
+            const got = await Promise.race([fromEngine.then((v) => ({ src: "engine" as const, v })), fromSide.then((v) => ({ src: "side" as const, v }))]);
+            if (got.src === "side") {
+              fromSide = sidePump.next();
+              if (got.v === CLOSED || got.v === IDLE) continue;
+              const ev = got.v;
+              if (ev.type === "activity") activity.push({ kind: ev.kind, title: ev.title, ...(ev.chat ? { chat: ev.chat } : {}) });
+              yield ev;
+              continue;
             }
-            return;
-          } else {
-            save();
-            finished = true;
-            yield { type: "error", code: ev.noProvider ? "no_provider" : "engine", message: ev.message };
-            return;
+            if (got.v.done) break;
+            const ev = got.v.value;
+            fromEngine = engineIt.next();
+            if (ev.type === "status") yield { type: "status", state: ev.state };
+            else if (ev.type === "delta") {
+              text += ev.text;
+              if (++sinceFlush >= 20) { save(); sinceFlush = 0; }
+              yield { type: "delta", text: ev.text };
+            } else if (ev.type === "source") {
+              sources.push({ title: ev.title, url: ev.url });
+              yield { type: "source", title: ev.title, url: ev.url };
+            } else if (ev.type === "done") {
+              save();
+              finished = true;
+              // Naming runs on the chosen model, concurrently with the finished answer. It must never delay or break the reply.
+              const naming = prior === 0 ? nameChat(chatId, placeholder, req.model, req.text, text) : null;
+              yield { type: "done", messageId: assistantId ?? newId() };
+              try { deps.onTurnComplete(userId, req.text, text, req.model); } catch { /* memory must never break chat */ }
+              if (naming) {
+                const title = await Promise.race([naming, Bun.sleep(TITLE_WAIT_MS).then(() => null)]);
+                if (title) yield { type: "title", title };
+              }
+              return;
+            } else {
+              save();
+              finished = true;
+              yield { type: "error", code: ev.noProvider ? "no_provider" : "engine", message: ev.message };
+              return;
+            }
           }
+        } finally {
+          side.delete(chatId);
+          sidePump.close();
+          void engineIt.return?.(undefined);
         }
         save();
         finished = true;
@@ -156,6 +195,7 @@ export function createChats(db: Database, engine: Engine, deps: ChatsDeps) {
       } finally {
         if (!finished) save();
         active.delete(chatId);
+        try { deps.onTurnEnd?.(chatId); } catch { /* never breaks chat */ }
         signal.removeEventListener("abort", onAbort);
       }
     },

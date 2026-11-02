@@ -55,7 +55,7 @@ export function mapConnections(integrations: any[]): ProviderConnection[] {
     const types = new Set<string>((i?.methods ?? []).map((m: any) => String(m?.type)));
     if (types.has("key") || o.id === "opencode") methods.push("key");
     if (o.id === "openai" && types.has("oauth")) methods.push("signin"); // ChatGPT sign-in is for Codex only
-    return { id: o.id, name: o.name, connected: Array.isArray(i?.connections) && i.connections.length > 0, methods };
+    return { id: o.id, name: o.name, connected: Array.isArray(i?.connections) && i.connections.length > 0, methods, supportsFreeFilter: o.id !== "openai" };
   });
 }
 
@@ -66,25 +66,29 @@ export function credentialIdsFor(integration: any): { ids: string[]; envOnly: bo
   return { ids, envOnly: ids.length === 0 && conns.some((c) => c?.type === "env") };
 }
 
+/** A model is free when it has price tiers and every one of them costs nothing. */
+export const isFree = (m: any): boolean => Array.isArray(m?.cost) && m.cost.length > 0 && m.cost.every((c: any) => c?.input === 0 && c?.output === 0);
+
 export function mapModels(providers: { id: string; name: string }[], models: any[], defaultModelId?: string, connected?: Set<string>): ProviderInfo[] {
-  return providers
-    .map((p) => {
-      const ms = models.filter((m) => m.providerID === p.id && m.enabled !== false && m.status !== "disabled");
-      const defId = ms.find((m) => m.id === defaultModelId)?.id ?? ms[0]?.id;
-      const out: ModelInfo[] = ms.map((m) => ({
-        id: m.id,
-        name: m.name ?? m.id,
-        vision: Array.isArray(m.capabilities?.input) && m.capabilities.input.includes("image"),
-        thinkingLevels: (m.variants ?? []).map((v: any) => String(v.id ?? v)),
-        isDefault: m.id === defId,
-      }));
-      return { id: p.id, name: p.name, connected: connected ? connected.has(p.id) : true, models: out };
-    })
-    .filter((p) => p.models.length > 0);
+  return providers.map((p): ProviderInfo => {
+    const ms = models.filter((m) => m.providerID === p.id && m.enabled !== false && m.status !== "disabled");
+    const defId = ms.find((m) => m.id === defaultModelId)?.id ?? ms[0]?.id;
+    const out: ModelInfo[] = ms.map((m) => ({
+      id: m.id,
+      name: m.name ?? m.id,
+      vision: Array.isArray(m.capabilities?.input) && m.capabilities.input.includes("image"),
+      thinkingLevels: (m.variants ?? []).map((v: any) => String(v.id ?? v)),
+      isDefault: m.id === defId,
+      free: isFree(m),
+    }));
+    const isConnected = connected ? connected.has(p.id) : true;
+    // OpenCode's free tier needs no key, so it is usable while "not connected".
+    return { id: p.id, name: p.name, connected: isConnected, status: isConnected || p.id === "opencode" ? "ready" : "needs_connection", models: out };
+  });
 }
 
 // OpenCode 2.2 always registers an (inert) `skill` tool that no config can hide, so the model is told plainly what it has.
-export const AGENT_SYSTEM = "You are Zero, a concise, friendly personal assistant. Answer directly. Your only tool is web search; use it only when you need current facts, and never mention or try other tools. You remember useful things about the user between chats automatically: what you remember is given to you at the start of a chat, so never say you cannot remember.";
+export const AGENT_SYSTEM = "You are Zero, a concise, friendly personal assistant. Answer directly. Your tools: web search (use it only when you need current facts) and notes (save_note, read_notes, edit_note) for things the user wants written down in this chat. Notes belong to one chat; to look at or change another chat's notes, pass that chat's title in the tool call and the user is asked to approve, so only do that when they ask you to. If it is refused, accept that. Never mention or try other tools. You remember useful things about the user between chats automatically: what you remember is given to you at the start of a chat, so never say you cannot remember.";
 
 export const zeroOpencodeConfig = {
   default_agent: "zero",
@@ -97,6 +101,7 @@ export const zeroOpencodeConfig = {
       permissions: [
         { action: "*", resource: "*", effect: "deny" },
         { action: "websearch", resource: "*", effect: "allow" },
+        { action: "zero_*", resource: "*", effect: "allow" }, // Zero's own notes tools (MCP server "zero")
       ],
     },
   },
@@ -178,7 +183,7 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
     const providers = OFFERED.map((o) => ({ id: o.id, name: o.name }));
     const connected = new Set<string>((ig.json?.data ?? []).filter((i: any) => Array.isArray(i.connections) && i.connections.length > 0).map((i: any) => String(i.id)));
     const out = mapModels(providers, m.json?.data ?? [], d.json?.data?.id, connected);
-    const home = out.find((x) => x.id === "opencode") ?? out[0];
+    const home = out.find((x) => x.id === "opencode" && x.models.length) ?? out.find((x) => x.models.length) ?? out[0];
     const def = home?.models.find((x) => x.isDefault);
     if (def) defaultModel = { providerId: home.id, modelId: def.id };
     return out;
@@ -289,7 +294,7 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
           if (e.type === "delta") out += e.text;
           if (e.type === "error") throw new Error(e.message);
         }
-      } finally { void call("DELETE", `/api/session/${sid}`); }
+      } finally { void call("DELETE", `/api/session/${sid}`).catch(() => {}); }
       return out;
     },
     close() { closed = true; proc.kill(); },

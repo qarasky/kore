@@ -37,8 +37,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -71,6 +69,8 @@ import dev.qarasky.zero.ui.ErrorText
 import dev.qarasky.zero.ui.HairlineBorder
 import dev.qarasky.zero.ui.ZeroButton
 import dev.qarasky.zero.ui.ZeroField
+import dev.qarasky.zero.ui.ZeroSwitch
+import dev.qarasky.zero.ui.model.ProviderIcon
 import dev.qarasky.zero.ui.theme.LocalMotion
 import dev.qarasky.zero.ui.theme.UiShape
 import dev.qarasky.zero.ui.theme.ZeroColors
@@ -108,6 +108,8 @@ fun SettingsScreen(vm: AppViewModel, initialSection: String?, onBack: () -> Unit
         save = SaveState.Saving
         try {
             vm.api?.putSettings(s)
+            // The picker follows the provider switches right away.
+            if (baseline?.let { providerPrefsChanged(it, s) } == true) vm.refreshModels()
             baseline = s
             save = SaveState.Saved
             delay(1600)
@@ -131,7 +133,7 @@ fun SettingsScreen(vm: AppViewModel, initialSection: String?, onBack: () -> Unit
         ) { id ->
             when (id) {
                 "models" -> ModelsSection(vm)
-                "providers" -> ProvidersSection(vm)
+                "providers" -> ProvidersSection(vm, settings) { settings = it }
                 "personalization" -> PersonalizationSection(settings) { settings = it }
                 "memory" -> MemorySection(vm, settings) { settings = it }
                 else -> AccountSection(vm, onChangeServer)
@@ -205,7 +207,7 @@ private fun ModelsSection(vm: AppViewModel) {
 // ---- Providers ------------------------------------------------------------------------------
 
 @Composable
-private fun ProvidersSection(vm: AppViewModel) {
+private fun ProvidersSection(vm: AppViewModel, settings: Settings?, onChange: (Settings) -> Unit) {
     val scope = rememberCoroutineScope()
     var list by remember { mutableStateOf<List<ProviderConnection>>(emptyList()) }
     var keyOpen by remember { mutableStateOf<String?>(null) }
@@ -225,7 +227,7 @@ private fun ProvidersSection(vm: AppViewModel) {
             )
             Column(CardModifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(Modifier.size(36.dp).background(ZeroColors.Raised, UiShape), contentAlignment = Alignment.Center) { Text(p.name.take(1).uppercase(), fontWeight = FontWeight.SemiBold) }
+                    Box(Modifier.size(36.dp).background(ZeroColors.Raised, UiShape), contentAlignment = Alignment.Center) { ProviderIcon(p.id, p.name, 20.dp) }
                     Column {
                         Text(p.name, fontWeight = FontWeight.Medium, maxLines = 1)
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -236,6 +238,10 @@ private fun ProvidersSection(vm: AppViewModel) {
                             )
                         }
                     }
+                }
+                if (settings != null) Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    SwitchRow(stringResource(R.string.use_in_picker), null, providerEnabled(settings, p.id)) { onChange(withProviderEnabled(settings, p.id, it)) }
+                    if (p.supportsFreeFilter) SwitchRow(stringResource(R.string.only_free_models), stringResource(R.string.only_free_hint), freeOnly(settings, p.id)) { onChange(withFreeOnly(settings, p.id, it)) }
                 }
                 if ("signin" in p.methods && !p.connected) Text(stringResource(R.string.sign_in_on_web), color = ZeroColors.Muted, style = MaterialTheme.typography.bodySmall)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -264,6 +270,17 @@ private fun ProvidersSection(vm: AppViewModel) {
             }
         }
         ErrorText(error)
+    }
+}
+
+@Composable
+private fun SwitchRow(label: String, hint: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyMedium)
+            if (hint != null) Text(hint, color = ZeroColors.Muted, style = MaterialTheme.typography.labelSmall)
+        }
+        ZeroSwitch(checked, onChange)
     }
 }
 
@@ -324,10 +341,7 @@ private fun MemorySection(vm: AppViewModel, settings: Settings?, onChange: (Sett
                     Text(stringResource(R.string.memory_on))
                     entries?.let { Text(resources.getQuantityString(R.plurals.memory_count, it.size, it.size), color = ZeroColors.Muted, style = MaterialTheme.typography.labelSmall) }
                 }
-                Switch(
-                    settings.memoryEnabled, { onChange(settings.copy(memoryEnabled = it)) },
-                    colors = SwitchDefaults.colors(checkedTrackColor = ZeroColors.Accent, checkedThumbColor = Color.White, uncheckedTrackColor = ZeroColors.BorderStrong, uncheckedThumbColor = Color.White, uncheckedBorderColor = Color.Transparent),
-                )
+                ZeroSwitch(settings.memoryEnabled) { onChange(settings.copy(memoryEnabled = it)) }
             }
         }
         val list = entries ?: emptyList()

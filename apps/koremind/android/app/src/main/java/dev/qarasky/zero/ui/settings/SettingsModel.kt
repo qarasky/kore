@@ -2,6 +2,7 @@ package dev.qarasky.zero.ui.settings
 
 import androidx.annotation.StringRes
 import dev.qarasky.zero.R
+import dev.qarasky.zero.data.Settings
 
 /** Settings stay short: five sections, one visible at a time. Mirrors web/lib/settings-model.ts. */
 data class SettingsSection(val id: String, @StringRes val label: Int)
@@ -41,3 +42,18 @@ fun providerStatus(id: String, connected: Boolean): ProviderState =
 const val NAME_MAX = 60
 const val TONE_MAX = 200
 const val ABOUT_MAX = 600
+
+/** Adds [id] once when [on], removes it otherwise. */
+fun toggleInList(list: List<String>, id: String, on: Boolean): List<String> =
+    if (on) (if (id in list) list else list + id) else list.filterNot { it == id }
+
+/** A provider is used in the picker unless the user turned it off. */
+fun providerEnabled(s: Settings, id: String): Boolean = id !in s.disabledProviders
+fun withProviderEnabled(s: Settings, id: String, enabled: Boolean): Settings = s.copy(disabledProviders = toggleInList(s.disabledProviders, id, !enabled))
+
+fun freeOnly(s: Settings, id: String): Boolean = id in s.freeOnlyProviders
+fun withFreeOnly(s: Settings, id: String, on: Boolean): Settings = s.copy(freeOnlyProviders = toggleInList(s.freeOnlyProviders, id, on))
+
+/** The picker only needs refreshing when a provider preference changed, not for every personalization edit. */
+fun providerPrefsChanged(a: Settings, b: Settings): Boolean =
+    a.disabledProviders.toSet() != b.disabledProviders.toSet() || a.freeOnlyProviders.toSet() != b.freeOnlyProviders.toSet()

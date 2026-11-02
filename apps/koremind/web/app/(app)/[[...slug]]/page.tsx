@@ -76,6 +76,12 @@ export default function ChatScreen() {
     }
   }, [api, choice, refresh, router, update]);
 
+  const answerApproval = useCallback((id: string, allow: boolean) => {
+    // The card goes away the moment it is tapped; the server's approval_closed confirms.
+    update((s) => applyEvent(s, { type: "approval_closed", id, outcome: allow ? "allowed" : "denied" }));
+    if (chatId.current) void api?.answerApproval(chatId.current, id, allow).catch(() => {});
+  }, [api, update]);
+
   const stop = useCallback(() => {
     abort.current?.abort();
     if (chatId.current) void api?.abort(chatId.current).catch(() => {});
@@ -94,7 +100,7 @@ export default function ChatScreen() {
       {empty ? (
         <div className="flex flex-1 items-center justify-center px-6"><motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.2, 0, 0, 1] }} className="text-display font-semibold tracking-[-0.02em]">{t.homeGreeting}</motion.p></div>
       ) : (
-        <MessageList messages={state.messages} draft={state.draft} />
+        <MessageList messages={state.messages} draft={state.draft} onApproval={answerApproval} />
       )}
       {state.connectProvider && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mx-auto mb-2 w-full max-w-3xl px-4"><div className="rounded-ui border border-warning/40 bg-surface p-3 text-sub">

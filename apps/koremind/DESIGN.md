@@ -46,21 +46,33 @@ Rules: no gradients, no shadows except the model popover; hairline borders over 
 ## 5. Components
 
 ### Model picker
-Opens above the composer. Left rail (56px): favorites star, divider, one round initial per provider; a 3px accent marker slides to the active entry. Right: search with an accent underline, rows (name, "No photos" if the model can't read images, ⌘1-⌘3 on web for the first three rows, favorite star, check on the current one), then a "Thinking level" chip row when the model has levels. Providers appear only when connected models exist.
+Opens above the composer. Left rail (56px): favorites star, divider, one real provider logo per provider (22px, monochrome, current text colour); a 3px accent marker slides to the active entry. Right: search with an accent underline, rows (name, a "Free" tag when every price tier is zero, "No photos" if the model can't read images, ⌘1-⌘3 on web for the first three rows, favorite star, check on the current one), then a "Thinking level" chip row when the model has levels.
+
+**Every offered provider is on the rail** (OpenCode, Codex, OpenRouter). One that can't be used right now is dimmed to 40% but still selectable, and its pane explains why instead of listing models: *"Connect {name} in Settings to use its models."* (no key / not signed in) or *"{name} is turned off in Settings."*, with an **Open Settings** button that goes to Settings → Providers. Favorites and the saved choice only count providers that are ready; if the saved choice stops being allowed, Zero falls back to the default of the first ready provider. OpenCode counts as ready without a key because its free tier needs none.
+
+Logos come from `assets/providers/*.svg` (models.dev) and are bundled, never loaded from the network: inline SVG on web, tinted vector drawables on Android. There is no separate Codex mark, so Codex (provider id `openai`) uses OpenAI's.
 
 ### Settings sections
 | Section | Content |
 | --- | --- |
 | Models | Favorites, with the provider under each model. Empty state says to star a model in the picker. |
-| Providers | One card per provider: initial tile, name, status (dot + words), one primary action. Codex: **Sign in with ChatGPT** + "Use an API key". OpenRouter and OpenCode: "Use an API key". Connected: "Replace key" and **Disconnect**. The key field is disclosed on demand. |
+| Providers | One card per provider: logo tile, name, status (dot + words), one primary action. Codex: **Sign in with ChatGPT** + "Use an API key". OpenRouter and OpenCode: "Use an API key". Connected: "Replace key" and **Disconnect**. The key field is disclosed on demand. Under the actions, two switches: **Use in model picker** (every provider) and **Only free models** (OpenCode and OpenRouter, with the hint "Hide paid models from the picker."). Both are per user, autosaved, and the picker follows immediately. |
 | Personalization | Name, four tone presets (Short and direct, Friendly, Formal, Playful), free-text tone, "anything it should always know" (600 characters, counter). |
 | Memory | Switch with a count, then editable rows. |
-| Account | Email, server address with "Change server", Sign out. |
+| Account | Email, server address with "Change server", **Connect your phone** (QR), Sign out. |
 
 Settings are **autosaved** 700 ms after the last change and flushed when leaving. The header shows Saving… / Saved / an error. There is no Save button.
 
 ### Provider states
 `on` = accent dot, "Connected". `free` = warning dot, "Free tier, no key" (OpenCode only). `off` = muted dot, "Not connected". Sign-in is only offered for Codex and must be finished in a browser on the computer that runs Zero; the Android app says so instead of offering it.
+
+### Connect your phone (QR)
+Settings → Account → **Show QR code** (web). A white tile with dark modules (scanners read that best), a countdown ("Expires in 1:42"), and **New code** once it expires or on demand. The code lives two minutes and works once. On Android, **Scan QR code** appears on the Connect-to-server and Sign-in screens (and a `zero://pair` link opens the app): it tries each address in the code until one answers, then signs in as the same account. Scanning is Android-only and showing is web-only by nature; everything else is 1:1.
+
+### Notes and approvals
+The assistant has three notes tools (save, read, edit). A note belongs to one chat of one user; by default a tool only touches the current chat. When the owner asks it to look at or change **another chat's** notes, an **approval card** appears in the chat: *"Zero wants to read the notes from “{chat}”"* / *"…edit the notes in “{chat}”"* with **Allow** and **Deny**. The card is warning-bordered, collapses the moment it is tapped, and the stream stays open while it waits (60 s, then "The request expired."). Allowing covers that chat for the rest of the turn; edit covers read. Nothing about another chat, not even whether a note exists, is revealed before the user agrees.
+
+What the assistant did is shown as small chips under its message and kept in the history: *Saved note “X”*, *Updated note “X”*, *Read notes*, *Read notes from “Y”*, *Access to “Y” was denied* (denied is danger-coloured).
 
 ### Chat titles
 A new chat is titled with its first words immediately. After the first answer, the chosen model names it (at most 5 words, same language, no quotes). The title arrives after the reply, fades into the sidebar and header, and never overwrites a title the owner typed.
@@ -103,5 +115,8 @@ Rules: motion explains a change and never delays content. Exits are shorter than
 - Switches use `role="switch"` with `aria-checked`; presets use `aria-pressed`; the section nav marks the current page with `aria-current`.
 - Keyboard: Enter sends, Shift+Enter adds a line (IME composition never sends); Esc closes the picker; ⌘/Ctrl+1-3 choose the first three models.
 
-## 9. What Zero does not do
+## 9. Parity: web and Android
+Both clients implement the same behaviour with the same strings (`web/lib/strings.ts`, `res/values/strings.xml`) and the same pure helpers (picker filtering and provider status, settings lists, activity text, chat reducer), each with its own tests. When a feature changes, change both and the strings together. The only deliberate asymmetries are inherent to the device: showing the pairing QR (web) vs scanning it (Android), and Codex's ChatGPT sign-in, which must be finished in a browser on the computer that runs Zero (Android shows a note instead of a button).
+
+## 10. What Zero does not do
 No light theme, no gradients, no decorative animation, no onboarding tour, no upsells, no mode chip for web search (it is simply on), no memory tool exposed to the model, no per-section save buttons.

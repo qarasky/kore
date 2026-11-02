@@ -135,7 +135,7 @@ fun ChatScreen(vm: AppViewModel, onSettings: () -> Unit, onProviders: () -> Unit
                 else Spacer(Modifier.size(48.dp))
             }
             if (empty) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { Appear { Text(stringResource(R.string.home_greeting), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold) } }
-            else androidx.compose.runtime.key(listKey) { MessageList(state, Modifier.weight(1f)) }
+            else androidx.compose.runtime.key(listKey) { MessageList(state, Modifier.weight(1f), vm::answerApproval) }
 
             AnimatedVisibility(state.connectProvider, enter = enterExpand(on), exit = exitShrink(on)) {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).border(1.dp, ZeroColors.Warning.copy(alpha = 0.4f), RoundedCornerShape(6.dp)).background(ZeroColors.Surface, RoundedCornerShape(6.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -145,7 +145,7 @@ fun ChatScreen(vm: AppViewModel, onSettings: () -> Unit, onProviders: () -> Unit
                 }
             }
             Box(Modifier.padding(horizontal = 20.dp)) { ErrorText(if (state.connectProvider) null else state.error?.message) }
-            Composer(vm, busy)
+            Composer(vm, busy, onProviders)
         }
     }
 }
@@ -160,23 +160,23 @@ private fun rememberListKey(chatId: String?): Any {
 }
 
 @Composable
-private fun MessageList(state: ChatUiState, modifier: Modifier) {
+private fun MessageList(state: ChatUiState, modifier: Modifier, onApproval: (String, Boolean) -> Unit) {
     val list = rememberLazyListState()
     val count = state.messages.size + if (state.draft != null) 1 else 0
-    val tail = state.draft?.text?.length ?: 0
+    val tail = (state.draft?.text?.length ?: 0) + (state.draft?.approvals?.size ?: 0) * 1000 + (state.draft?.activity?.size ?: 0)
     // Messages already on screen when the list opens don't animate; new ones rise into place.
     val shown = remember { state.messages.map { it.id }.toSet() }
     LaunchedEffect(count, tail) { if (count > 0) list.scrollToItem(count - 1, scrollOffset = Int.MAX_VALUE / 2) }
     LazyColumn(modifier.fillMaxWidth(), state = list, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         items(state.messages, key = { it.id }) { m ->
-            if (m.role == "user") Appear(animate = m.id !in shown) { UserBubble(m) } else AssistantMessage(m.text, m.sources)
+            if (m.role == "user") Appear(animate = m.id !in shown) { UserBubble(m) } else AssistantMessage(m.text, m.sources, activity = m.activity)
         }
-        state.draft?.let { d -> item(key = "draft") { Appear { AssistantMessage(d.text, d.sources, d.status) } } }
+        state.draft?.let { d -> item(key = "draft") { Appear { AssistantMessage(d.text, d.sources, d.status, d.activity, d.approvals, d.expired, animateChips = true, onApproval = onApproval) } } }
     }
 }
 
 @Composable
-private fun Composer(vm: AppViewModel, busy: Boolean) {
+private fun Composer(vm: AppViewModel, busy: Boolean, onProviders: () -> Unit) {
     val pending by vm.pending.collectAsStateWithLifecycle()
     val uploadError by vm.uploadError.collectAsStateWithLifecycle()
     val providers by vm.providers.collectAsStateWithLifecycle()
@@ -244,7 +244,7 @@ private fun Composer(vm: AppViewModel, busy: Boolean) {
         }
         ErrorText(uploadError ?: if (currentModel == null) stringResource(R.string.no_model) else if (lacksVision(pending.map { it.attachment }, currentModel)) stringResource(R.string.no_photos_warning) else null)
     }
-    if (sheet) ModelSheet(providers, favorites, choice, vm::selectModel, vm::setThinking, vm::toggleFavorite) { sheet = false }
+    if (sheet) ModelSheet(providers, favorites, choice, vm::selectModel, vm::setThinking, vm::toggleFavorite, onProviders) { sheet = false }
 }
 
 @Composable

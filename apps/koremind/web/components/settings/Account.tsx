@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { Card, SectionHeader } from "./parts";
+import { ConnectPhone } from "./ConnectPhone";
 import { Button } from "@/components/ui";
 import { useSession } from "@/lib/session";
 import { t } from "@/lib/strings";
@@ -23,6 +24,7 @@ export function AccountSection() {
           <Link href="/connect" className="shrink-0 text-meta text-accent underline underline-offset-2">{t.changeServer}</Link>
         </div>
       </Card>
+      <ConnectPhone />
       <div className="mt-4"><Button variant="danger" onClick={() => void signOut()}>{t.signOut}</Button></div>
     </section>
   );

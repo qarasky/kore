@@ -17,12 +17,19 @@ export const ModelInfo = z.object({
   vision: z.boolean(),
   thinkingLevels: z.array(z.string()),
   isDefault: z.boolean(),
+  /** True when every price tier of the model is zero (OpenCode free models, OpenRouter ":free"). */
+  free: z.boolean(),
 });
 export type ModelInfo = z.infer<typeof ModelInfo>;
+/** ready = usable now; needs_connection = no key / not signed in; disabled = turned off in the user's Settings. */
+export const ProviderStatus = z.enum(["ready", "needs_connection", "disabled"]);
+export type ProviderStatus = z.infer<typeof ProviderStatus>;
 export const ProviderInfo = z.object({
   id: z.string(),
   name: z.string(),
   connected: z.boolean(),
+  status: ProviderStatus,
+  /** Empty unless status is "ready". Already filtered by the user's "free models only" choice. */
   models: z.array(ModelInfo),
 });
 export type ProviderInfo = z.infer<typeof ProviderInfo>;
@@ -33,6 +40,8 @@ export const ProviderConnection = z.object({
   name: z.string(),
   connected: z.boolean(),
   methods: z.array(z.enum(["key", "signin"])),
+  /** Providers with paid and free models can be limited to free ones (OpenCode, OpenRouter). */
+  supportsFreeFilter: z.boolean(),
 });
 export type ProviderConnection = z.infer<typeof ProviderConnection>;
 export const SignInStart = z.object({ attemptId: z.string(), url: z.string(), instructions: z.string() });
@@ -47,12 +56,16 @@ export const Attachment = z.object({ id: z.string(), name: z.string(), mime: z.s
 export type Attachment = z.infer<typeof Attachment>;
 export const Source = z.object({ title: z.string(), url: z.string() });
 export type Source = z.infer<typeof Source>;
+/** What the assistant did with notes during a turn. `chat` is set when another chat's notes were involved. */
+export const Activity = z.object({ kind: z.enum(["saved", "read", "edited", "denied"]), title: z.string(), chat: z.string().optional() });
+export type Activity = z.infer<typeof Activity>;
 export const ChatMessage = z.object({
   id: z.string(),
   role: z.enum(["user", "assistant"]),
   text: z.string(),
   attachments: z.array(Attachment),
   sources: z.array(Source),
+  activity: z.array(Activity).default([]),
   createdAt: z.number(),
 });
 export type ChatMessage = z.infer<typeof ChatMessage>;
@@ -70,11 +83,16 @@ export const StreamEvent = z.discriminatedUnion("type", [
   z.object({ type: z.literal("delta"), text: z.string() }),
   z.object({ type: z.literal("source"), title: z.string(), url: z.string() }),
   z.object({ type: z.literal("done"), messageId: z.string() }),
+  /** The assistant used (or was refused) the notes tools. Also stored on the assistant message. */
+  z.object({ type: z.literal("activity"), kind: z.enum(["saved", "read", "edited", "denied"]), title: z.string(), chat: z.string().optional() }),
+  /** The assistant wants to use another chat's notes. The stream stays open until the user answers or it expires. */
+  z.object({ type: z.literal("approval"), id: z.string(), action: z.enum(["read", "edit"]), chat: z.string() }),
+  z.object({ type: z.literal("approval_closed"), id: z.string(), outcome: z.enum(["allowed", "denied", "expired"]) }),
   /** Sent after `done` on a new chat, once the chosen model has named it. Best effort. */
   z.object({ type: z.literal("title"), title: z.string() }),
   z.object({
     type: z.literal("error"),
-    code: z.enum(["no_provider", "attachment_too_large", "engine", "aborted"]),
+    code: z.enum(["no_provider", "attachment_too_large", "engine", "aborted", "model_not_allowed"]),
     message: z.string(),
   }),
 ]);
@@ -88,6 +106,25 @@ export const Settings = z.object({
   displayName: z.string(),
   tone: z.string(),
   about: z.string(),
+  /** Provider ids the user turned off. They stay connected but disappear from the model picker. */
+  disabledProviders: z.array(z.string()).default([]),
+  /** Provider ids limited to free models (only meaningful where ProviderConnection.supportsFreeFilter). */
+  freeOnlyProviders: z.array(z.string()).default([]),
 });
 export type Settings = z.infer<typeof Settings>;
-export const defaultSettings: Settings = { memoryEnabled: true, displayName: "", tone: "", about: "" };
+export const defaultSettings: Settings = { memoryEnabled: true, displayName: "", tone: "", about: "", disabledProviders: [], freeOnlyProviders: [] };
+
+/** Pairing: a signed-in session shows a QR code; a new device scans it to connect and sign in as the same account. */
+export const PairStart = z.object({
+  code: z.string(),
+  expiresAt: z.number(),
+  /** Addresses of the backend, best first (local network, Tailscale, domain). */
+  urls: z.array(z.string()),
+  /** What the QR code contains: zero://pair?c=<code>&u=<url>&u=<url>... */
+  link: z.string(),
+});
+export type PairStart = z.infer<typeof PairStart>;
+export const PairRedeem = z.object({ code: z.string().min(1) });
+export type PairRedeem = z.infer<typeof PairRedeem>;
+export const ApprovalAnswer = z.object({ allow: z.boolean() });
+export type ApprovalAnswer = z.infer<typeof ApprovalAnswer>;
