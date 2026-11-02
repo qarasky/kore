@@ -12,6 +12,13 @@ export function weekdayShort(i: number): string {
   return names.format(new Date(Date.UTC(2026, 10, 1 + i))); // 2026-11-01 is a Sunday
 }
 
+const namesLong = new Intl.DateTimeFormat("en", { timeZone: "UTC", weekday: "long" });
+
+/** 0 = Sunday: "Wednesday". */
+export function weekdayLong(i: number): string {
+  return namesLong.format(new Date(Date.UTC(2026, 10, 1 + i)));
+}
+
 /** 0 = January. */
 export function monthName(i: number): string {
   return months.format(new Date(Date.UTC(2026, i, 1)));
