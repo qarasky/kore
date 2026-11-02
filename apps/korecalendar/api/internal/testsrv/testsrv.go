@@ -119,3 +119,23 @@ func AddUser(t *testing.T, srv *httptest.Server, adminToken, email string) strin
 	r.Decode(t, &out)
 	return out.Token
 }
+
+// DoRaw sends a request with a raw (non-JSON) body.
+func DoRaw(t *testing.T, srv *httptest.Server, token, method, path, contentType string, body []byte) Resp {
+	t.Helper()
+	req, err := http.NewRequest(method, srv.URL+path, bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", contentType)
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	b, _ := io.ReadAll(res.Body)
+	return Resp{Status: res.StatusCode, Header: res.Header, Body: b}
+}

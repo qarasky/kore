@@ -50,6 +50,7 @@ type Event struct {
 	Exdates    []string   `json:"exdates"`
 	Reminders  []Reminder `json:"reminders"`
 	Version    int        `json:"version"`
+	ICSUID     string     `json:"ics_uid,omitempty"` // UID of the .ics event this was imported from
 	CreatedBy  string     `json:"created_by"`
 	UpdatedBy  string     `json:"updated_by"`
 	CreatedAt  int64      `json:"created_at"`

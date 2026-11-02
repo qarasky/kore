@@ -134,10 +134,14 @@ func Create(ctx context.Context, db *sql.DB, a Actor, in Input) (Event, error) {
 
 // insertEvent writes a new event row with its exclusions, extra dates and reminders.
 func insertEvent(ctx context.Context, q queryer, userID string, e Event) error {
+	var uid any
+	if e.ICSUID != "" {
+		uid = e.ICSUID
+	}
 	if _, err := q.ExecContext(ctx, `INSERT INTO events(id,user_id,calendar_id,title,notes,location,start_local,end_local,tz,all_day,rrule,
-		version,created_by,updated_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		version,created_by,updated_by,created_at,updated_at,ics_uid) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		e.ID, userID, e.CalendarID, e.Title, e.Notes, e.Location, e.Start, e.End, e.TZ, e.AllDay, e.RRule,
-		e.Version, e.CreatedBy, e.UpdatedBy, e.CreatedAt, e.UpdatedAt); err != nil {
+		e.Version, e.CreatedBy, e.UpdatedBy, e.CreatedAt, e.UpdatedAt, uid); err != nil {
 		return err
 	}
 	return writeCollections(ctx, q, e)
@@ -200,7 +204,7 @@ func Get(ctx context.Context, db *sql.DB, userID, id string) (Event, error) {
 }
 
 const eventCols = `id,calendar_id,title,notes,location,start_local,end_local,tz,all_day,rrule,version,
-	created_by,updated_by,created_at,updated_at,deleted_at`
+	created_by,updated_by,created_at,updated_at,deleted_at,ics_uid`
 
 type scanner interface{ Scan(dest ...any) error }
 
@@ -208,11 +212,13 @@ type scanner interface{ Scan(dest ...any) error }
 func scanEvent(sc scanner) (Event, error) {
 	var e Event
 	var deleted sql.NullInt64
+	var uid sql.NullString
 	err := sc.Scan(&e.ID, &e.CalendarID, &e.Title, &e.Notes, &e.Location, &e.Start, &e.End, &e.TZ, &e.AllDay, &e.RRule, &e.Version,
-		&e.CreatedBy, &e.UpdatedBy, &e.CreatedAt, &e.UpdatedAt, &deleted)
+		&e.CreatedBy, &e.UpdatedBy, &e.CreatedAt, &e.UpdatedAt, &deleted, &uid)
 	if deleted.Valid {
 		e.DeletedAt = &deleted.Int64
 	}
+	e.ICSUID = uid.String
 	e.RDates, e.Exdates, e.Reminders = []string{}, []string{}, []Reminder{}
 	return e, err
 }
@@ -262,6 +268,7 @@ func liveEvents(ctx context.Context, q queryer, userID string, calendarIDs []str
 		query += ` AND calendar_id IN (` + in + `)`
 		args = append(args, a...)
 	}
+	query += ` ORDER BY created_at, rowid`
 	rows, err := q.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
