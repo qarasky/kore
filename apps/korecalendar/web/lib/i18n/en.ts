@@ -64,6 +64,14 @@ const en = {
   "view.month": "Month",
   "view.agenda": "Agenda",
 
+  "grid.allDay": "All day",
+  "grid.eventLabel": "{title}, {when}",
+  "grid.goToDay": "Open {date}",
+  "grid.repeats": "Repeats",
+  "grid.untitled": "(no title)",
+  "grid.nowLine": "Current time",
+  "grid.continues": "continues",
+
   "calendars.heading": "My calendars",
   "calendars.show": "Show {name}",
   "calendars.none": "No calendars yet",

@@ -44,6 +44,12 @@
     ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
 }
 
+/* The time grid: one hour row, and the width of the hour labels. */
+:root {
+  --hour: 3.25rem;
+  --gutter: 3.75rem;
+}
+
 @layer base {
   html {
     color-scheme: dark;
