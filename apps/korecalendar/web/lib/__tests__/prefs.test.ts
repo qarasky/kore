@@ -7,12 +7,12 @@ describe("readPrefs", () => {
   });
 
   it("reads valid values from a cookie string", () => {
-    const p = readPrefs("a=b; kc_view=month; kc_weekstart=sun; kc_clock=12h; kc_hidden=aaaaaaaa11112222%2Cbbbbbbbb33334444");
-    expect(p).toEqual({ view: "month", weekStart: "sun", clock: "12h", hidden: ["aaaaaaaa11112222", "bbbbbbbb33334444"] });
+    const p = readPrefs("a=b; kc_view=month; kc_weekstart=sun; kc_clock=12h; kc_hidden=aaaaaaaa11112222%2Cbbbbbbbb33334444; kc_motion=reduce");
+    expect(p).toEqual({ view: "month", weekStart: "sun", clock: "12h", hidden: ["aaaaaaaa11112222", "bbbbbbbb33334444"], motion: "reduce" });
   });
 
   it("ignores invalid values instead of trusting them", () => {
-    const p = readPrefs("kc_view=year; kc_weekstart=fri; kc_clock=25h; kc_hidden=<script>,xyz");
+    const p = readPrefs("kc_view=year; kc_weekstart=fri; kc_clock=25h; kc_hidden=<script>,xyz; kc_motion=wild");
     expect(p).toEqual(DEFAULT_PREFS);
   });
 });

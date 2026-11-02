@@ -1,6 +1,8 @@
 "use client";
 
+import { m } from "motion/react";
 import { t } from "@/lib/i18n";
+import { duration, ease, layoutKey, spring } from "@/lib/motion";
 import { calendarTint } from "@/lib/colors";
 import { formatTime } from "@/lib/format";
 import type { Placed } from "@/lib/layout";
@@ -39,10 +41,18 @@ export function EventBlock({
   const when = continuesBefore ? t("grid.continues") : formatTime(startMin, clock);
   const title = occ.title || t("grid.untitled");
   const short = height < 45;
+  // The drag ghost is not an event, it is a shadow of one: it must not take part in layout animation.
+  const animated = state !== "ghost";
 
   return (
-    <button
+    <m.button
       type="button"
+      layout={animated ? "position" : false}
+      layoutId={animated && !continuesBefore ? layoutKey(occ) : undefined}
+      initial={animated ? { opacity: 0, scale: 0.96 } : false}
+      animate={{ opacity: state === "source" ? 0.4 : 1, scale: 1, transition: { duration: duration.enter, ease: ease.standard } }}
+      exit={{ opacity: 0, scale: 0.96, transition: { duration: duration.exit, ease: ease.exit } }}
+      transition={{ layout: spring.settle }}
       data-testid="event"
       data-event-id={occ.event_id}
       data-key={occ.key}
@@ -56,7 +66,6 @@ export function EventBlock({
       onKeyDown={onKeyDown}
       className={
         "absolute touch-manipulation overflow-hidden border-l-[3px] px-1.5 text-left text-2xs leading-tight text-text transition-[filter] hover:brightness-125 " +
-        (state === "source" ? "opacity-40 " : "") +
         (state === "ghost" ? "pointer-events-none z-30 ring-2 ring-accent " : "") +
         (continuesBefore ? "rounded-t-none " : "rounded-t-[4px] ") +
         (continuesAfter ? "rounded-b-none " : "rounded-b-[4px] ") +
@@ -104,6 +113,6 @@ export function EventBlock({
           className="absolute inset-x-0 bottom-0 cursor-ns-resize"
         />
       ) : null}
-    </button>
+    </m.button>
   );
 }

@@ -1,14 +1,47 @@
 "use client";
 
+import { m } from "motion/react";
+import { useEffect, useState } from "react";
 import { COMPACT_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
+import { duration, ease, pushDirection, viewEnter } from "@/lib/motion";
 import { compactDays } from "@/lib/range";
 import type { Occurrence, View } from "@/lib/types";
 import { AgendaList } from "./AgendaList";
 import { MonthGrid } from "./MonthGrid";
 import { TimeGrid } from "./TimeGrid";
 
-/** Picks the component for the view. */
-export function CalendarView({ view, day, days, occurrences }: { view: View; day: string; days: string[]; occurrences: Occurrence[] }) {
+/** The view and day last put on screen in this tab: where the next screen's motion comes from. Never set on the server. */
+let lastShown: { view: string; day: string } | null = null;
+
+/**
+ * The content of a view. When the period changes, it enters with a small push
+ * in the direction time moved (next = from the right); switching view only
+ * fades. The first screen of a visit does not animate at all, so server-rendered
+ * content is never hidden. Refreshing after an edit does not replay it (same key).
+ */
+export function CalendarView(props: { view: View; day: string; days: string[]; occurrences: Occurrence[] }) {
+  // Keyed: each new screen is its own mount, so its entrance is decided once, when it appears.
+  return <Screen key={`${props.view}:${props.day}`} {...props} />;
+}
+
+function Screen(props: { view: View; day: string; days: string[]; occurrences: Occurrence[] }) {
+  const { view, day } = props;
+  const [enter] = useState(() => (lastShown ? viewEnter(pushDirection(lastShown, { view, day })) : null));
+  useEffect(() => {
+    lastShown = { view, day };
+  }, [view, day]);
+  return (
+    <m.div
+      className="h-full"
+      initial={enter ? enter.initial : false}
+      animate={enter ? { ...enter.animate, transition: { duration: duration.view, ease: ease.standard } } : undefined}
+    >
+      <ViewBody {...props} />
+    </m.div>
+  );
+}
+
+function ViewBody({ view, day, days, occurrences }: { view: View; day: string; days: string[]; occurrences: Occurrence[] }) {
   const compact = useMediaQuery(COMPACT_QUERY);
   switch (view) {
     case "day":

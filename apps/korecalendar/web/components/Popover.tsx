@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { m } from "motion/react";
 import { createPortal } from "react-dom";
+import { duration, ease } from "@/lib/motion";
 import { placePopover } from "@/lib/popover";
 
 /**
@@ -31,13 +33,15 @@ export function Popover({
     const el = ref.current;
     if (!el || !anchor.isConnected) return;
     const a = anchor.getBoundingClientRect();
-    const { left, top } = placePopover(
+    const { left, top, side } = placePopover(
       { left: a.left, top: a.top, width: a.width, height: a.height },
       { width: el.offsetWidth, height: el.offsetHeight },
       { width: window.innerWidth, height: window.innerHeight },
     );
     el.style.left = `${left}px`;
     el.style.top = `${top}px`;
+    // It grows out of the edge that faces its anchor.
+    el.style.transformOrigin = side === "right" ? "left top" : side === "left" ? "right top" : "center top";
     setPlaced(true);
   });
 
@@ -77,16 +81,20 @@ export function Popover({
   }, [anchor]);
 
   return createPortal(
-    <div
+    <m.div
       ref={ref}
       role="dialog"
       aria-label={label}
       tabIndex={-1}
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.98, transition: { duration: duration.exit, ease: ease.exit } }}
+      transition={{ duration: duration.enter, ease: ease.standard }}
       style={{ position: "fixed", left: 0, top: 0, width, maxWidth: "calc(100vw - 16px)", visibility: placed ? "visible" : "hidden" }}
       className="z-50 max-h-[calc(100vh-16px)] overflow-y-auto rounded-[8px] border border-border-strong bg-raised text-text shadow-[0_16px_48px_-8px_rgba(0,0,0,0.75)] outline-none"
     >
       {children}
-    </div>,
+    </m.div>,
     document.body,
   );
 }

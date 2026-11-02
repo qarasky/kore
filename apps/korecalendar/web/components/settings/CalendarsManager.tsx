@@ -1,5 +1,7 @@
 "use client";
 
+import { AnimatePresence, m } from "motion/react";
+import { duration, ease } from "@/lib/motion";
 import { useState } from "react";
 import { useMutate } from "@/hooks/useMutate";
 import { isApiError } from "@/lib/api";
@@ -78,8 +80,13 @@ export function CalendarsManager() {
   return (
     <SettingsSection title={t("cal.heading")} description={t("cal.intro")}>
       <ul className="flex flex-col gap-2" data-testid="calendar-list">
+        <AnimatePresence initial={false}>
         {calendars.map((c) => (
-          <li key={c.id} className="rounded-ui border border-border" data-testid="calendar-row">
+          <m.li key={c.id} layout="position"
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0, transition: { duration: duration.enter, ease: ease.standard } }}
+            exit={{ opacity: 0, transition: { duration: duration.exit, ease: ease.exit } }}
+            className="rounded-ui border border-border" data-testid="calendar-row">
             {editing === c.id ? (
               <div className="flex flex-col gap-4 p-3">
                 <Field label={t("cal.name")} htmlFor={`name-${c.id}`} error={nameError ? t("cal.nameRequired") : null}>
@@ -109,8 +116,9 @@ export function CalendarsManager() {
                 </button>
               </div>
             )}
-          </li>
+          </m.li>
         ))}
+        </AnimatePresence>
       </ul>
 
       {adding ? (
@@ -147,6 +155,7 @@ export function CalendarsManager() {
         </Button>
       )}
 
+      <AnimatePresence>
       {confirm ? (
         <ConfirmDialog
           danger
@@ -157,6 +166,7 @@ export function CalendarsManager() {
           onCancel={() => setConfirm(null)}
         />
       ) : null}
+      </AnimatePresence>
     </SettingsSection>
   );
 }

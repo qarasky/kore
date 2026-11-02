@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence } from "motion/react";
 import { useMemo, useState, type ReactNode } from "react";
 import { EditorContext, type EditorActions } from "./EditorContext";
 import { EventEditor, type EditorMode } from "./EventEditor";
@@ -30,6 +31,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   return (
     <EditorContext.Provider value={actions}>
       {children}
+      <AnimatePresence>
       {popover ? (
         <EventPopover
           key={popover.occ.event_id + popover.occ.key}
@@ -43,7 +45,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
           }}
         />
       ) : null}
-      {editor ? <EventEditor key={editor.id} mode={editor.mode} onClose={() => setEditor(null)} /> : null}
+      </AnimatePresence>
+      <AnimatePresence>{editor ? <EventEditor key={editor.id} mode={editor.mode} onClose={() => setEditor(null)} /> : null}</AnimatePresence>
     </EditorContext.Provider>
   );
 }

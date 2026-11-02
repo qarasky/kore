@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, m } from "motion/react";
 import { useEffect, useMemo, useRef } from "react";
 import { placedId, useGridDrag } from "@/hooks/useGridDrag";
 import { useMoveCommit } from "@/hooks/useMoveCommit";
@@ -63,7 +64,7 @@ export function TimeGrid({ days, occurrences }: { days: string[]; occurrences: O
   const ghost = drag.ghost;
 
   return (
-    <div ref={scroller} className="h-full overflow-y-auto" data-testid="time-grid" onClickCapture={drag.swallowClick}>
+    <m.div ref={scroller} layoutScroll className="h-full overflow-y-auto" data-testid="time-grid" onClickCapture={drag.swallowClick}>
       <div className="sticky top-0 z-30 bg-surface">
         <div className="grid" style={{ gridTemplateColumns: `var(--gutter) repeat(${days.length}, minmax(0, 1fr))` }}>
           <div />
@@ -101,6 +102,7 @@ export function TimeGrid({ days, occurrences }: { days: string[]; occurrences: O
                   openNew({ day: d, minutes: snapForClick(e.clientY - rect.top, rect.height), durationMinutes: 60 });
                 }}
               >
+                <AnimatePresence initial={false}>
                 {dayPlaced.map((p) => {
                   const id = placedId(p);
                   const moving = ghost && ghost.kind !== "create" && ghost.id === id;
@@ -119,6 +121,7 @@ export function TimeGrid({ days, occurrences }: { days: string[]; occurrences: O
                     />
                   );
                 })}
+                </AnimatePresence>
                 {ghost?.kind === "create" && ghost.dayIndex === i ? (
                   <div
                     data-testid="create-ghost"
@@ -149,6 +152,6 @@ export function TimeGrid({ days, occurrences }: { days: string[]; occurrences: O
         </div>
       </div>
       {mover.dialog}
-    </div>
+    </m.div>
   );
 }

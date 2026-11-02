@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useTransition, type ReactNode } from "react";
 import { ScopeDialog } from "@/components/ScopeDialog";
@@ -92,7 +93,9 @@ export function useMoveCommit(): { commit: (occ: Occurrence, move: Move) => Prom
     [apply, toast],
   );
 
-  const dialog = pending ? (
+  const dialog = (
+    <AnimatePresence>
+    {pending ? (
     <ScopeDialog
       title={t("scope.moveTitle")}
       confirmLabel={t("scope.confirmMove")}
@@ -108,7 +111,9 @@ export function useMoveCommit(): { commit: (occ: Occurrence, move: Move) => Prom
         setWorking(false);
       }}
     />
-  ) : null;
+    ) : null}
+    </AnimatePresence>
+  );
 
   return { commit, dialog, busy: working || refreshing };
 }

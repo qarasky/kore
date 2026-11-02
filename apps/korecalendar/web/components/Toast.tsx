@@ -1,7 +1,9 @@
 "use client";
 
+import { AnimatePresence, m } from "motion/react";
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { t } from "@/lib/i18n";
+import { duration, ease, spring } from "@/lib/motion";
 import { XIcon } from "./icons";
 
 export type ToastOptions = {
@@ -43,9 +45,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-4 z-[60] flex flex-col items-center gap-2 px-4">
+        <AnimatePresence mode="popLayout" initial={false}>
         {toasts.map((x) => (
-          <div
+          <m.div
             key={x.id}
+            layout
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0, transition: { duration: duration.enter, ease: ease.standard } }}
+            exit={{ opacity: 0, transition: { duration: duration.exit, ease: ease.exit } }}
+            transition={{ layout: spring.settle }}
             role={x.kind === "error" ? "alert" : "status"}
             className={
               "pointer-events-auto flex max-w-md items-center gap-3 rounded-ui border bg-raised px-4 py-2.5 text-sub shadow-lg shadow-black/40 " +
@@ -68,8 +76,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <button type="button" aria-label={t("toast.dismiss")} className="rounded-ui p-1 text-muted hover:text-text" onClick={() => dismiss(x.id)}>
               <XIcon size={16} />
             </button>
-          </div>
+          </m.div>
         ))}
+        </AnimatePresence>
       </div>
     </ToastContext.Provider>
   );

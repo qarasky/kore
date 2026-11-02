@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState, type ReactNode } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -80,5 +81,5 @@ export function useEventDelete(): { request: (master: Event, occ: Occurrence | n
         />
       );
   }
-  return { request, dialog };
+  return { request, dialog: <AnimatePresence>{dialog}</AnimatePresence> };
 }

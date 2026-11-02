@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { isValidDay } from "@/lib/dates";
@@ -101,7 +102,10 @@ export function Shortcuts() {
 
   return (
     <>
+      <AnimatePresence>
       {help ? <ShortcutsDialog onClose={() => setHelp(false)} /> : null}
+      </AnimatePresence>
+      <AnimatePresence>
       {goTo ? (
         <GoToDateDialog
           initial={day}
@@ -112,6 +116,7 @@ export function Shortcuts() {
           }}
         />
       ) : null}
+      </AnimatePresence>
     </>
   );
 }

@@ -11,7 +11,7 @@ import { XIcon } from "./icons";
  *  that the cramped top bar leaves out. */
 export function MobileNav({ onClose }: { onClose: () => void }) {
   return (
-    <Modal label={t("nav.drawer")} onClose={onClose} className="m-0! mr-auto! h-full max-h-full w-[min(88vw,320px)] rounded-none rounded-r-[8px]">
+    <Modal label={t("nav.drawer")} variant="drawer" onClose={onClose} className="m-0! mr-auto! h-full max-h-full w-[min(88vw,320px)] rounded-none rounded-r-[8px]">
       <div className="flex h-full flex-col" data-testid="mobile-nav">
         <div className="flex items-center justify-between px-3 pt-3">
           <ViewSwitcher />

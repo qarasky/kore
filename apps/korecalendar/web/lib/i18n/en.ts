@@ -264,6 +264,11 @@ const en = {
   "general.sat": "Saturday",
   "general.24h": "24-hour (16:00)",
   "general.12h": "12-hour (4:00 PM)",
+  "general.motion": "Animations",
+  "general.motionHint": "Reduced keeps fades but removes movement. It follows your system's setting unless you choose here.",
+  "general.motionSystem": "Follow my system",
+  "general.motionReduce": "Reduced (no movement)",
+  "general.motionFull": "Full",
 
   "cal.heading": "Calendars",
   "cal.intro": "Events belong to a calendar. Each has its own colour, and you can hide any of them from the sidebar.",

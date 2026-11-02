@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useEventDelete } from "@/hooks/useEventDelete";
@@ -328,6 +329,7 @@ function EditorForm({ mode, master, onClose }: { mode: EditorMode; master: Event
           </footer>
         </form>
       </Modal>
+      <AnimatePresence>
       {scopePrompt ? (
         <ScopeDialog
           title={t("scope.editTitle")}
@@ -338,6 +340,7 @@ function EditorForm({ mode, master, onClose }: { mode: EditorMode; master: Event
           onCancel={() => setScopePrompt(null)}
         />
       ) : null}
+      </AnimatePresence>
       {del.dialog}
     </>
   );

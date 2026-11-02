@@ -1,8 +1,10 @@
 "use client";
 
+import { AnimatePresence, m } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { formatDayShort } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { duration, ease, staggerDelay } from "@/lib/motion";
 import type { Clock, Occurrence } from "@/lib/types";
 import { EventChip } from "./EventChip";
 
@@ -60,8 +62,13 @@ export function MoreEvents({
       >
         {t("month.more", { count })}
       </button>
+      <AnimatePresence>
       {open ? (
-        <div
+        <m.div
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1, transition: { duration: duration.enter, ease: ease.standard } }}
+          exit={{ opacity: 0, scale: 0.98, transition: { duration: duration.exit, ease: ease.exit } }}
+          style={{ transformOrigin: alignRight ? "right top" : "left top" }}
           role="dialog"
           aria-label={formatDayShort(day)}
           className={`absolute top-0 z-40 w-60 rounded-ui border border-border-strong bg-raised p-2 shadow-xl shadow-black/40 ${alignRight ? "right-0" : "left-0"}`}
@@ -69,9 +76,11 @@ export function MoreEvents({
         >
           <h3 className="mb-1.5 px-1 text-meta font-semibold">{formatDayShort(day)}</h3>
           <div className="flex flex-col gap-0.5">
-            {items.map((occ) => (
+            {items.map((occ, i) => (
               <EventChip
                 key={occ.event_id + occ.key}
+                shared={false}
+                enterDelay={staggerDelay(i, items.length)}
                 occ={occ}
                 day={day}
                 color={colorOf(occ.calendar_id)}
@@ -84,8 +93,9 @@ export function MoreEvents({
               />
             ))}
           </div>
-        </div>
+        </m.div>
       ) : null}
+      </AnimatePresence>
     </div>
   );
 }

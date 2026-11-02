@@ -61,6 +61,21 @@ export function GeneralForm() {
             }}
           />
         </Field>
+        <Field label={t("general.motion")} hint={t("general.motionHint")}>
+          <Select
+            aria-label={t("general.motion")}
+            value={prefs.motion}
+            options={[
+              { value: "system", label: t("general.motionSystem") },
+              { value: "reduce", label: t("general.motionReduce") },
+              { value: "full", label: t("general.motionFull") },
+            ]}
+            onChange={(v) => {
+              writePref(PREF_COOKIES.motion, v);
+              void run(async () => undefined, { message: t("general.saved") });
+            }}
+          />
+        </Field>
       </div>
     </SettingsSection>
   );

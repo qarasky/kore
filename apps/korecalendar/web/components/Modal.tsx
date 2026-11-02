@@ -1,6 +1,8 @@
 "use client";
 
+import { m, useIsPresent } from "motion/react";
 import { useEffect, useEffectEvent, useRef, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { duration, ease } from "@/lib/motion";
 
 /**
  * A modal on the native `<dialog>` (`showModal()`): the rest of the page is
@@ -18,6 +20,7 @@ export function Modal({
   returnFocus,
   onKeyDown,
   className = "",
+  variant = "dialog",
   children,
 }: {
   labelledBy?: string;
@@ -32,9 +35,14 @@ export function Modal({
   returnFocus?: () => HTMLElement | null | undefined;
   onKeyDown?: (e: KeyboardEvent<HTMLDialogElement>) => void;
   className?: string;
+  /** `drawer` slides in from the left edge instead of rising in the middle. */
+  variant?: "dialog" | "drawer";
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  // False while an exit animation plays (inside an <AnimatePresence>): the CSS fades the backdrop out.
+  const present = useIsPresent();
+  const drawer = variant === "drawer";
   const close = useEffectEvent(onClose);
   const target = useEffectEvent(() => returnFocus?.());
   // An effect event, so a dialog that swaps its content (and its
@@ -80,8 +88,18 @@ export function Modal({
   }, []);
 
   return (
-    <dialog
+    <m.dialog
       ref={ref}
+      data-leaving={present ? undefined : ""}
+      initial={drawer ? { x: "-100%" } : { opacity: 0, y: 8 }}
+      animate={drawer ? { x: 0 } : { opacity: 1, y: 0 }}
+      // Leaving is quicker than entering and uses the accelerating curve.
+      exit={
+        drawer
+          ? { x: "-100%", transition: { duration: duration.drawer.out, ease: ease.exit } }
+          : { opacity: 0, y: 4, transition: { duration: duration.dialog.out, ease: ease.exit } }
+      }
+      transition={{ duration: drawer ? duration.drawer.in : duration.dialog.in, ease: ease.standard }}
       role={role}
       aria-labelledby={labelledBy}
       aria-describedby={describedBy}
@@ -99,6 +117,6 @@ export function Modal({
       }
     >
       {children}
-    </dialog>
+    </m.dialog>
   );
 }

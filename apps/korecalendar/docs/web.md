@@ -59,6 +59,15 @@ text and is **never rewritten**: editing the title keeps the rule exactly as it 
 
 Shortcuts never fire while you are typing in a field, and never with Ctrl, Cmd or Alt held.
 
+## Motion
+
+Motion explains change and stays out of the way: the period you step to pushes in from the side time moved, the Day/Week/Month/Agenda highlight and the mini-month's
+week band glide, an event you move or edit travels to its new place (across days too), and popovers, dialogs, the drawer and toasts ease in and out. Nothing is longer than 250 ms,
+and frequent actions (stepping through weeks, hovering) get the least. It uses [Motion](https://motion.dev) (formerly Framer Motion); the reasoning and numbers are in
+[the motion design doc](superpowers/specs/2026-11-02-web-motion-design.md).
+
+Settings → General → **Animations**: *Follow my system* (default), *Reduced* (no movement or scaling, fades stay) or *Full*. With the operating system's "reduce motion" on, the app reduces motion by itself.
+
 ## Time zones
 
 Events are stored with their own zone, and the grid shows them in **your** zone (Settings → General). An event made in Berlin

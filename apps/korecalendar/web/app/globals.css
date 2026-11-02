@@ -100,3 +100,17 @@
     scrollbar-color: var(--color-border-strong) transparent;
   }
 }
+
+/* Dialog backdrops fade with the dialog. Opacity only, so it also runs under "reduced motion". */
+@keyframes kc-backdrop-in {
+  from { opacity: 0; }
+}
+@keyframes kc-backdrop-out {
+  to { opacity: 0; }
+}
+dialog::backdrop {
+  animation: kc-backdrop-in 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+dialog[data-leaving]::backdrop {
+  animation: kc-backdrop-out 120ms cubic-bezier(0.3, 0, 0.8, 0.15) forwards;
+}

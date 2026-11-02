@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AnimatePresence, m } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { COMPACT_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
@@ -42,7 +43,7 @@ export function MonthGrid({ day, days, occurrences }: { day: string; days: strin
           </div>
         ))}
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-7 grid-rows-6 overflow-y-auto">
+      <m.div layoutScroll className="grid min-h-0 flex-1 grid-cols-7 grid-rows-6 overflow-y-auto">
         {groups.map(({ day: d, items }, i) => {
           const { shown, more } = chipsForDay(items, MAX_CHIPS);
           const isToday = d === today;
@@ -73,6 +74,7 @@ export function MonthGrid({ day, days, occurrences }: { day: string; days: strin
                   ))}
                 </div>
               ) : null}
+              <AnimatePresence initial={false}>
               {(compact ? [] : shown).map((occ) => (
                 <EventChip
                   key={occ.event_id + occ.key}
@@ -86,6 +88,7 @@ export function MonthGrid({ day, days, occurrences }: { day: string; days: strin
                   dragging={drag.dragging === occ.event_id + occ.key}
                 />
               ))}
+              </AnimatePresence>
               {!compact && more > 0 ? (
                 <MoreEvents
                   count={more}
@@ -101,7 +104,7 @@ export function MonthGrid({ day, days, occurrences }: { day: string; days: strin
             </div>
           );
         })}
-      </div>
+      </m.div>
       {mover.dialog}
     </div>
   );

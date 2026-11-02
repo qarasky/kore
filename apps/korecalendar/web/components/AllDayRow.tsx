@@ -1,7 +1,9 @@
 "use client";
 
 import { calendarTint } from "@/lib/colors";
+import { AnimatePresence, m } from "motion/react";
 import { t } from "@/lib/i18n";
+import { duration, ease, layoutKey } from "@/lib/motion";
 import type { AllDayPlaced } from "@/lib/layout";
 import { RepeatIcon } from "./icons";
 
@@ -26,11 +28,17 @@ export function AllDayRow({
       <span className="pr-2 text-right text-2xs text-muted" style={{ gridColumn: 1, gridRow: 1 }}>
         {t("grid.allDay")}
       </span>
+      <AnimatePresence initial={false}>
       {placed.map((p) => {
         const tint = calendarTint(colorOf(p.occ.calendar_id));
         return (
-          <button
+          <m.button
             key={p.occ.event_id + p.occ.key}
+            layoutId={`allday|${layoutKey(p.occ)}`}
+            layout="position"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, transition: { duration: duration.enter, ease: ease.standard } }}
+            exit={{ opacity: 0, transition: { duration: duration.exit, ease: ease.exit } }}
             type="button"
             data-testid="event"
             data-all-day="true"
@@ -51,9 +59,10 @@ export function AllDayRow({
           >
             <span className="truncate">{p.occ.title || t("grid.untitled")}</span>
             {p.occ.is_recurring ? <RepeatIcon size={11} className="shrink-0 text-muted" /> : null}
-          </button>
+          </m.button>
         );
       })}
+      </AnimatePresence>
     </div>
   );
 }

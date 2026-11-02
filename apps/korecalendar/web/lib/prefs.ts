@@ -10,11 +10,15 @@ export const PREF_COOKIES = {
   weekStart: "kc_weekstart",
   clock: "kc_clock",
   hidden: "kc_hidden",
+  motion: "kc_motion",
 } as const;
 
-export type Prefs = { view: View; weekStart: WeekStart; clock: Clock; hidden: string[] };
+/** Animations: follow the operating system, always reduced (no movement, fades stay), or always full. */
+export type MotionPref = "system" | "reduce" | "full";
 
-export const DEFAULT_PREFS: Prefs = { view: "week", weekStart: "mon", clock: "24h", hidden: [] };
+export type Prefs = { view: View; weekStart: WeekStart; clock: Clock; hidden: string[]; motion: MotionPref };
+
+export const DEFAULT_PREFS: Prefs = { view: "week", weekStart: "mon", clock: "24h", hidden: [], motion: "system" };
 
 type Reader = (name: string) => string | undefined;
 
@@ -24,11 +28,13 @@ export function prefsFrom(read: Reader): Prefs {
   const weekStart = read(PREF_COOKIES.weekStart);
   const clock = read(PREF_COOKIES.clock);
   const hidden = read(PREF_COOKIES.hidden);
+  const motion = read(PREF_COOKIES.motion);
   return {
     view: (VIEWS as readonly string[]).includes(view ?? "") ? (view as View) : DEFAULT_PREFS.view,
     weekStart: weekStart === "mon" || weekStart === "sun" || weekStart === "sat" ? weekStart : DEFAULT_PREFS.weekStart,
     clock: clock === "12h" || clock === "24h" ? clock : DEFAULT_PREFS.clock,
     hidden: hidden ? hidden.split(",").filter((id) => /^[a-f0-9]{8,64}$/.test(id)) : [],
+    motion: motion === "reduce" || motion === "full" ? motion : DEFAULT_PREFS.motion,
   };
 }
 

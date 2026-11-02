@@ -1,5 +1,7 @@
 "use client";
 
+import { AnimatePresence, m } from "motion/react";
+import { duration, ease } from "@/lib/motion";
 import { useState, type FormEvent } from "react";
 import { useMutate } from "@/hooks/useMutate";
 import { t } from "@/lib/i18n";
@@ -61,8 +63,13 @@ export function TokensManager({ initial }: { initial: Token[] }) {
 
       <ul className="mt-5 flex flex-col gap-2" data-testid="token-list">
         {initial.length === 0 ? <li className="text-sub text-muted">{t("tokens.none")}</li> : null}
+        <AnimatePresence initial={false}>
         {initial.map((tok) => (
-          <li key={tok.id} data-testid="token-row" className="flex items-center gap-3 rounded-ui border border-border px-3 py-2">
+          <m.li key={tok.id} layout="position"
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0, transition: { duration: duration.enter, ease: ease.standard } }}
+            exit={{ opacity: 0, transition: { duration: duration.exit, ease: ease.exit } }}
+            data-testid="token-row" className="flex items-center gap-3 rounded-ui border border-border px-3 py-2">
             <KeyRoundIcon size={16} className="shrink-0 text-muted" />
             <div className="min-w-0 flex-1">
               <div className="truncate font-medium">{tok.name}</div>
@@ -73,10 +80,12 @@ export function TokensManager({ initial }: { initial: Token[] }) {
             <Button small variant="danger" aria-label={t("tokens.revokeLabel", { name: tok.name })} onClick={() => setRevoking(tok)}>
               {t("tokens.revoke")}
             </Button>
-          </li>
+          </m.li>
         ))}
+        </AnimatePresence>
       </ul>
 
+      <AnimatePresence>
       {revoking ? (
         <ConfirmDialog
           danger
@@ -91,6 +100,7 @@ export function TokensManager({ initial }: { initial: Token[] }) {
           onCancel={() => setRevoking(null)}
         />
       ) : null}
+      </AnimatePresence>
     </SettingsSection>
   );
 }

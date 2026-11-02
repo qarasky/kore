@@ -1,8 +1,10 @@
 "use client";
 
+import { AnimatePresence, LazyMotion, MotionConfig, domMax } from "motion/react";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { isValidDay } from "@/lib/dates";
+import { reducedMotionFor } from "@/lib/motion";
 import { parseView } from "@/lib/range";
 import { todayIn } from "@/lib/tz";
 import type { Prefs } from "@/lib/prefs";
@@ -35,6 +37,8 @@ export function AppShell({ me, calendars, prefs, children }: { me: User; calenda
 
   return (
     <ShellProvider value={{ me, calendars, prefs, view, day, today }}>
+      <LazyMotion features={domMax} strict>
+      <MotionConfig reducedMotion={reducedMotionFor(prefs.motion)}>
       <ToastProvider>
         <EditorProvider>
           <Shortcuts />
@@ -45,9 +49,11 @@ export function AppShell({ me, calendars, prefs, children }: { me: User; calenda
               <main className="min-w-0 flex-1 overflow-hidden rounded-ui bg-surface">{children}</main>
             </div>
           </div>
-          {drawerOpen ? <MobileNav onClose={() => setDrawerFor(null)} /> : null}
+          <AnimatePresence>{drawerOpen ? <MobileNav onClose={() => setDrawerFor(null)} /> : null}</AnimatePresence>
         </EditorProvider>
       </ToastProvider>
+      </MotionConfig>
+      </LazyMotion>
     </ShellProvider>
   );
 }

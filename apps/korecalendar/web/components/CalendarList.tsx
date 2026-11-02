@@ -1,5 +1,7 @@
 "use client";
 
+import { AnimatePresence, m } from "motion/react";
+import { duration, ease } from "@/lib/motion";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { t } from "@/lib/i18n";
@@ -42,10 +44,21 @@ export function CalendarList() {
               >
                 <span
                   aria-hidden="true"
-                  className="grid size-4 shrink-0 place-items-center rounded-[4px] border-2 text-white"
+                  className="grid size-4 shrink-0 place-items-center rounded-[4px] border-2 text-white transition-colors duration-100"
                   style={{ borderColor: c.color, backgroundColor: visible ? c.color : "transparent" }}
                 >
-                  {visible ? <CheckIcon size={12} strokeWidth={3} /> : null}
+                  <AnimatePresence initial={false}>
+                    {visible ? (
+                      <m.span
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1, transition: { duration: duration.feedback, ease: ease.standard } }}
+                        exit={{ opacity: 0, scale: 0.5, transition: { duration: duration.feedback, ease: ease.exit } }}
+                        className="grid"
+                      >
+                        <CheckIcon size={12} strokeWidth={3} />
+                      </m.span>
+                    ) : null}
+                  </AnimatePresence>
                 </span>
                 <span className={`truncate ${visible ? "" : "text-muted"}`}>{c.name}</span>
               </button>
