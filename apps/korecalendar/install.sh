@@ -8,12 +8,18 @@
 # first account is created in the browser afterwards. Safe to re-run: an
 # existing install is left alone. Read it before you run it; it is short.
 #
+# If the images cannot be pulled (they are not published yet), the installer
+# clones the repository into <install dir>/src and builds them there instead;
+# that needs git, and takes a few minutes the first time.
+#
 # Non-interactive use: set any of these (and it will not ask):
 #   KORECAL_DIR=~/korecalendar     where the compose files and .env go
 #   KORECAL_DATA_DIR=<dir>/data    where the database lives
 #   KORECAL_BIND=127.0.0.1|0.0.0.0 KORECAL_PORT=8080
 #   KORECAL_VERSION=latest         image tag
-#   KORECAL_REF=main               git ref the compose files are fetched from
+#   KORECAL_REF=main               git ref (branch or tag) the files come from
+#   KORECAL_REPO_URL=<git url>     where to clone the source from when the images
+#                                  cannot be pulled (default: the GitHub repository)
 #   KORECAL_SOURCE_DIR=<checkout>  install from a local checkout: copies the
 #                                  compose files and builds the images from it
 #                                  instead of pulling them
@@ -23,6 +29,8 @@ set -euo pipefail
 REPO="qarasky/korecalendar"
 REF="${KORECAL_REF:-main}"
 RAW="https://raw.githubusercontent.com/${REPO}/${REF}"
+REPO_URL="${KORECAL_REPO_URL:-https://github.com/${REPO}.git}"
+SOURCE_INSTALL=0
 
 if [ -t 1 ]; then B=$'\033[1m'; G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; N=$'\033[0m'; else B=; G=; Y=; R=; N=; fi
 say()  { printf '%s\n' "$*"; }
@@ -76,7 +84,7 @@ KORECAL_DIR="${KORECAL_DIR:-$HOME/korecalendar}"
 KORECAL_DIR="${KORECAL_DIR/#\~/$HOME}"
 if [ -f "$KORECAL_DIR/.env" ]; then
   say "KoreCalendar is already installed in $KORECAL_DIR (found .env); leaving it alone."
-  say "To update:  cd $KORECAL_DIR && docker compose pull && docker compose up -d"
+  say "To update:  see docs/deploy.md (Updating) in the repository"
   exit 0
 fi
 
@@ -143,13 +151,26 @@ umask 022
 # --- Start ----------------------------------------------------------------
 cd "$KORECAL_DIR"
 if [ -n "${KORECAL_SOURCE_DIR:-}" ]; then
+  SOURCE_INSTALL=1
   step "Building the images from $KORECAL_SOURCE_DIR"
   docker compose build </dev/null
 else
   step "Pulling the images"
-  # A failed pull is not fatal here (e.g. images already present locally);
-  # `up` below fails loudly if an image is really missing.
-  docker compose pull --quiet --ignore-pull-failures </dev/null || true
+  if ! docker compose pull --quiet </dev/null 2>/dev/null; then
+    warn "the images could not be pulled (they are not published yet); building them from source instead"
+    command -v git >/dev/null 2>&1 || die "git is needed to build from source. Install it (for example: sudo apt install git) and run this again."
+    SRC="$KORECAL_DIR/src"
+    step "Fetching the source into $SRC"
+    git clone --quiet --depth 1 --branch "$REF" "$REPO_URL" "$SRC" </dev/null || die "could not clone $REPO_URL ($REF)"
+    # Use the compose files that belong to this source, and build from it.
+    cp "$SRC/docker-compose.yml" "$KORECAL_DIR/docker-compose.yml"
+    cp "$SRC/Caddyfile" "$KORECAL_DIR/Caddyfile"
+    ln -sfn "$SRC/api" "$KORECAL_DIR/api"
+    ln -sfn "$SRC/web" "$KORECAL_DIR/web"
+    SOURCE_INSTALL=1
+    step "Building the images (a few minutes the first time)"
+    docker compose build </dev/null
+  fi
 fi
 if [ "$HAVE_VOLUME" = 0 ]; then
   step "Initializing the data volume"
@@ -201,7 +222,11 @@ say "  Open it:   http://${HOST}:${KORECAL_PORT}   (the first account you create
 say "  Files:     $KORECAL_DIR   (docker-compose.yml, .env)"
 say "  Data:      $KORECAL_DATA_DIR"
 say
-say "Update later:        cd $KORECAL_DIR && docker compose pull && docker compose up -d"
+if [ "$SOURCE_INSTALL" = 1 ]; then
+  say "Update later:        cd ${KORECAL_SOURCE_DIR:-$KORECAL_DIR/src} && git pull && cd $KORECAL_DIR && docker compose build && docker compose up -d"
+else
+  say "Update later:        cd $KORECAL_DIR && docker compose pull && docker compose up -d"
+fi
 say "AI agents and scripts: create an access token under Settings, then see the API guide:"
 say "  https://github.com/${REPO}/blob/main/docs/api.md"
 say "Browser notifications need HTTPS (Cloudflare Tunnel or Tailscale HTTPS in front of the published port)."
