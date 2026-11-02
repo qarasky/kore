@@ -1,4 +1,5 @@
 "use client";
+import type { Attachment } from "@zero/shared";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
@@ -7,10 +8,14 @@ import { Composer } from "@/components/Composer";
 import { MessageList } from "@/components/MessageList";
 import { Shell } from "@/components/Shell";
 import { ErrorText } from "@/components/ui";
-import { applyEvent, beginTurn, emptyChat, type ChatState } from "@/lib/chat-state";
+import { applyEvent, beginTurn, emptyChat, needsLoad, type ChatState } from "@/lib/chat-state";
 import { useChats, useModelChoice } from "@/lib/contexts";
 import { useSession } from "@/lib/session";
 import { t } from "@/lib/strings";
+
+// A new chat stays on "/" while it streams. When the answer ends we switch the URL to /c/<id>, which remounts this page;
+// the finished state is handed over here so the screen does not flash or refetch.
+let handoff: { id: string; state: ChatState } | null = null;
 
 export default function ChatScreen() {
   const { api } = useSession();
@@ -20,46 +25,52 @@ export default function ChatScreen() {
   const slug = useParams<{ slug?: string[] }>().slug;
   const urlChatId = slug?.[0] === "c" ? (slug[1] ?? null) : null;
 
-  const [state, setState] = useState<ChatState>(emptyChat);
+  const initial = useRef(handoff && handoff.id === urlChatId ? handoff : null);
+  const [state, setState] = useState<ChatState>(initial.current?.state ?? emptyChat);
+  const stateRef = useRef(state);
+  const update = useCallback((fn: (s: ChatState) => ChatState) => { stateRef.current = fn(stateRef.current); setState(stateRef.current); }, []);
   const [busy, setBusy] = useState(false);
-  const chatId = useRef<string | null>(null);
+  const chatId = useRef<string | null>(initial.current?.id ?? null);
   const abort = useRef<AbortController | null>(null);
-  const loadedFromUrl = useRef<string | null>(null);
 
-  // Load a chat when the URL points at one we aren't already showing.
+  useEffect(() => { handoff = null; }, []);
+
+  // Load a chat when the URL points at a different one than the one on screen.
   useEffect(() => {
-    if (urlChatId === chatId.current && (urlChatId === null || loadedFromUrl.current === urlChatId || busy)) return;
+    if (!needsLoad(urlChatId, chatId.current)) return;
     abort.current?.abort();
     setBusy(false);
     chatId.current = urlChatId;
-    if (!urlChatId) { loadedFromUrl.current = null; setState(emptyChat); return; }
-    loadedFromUrl.current = urlChatId;
-    api?.chat(urlChatId).then((r) => setState({ ...emptyChat, messages: r.messages })).catch(() => router.replace("/"));
-  }, [urlChatId, api, router, busy]);
+    if (!urlChatId) { update(() => emptyChat); return; }
+    api?.chat(urlChatId).then((r) => update(() => ({ ...emptyChat, messages: r.messages }))).catch(() => router.replace("/"));
+  }, [urlChatId, api, router, update]);
 
-  const send = useCallback(async (text: string, attachments: import("@zero/shared").Attachment[]) => {
+  const send = useCallback(async (text: string, attachments: Attachment[]) => {
     if (!api || !choice) return;
-    setState((s) => beginTurn(s, text, attachments));
+    update((s) => beginTurn(s, text, attachments));
     setBusy(true);
     const ac = new AbortController();
     abort.current = ac;
+    let created = false;
     try {
       if (!chatId.current) {
-        const c = await api.createChat();
-        chatId.current = c.id;
-        loadedFromUrl.current = c.id;
-        window.history.replaceState(null, "", `/c/${c.id}`);
+        chatId.current = (await api.createChat()).id;
+        created = true;
       }
       for await (const ev of api.send(chatId.current, { text, attachmentIds: attachments.map((a) => a.id), model: { providerId: choice.providerId, modelId: choice.modelId }, thinking: choice.thinking }, ac.signal)) {
-        setState((s) => applyEvent(s, ev));
+        update((s) => applyEvent(s, ev));
       }
     } catch (e) {
-      setState((s) => applyEvent(s, { type: "error", code: "engine", message: e instanceof Error ? e.message : t.genericError }));
+      update((s) => applyEvent(s, { type: "error", code: "engine", message: e instanceof Error ? e.message : t.genericError }));
     } finally {
       setBusy(false);
       void refresh();
+      if (created && chatId.current && !ac.signal.aborted) {
+        handoff = { id: chatId.current, state: stateRef.current };
+        router.replace(`/c/${chatId.current}`);
+      }
     }
-  }, [api, choice, refresh]);
+  }, [api, choice, refresh, router, update]);
 
   const stop = useCallback(() => {
     abort.current?.abort();
@@ -73,7 +84,7 @@ export default function ChatScreen() {
     <Shell
       title={empty ? t.appName : title}
       right={chatId.current && !empty ? (
-        <button type="button" aria-label={t.deleteChat} onClick={async () => { const id = chatId.current!; chatId.current = null; await remove(id); router.push("/"); }} className="grid size-control place-items-center rounded-ui text-muted hover:bg-raised hover:text-danger"><Trash2 size={18} /></button>
+        <button type="button" aria-label={t.deleteChat} onClick={async () => { const id = chatId.current!; chatId.current = null; update(() => emptyChat); await remove(id); router.push("/"); }} className="grid size-control place-items-center rounded-ui text-muted hover:bg-raised hover:text-danger"><Trash2 size={18} /></button>
       ) : null}
     >
       {empty ? (

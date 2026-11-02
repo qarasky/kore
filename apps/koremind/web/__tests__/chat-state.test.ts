@@ -47,3 +47,13 @@ test("beginTurn clears a previous error", () => {
   expect(s.error).toBeNull();
   expect(s.connectProvider).toBe(false);
 });
+
+import { needsLoad } from "../lib/chat-state";
+
+test("needsLoad ignores the URL catching up to a chat we just created", () => {
+  expect(needsLoad("abc", "abc")).toBe(false); // created here, URL now matches
+  expect(needsLoad(null, null)).toBe(false);
+  expect(needsLoad("abc", null)).toBe(true); // opened from the sidebar
+  expect(needsLoad(null, "abc")).toBe(true); // New chat clicked
+  expect(needsLoad("def", "abc")).toBe(true);
+});
