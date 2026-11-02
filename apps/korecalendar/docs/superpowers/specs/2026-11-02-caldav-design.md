@@ -1,5 +1,7 @@
 # KoreCalendar: CalDAV
 
+> Status: implemented and merged (2026-11-03); the plan is [../plans/2026-11-02-korecalendar-caldav.md](../plans/2026-11-02-korecalendar-caldav.md); user docs: [../../caldav.md](../../caldav.md).
+
 A CalDAV (RFC 4791) endpoint on the existing API, so any app or library that speaks CalDAV can read and write the same calendars as the web app and the REST API. The owner mainly wants it for **custom integrations with their other apps**, and chose the default options below.
 
 Calls marked **(my call)** were made by the designer, not the owner. The owner's decisions: CalDAV is wanted (reversing the original non-goal, which is now removed from the main design); the focus is integrations, not a specific consumer app; "just the default options".

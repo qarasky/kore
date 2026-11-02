@@ -1,5 +1,7 @@
 # KoreCalendar CalDAV Implementation Plan
 
+> **Status:** executed and merged (2026-11-03). Kept as the record of what was planned; the code and the docs in `docs/` are authoritative where they differ.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A CalDAV (RFC 4791) endpoint under `/dav/` so any CalDAV client or library can list, read, create, update and delete events in the same calendars as the web app and REST API.

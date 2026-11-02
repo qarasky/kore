@@ -1,5 +1,7 @@
 # KoreCalendar Phase 1: API and Core Implementation Plan
 
+> **Status:** executed and merged (2026-11-03). Kept as the record of what was planned; the code and the docs in `docs/` are authoritative where they differ.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A Go API that stores calendars and events (with full RFC 5545 recurrence, single exclusions, single-occurrence overrides, "this and following" edits), authenticates users and agents, sends reminders, and imports/exports `.ics`, installable with Docker and Caddy.

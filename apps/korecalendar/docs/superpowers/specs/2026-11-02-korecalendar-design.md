@@ -114,6 +114,8 @@ The owner picked the **Proton-like** direction from two mockups (the approved mo
 
 ## Phasing
 
+**Status (2026-11-03):** phases 1 and 2 are built and merged, and two things were added at the owner's request: [CalDAV](2026-11-02-caldav-design.md) and [motion in the web app](2026-11-02-web-motion-design.md). Phase 3 (Android) is not started. Operator docs: [deploy.md](../../deploy.md).
+
 One project, three phases, each getting its own plan:
 
 1. **API and core.** Accounts and sessions, calendars, events, full recurrence with exclusions/overrides/this-and-following, occurrence expansion, tokens, OpenAPI, soft delete, `.ics` import/export, reminder scheduler, Web Push, Docker/Caddy install. Heavy tests on recurrence and DST.

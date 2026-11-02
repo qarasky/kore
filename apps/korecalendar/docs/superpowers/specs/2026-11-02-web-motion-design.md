@@ -1,5 +1,7 @@
 # KoreCalendar web: motion design
 
+> Status: implemented and merged (2026-11-03); tests: `web/lib/__tests__/motion.test.ts`, `web/e2e/motion.spec.ts`.
+
 What moves in the web app, how fast, and why. Written from the references below; the numbers in `web/lib/motion.ts` come from here.
 Calls marked **(my call)** are the designer's, not the owner's. The owner asked for: animations with Framer Motion (now published as `motion`),
 based on researched references, with design psychology and calendar references analysed first.

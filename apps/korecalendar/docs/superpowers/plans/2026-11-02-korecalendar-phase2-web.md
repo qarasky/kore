@@ -1,5 +1,7 @@
 # KoreCalendar Phase 2: Web UI Implementation Plan
 
+> **Status:** executed and merged (2026-11-03). Kept as the record of what was planned; the code and the docs in `docs/` are authoritative where they differ.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A Next.js web app, Proton-like in layout and Kore in look, that does everything the API does: week/day/month/agenda views, create/edit/delete with the three recurring scopes, drag to create/move/resize, search, calendars, tokens, import/export, browser notifications, installable with Docker.
