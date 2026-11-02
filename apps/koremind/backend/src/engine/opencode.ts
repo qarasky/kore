@@ -294,7 +294,7 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
           if (e.type === "delta") out += e.text;
           if (e.type === "error") throw new Error(e.message);
         }
-      } finally { void call("DELETE", `/api/session/${sid}`); }
+      } finally { void call("DELETE", `/api/session/${sid}`).catch(() => {}); }
       return out;
     },
     close() { closed = true; proc.kill(); },
