@@ -364,3 +364,10 @@ func partition(in []string, key string) (lo, hi []string) {
 	}
 	return lo, hi
 }
+
+// Validate reports whether the series is well formed: parseable times, a
+// known zone, end not before start, and a supported rule.
+func (s Series) Validate() error {
+	_, err := s.compile()
+	return err
+}

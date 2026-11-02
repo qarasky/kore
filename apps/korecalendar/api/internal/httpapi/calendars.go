@@ -12,6 +12,8 @@ func calendarError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, calendars.ErrNotFound):
 		errJSON(w, http.StatusNotFound, "not_found", "calendar not found")
+	case errors.Is(err, calendars.ErrNotEmpty):
+		errJSON(w, http.StatusConflict, "calendar_not_empty", "the calendar still has events; add ?force=1 to delete it and its events permanently")
 	case errors.Is(err, calendars.ErrValidation):
 		errJSON(w, http.StatusUnprocessableEntity, "validation_error", "name must be 1-100 characters and color like #5b8def")
 	default:
@@ -59,7 +61,7 @@ func (s *server) handlePatchCalendar(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) handleDeleteCalendar(w http.ResponseWriter, r *http.Request) {
 	p, _ := auth.FromContext(r.Context())
-	if err := calendars.Delete(r.Context(), s.db, p.UserID, r.PathValue("id")); err != nil {
+	if err := calendars.Delete(r.Context(), s.db, p.UserID, r.PathValue("id"), r.URL.Query().Get("force") == "1"); err != nil {
 		calendarError(w, err)
 		return
 	}

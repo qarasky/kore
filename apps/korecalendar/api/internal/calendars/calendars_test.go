@@ -26,7 +26,7 @@ func TestCreateListUpdateDelete(t *testing.T) {
 	if err != nil || got.Name != "Job" || got.Color != "#7b6cf0" {
 		t.Fatalf("update = %+v, %v", got, err)
 	}
-	if err := Delete(ctx, db, u.ID, c.ID); err != nil {
+	if err := Delete(ctx, db, u.ID, c.ID, false); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := Get(ctx, db, u.ID, c.ID); !errors.Is(err, ErrNotFound) {
@@ -57,7 +57,7 @@ func TestOtherUsersCalendarIsNotFound(t *testing.T) {
 	if _, err := Get(ctx, db, b.ID, c.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Get: %v", err)
 	}
-	if err := Delete(ctx, db, b.ID, c.ID); !errors.Is(err, ErrNotFound) {
+	if err := Delete(ctx, db, b.ID, c.ID, false); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Delete: %v", err)
 	}
 	n := "x"

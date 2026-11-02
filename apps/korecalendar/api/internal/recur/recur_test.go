@@ -287,3 +287,20 @@ func TestSplitAtRejectsNonOccurrence(t *testing.T) {
 		t.Fatalf("got %v, want ErrNotRecurring", err)
 	}
 }
+
+func TestSeriesValidate(t *testing.T) {
+	ok := Series{Start: "2026-11-02T09:00:00", End: "2026-11-02T10:00:00", TZ: "Europe/Berlin", RRule: "FREQ=DAILY"}
+	if err := ok.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []Series{
+		{Start: "2026-11-02T11:00:00", End: "2026-11-02T10:00:00", TZ: "UTC"},
+		{Start: "2026-11-02", End: "2026-11-03", TZ: "UTC"}, // date without AllDay
+		{Start: "2026-11-02T09:00:00", End: "2026-11-02T10:00:00", TZ: "Nope/Nope"},
+		{Start: "2026-11-02T09:00:00", End: "2026-11-02T10:00:00", TZ: "UTC", RRule: "FREQ=HOURLY"},
+	} {
+		if err := bad.Validate(); err == nil {
+			t.Errorf("Validate(%+v) = nil", bad)
+		}
+	}
+}

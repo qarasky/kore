@@ -1,0 +1,195 @@
+package httpapi_test
+
+import (
+	"testing"
+
+	"github.com/qarasky/korecalendar/api/internal/testsrv"
+)
+
+func TestCreateAndGetRoundTrip(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	tok := testsrv.Login(t, srv)
+	body := weekly("Gym")
+	body["notes"] = "Leg day"
+	body["location"] = "Home"
+	body["reminders"] = []reminder{{30}, {0}}
+	body["rdates"] = []string{"2026-11-10T16:00:00"}
+	created := mkEvent(t, srv, tok, body)
+	if created.ID == "" || created.Version != 1 || created.CalendarID == "" {
+		t.Fatalf("created = %+v", created)
+	}
+	r := testsrv.Do(t, srv, tok, "GET", "/api/events/"+created.ID, nil)
+	var got event
+	r.Decode(t, &got)
+	if r.Status != 200 || got.Title != "Gym" || got.Notes != "Leg day" || got.Location != "Home" ||
+		got.Start != "2026-11-04T16:00:00" || got.End != "2026-11-04T17:00:00" || got.TZ != "Europe/Berlin" ||
+		got.RRule != "FREQ=WEEKLY;BYDAY=WE,FR" || len(got.RDates) != 1 || len(got.Reminders) != 2 || got.Exdates == nil {
+		t.Fatalf("round trip = %+v (%d)", got, r.Status)
+	}
+	if r.Header.Get("ETag") != `"1"` {
+		t.Fatalf("ETag = %q", r.Header.Get("ETag"))
+	}
+}
+
+func TestCreateDefaultsCalendarEndAndTimezone(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	tok := testsrv.Login(t, srv)
+	testsrv.Do(t, srv, tok, "PATCH", "/api/me", map[string]string{"timezone": "Asia/Almaty"})
+	e := mkEvent(t, srv, tok, map[string]any{"title": "Call", "start": "2026-11-04T09:00:00"})
+	if e.TZ != "Asia/Almaty" || e.End != "2026-11-04T10:00:00" || e.CalendarID == "" {
+		t.Fatalf("defaults = %+v", e)
+	}
+	d := mkEvent(t, srv, tok, map[string]any{"title": "Holiday", "start": "2026-12-25", "all_day": true})
+	if d.End != "2026-12-26" {
+		t.Fatalf("all-day end = %q", d.End)
+	}
+}
+
+func TestEndBeforeStartRejected(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	tok := testsrv.Login(t, srv)
+	r := testsrv.Do(t, srv, tok, "POST", "/api/events", map[string]any{"title": "x", "start": "2026-11-04T10:00:00", "end": "2026-11-04T09:00:00", "tz": "UTC"})
+	if r.Status != 422 || r.ErrorCode() != "validation_error" {
+		t.Fatalf("%d %s", r.Status, r.Body)
+	}
+}
+
+func TestEventValidation(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	tok := testsrv.Login(t, srv)
+	for name, body := range map[string]map[string]any{
+		"blank title":       {"title": "  ", "start": "2026-11-04T10:00:00"},
+		"bad start":         {"title": "x", "start": "tomorrow"},
+		"bad tz":            {"title": "x", "start": "2026-11-04T10:00:00", "tz": "Mars/Base"},
+		"reminder too big":  {"title": "x", "start": "2026-11-04T10:00:00", "reminders": []reminder{{40321}}},
+		"reminder negative": {"title": "x", "start": "2026-11-04T10:00:00", "reminders": []reminder{{-1}}},
+	} {
+		r := testsrv.Do(t, srv, tok, "POST", "/api/events", body)
+		if r.Status != 422 || r.ErrorCode() != "validation_error" {
+			t.Errorf("%s: %d %s", name, r.Status, r.Body)
+		}
+	}
+	ok := testsrv.Do(t, srv, tok, "POST", "/api/events", map[string]any{"title": "x", "start": "2026-11-04T10:00:00", "reminders": []reminder{{40320}}})
+	if ok.Status != 201 {
+		t.Errorf("reminder at the 28-day limit: %d %s", ok.Status, ok.Body)
+	}
+}
+
+func TestUnsupportedRRuleIs422WithCode(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	tok := testsrv.Login(t, srv)
+	body := weekly("x")
+	body["rrule"] = "FREQ=HOURLY"
+	r := testsrv.Do(t, srv, tok, "POST", "/api/events", body)
+	if r.Status != 422 || r.ErrorCode() != "unsupported_rrule" {
+		t.Fatalf("%d %s", r.Status, r.Body)
+	}
+}
+
+func TestRetryWithSameIdempotencyKeyReturnsSameEvent(t *testing.T) {
+	srv, db := testsrv.New(t)
+	tok := testsrv.Login(t, srv)
+	a := mkEvent(t, srv, tok, weekly("Gym"), "Idempotency-Key", "abc-123")
+	b := testsrv.Do(t, srv, tok, "POST", "/api/events", weekly("Gym"), "Idempotency-Key", "abc-123")
+	if b.Status != 201 || b.Header.Get("Idempotent-Replayed") != "true" {
+		t.Fatalf("replay: %d %v %s", b.Status, b.Header, b.Body)
+	}
+	var again event
+	b.Decode(t, &again)
+	var n int
+	db.QueryRow(`SELECT count(*) FROM events`).Scan(&n)
+	if again.ID != a.ID || n != 1 {
+		t.Fatalf("ids %q vs %q, %d rows", a.ID, again.ID, n)
+	}
+}
+
+func TestIdempotencyKeyDifferentBodyConflicts(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	tok := testsrv.Login(t, srv)
+	mkEvent(t, srv, tok, weekly("Gym"), "Idempotency-Key", "k1")
+	r := testsrv.Do(t, srv, tok, "POST", "/api/events", weekly("Different"), "Idempotency-Key", "k1")
+	if r.Status != 409 || r.ErrorCode() != "idempotency_conflict" {
+		t.Fatalf("%d %s", r.Status, r.Body)
+	}
+}
+
+func TestIdempotencyKeysAreScopedPerUser(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	admin := testsrv.Login(t, srv)
+	other := testsrv.AddUser(t, srv, admin, "u@example.com")
+	a := mkEvent(t, srv, admin, weekly("A"), "Idempotency-Key", "shared")
+	b := mkEvent(t, srv, other, weekly("B"), "Idempotency-Key", "shared")
+	if a.ID == b.ID {
+		t.Fatal("idempotency key leaked across users")
+	}
+}
+
+func TestFailedRequestsDoNotConsumeTheKey(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	tok := testsrv.Login(t, srv)
+	bad := weekly("x")
+	bad["rrule"] = "FREQ=HOURLY"
+	if r := testsrv.Do(t, srv, tok, "POST", "/api/events", bad, "Idempotency-Key", "k"); r.Status != 422 {
+		t.Fatalf("%d", r.Status)
+	}
+	mkEvent(t, srv, tok, weekly("fixed"), "Idempotency-Key", "k")
+}
+
+func TestOtherUsersEventIs404(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	admin := testsrv.Login(t, srv)
+	other := testsrv.AddUser(t, srv, admin, "u@example.com")
+	e := mkEvent(t, srv, admin, weekly("Private"))
+	r := testsrv.Do(t, srv, other, "GET", "/api/events/"+e.ID, nil)
+	if r.Status != 404 || r.ErrorCode() != "not_found" {
+		t.Fatalf("%d %s", r.Status, r.Body)
+	}
+	// ...and may not file an event into someone else's calendar
+	body := weekly("sneaky")
+	body["calendar_id"] = e.CalendarID
+	if r := testsrv.Do(t, srv, other, "POST", "/api/events", body); r.Status != 404 {
+		t.Fatalf("foreign calendar: %d %s", r.Status, r.Body)
+	}
+}
+
+func TestAttributionRecordsTokenName(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	session := testsrv.Login(t, srv)
+	var c struct{ Token string }
+	testsrv.Do(t, srv, session, "POST", "/api/tokens", map[string]string{"name": "claude"}).Decode(t, &c)
+	byAgent := mkEvent(t, srv, c.Token, weekly("by agent"))
+	byUser := mkEvent(t, srv, session, weekly("by user"))
+	if byAgent.CreatedBy != "claude" || byAgent.UpdatedBy != "claude" || byUser.CreatedBy != "user" {
+		t.Fatalf("agent=%+v user=%+v", byAgent, byUser)
+	}
+}
+
+func TestDeleteNonEmptyCalendarNeedsForce(t *testing.T) {
+	srv, db := testsrv.New(t)
+	tok := testsrv.Login(t, srv)
+	e := mkEvent(t, srv, tok, weekly("x"))
+	r := testsrv.Do(t, srv, tok, "DELETE", "/api/calendars/"+e.CalendarID, nil)
+	if r.Status != 409 || r.ErrorCode() != "calendar_not_empty" {
+		t.Fatalf("%d %s", r.Status, r.Body)
+	}
+	if r := testsrv.Do(t, srv, tok, "DELETE", "/api/calendars/"+e.CalendarID+"?force=1", nil); r.Status != 204 {
+		t.Fatalf("forced: %d %s", r.Status, r.Body)
+	}
+	var events, deletes int
+	db.QueryRow(`SELECT count(*) FROM events`).Scan(&events)
+	db.QueryRow(`SELECT count(*) FROM changes WHERE kind='delete' AND event_id=?`, e.ID).Scan(&deletes)
+	if events != 0 || deletes != 1 {
+		t.Fatalf("events=%d delete changes=%d", events, deletes)
+	}
+}
+
+func TestCreateWritesAChange(t *testing.T) {
+	srv, db := testsrv.New(t)
+	tok := testsrv.Login(t, srv)
+	e := mkEvent(t, srv, tok, weekly("x"))
+	var n int
+	db.QueryRow(`SELECT count(*) FROM changes WHERE kind='upsert' AND event_id=?`, e.ID).Scan(&n)
+	if n != 1 {
+		t.Fatalf("upsert changes = %d", n)
+	}
+}

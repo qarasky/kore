@@ -17,6 +17,7 @@ import (
 var (
 	ErrNotFound   = errors.New("calendar not found")
 	ErrValidation = errors.New("invalid calendar")
+	ErrNotEmpty   = errors.New("calendar still has events")
 )
 
 // DefaultName and DefaultColor describe the calendar every new account gets.
@@ -109,14 +110,47 @@ func Update(ctx context.Context, db *sql.DB, userID, id string, name, color *str
 	return c, err
 }
 
-// Delete removes one of the user's calendars.
-func Delete(ctx context.Context, db *sql.DB, userID, id string) error {
-	res, err := db.ExecContext(ctx, `DELETE FROM calendars WHERE id=? AND user_id=?`, id, userID)
+// Delete removes one of the user's calendars. A calendar that still has live
+// events is ErrNotEmpty unless force is set, which permanently deletes the
+// calendar and all its events (they cannot be restored without a calendar) and
+// records a sync "delete" for each.
+func Delete(ctx context.Context, db *sql.DB, userID, id string, force bool) error {
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	defer tx.Rollback()
+	var owned int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM calendars WHERE id=? AND user_id=?`, id, userID).Scan(&owned); err != nil {
+		return err
+	}
+	if owned == 0 {
 		return ErrNotFound
 	}
-	return nil
+	rows, err := tx.QueryContext(ctx, `SELECT id FROM events WHERE calendar_id=? AND deleted_at IS NULL`, id)
+	if err != nil {
+		return err
+	}
+	var ids []string
+	for rows.Next() {
+		var eid string
+		if err := rows.Scan(&eid); err != nil {
+			rows.Close()
+			return err
+		}
+		ids = append(ids, eid)
+	}
+	rows.Close()
+	if len(ids) > 0 && !force {
+		return ErrNotEmpty
+	}
+	for _, eid := range ids {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO changes(user_id,event_id,kind,at) VALUES(?,?,'delete',?)`, userID, eid, time.Now().Unix()); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM calendars WHERE id=? AND user_id=?`, id, userID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
