@@ -13,7 +13,7 @@ It is a Next.js app (server-rendered, no third-party scripts, fonts or images) s
 - **The editor** (click an event, then Edit; or New event, or `c`) has title, all-day, start and end, time zone, repeat,
   reminders, calendar, location and notes. Repeat offers the usual choices and a custom rule (every N days/weeks/months/years,
   chosen weekdays, "2nd Tuesday", end on a date or after N times).
-- **Search** (`/`) finds events by title, notes and location, in any time range.
+- **Search** (`/`) finds events by title, notes and location, from about three months back to about ten months ahead.
 - **Settings:** your time zone, week start and clock format; calendars (add, rename, recolour, delete and undo); access tokens;
   `.ics` import and export; notifications; and, for the administrator, users.
 - Everything is in English, with every string in `web/lib/i18n/en.ts`.
@@ -83,7 +83,7 @@ itself and does not go through the server. Phone reminders will be set by the An
 ## Preferences
 
 The view you last used, the week start, the clock format and the hidden calendars are remembered in cookies
-(`kc_view`, `kc_weekstart`, `kc_clock`, `kc_hidden`). They are not secrets and not part of your account.
+(`kc_view`, `kc_weekstart`, `kc_clock`, `kc_hidden`, `kc_motion`). They are not secrets and not part of your account.
 
 ## Known limits
 

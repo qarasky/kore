@@ -3,8 +3,8 @@
 A step-by-step guide for running KoreCalendar on a Linux server or home machine with Docker. It is written for one person or a household:
 one small host, one SQLite file, no database server.
 
-**How much of this has been run.** The Docker install (clone, `./install.sh`, healthy containers, the login page and `/api/healthz` through Caddy, the full browser test suite,
-a CalDAV client) was exercised on Docker Desktop, which runs the same Linux containers; it has **not** been run on a bare Linux host from this project's side. The backup and
+**How much of this has been run.** The Docker install (clone, `./install.sh` in place and into a separate directory, healthy containers, the login page and `/api/healthz` through Caddy, the full browser test suite,
+a CalDAV client, and the uninstall commands) was exercised on Docker Desktop, which runs the same Linux containers; it has **not** been run on a bare Linux host from this project's side. The backup and
 restore commands were run and checked. The firewall, reverse-proxy, `systemd`, SELinux and rootless-Docker snippets are standard examples to adapt, not tested configurations;
 they are marked as such.
 
@@ -16,10 +16,10 @@ Three containers, started with Docker Compose from this repository:
 | --- | --- | --- |
 | `caddy` | the only published service: routes `/api/*`, `/dav/*` and `/.well-known/caldav` to the API, everything else to the web app, and adds security headers | the host, on `KORECAL_BIND:KORECAL_PORT` (default `127.0.0.1:8080`) |
 | `web` | the Next.js app (server-rendered), calls the API over the internal network | only `caddy` |
-| `api` | the Go API (REST and CalDAV) with SQLite | only `caddy` and `web`; it can also make **outbound** connections (to deliver browser push notifications) but refuses private addresses |
+| `api` | the Go API (REST and CalDAV) with SQLite | `caddy` and `web` over the internal network; it also has an outbound-capable network so it can deliver browser push notifications (it refuses private addresses) |
 
 Your data is one directory on the host (default `/srv/korecalendar`) holding `korecal.db` (plus SQLite's `-wal` and `-shm` files while it runs) and a marker file
-`.korecal-volume`. The containers run with read-only root filesystems, all Linux capabilities dropped and `no-new-privileges`; the API runs as the host user and group you choose,
+`.korecal-volume`. The containers run with read-only root filesystems, Linux capabilities dropped (Caddy keeps only the one it needs to bind port 80 inside its container) and `no-new-privileges`; the API runs as the host user and group you choose,
 so the files in the data directory belong to that user.
 
 ```
@@ -55,8 +55,8 @@ The installer asks four things (or takes the defaults), then does everything els
 
 | Question | Default | Notes |
 | --- | --- | --- |
-| Install directory | `~/korecalendar` | holds `docker-compose.yml`, `Caddyfile`, `.env`; it **links to your clone** for the build, so keep the clone |
-| Data directory | `<install dir>/data` | the database lives here; put it on the disk you back up |
+| Install directory | the clone itself | where `.env` is written and where you later run `docker compose`. Installing in place means a later `git pull` brings new compose files. A different directory also works (it then gets copies of the compose files and links to the clone, so keep the clone) |
+| Data directory | `<install dir>-data` (next to it, **outside** the clone so `git clean` can never touch it) | the database lives here; put it on the disk you back up |
 | Listen on | `127.0.0.1` | `127.0.0.1` = this machine only; `0.0.0.0` = every interface (LAN, Tailscale); or one specific address |
 | Port | `8080` | |
 
@@ -64,14 +64,14 @@ It checks Docker, creates the data directory (using `sudo` only if it must), wri
 marker file the API insists on, so it refuses to start on an empty or unmounted directory), starts the stack and waits until it is healthy. Then open the printed address
 and **create your account**: the first account becomes the administrator.
 
-Non-interactive (scripts, provisioning): set the answers as environment variables and `KORECAL_YES=1`:
+Non-interactive (scripts, provisioning): set the answers as environment variables and `KORECAL_YES=1` (run it as your normal user, not as root: the API then runs as you).
+A directory you cannot create (for example under `/srv` or `/opt`) is created with `sudo` and handed to you:
 
 ```sh
-KORECAL_YES=1 KORECAL_DIR=/opt/korecalendar KORECAL_DATA_DIR=/srv/korecalendar \
-KORECAL_BIND=127.0.0.1 KORECAL_PORT=8080 ./install.sh
+KORECAL_YES=1 KORECAL_DATA_DIR=/srv/korecalendar KORECAL_BIND=127.0.0.1 KORECAL_PORT=8080 ./install.sh
 ```
 
-Re-running it on a directory that already has a `.env` does nothing. If the installer is run without a checkout (`curl … | bash`) and the images cannot be pulled, it clones
+Re-running it where a `.env` already exists does nothing (it never overwrites an installation). If the installer is run without a checkout (`curl … | bash`) and the images cannot be pulled, it clones
 the repository itself into `<install dir>/src` and builds there (this needs git and a repository you can read anonymously, so not while it is private).
 
 ## Install (by hand)
@@ -79,6 +79,7 @@ the repository itself into `<install dir>/src` and builds there (this needs git 
 The same thing without the script; useful to understand it or to put the files where you want them.
 
 ```sh
+sudo mkdir -p /opt/korecalendar && sudo chown "$(id -u):$(id -g)" /opt/korecalendar
 git clone git@github.com:qarasky/korecalendar.git /opt/korecalendar && cd /opt/korecalendar
 
 # 1. The data directory, owned by the user the API will run as.
@@ -157,7 +158,10 @@ Publish the stack on loopback only and let a host-level proxy terminate TLS. Exa
 ```caddyfile
 # /etc/caddy/Caddyfile on the host (Caddy gets the certificate by itself)
 calendar.example.com {
-	reverse_proxy 127.0.0.1:8080
+	reverse_proxy 127.0.0.1:8080 {
+		# See "Forwarded headers" below: this is how the API learns the real client address.
+		header_up CF-Connecting-IP {remote_host}
+	}
 }
 ```
 
@@ -170,6 +174,7 @@ location / {
     proxy_set_header Host              $host;
     proxy_set_header X-Forwarded-For   $remote_addr;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header CF-Connecting-IP  $remote_addr;   # see "Forwarded headers" below
     proxy_read_timeout 60s;
 }
 ```
@@ -183,6 +188,10 @@ The API uses the client address for login rate limiting, and the session cookie 
 that come from the host itself: a proxy or tunnel on the same machine reaches the published port through Docker, and those connections arrive from the gateway of Caddy's own
 network, `KORECAL_SUBNET`. Anyone else's forwarded headers are overwritten with what Caddy actually sees. Two consequences:
 
+- **Behind a proxy on the same host, set `CF-Connecting-IP` yourself** (the two examples above do). The API prefers that header, so setting it to the real client address (and
+  overwriting whatever the client sent) gives every person their own rate-limit bucket and stops anyone from choosing their own address by sending the header. Without it,
+  every client behind your proxy shares one address (the Docker gateway), so thirty wrong passwords from anyone lock everyone out for 15 minutes, and a client that sends its own
+  `CF-Connecting-IP` is believed. Cloudflare Tunnel sets and overwrites it for you. A Tailscale-only setup is fine without it (the people behind it are your own devices and share one bucket).
 - A proxy on **another** machine is not trusted: its clients all appear as the proxy's address, and `X-Forwarded-Proto: https` is ignored (so cookies are not marked `Secure`).
   Put the proxy on the same host, or terminate TLS there and keep the hop local.
 - If `172.31.255.0/24` collides with a network you use, change `KORECAL_SUBNET` in `.env` before the first start.
@@ -207,22 +216,30 @@ sudo systemctl daemon-reload
 ## Using it
 
 - **Accounts.** The first account is the administrator and can add others under Settings → Users (it shows the new person's password once). Each person's calendars are private.
-- **Agents and scripts.** Settings → Access tokens creates a token for the REST API ([api.md](api.md)); the same token is the password for **CalDAV** ([caldav.md](caldav.md)).
+- **Agents and scripts.** Settings → Access tokens creates a token for the REST API ([api.md](api.md)); the same token is the password for **CalDAV** ([caldav.md](caldav.md)). A token has the powers of its account, except managing tokens: a token of the **administrator** account can also create users, so give agents tokens from a non-admin account.
 - **Time zones.** Each person sets theirs under Settings → General.
 - **No password reset yet.** There is no "forgot password" flow or reset command; keep your backups and a second administrator account. (Tokens can be revoked and re-created at any time.)
 
 ## Updating
 
+Run these in the installation directory (the clone, if you installed in place). **Take a backup first** ([below](#backups)): migrations are applied automatically when the API
+starts and only go forward.
+
 ```sh
-cd /opt/korecalendar            # your clone (the installer's "src" directory, or wherever you cloned)
-# 1. back up first (below): migrations only go forward
 git pull
-docker compose build            # run from the install directory if it differs from the clone
+docker compose build --pull        # --pull also fetches newer Node / distroless base images
+docker compose pull caddy          # a newer Caddy image of the pinned minor version
 docker compose up -d --wait
+docker image prune -f              # old images pile up after rebuilds (add: docker builder prune -f for build cache)
 ```
 
-Database migrations are applied automatically when the API starts; they cannot be undone, so **take a backup before every update**. To roll back, check out the previous
-commit or tag, rebuild, and restore the backup taken before the update (a database that has been migrated forward may not open in an older version).
+If you installed into a directory other than the clone, the install directory holds **copies** of `docker-compose.yml` and `Caddyfile`; after `git pull` in the clone, copy them
+over (`cp docker-compose.yml Caddyfile /path/to/install/`) before building.
+
+To roll back, check out the previous commit, rebuild, and restore the backup taken before the update (a database that has been migrated forward may not open in an older version).
+
+**Changing settings later** (port, bind address, public URL): edit `.env` in the installation directory and run `docker compose up -d`; the stack is recreated with the new values.
+After changing `KORECAL_SUBNET` run `docker compose down` first so the network is rebuilt.
 
 ## Backups
 
@@ -230,7 +247,7 @@ Everything is in `korecal.db`. Back it up with SQLite's online backup, which is 
 or `sudo dnf install sqlite`):
 
 ```sh
-mkdir -p /srv/backups
+sudo mkdir -p /srv/backups && sudo chown "$(id -u):$(id -g)" /srv/backups
 sqlite3 /srv/korecalendar/korecal.db ".backup '/srv/backups/korecal-$(date +%F).db'"
 sqlite3 /srv/backups/korecal-$(date +%F).db "PRAGMA integrity_check;"      # prints "ok"
 ```
@@ -242,12 +259,13 @@ A daily job (example, adapt; not tested here):
 15 3 * * *  youruser  sqlite3 /srv/korecalendar/korecal.db ".backup '/srv/backups/korecal-$(date +\%F).db'" && find /srv/backups -name 'korecal-*.db' -mtime +30 -delete
 ```
 
-Copy the backups off the machine. Without `sqlite3` you can stop the API (`docker compose stop api`) and copy `korecal.db` (and `korecal.db-wal` if present), then start it again.
+Run the backup as the user in `KORECAL_UID` (or as root): SQLite needs write access to the database's `-shm` file even to read it. Copy the backups off the machine. Without `sqlite3` you can stop the API (`docker compose stop api`) and copy `korecal.db` (and `korecal.db-wal` if present), then start it again.
 Do not copy the database file while the API is running with a plain `cp`: the copy can be inconsistent.
 
 **Restore** (on the same or a new host): the data directory needs the marker file, then the database goes in:
 
 ```sh
+sudo mkdir -p /srv/korecalendar && sudo chown "$(id -u):$(id -g)" /srv/korecalendar   # only on a new host
 docker compose stop api web caddy                    # or `docker compose down`
 sudo rm -f /srv/korecalendar/korecal.db /srv/korecalendar/korecal.db-wal /srv/korecalendar/korecal.db-shm
 docker compose run --rm --no-deps api korecalendar init      # writes .korecal-volume if it is missing
@@ -256,7 +274,7 @@ sudo chown "$(id -u):$(id -g)" /srv/korecalendar/korecal.db  # the user in KOREC
 docker compose up -d --wait
 ```
 
-Deleted events and calendars are also recoverable for 30 days from inside the app (Undo, or `POST /api/events/{id}/restore`), independent of backups.
+Separately from backups, a deleted event or calendar can be brought back for 30 days: **Undo** shows for a few seconds after deleting in the web app, and afterwards `POST /api/events/{id}/restore` or `POST /api/calendars/{id}/restore` restores it (see [api.md](api.md)).
 
 ## Health, logs, troubleshooting
 
@@ -281,8 +299,8 @@ Logs are rotated by Docker (10 MB × 3 files per container).
 | Cannot reach it from another device | `KORECAL_BIND` is `127.0.0.1`: use the LAN address or `0.0.0.0` (mind the firewall note above), or a tunnel |
 
 On a host with **SELinux** enforcing (Fedora, RHEL and relatives), a bind-mounted data directory may be unreadable from the container; relabel it by adding `selinux: z` under
-the `bind:` options of the data volume in `docker-compose.yml` (example, not tested here). With **rootless Docker**, user IDs inside the container are remapped: set
-`KORECAL_UID`/`KORECAL_GID` to the IDs that map to your own user, and publish a port above 1024 (the default 8080 is fine).
+the `bind:` options of the data volume **and** of the `Caddyfile` mount in `docker-compose.yml` (example, not tested here). With **rootless Docker**, user IDs inside the container are remapped: your own user is `0` inside the container, so set
+`KORECAL_UID=0` and `KORECAL_GID=0` (the files on disk still belong to you) and publish a port above 1024 (the default 8080 is fine).
 
 ## Without Docker (advanced, not packaged)
 
@@ -352,7 +370,11 @@ Without Caddy's header handling you must set the security headers (`Content-Secu
 ## Uninstall
 
 ```sh
-cd ~/korecalendar && docker compose down --rmi local     # stops and removes the containers and the images built here
-rm -rf ~/korecalendar                                    # the install directory (compose files, .env, links)
-# the data directory (your calendars) is yours to delete or keep:  sudo rm -rf /srv/korecalendar
+cd ~/korecalendar                                        # the installation directory
+docker compose down --rmi local                          # stops and removes the containers and the images built here
+cd .. && rm -rf ~/korecalendar                           # the clone / install directory (compose files, .env)
+# the data directory holds your calendars; delete it only when you are sure:  sudo rm -rf /srv/korecalendar
 ```
+
+If you chose a data directory **inside** the installation directory, `rm -rf` of the latter deletes your calendars: move or back up the data directory first.
+

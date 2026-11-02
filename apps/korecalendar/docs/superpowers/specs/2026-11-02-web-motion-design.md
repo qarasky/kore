@@ -1,6 +1,6 @@
 # KoreCalendar web: motion design
 
-> Status: implemented and merged (2026-11-03); tests: `web/lib/__tests__/motion.test.ts`, `web/e2e/motion.spec.ts`.
+> Status: implemented and merged (2026-11-02); tests: `web/lib/__tests__/motion.test.ts`, `web/e2e/motion.spec.ts`.
 
 What moves in the web app, how fast, and why. Written from the references below; the numbers in `web/lib/motion.ts` come from here.
 Calls marked **(my call)** are the designer's, not the owner's. The owner asked for: animations with Framer Motion (now published as `motion`),
@@ -44,7 +44,7 @@ Not used: Apple's Human Interface Guidelines for motion (the page would not load
 | `duration.drawer` | 0.25 s in / 0.18 s out | mobile drawer |
 | `ease.standard` | `[0.2, 0, 0, 1]` | everything entering or moving |
 | `ease.exit` | `[0.3, 0, 0.8, 0.15]` | everything leaving |
-| `spring.settle` | stiffness 500, damping 40 (critically damped) | a dropped event settling, layout glides |
+| `spring.settle` | stiffness 500, damping 45 (critically damped is about 44.7) | a dropped event settling, layout glides |
 | `stagger` | 12 ms per item, **capped at 120 ms total** | events appearing on a fresh view (offset and delay) |
 
 Nothing exceeds 250 ms (ref 1's "big moves up to 400 ms is very slow").
@@ -65,8 +65,8 @@ Nothing exceeds 250 ms (ref 1's "big moves up to 400 ms is very slow").
 | Mobile drawer | slides from the left 250 ms in / 180 ms out; backdrop fade | ref 1, 6 |
 | Toasts | rise + fade in, fade out; the stack re-flows with `layout` | calm, non-blocking |
 | Mini month | the current-week band glides between rows when the day changes | transformation |
-| Calendar list, token list, user list (Settings) | rows glide into place when one is added or removed; a new row fades in | explains the change |
-| Checkboxes, switches, buttons | 100 ms colour and thumb transitions; no scale on press | ref 1 (feedback ~100 ms); frequent |
+| Calendar list and token list (Settings) | rows glide into place when one is added or removed; a new row fades in (the Users page has no list to animate) | explains the change |
+| Calendar checkboxes, the view switcher and mini-month days | 100 ms colour transitions (the check mark pops in over 100 ms); Switch and Button keep Tailwind's default 150 ms colour transition; no scale on press | ref 1 (feedback ~100 ms); frequent |
 
 Explicitly **not** animated: the grid while dragging (it follows the pointer; the pointer is the animation), the now-line, scrolling,
 the time axis, anything on a keyboard shortcut repeat (holding `j` must not queue motion: new navigation interrupts the previous),
@@ -75,7 +75,7 @@ page loads, and the skeleton (already a plain pulse).
 ## Reduced motion
 
 - `MotionConfig reducedMotion` is `"user"` by default, `"always"` or `"never"` from the Settings choice (cookie `kc_motion`: `system|reduce|full`).
-- Under reduction: transforms and layout animations are off, opacity fades stay (ref 4, 5). CSS transitions on colour stay; nothing else.
+- Under reduction: transforms and layout animations are off, opacity fades stay (ref 4, 5). With the **operating system** setting on, `globals.css` also cuts every CSS transition and animation (including the dialog backdrop fade) to ~0 ms; the in-app "Reduced" choice affects only Motion's animations.
 - Playwright tests emulate `prefers-reduced-motion: reduce` and assert the end states are the same and no transform is left on an event block.
 
 ## Risks and how they are contained
@@ -83,6 +83,6 @@ page loads, and the skeleton (already a plain pulse).
 - **Layout animation with absolutely positioned, `calc()`-positioned blocks.** They are positioned with `top`/`height` in CSS variables; `layout` measures the box, so it works, but children can stretch: event content uses `layout="position"`.
 - **Native `<dialog>` and exit animations.** `AnimatePresence` keeps the dialog mounted (and modal) for the exit; exits are short (140 ms) so the page is inert for that long at most.
 - **Server Components and exits.** App Router can't animate a page leaving, so only entering is animated at page level; exits are used inside client-owned lists.
-- **Playwright.** The existing 70 e2e tests are the safety net: any animation that makes an element unclickable or leaves it mid-transition fails them.
+- **Playwright.** The existing e2e tests (70 when this was written, 80 now) are the safety net: any animation that makes an element unclickable or leaves it mid-transition fails them.
 - **Bundle size (measured).** `motion` adds about 45 KB gzipped (one chunk, 135 KB raw) to a ~256 KB gzipped app: the layout engine (`domMax`) is what costs, and the glide animations need it. Components use the small `m` component under `<LazyMotion features={domMax} strict>`, so the full `motion` component is never bundled. Loading the features asynchronously was tried and rejected: it made the streamed page briefly contain a second (hidden) copy of the grid, which broke deterministic tests for no visible gain. Dropping layout animation (`domAnimation`, about 17 KB) would give up the glides, which are the point of the feature.
 - **One frame under reduced motion.** An element that enters with a transform start (`x: 20`) shows that offset for a single frame at opacity about 0.007 before Motion jumps to the end state; nobody can see it, and the tests assert on visible frames only.

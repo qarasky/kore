@@ -63,7 +63,7 @@ Calendars are created, renamed and deleted in the web app or the REST API: `MKCO
 
 A `PUT` replaces the resource, and what is stored is what the model can hold: title, notes, location, start and end (with zone), all-day, `RRULE`/`RDATE`/`EXDATE`, changed
 occurrences, and `VALARM`s that fire before the start. These are **not stored**: `ATTENDEE`, `ORGANIZER`, `CATEGORIES`, `URL`, `STATUS`/`TRANSP`/`CLASS`, `X-` properties, other alarms. A floating or
-unknown-`TZID` time is mapped to your zone; exclusions and changed occurrences that match no occurrence are dropped; a `STATUS:CANCELLED` event is skipped. So:
+unknown-`TZID` time is mapped to your zone; exclusions and changed occurrences that match no occurrence are dropped; So:
 
 - A `PUT` never returns an `ETag`: re-read the resource to see what was stored.
 - A `PUT` **without `VALARM`s clears the reminders** set in the web app; the resource you sent is the resource.
@@ -71,7 +71,9 @@ unknown-`TZID` time is mapped to your zone; exclusions and changed occurrences t
 
 Refused with a CalDAV precondition (HTTP 409 with the element in the body), changing nothing: a `VTODO` or other non-event (`supported-calendar-component`);
 a file name that is not `{UID}.ics`, a rule outside the supported set (hourly, `BYWEEKNO`, …), or no `DTSTART` (`valid-calendar-object-resource`); a UID that already lives in
-another of your calendars (`no-uid-conflict`). A body over 5 MB is 413.
+another of your calendars (`no-uid-conflict`). Other refusals: a body that is not iCalendar or a `Content-Type` other than `text/calendar` is 400, a resource name that does not end in `.ics` is 404,
+and a body over 5 MB is 413. **A `STATUS:CANCELLED` event is refused** (`valid-calendar-object-resource`); to remove an event, `DELETE` it. Authentication, rate-limit and size errors (401, 404, 413, 429) are plain text; the
+CalDAV errors above are XML.
 
 **Moving an event** between calendars: `DELETE` it from the old one, then `PUT` it into the new one. The UID of a deleted event counts as free, so this works at once; the deleted
 event stays restorable (without the UID).
@@ -83,10 +85,10 @@ event stays restorable (without the UID).
 - Resource names must equal `{UID}.ics`; a `PUT` always answers 201 (also for an update) and has no `ETag`.
 - No scheduling or invitations (RFC 6638), free/busy, ACLs, sharing, `VTODO`, or calendar colours.
 - Access tokens give full access (there are no read-only tokens yet): a CalDAV token can do everything the REST API can, except manage tokens.
-- A `calendar-multiget` that names a resource that does not exist (or is not yours) answers 404 for the whole request.
+- A `calendar-multiget` that names a resource that does not exist (or is not yours) gets a 404 for that resource inside a normal 207 answer; some client libraries (the go-webdav client used in this project's tests, for one) turn that into an error for the whole call. Nothing of another user's is ever returned.
 - A time range wider than ~66 years, or with very many occurrences, answers with every event of the calendar (a superset).
 
 ## Verified with
 
 - **Go tests:** the library's own CalDAV client drives the server in `api/internal/dav` (discovery, listing with ETags, `GET`, `PUT` with `If-Match`/`If-None-Match`, `DELETE`, `calendar-query` with a time range across a DST change, `calendar-multiget`, every refusal, and the privacy cases).
-- **A real third-party client:** python's `caldav` 3.7.0 (installed from PyPI in a throwaway `python:3-slim` container) against a running stack, with an access token as the password: it found the user's three calendars, saved a weekly event with an `EXDATE`, found it with a date-range search, read it back by UID, edited its summary, and deleted it. The web app's REST view showed the edit on every occurrence with the excluded date absent, `created_by`/`updated_by` = the token's name, and nothing after the delete. (6 Nov 2026 run.)
+- **A real third-party client:** python's `caldav` 3.7.0 (installed from PyPI in a throwaway `python:3-slim` container) against a running stack, with an access token as the password: it found the user's three calendars, saved a weekly event with an `EXDATE`, found it with a date-range search, read it back by UID, edited its summary, and deleted it. The web app's REST view showed the edit on every occurrence with the excluded date absent, `created_by`/`updated_by` = the token's name, and nothing after the delete. (2 Nov 2026 run.)
