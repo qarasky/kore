@@ -151,8 +151,3 @@ func (b *Backend) QueryCalendarObjects(ctx context.Context, path string, q *cald
 	}
 	return caldav.Filter(&caldav.CalendarQuery{CompRequest: q.CompRequest, CompFilter: filter}, objs)
 }
-func (b *Backend) PutCalendarObject(ctx context.Context, path string, cal *ical.Calendar, opts *caldav.PutCalendarObjectOptions) (*caldav.CalendarObject, error) {
-	return nil, notFound()
-}
-
-func (b *Backend) DeleteCalendarObject(ctx context.Context, path string) error { return notFound() }
