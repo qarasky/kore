@@ -29,6 +29,7 @@ fun reduce(s: ChatUiState, ev: StreamEvent): ChatUiState {
         is StreamEvent.Status -> s.copy(draft = d.copy(status = ev.state))
         is StreamEvent.Delta -> s.copy(draft = d.copy(text = d.text + ev.text, status = null))
         is StreamEvent.Source -> s.copy(draft = d.copy(sources = d.sources + Source(ev.title, ev.url)))
+        is StreamEvent.Title -> s
         is StreamEvent.Done -> s.copy(
             draft = null,
             messages = s.messages + ChatMessage(ev.messageId, "assistant", d.text, emptyList(), d.sources, System.currentTimeMillis()),
@@ -47,3 +48,6 @@ fun reduce(s: ChatUiState, ev: StreamEvent): ChatUiState {
 
 fun canSend(text: String, pendingCount: Int, busy: Boolean, hasModel: Boolean): Boolean =
     hasModel && !busy && (text.isNotBlank() || pendingCount > 0)
+
+/** The reply is over (or failed). The stream may stay open a moment longer for the chat title. */
+fun endsTurn(ev: StreamEvent): Boolean = ev is StreamEvent.Done || ev is StreamEvent.Error

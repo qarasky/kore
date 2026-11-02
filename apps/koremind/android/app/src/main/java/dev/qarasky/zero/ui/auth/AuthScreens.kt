@@ -33,6 +33,7 @@ import dev.qarasky.zero.ui.ErrorText
 import dev.qarasky.zero.ui.ZeroButton
 import dev.qarasky.zero.ui.ZeroField
 import dev.qarasky.zero.ui.chat.Wordmark
+import dev.qarasky.zero.ui.theme.Appear
 import dev.qarasky.zero.ui.theme.ZeroColors
 import kotlinx.coroutines.launch
 
@@ -45,7 +46,7 @@ fun ConnectScreen(vm: AppViewModel, onConnected: () -> Unit) {
     val scope = rememberCoroutineScope()
 
     Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Column(Modifier.widthIn(max = 380.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Appear { Column(Modifier.widthIn(max = 380.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Wordmark()
             Text(stringResource(R.string.connect_title), style = MaterialTheme.typography.titleLarge)
             ZeroField(stringResource(R.string.backend_url), value, { value = it }, hint = stringResource(R.string.connect_hint), keyboardType = KeyboardType.Uri)
@@ -57,7 +58,7 @@ fun ConnectScreen(vm: AppViewModel, onConnected: () -> Unit) {
                     busy = false
                 }
             })
-        }
+        } }
     }
 }
 
@@ -74,7 +75,7 @@ fun LoginScreen(vm: AppViewModel, onSignedIn: () -> Unit, onChangeServer: () -> 
     LaunchedEffect(Unit) { setup = vm.setupRequired() }
 
     Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Column(Modifier.widthIn(max = 380.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Appear { Column(Modifier.widthIn(max = 380.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Wordmark()
             Text(if (setup == true) stringResource(R.string.create_account_title) else stringResource(R.string.login_title), style = MaterialTheme.typography.titleLarge)
             if (setup == true) Text(stringResource(R.string.create_account_hint), style = MaterialTheme.typography.bodySmall, color = ZeroColors.Muted)
@@ -91,6 +92,6 @@ fun LoginScreen(vm: AppViewModel, onSignedIn: () -> Unit, onChangeServer: () -> 
                 }
             })
             TextButton(onClick = onChangeServer) { Text(stringResource(R.string.change_server), color = ZeroColors.Muted) }
-        }
+        } }
     }
 }

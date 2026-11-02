@@ -128,3 +128,58 @@ test("remove deletes the chat and its engine session", async () => {
   expect(chats.get("u1", c.id)).toBeNull();
   expect(engine.sessions.size).toBe(0);
 });
+
+test("after the first turn the chat is titled by the chosen model, and the title is streamed after done", async () => {
+  const { chats, engine, db } = setup({ reply: () => [{ type: "delta", text: "Sure, Lisbon is lovely in May." }], titleReply: '"Lisbon trip in May."\n' });
+  const c = chats.create("u1");
+  const evs = await collect(chats.send("u1", c.id, req("Plan a week in Lisbon", { model: { providerId: "openrouter", modelId: "x/y" } }), new AbortController().signal));
+  expect(evs.map((e) => e.type)).toEqual(["status", "delta", "done", "title"]);
+  expect(evs.at(-1)).toEqual({ type: "title", title: "Lisbon trip in May" });
+  expect(chats.get("u1", c.id)!.chat.title).toBe("Lisbon trip in May");
+  const call = engine.completes.find((x) => x.kind === "title")!;
+  expect(call.model).toEqual({ providerId: "openrouter", modelId: "x/y" });
+  expect(call.text).toContain("Plan a week in Lisbon");
+  expect(call.text).toContain("Lisbon is lovely");
+  expect((db.query("select title from chats where id=?").get(c.id) as { title: string }).title).toBe("Lisbon trip in May");
+});
+
+test("only the first turn is titled", async () => {
+  const { chats, engine } = setup({ titleReply: "First title" });
+  const c = chats.create("u1");
+  await collect(chats.send("u1", c.id, req("one"), new AbortController().signal));
+  await collect(chats.send("u1", c.id, req("two"), new AbortController().signal));
+  expect(engine.completes.filter((x) => x.kind === "title")).toHaveLength(1);
+});
+
+test("a failed or empty title keeps the first-words title and never breaks the chat", async () => {
+  const empty = setup({ titleReply: "  " });
+  const c1 = empty.chats.create("u1");
+  expect((await collect(empty.chats.send("u1", c1.id, req("hello world"), new AbortController().signal))).map((e) => e.type)).toEqual(["status", "delta", "done"]);
+  expect(empty.chats.get("u1", c1.id)!.chat.title).toBe("hello world");
+
+  const boom = setup({ titleReply: () => { throw new Error("quota"); } });
+  const c2 = boom.chats.create("u1");
+  expect((await collect(boom.chats.send("u1", c2.id, req("hello again"), new AbortController().signal))).at(-1)!.type).toBe("done");
+  expect(boom.chats.get("u1", c2.id)!.chat.title).toBe("hello again");
+});
+
+test("a title the owner typed while it was being generated is not overwritten", async () => {
+  const { chats } = setup({ titleReply: "Generated", completeDelayMs: 40 });
+  const c = chats.create("u1");
+  const evs: StreamEvent[] = [];
+  for await (const e of chats.send("u1", c.id, req("hello"), new AbortController().signal)) {
+    evs.push(e);
+    if (e.type === "done") chats.rename("u1", c.id, "Mine");
+  }
+  expect(evs.at(-1)!.type).toBe("done");
+  await Bun.sleep(80);
+  expect(chats.get("u1", c.id)!.chat.title).toBe("Mine");
+});
+
+test("memory extraction receives the model the chat used", async () => {
+  const seen: unknown[] = [];
+  const { chats } = setup({}, { onTurnComplete: (_u, _a, _b, m) => { seen.push(m); } });
+  const c = chats.create("u1");
+  await collect(chats.send("u1", c.id, req("q", { model: { providerId: "openai", modelId: "gpt" } }), new AbortController().signal));
+  expect(seen).toEqual([{ providerId: "openai", modelId: "gpt" }]);
+});

@@ -29,7 +29,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           const active = path === `/c/${c.id}`;
           return (
             <motion.li key={c.id} layout transition={spring} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16, transition: quick }} className={`group flex items-center rounded-ui ${active ? "bg-raised" : "hover:bg-raised/60"}`}>
-              <Link href={`/c/${c.id}`} onClick={go} className="min-h-control flex-1 truncate px-3 py-2 text-sub" aria-current={active ? "page" : undefined}>{c.title}</Link>
+              <Link href={`/c/${c.id}`} onClick={go} className="min-h-control flex-1 truncate px-3 py-2 text-sub" aria-current={active ? "page" : undefined}><motion.span key={c.title} className="block truncate" initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>{c.title}</motion.span></Link>
               <button type="button" aria-label={t.deleteChat} onClick={async () => { await remove(c.id); if (active) router.push("/"); }} className="mr-1 grid size-control-sm place-items-center rounded-ui text-muted opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"><Trash2 size={15} /></button>
             </motion.li>
           );

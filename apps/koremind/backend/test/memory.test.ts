@@ -12,9 +12,9 @@ const setup = (completeReply: string, enabled = true) => {
   const engine = new FakeEngine({ completeReply });
   let calls = 0;
   const orig = engine.complete.bind(engine);
-  engine.complete = async (a) => { calls++; return orig(); };
+  engine.complete = async (a) => { calls++; return orig(a); };
   const mem = createMemory(dir, engine, () => enabled);
-  return { mem, calls: () => calls };
+  return { mem, engine, calls: () => calls };
 };
 
 test("extraction adds new entries from valid json", async () => {
@@ -90,4 +90,10 @@ test("buildSystem leaves memory out when memory is off and is empty when there i
   const s = createSettings(openDb(":memory:"));
   expect(s.buildSystem({ memoryEnabled: false, displayName: "", tone: "", about: "" }, [{ id: "a", text: "Likes tea", updatedAt: 1 }])).toBe("");
   expect(s.buildSystem({ memoryEnabled: false, displayName: "Sky", tone: "", about: "" }, [{ id: "a", text: "Likes tea", updatedAt: 1 }])).not.toContain("Likes tea");
+});
+
+test("extraction runs on the model the chat used", async () => {
+  const { mem: memory, engine } = setup('{"add":[]}');
+  await memory.extractAfterTurn("u1", "hi", "hello", { providerId: "openrouter", modelId: "a/b" });
+  expect(engine.completes[0]).toMatchObject({ kind: "memory", model: { providerId: "openrouter", modelId: "a/b" } });
 });

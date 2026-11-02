@@ -12,7 +12,7 @@ import { createServices } from "./services";
 const config = loadConfig(process.env);
 mkdirSync(config.dataDir, { recursive: true });
 const engine = process.env.ZERO_FAKE_ENGINE
-  ? new FakeEngine({ reply: (a) => [{ type: "delta", text: `(fake engine) You said: ${a.text}` }], delayMs: 20 })
+  ? new FakeEngine({ reply: (a) => [{ type: "delta", text: `(fake engine) You said: ${a.text}` }], delayMs: 20, titleReply: "Fake engine chat", completeDelayMs: 400 })
   : await createOpencodeEngine({ dataDir: config.dataDir, bin: process.env.ZERO_OPENCODE_BIN });
 
 const version = (await Bun.file(join(import.meta.dir, "../package.json")).json()).version ?? "0.1.0";

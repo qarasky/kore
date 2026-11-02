@@ -7,6 +7,7 @@ export type EngineEvent =
   | { type: "done" }
   | { type: "error"; message: string; noProvider?: boolean };
 
+export type ModelRef = { providerId: string; modelId: string };
 export type EngineFile = { name: string; mime: string; dataUrl: string };
 
 export type PromptArgs = {
@@ -30,7 +31,7 @@ export interface Engine {
   createSession(model?: { providerId: string; modelId: string }): Promise<string>;
   deleteSession(id: string): Promise<void>;
   prompt(a: PromptArgs): AsyncIterable<EngineEvent>;
-  /** One-shot completion in a throwaway session (used for background memory extraction). */
-  complete(a: { system: string; text: string }): Promise<string>;
+  /** One-shot completion in a throwaway session (chat titles and background memory extraction). Runs on `model` when given. */
+  complete(a: { kind?: "title" | "memory"; system: string; text: string; model?: ModelRef }): Promise<string>;
   close(): void;
 }

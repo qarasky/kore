@@ -1,19 +1,31 @@
 import type { Database } from "bun:sqlite";
 import type { Attachment, ChatMessage, ChatSummary, SendMessageRequest, Source, StreamEvent } from "@zero/shared";
-import type { Engine, EngineFile } from "./engine/types";
+import type { Engine, EngineFile, ModelRef } from "./engine/types";
+import { TITLE_SYSTEM, cleanTitle, titlePrompt } from "./title";
 
 export type ChatsDeps = {
   buildSystem(userId: string): string;
   readUpload(id: string, userId: string): EngineFile | null;
-  onTurnComplete(userId: string, userText: string, assistantText: string): void;
+  onTurnComplete(userId: string, userText: string, assistantText: string, model: ModelRef): void;
 };
 
 type ChatRow = { id: string; user_id: string; title: string; engine_session_id: string | null; updated_at: number };
 const summary = (r: ChatRow): ChatSummary => ({ id: r.id, title: r.title, updatedAt: r.updated_at });
 const newId = () => crypto.randomUUID();
 
+const TITLE_WAIT_MS = 8000;
+
 export function createChats(db: Database, engine: Engine, deps: ChatsDeps) {
   const active = new Map<string, AbortController>();
+  /** Best effort: a title typed by the owner meanwhile, or any failure, leaves things as they are. */
+  const nameChat = async (chatId: string, placeholder: string, model: ModelRef, userText: string, assistantText: string): Promise<string | null> => {
+    try {
+      const title = cleanTitle(await engine.complete({ kind: "title", system: TITLE_SYSTEM, text: titlePrompt(userText, assistantText), model }));
+      if (!title) return null;
+      const r = db.run("update chats set title=? where id=? and title=?", [title, chatId, placeholder]);
+      return r.changes > 0 ? title : null;
+    } catch { return null; }
+  };
   const row = (userId: string, chatId: string) =>
     db.query("select * from chats where id=? and user_id=?").get(chatId, userId) as ChatRow | null;
 
@@ -68,7 +80,8 @@ export function createChats(db: Database, engine: Engine, deps: ChatsDeps) {
       const now = Date.now();
       db.run("insert into messages(id,chat_id,role,text,sources_json,created_at) values(?,?,'user',?,'[]',?)", [userMsgId, chatId, req.text, now]);
       for (const aid of req.attachmentIds) db.run("update attachments set message_id=? where id=? and user_id=?", [userMsgId, aid, userId]);
-      db.run("update chats set updated_at=?, title=case when ?=0 then ? else title end where id=?", [now, prior, req.text.trim().slice(0, 48) || "New chat", chatId]);
+      const placeholder = req.text.trim().slice(0, 48) || "New chat";
+      db.run("update chats set updated_at=?, title=case when ?=0 then ? else title end where id=?", [now, prior, placeholder, chatId]);
 
       const files: EngineFile[] = [];
       for (const aid of req.attachmentIds) {
@@ -117,8 +130,14 @@ export function createChats(db: Database, engine: Engine, deps: ChatsDeps) {
           } else if (ev.type === "done") {
             save();
             finished = true;
+            // Naming runs on the chosen model, concurrently with the finished answer. It must never delay or break the reply.
+            const naming = prior === 0 ? nameChat(chatId, placeholder, req.model, req.text, text) : null;
             yield { type: "done", messageId: assistantId ?? newId() };
-            try { deps.onTurnComplete(userId, req.text, text); } catch { /* memory must never break chat */ }
+            try { deps.onTurnComplete(userId, req.text, text, req.model); } catch { /* memory must never break chat */ }
+            if (naming) {
+              const title = await Promise.race([naming, Bun.sleep(TITLE_WAIT_MS).then(() => null)]);
+              if (title) yield { type: "title", title };
+            }
             return;
           } else {
             save();

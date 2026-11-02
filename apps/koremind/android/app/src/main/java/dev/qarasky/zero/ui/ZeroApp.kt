@@ -1,17 +1,26 @@
 package dev.qarasky.zero.ui
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
+import androidx.navigation.navArgument
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import dev.qarasky.zero.ui.auth.ConnectScreen
 import dev.qarasky.zero.ui.auth.LoginScreen
 import dev.qarasky.zero.ui.chat.ChatScreen
-import dev.qarasky.zero.ui.settings.MemoryScreen
 import dev.qarasky.zero.ui.settings.SettingsScreen
+import dev.qarasky.zero.ui.theme.LocalMotion
 
 @Composable
 fun ZeroApp(vm: AppViewModel) {
@@ -26,11 +35,20 @@ fun ZeroApp(vm: AppViewModel) {
         if (dest != null && here != dest && here != "connect") nav.navigate(dest) { popUpTo(0) }
     }
 
-    NavHost(nav, startDestination = start) {
+    // Screens fade and drift a few dp: short, and gone entirely when the system asks for no animations.
+    val on = LocalMotion.current
+    NavHost(
+        nav, startDestination = start,
+        enterTransition = { if (on) fadeIn(tween(180)) + slideInHorizontally(tween(180)) { it / 14 } else EnterTransition.None },
+        exitTransition = { if (on) fadeOut(tween(100)) else ExitTransition.None },
+        popEnterTransition = { if (on) fadeIn(tween(180)) + slideInHorizontally(tween(180)) { -it / 14 } else EnterTransition.None },
+        popExitTransition = { if (on) fadeOut(tween(100)) + slideOutHorizontally(tween(180)) { it / 14 } else ExitTransition.None },
+    ) {
         composable("connect") { ConnectScreen(vm) { nav.navigate("login") { popUpTo(0) } } }
         composable("login") { LoginScreen(vm, onSignedIn = { nav.navigate("chat") { popUpTo(0) } }, onChangeServer = { nav.navigate("connect") }) }
-        composable("chat") { ChatScreen(vm, onSettings = { nav.navigate("settings") }) }
-        composable("settings") { SettingsScreen(vm, onBack = { nav.popBackStack() }, onMemory = { nav.navigate("memory") }, onChangeServer = { nav.navigate("connect") }) }
-        composable("memory") { MemoryScreen(vm, onBack = { nav.popBackStack() }) }
+        composable("chat") { ChatScreen(vm, onSettings = { nav.navigate("settings") }, onProviders = { nav.navigate("settings?section=providers") }) }
+        composable("settings?section={section}", arguments = listOf(navArgument("section") { type = NavType.StringType; nullable = true; defaultValue = null })) { entry ->
+            SettingsScreen(vm, entry.arguments?.getString("section"), onBack = { nav.popBackStack() }, onChangeServer = { nav.navigate("connect") })
+        }
     }
 }

@@ -1,10 +1,21 @@
 package dev.qarasky.zero.ui.settings
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -12,7 +23,10 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -24,19 +38,27 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qarasky.zero.R
@@ -46,112 +68,278 @@ import dev.qarasky.zero.data.Settings
 import dev.qarasky.zero.ui.AppViewModel
 import dev.qarasky.zero.ui.BackBar
 import dev.qarasky.zero.ui.ErrorText
-import dev.qarasky.zero.ui.Section
+import dev.qarasky.zero.ui.HairlineBorder
 import dev.qarasky.zero.ui.ZeroButton
 import dev.qarasky.zero.ui.ZeroField
+import dev.qarasky.zero.ui.theme.LocalMotion
+import dev.qarasky.zero.ui.theme.UiShape
 import dev.qarasky.zero.ui.theme.ZeroColors
+import dev.qarasky.zero.ui.theme.animateRow
+import dev.qarasky.zero.ui.theme.enterExpand
+import dev.qarasky.zero.ui.theme.enterRise
+import dev.qarasky.zero.ui.theme.exitFade
+import dev.qarasky.zero.ui.theme.exitShrink
+import dev.qarasky.zero.ui.theme.layoutSpec
+import dev.qarasky.zero.ui.theme.quickSpec
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-@Composable
-fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit, onMemory: () -> Unit, onChangeServer: () -> Unit) {
-    val session by vm.session.collectAsStateWithLifecycle()
-    val providers by vm.providers.collectAsStateWithLifecycle()
-    val favorites by vm.favorites.collectAsStateWithLifecycle()
-    val scope = rememberCoroutineScope()
-    var settings by remember { mutableStateOf<Settings?>(null) }
-    var saved by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    val keys = remember { mutableStateMapOf<String, String>() }
-    var connections by remember { mutableStateOf<List<ProviderConnection>>(emptyList()) }
-    suspend fun loadConnections() { connections = try { vm.api?.providers() ?: emptyList() } catch (_: Exception) { emptyList() } }
-    val names = providers.flatMap { p -> p.models.map { "${p.id}/${it.id}" to it.name } }.toMap()
+private enum class SaveState { Idle, Saving, Saved, Error }
 
-    LaunchedEffect(Unit) { loadConnections() }
-    LaunchedEffect(Unit) { settings = try { vm.api?.settings() } catch (_: Exception) { null } }
+private const val AUTOSAVE_MS = 700L
+
+@Composable
+fun SettingsScreen(vm: AppViewModel, initialSection: String?, onBack: () -> Unit, onChangeServer: () -> Unit) {
+    val on = LocalMotion.current
+    var section by remember(initialSection) { mutableStateOf(sectionFromRoute(initialSection).id) }
+    var settings by remember { mutableStateOf<Settings?>(null) }
+    var baseline by remember { mutableStateOf<Settings?>(null) }
+    var save by remember { mutableStateOf(SaveState.Idle) }
+
+    LaunchedEffect(Unit) {
+        val s = try { vm.api?.settings() } catch (_: Exception) { null }
+        settings = s; baseline = s
+    }
+    // Autosave: a short pause after the last edit. The first loaded value is the baseline, not a change.
+    LaunchedEffect(settings) {
+        val s = settings ?: return@LaunchedEffect
+        if (s == baseline) return@LaunchedEffect
+        delay(AUTOSAVE_MS)
+        save = SaveState.Saving
+        try {
+            vm.api?.putSettings(s)
+            baseline = s
+            save = SaveState.Saved
+            delay(1600)
+            if (save == SaveState.Saved) save = SaveState.Idle
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { save = SaveState.Error }
+    }
+    // Leaving within the pause must not lose the edit.
+    val latest by rememberUpdatedState(settings)
+    val base by rememberUpdatedState(baseline)
+    DisposableEffect(Unit) { onDispose { val s = latest; if (s != null && s != base) vm.saveSettingsNow(s) } }
 
     Column(Modifier.fillMaxSize().background(ZeroColors.Bg).statusBarsPadding().navigationBarsPadding()) {
-        BackBar(stringResource(R.string.settings), onBack)
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
-            Section(stringResource(R.string.backend_section)) {
-                Text(session.baseUrl ?: "", color = ZeroColors.Muted)
-                Text(stringResource(R.string.change_server), color = ZeroColors.Accent, modifier = Modifier.clickable(onClick = onChangeServer).padding(vertical = 4.dp))
-            }
-            Section(stringResource(R.string.favorites_section)) {
-                if (favorites.isEmpty()) Text(stringResource(R.string.no_favorites), color = ZeroColors.Muted, style = MaterialTheme.typography.bodySmall)
-                favorites.forEach { k ->
-                    Row(Modifier.fillMaxWidth().heightIn(min = 40.dp).background(ZeroColors.Surface, RoundedCornerShape(6.dp)).padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(names[k] ?: k, Modifier.weight(1f))
-                        IconButton(onClick = { vm.toggleFavorite(k) }) { Icon(Icons.Filled.Star, stringResource(R.string.remove_favorite), tint = ZeroColors.Accent) }
-                    }
-                }
-            }
-            Section(stringResource(R.string.providers_section)) {
-                connections.forEach { p ->
-                    Column(Modifier.fillMaxWidth().background(ZeroColors.Surface, RoundedCornerShape(6.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row { Text(p.name, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge); Text(if (p.connected) stringResource(R.string.connected) else if (p.id == "opencode") stringResource(R.string.free_tier) else stringResource(R.string.not_connected), color = ZeroColors.Muted, style = MaterialTheme.typography.bodySmall) }
-                        if ("signin" in p.methods && !p.connected) Text(stringResource(R.string.sign_in_on_web), color = ZeroColors.Muted, style = MaterialTheme.typography.bodySmall)
-                        ZeroField(stringResource(R.string.api_key), keys[p.id] ?: "", { keys[p.id] = it }, password = true)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            ZeroButton(stringResource(R.string.save_key), enabled = !keys[p.id].isNullOrBlank(), onClick = {
-                                scope.launch { try { vm.api?.setProviderKey(p.id, keys[p.id].orEmpty()); keys[p.id] = ""; vm.refreshModels(); loadConnections(); error = null } catch (e: Exception) { error = e.message } }
-                            })
-                            ZeroButton(stringResource(R.string.remove_key), ghost = true, onClick = { scope.launch { try { vm.api?.removeProviderKey(p.id); vm.refreshModels(); loadConnections() } catch (e: Exception) { error = e.message } } })
-                        }
-                    }
-                }
-                ErrorText(error)
-            }
-            Section(stringResource(R.string.personalization)) {
-                settings?.let { s ->
-                    ZeroField(stringResource(R.string.display_name), s.displayName, { settings = s.copy(displayName = it) })
-                    ZeroField(stringResource(R.string.tone), s.tone, { settings = s.copy(tone = it) }, hint = stringResource(R.string.tone_hint))
-                    ZeroField(stringResource(R.string.about), s.about, { settings = s.copy(about = it) }, singleLine = false, minLines = 3)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        ZeroButton(stringResource(R.string.save), onClick = { scope.launch { try { settings = vm.api?.putSettings(s); saved = true; delay(1500); saved = false } catch (_: Exception) { } } })
-                        if (saved) Text(stringResource(R.string.saved), color = ZeroColors.Muted, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).background(ZeroColors.Surface, RoundedCornerShape(6.dp)).clickable(onClick = onMemory).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.memory), Modifier.weight(1f))
-                }
-            }
-            Section(stringResource(R.string.account)) {
-                Text(session.email ?: "", color = ZeroColors.Muted)
-                ZeroButton(stringResource(R.string.sign_out), ghost = true, onClick = vm::signOut)
+        BackBar(stringResource(R.string.settings), onBack, trailing = { SaveBadge(save) })
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            SECTIONS.forEach { s -> Pill(stringResource(s.label), section == s.id) { section = s.id } }
+        }
+        AnimatedContent(
+            section, Modifier.weight(1f).fillMaxWidth(), label = "settings-section",
+            transitionSpec = { enterRise(on) togetherWith exitFade(on) },
+        ) { id ->
+            when (id) {
+                "models" -> ModelsSection(vm)
+                "providers" -> ProvidersSection(vm)
+                "personalization" -> PersonalizationSection(settings) { settings = it }
+                "memory" -> MemorySection(vm, settings) { settings = it }
+                else -> AccountSection(vm, onChangeServer)
             }
         }
     }
 }
 
 @Composable
-fun MemoryScreen(vm: AppViewModel, onBack: () -> Unit) {
+private fun SaveBadge(state: SaveState) {
+    val on = LocalMotion.current
+    AnimatedContent(state, label = "save-badge", transitionSpec = { enterRise(on) togetherWith exitFade(on) }) { s ->
+        when (s) {
+            SaveState.Idle -> Spacer(Modifier.size(1.dp))
+            SaveState.Saving -> Text(stringResource(R.string.auto_saving), color = ZeroColors.Muted, style = MaterialTheme.typography.labelSmall)
+            SaveState.Saved -> Text(stringResource(R.string.auto_saved), color = ZeroColors.Muted, style = MaterialTheme.typography.labelSmall)
+            SaveState.Error -> Text(stringResource(R.string.auto_error), color = ZeroColors.Danger, style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+@Composable
+private fun Pill(label: String, active: Boolean, onClick: () -> Unit) {
+    val on = LocalMotion.current
+    val bg by animateColorAsState(if (active) ZeroColors.Raised else Color.Transparent, quickSpec(on), label = "pill-bg")
+    val fg by animateColorAsState(if (active) ZeroColors.Text else ZeroColors.Muted, quickSpec(on), label = "pill-fg")
+    Box(Modifier.heightIn(min = 40.dp).background(bg, UiShape).clickable(onClick = onClick).padding(horizontal = 14.dp), contentAlignment = Alignment.Center) {
+        Text(label, color = fg, style = MaterialTheme.typography.labelLarge)
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String, hint: String) {
+    Column(Modifier.fillMaxWidth().padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(hint, color = ZeroColors.Muted, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+private val CardModifier = Modifier.fillMaxWidth().background(ZeroColors.Surface, UiShape).border(HairlineBorder, UiShape)
+private val ScreenPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 32.dp)
+
+// ---- Models ---------------------------------------------------------------------------------
+
+@Composable
+private fun ModelsSection(vm: AppViewModel) {
+    val providers by vm.providers.collectAsStateWithLifecycle()
+    val favorites by vm.favorites.collectAsStateWithLifecycle()
+    val info = remember(providers) { providers.flatMap { p -> p.models.map { "${p.id}/${it.id}" to (it.name to p.name) } }.toMap() }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = ScreenPadding, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item(key = "header") { SectionHeader(stringResource(R.string.section_models), stringResource(R.string.models_hint)) }
+        items(favorites.toList(), key = { it }) { k ->
+            Row(animateRow(LocalMotion.current).then(CardModifier).heightIn(min = 48.dp).padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(info[k]?.first ?: k, maxLines = 1, style = MaterialTheme.typography.bodyMedium)
+                    info[k]?.second?.let { Text(it, color = ZeroColors.Muted, style = MaterialTheme.typography.labelSmall) }
+                }
+                IconButton(onClick = { vm.toggleFavorite(k) }) { Icon(Icons.Filled.Star, stringResource(R.string.remove_favorite), tint = ZeroColors.Accent) }
+            }
+        }
+        if (favorites.isEmpty()) item(key = "empty") {
+            Column(CardModifier.padding(vertical = 32.dp, horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Filled.Star, null, tint = ZeroColors.Muted)
+                Text(stringResource(R.string.no_favorites_title), fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.no_favorites), color = ZeroColors.Muted, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+            }
+        }
+    }
+}
+
+// ---- Providers ------------------------------------------------------------------------------
+
+@Composable
+private fun ProvidersSection(vm: AppViewModel) {
     val scope = rememberCoroutineScope()
-    var entries by remember { mutableStateOf<List<MemoryEntry>>(emptyList()) }
-    var settings by remember { mutableStateOf<Settings?>(null) }
+    var list by remember { mutableStateOf<List<ProviderConnection>>(emptyList()) }
+    var keyOpen by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val keys = remember { mutableStateMapOf<String, String>() }
+    suspend fun load() { list = try { vm.api?.providers() ?: emptyList() } catch (_: Exception) { emptyList() } }
+    LaunchedEffect(Unit) { load() }
+
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(ScreenPadding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SectionHeader(stringResource(R.string.section_providers), stringResource(R.string.providers_hint))
+        list.forEach { p ->
+            val state = providerStatus(p.id, p.connected)
+            val open = keyOpen == p.id
+            val dot by animateColorAsState(
+                when (state) { ProviderState.On -> ZeroColors.Accent; ProviderState.Free -> ZeroColors.Warning; ProviderState.Off -> ZeroColors.BorderStrong },
+                quickSpec(LocalMotion.current), label = "dot",
+            )
+            Column(CardModifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.size(36.dp).background(ZeroColors.Raised, UiShape), contentAlignment = Alignment.Center) { Text(p.name.take(1).uppercase(), fontWeight = FontWeight.SemiBold) }
+                    Column {
+                        Text(p.name, fontWeight = FontWeight.Medium, maxLines = 1)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Box(Modifier.size(6.dp).background(dot, CircleShape))
+                            Text(
+                                stringResource(when (state) { ProviderState.On -> R.string.connected; ProviderState.Free -> R.string.free_tier; ProviderState.Off -> R.string.not_connected }),
+                                color = ZeroColors.Muted, style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                }
+                if ("signin" in p.methods && !p.connected) Text(stringResource(R.string.sign_in_on_web), color = ZeroColors.Muted, style = MaterialTheme.typography.bodySmall)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if ("key" in p.methods) ZeroButton(
+                        stringResource(if (open) R.string.hide_key else if (p.connected) R.string.replace_key else R.string.add_key),
+                        ghost = true, onClick = { keyOpen = if (open) null else p.id },
+                    )
+                    if (p.connected) ZeroButton(stringResource(R.string.disconnect), ghost = true, onClick = {
+                        error = null
+                        scope.launch { try { vm.api?.removeProviderKey(p.id); vm.refreshModels(); load() } catch (e: Exception) { error = e.message } }
+                    })
+                }
+                val motion = LocalMotion.current
+                AnimatedVisibility(open, enter = enterExpand(motion), exit = exitShrink(motion)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ZeroField(stringResource(R.string.api_key), keys[p.id] ?: "", { keys[p.id] = it }, password = true)
+                        ZeroButton(stringResource(R.string.save_key), enabled = !keys[p.id].isNullOrBlank(), onClick = {
+                            error = null
+                            scope.launch {
+                                try { vm.api?.setProviderKey(p.id, keys[p.id].orEmpty()); keys[p.id] = ""; keyOpen = null; vm.refreshModels(); load() }
+                                catch (e: Exception) { error = e.message }
+                            }
+                        })
+                    }
+                }
+            }
+        }
+        ErrorText(error)
+    }
+}
+
+// ---- Personalization ------------------------------------------------------------------------
+
+@Composable
+private fun PersonalizationSection(settings: Settings?, onChange: (Settings) -> Unit) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(ScreenPadding)) {
+        SectionHeader(stringResource(R.string.personalization), stringResource(R.string.personalization_hint))
+        if (settings == null) return@Column
+        val preset = activePreset(settings.tone)
+        Column(CardModifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            ZeroField(stringResource(R.string.display_name), settings.displayName, { onChange(settings.copy(displayName = it.take(NAME_MAX))) })
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(stringResource(R.string.tone_presets), color = ZeroColors.Muted, style = MaterialTheme.typography.bodySmall)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TONE_PRESETS.forEach { p -> PresetChip(stringResource(p.label), preset == p.id) { onChange(settings.copy(tone = togglePreset(settings.tone, p.id))) } }
+                }
+                ZeroField(stringResource(R.string.tone_custom), if (preset != null) "" else settings.tone, { onChange(settings.copy(tone = it.take(TONE_MAX))) }, hint = stringResource(R.string.tone_hint))
+            }
+            Column {
+                ZeroField(stringResource(R.string.about), settings.about, { onChange(settings.copy(about = it.take(ABOUT_MAX))) }, singleLine = false, minLines = 4)
+                Text("${settings.about.length}/$ABOUT_MAX", color = ZeroColors.Muted, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PresetChip(label: String, active: Boolean, onClick: () -> Unit) {
+    val on = LocalMotion.current
+    val border by animateColorAsState(if (active) ZeroColors.Accent else ZeroColors.Border, quickSpec(on), label = "chip-border")
+    val bg by animateColorAsState(if (active) ZeroColors.Accent.copy(alpha = 0.15f) else ZeroColors.Surface, quickSpec(on), label = "chip-bg")
+    val scale by animateFloatAsState(if (active) 1f else 0.98f, layoutSpec(on), label = "chip-scale")
+    Box(
+        Modifier.heightIn(min = 36.dp).graphicsLayer { scaleX = scale; scaleY = scale }.background(bg, RoundedCornerShape(50)).border(1.dp, border, RoundedCornerShape(50)).clickable(onClick = onClick).padding(horizontal = 14.dp),
+        contentAlignment = Alignment.Center,
+    ) { Text(label, color = if (active) ZeroColors.Text else ZeroColors.Muted, style = MaterialTheme.typography.labelMedium) }
+}
+
+// ---- Memory ---------------------------------------------------------------------------------
+
+@Composable
+private fun MemorySection(vm: AppViewModel, settings: Settings?, onChange: (Settings) -> Unit) {
+    val scope = rememberCoroutineScope()
+    var entries by remember { mutableStateOf<List<MemoryEntry>?>(null) }
     var editing by remember { mutableStateOf<MemoryEntry?>(null) }
     var draft by remember { mutableStateOf("") }
     suspend fun load() { entries = try { vm.api?.memory() ?: emptyList() } catch (_: Exception) { emptyList() } }
-    LaunchedEffect(Unit) { load(); settings = try { vm.api?.settings() } catch (_: Exception) { null } }
+    LaunchedEffect(Unit) { load() }
+    val resources = LocalContext.current.resources
 
-    Column(Modifier.fillMaxSize().background(ZeroColors.Bg).statusBarsPadding().navigationBarsPadding()) {
-        BackBar(stringResource(R.string.memory), onBack)
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(stringResource(R.string.memory_hint), color = ZeroColors.Muted)
-            settings?.let { s ->
-                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).background(ZeroColors.Surface, RoundedCornerShape(6.dp)).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.memory_on), Modifier.weight(1f))
-                    Switch(s.memoryEnabled, { on -> scope.launch { try { settings = vm.api?.putSettings(s.copy(memoryEnabled = on)) } catch (_: Exception) { } } })
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = ScreenPadding, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item(key = "header") { SectionHeader(stringResource(R.string.memory), stringResource(R.string.memory_hint)) }
+        if (settings != null) item(key = "switch") {
+            Row(CardModifier.heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.memory_on))
+                    entries?.let { Text(resources.getQuantityString(R.plurals.memory_count, it.size, it.size), color = ZeroColors.Muted, style = MaterialTheme.typography.labelSmall) }
                 }
+                Switch(
+                    settings.memoryEnabled, { onChange(settings.copy(memoryEnabled = it)) },
+                    colors = SwitchDefaults.colors(checkedTrackColor = ZeroColors.Accent, checkedThumbColor = Color.White, uncheckedTrackColor = ZeroColors.BorderStrong, uncheckedThumbColor = Color.White, uncheckedBorderColor = Color.Transparent),
+                )
             }
-            if (entries.isEmpty()) Text(stringResource(R.string.memory_empty), color = ZeroColors.Muted, style = MaterialTheme.typography.bodySmall)
-            entries.forEach { e ->
-                Row(Modifier.fillMaxWidth().background(ZeroColors.Surface, RoundedCornerShape(6.dp)).padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(e.text, Modifier.weight(1f).padding(vertical = 10.dp))
-                    IconButton(onClick = { editing = e; draft = e.text }) { Icon(Icons.Filled.Edit, stringResource(R.string.edit), Modifier.size(18.dp), tint = ZeroColors.Muted) }
-                    IconButton(onClick = { scope.launch { try { vm.api?.deleteMemory(e.id) } catch (_: Exception) { }; load() } }) { Icon(Icons.Filled.Delete, stringResource(R.string.delete), Modifier.size(18.dp), tint = ZeroColors.Muted) }
-                }
+        }
+        val list = entries ?: emptyList()
+        items(list, key = { it.id }) { e ->
+            Row(animateRow(LocalMotion.current).then(CardModifier).padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(e.text, Modifier.weight(1f).padding(vertical = 12.dp))
+                IconButton(onClick = { editing = e; draft = e.text }) { Icon(Icons.Filled.Edit, stringResource(R.string.edit), Modifier.size(18.dp), tint = ZeroColors.Muted) }
+                IconButton(onClick = { scope.launch { try { vm.api?.deleteMemory(e.id) } catch (_: Exception) { }; load() } }) { Icon(Icons.Filled.Delete, stringResource(R.string.delete), Modifier.size(18.dp), tint = ZeroColors.Muted) }
             }
+        }
+        if (entries != null && list.isEmpty()) item(key = "empty") {
+            Text(stringResource(R.string.memory_empty), color = ZeroColors.Muted, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp))
         }
     }
     editing?.let { e ->
@@ -162,5 +350,30 @@ fun MemoryScreen(vm: AppViewModel, onBack: () -> Unit) {
             confirmButton = { TextButton(onClick = { scope.launch { try { vm.api?.updateMemory(e.id, draft) } catch (_: Exception) { }; editing = null; load() } }) { Text(stringResource(R.string.save)) } },
             dismissButton = { TextButton(onClick = { editing = null }) { Text(stringResource(R.string.cancel)) } },
         )
+    }
+}
+
+// ---- Account --------------------------------------------------------------------------------
+
+@Composable
+private fun AccountSection(vm: AppViewModel, onChangeServer: () -> Unit) {
+    val session by vm.session.collectAsStateWithLifecycle()
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(ScreenPadding), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        SectionHeader(stringResource(R.string.account), stringResource(R.string.account_hint))
+        Column(CardModifier) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(stringResource(R.string.signed_in_as), color = ZeroColors.Muted)
+                Text(session.email ?: "", maxLines = 1)
+            }
+            Box(Modifier.fillMaxWidth().size(width = 1.dp, height = 1.dp).background(ZeroColors.Border))
+            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.server), color = ZeroColors.Muted, style = MaterialTheme.typography.bodySmall)
+                    Text(session.baseUrl ?: "", style = MaterialTheme.typography.bodyMedium)
+                }
+                Text(stringResource(R.string.change_server), color = ZeroColors.Accent, modifier = Modifier.clickable(onClick = onChangeServer).padding(8.dp))
+            }
+        }
+        ZeroButton(stringResource(R.string.sign_out), ghost = true, danger = true, onClick = vm::signOut)
     }
 }

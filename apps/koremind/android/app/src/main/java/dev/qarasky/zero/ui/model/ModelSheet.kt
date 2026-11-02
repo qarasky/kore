@@ -1,5 +1,13 @@
 package dev.qarasky.zero.ui.model
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -40,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -49,7 +58,10 @@ import androidx.compose.ui.unit.dp
 import dev.qarasky.zero.R
 import dev.qarasky.zero.data.ProviderInfo
 import dev.qarasky.zero.ui.Choice
+import dev.qarasky.zero.ui.theme.LocalMotion
 import dev.qarasky.zero.ui.theme.ZeroColors
+import dev.qarasky.zero.ui.theme.animateRow
+import dev.qarasky.zero.ui.theme.quickSpec
 
 /** Bottom sheet version of the picker: provider rail on the left, search and rows on the right. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,12 +96,17 @@ fun ModelSheet(
                     if (rows.isEmpty()) item { Text(if (rail == "favorites" && query.isEmpty()) stringResource(R.string.no_favorites) else stringResource(R.string.no_models), color = ZeroColors.Muted, modifier = Modifier.padding(vertical = 14.dp)) }
                     items(rows, key = { it.key }) { r ->
                         val active = r.providerId == choice?.providerId && r.model.id == choice.modelId
-                        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).background(if (active) ZeroColors.Raised else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(6.dp)).clickable { onSelect(r.providerId, r.model.id); onDismiss() }.padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        val on = LocalMotion.current
+                        val rowBg by animateColorAsState(if (active) ZeroColors.Raised else androidx.compose.ui.graphics.Color.Transparent, quickSpec(on), label = "row-bg")
+                        Row(animateRow(on).fillMaxWidth().heightIn(min = 48.dp).background(rowBg, RoundedCornerShape(6.dp)).clickable { onSelect(r.providerId, r.model.id); onDismiss() }.padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(r.model.name, Modifier.weight(1f), maxLines = 1)
                             if (!r.model.vision) Text(stringResource(R.string.no_photos), color = ZeroColors.Muted, style = MaterialTheme.typography.labelSmall)
                             val fav = r.key in favorites
                             IconButton(onClick = { onFavorite(r.key) }) {
-                                Icon(if (fav) Icons.Filled.Star else Icons.Outlined.Star, stringResource(if (fav) R.string.remove_favorite else R.string.add_favorite), tint = if (fav) ZeroColors.Accent else ZeroColors.Muted)
+                                // The star pops in when pinned and fades out when unpinned.
+                                AnimatedContent(fav, label = "star", transitionSpec = { (fadeIn(quickSpec(on)) + scaleIn(quickSpec(on), initialScale = 0.6f)) togetherWith (fadeOut(quickSpec(on)) + scaleOut(quickSpec(on), targetScale = 0.6f)) }) { f ->
+                                    Icon(if (f) Icons.Filled.Star else Icons.Outlined.Star, stringResource(if (f) R.string.remove_favorite else R.string.add_favorite), tint = if (f) ZeroColors.Accent else ZeroColors.Muted)
+                                }
                             }
                             if (active) Icon(Icons.Filled.Check, null, Modifier.padding(end = 8.dp).size(18.dp))
                         }
@@ -115,6 +132,7 @@ private fun RailItem(active: Boolean, description: String, label: String? = null
     Box(Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable(onClick = onClick).semantics { contentDescription = description }, contentAlignment = Alignment.Center) {
         if (label == null) Icon(Icons.Filled.Star, null, tint = ZeroColors.Text)
         else Box(Modifier.size(26.dp).background(ZeroColors.Raised, CircleShape), contentAlignment = Alignment.Center) { Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold) }
-        if (active) Box(Modifier.align(Alignment.CenterEnd).size(width = 3.dp, height = 24.dp).background(ZeroColors.Accent, RoundedCornerShape(2.dp)))
+        val alpha by animateFloatAsState(if (active) 1f else 0f, quickSpec(LocalMotion.current), label = "rail-marker")
+        Box(Modifier.align(Alignment.CenterEnd).size(width = 3.dp, height = 24.dp).graphicsLayer { this.alpha = alpha }.background(ZeroColors.Accent, RoundedCornerShape(2.dp)))
     }
 }

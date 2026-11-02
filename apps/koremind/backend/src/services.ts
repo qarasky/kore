@@ -19,7 +19,7 @@ export function createServices(o: ServiceOptions) {
   const chats = createChats(o.db, o.engine, {
     buildSystem: (u) => settings.buildSystem(settings.get(u), memory.list(u)),
     readUpload: (id, u) => uploads.read(id, u),
-    onTurnComplete: (u, a, b) => { void memory.extractAfterTurn(u, a, b); },
+    onTurnComplete: (u, a, b, model) => { void memory.extractAfterTurn(u, a, b, model); },
   });
   return { db: o.db, engine: o.engine, version: o.version, auth, settings, memory, uploads, models, chats };
 }

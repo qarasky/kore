@@ -20,6 +20,7 @@ import dev.qarasky.zero.data.normalizeBackendUrl
 import dev.qarasky.zero.data.uploadSizeError
 import dev.qarasky.zero.ui.chat.ChatUiState
 import dev.qarasky.zero.ui.chat.beginTurn
+import dev.qarasky.zero.ui.chat.endsTurn
 import dev.qarasky.zero.ui.chat.reduce
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -170,18 +171,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _chat.update { beginTurn(it, text, atts) }
         _pending.value = emptyList()
         _busy.value = true
+        streamJob?.cancel() // a previous turn may still be waiting on its title; the server finishes naming either way
         streamJob = viewModelScope.launch {
+            val me = coroutineContext[Job]
             try {
                 var id = _chatId.value
                 if (id == null) { id = a.createChat().id; _chatId.value = id }
                 a.send(id, SendMessageRequest(text, atts.map { it.id }, ModelRef(c.providerId, c.modelId), c.thinking)).collect { ev ->
                     _chat.update { reduce(it, ev) }
+                    // The composer is free the moment the reply ends; the stream stays open a little longer for the title.
+                    if (endsTurn(ev)) { _busy.value = false; cache.saveMessages(id, _chat.value.messages) }
+                    if (ev is StreamEvent.Title) refreshChats()
                 }
                 cache.saveMessages(id, _chat.value.messages)
             } catch (e: ApiException) {
                 _chat.update { reduce(it, StreamEvent.Error("engine", e.message ?: "Request failed")) }
             } finally {
-                _busy.value = false
+                if (streamJob === me) _busy.value = false
                 refreshChats()
             }
         }
@@ -212,6 +218,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             _pending.update { it + Pending(att, uri) }
         } catch (e: Exception) { _uploadError.value = e.message ?: "Upload failed" }
     }
+
+    /** Saves Settings from a screen that is going away, so a late edit is never lost. */
+    fun saveSettingsNow(s: dev.qarasky.zero.data.Settings) { viewModelScope.launch { try { api?.putSettings(s) } catch (_: Exception) { } } }
 
     fun removePending(id: String) { _pending.update { l -> l.filterNot { it.attachment.id == id } } }
 }

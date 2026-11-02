@@ -47,3 +47,7 @@ bun run scripts/generate-icons.ts                # regenerate the mark everywher
 ```
 
 Docs: [design](docs/superpowers/specs/2026-11-02-zero-design.md), [plan](docs/superpowers/plans/2026-11-02-zero.md), [API contract](docs/api.md), [engine notes](docs/superpowers/notes/engine-spike.md).
+
+## Design
+
+See [`DESIGN.md`](DESIGN.md) for how Zero looks and moves, and [`docs/research/design-research.md`](docs/research/design-research.md) for the research behind it.
