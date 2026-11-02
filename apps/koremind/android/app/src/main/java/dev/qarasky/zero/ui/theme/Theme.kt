@@ -1,5 +1,8 @@
 package dev.qarasky.zero.ui.theme
 
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
@@ -52,7 +55,10 @@ private val type = Typography(
 
 @Composable
 fun ZeroTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = scheme, typography = type, shapes = Shapes(small = UiShape, medium = UiShape, large = UiShape)) { ProvideMotion(content) }
+    MaterialTheme(colorScheme = scheme, typography = type, shapes = Shapes(small = UiShape, medium = UiShape, large = UiShape)) {
+        // A root Surface sets the default text colour; without it unstyled Text is drawn black on the dark background.
+        Surface(Modifier.fillMaxSize(), color = ZeroColors.Bg, contentColor = ZeroColors.Text) { ProvideMotion(content) }
+    }
 }
 
 val CodeFont = FontFamily.Monospace
