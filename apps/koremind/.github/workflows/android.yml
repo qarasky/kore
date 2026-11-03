@@ -68,7 +68,14 @@ jobs:
           src=android/app/build/outputs/apk/release/app-release.apk
           [ -f "$src" ] || { echo "::error::No signed APK was produced (is the keystore wired in?)"; exit 1; }
           apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
-          "$apksigner" verify --print-certs "$src"
+          certs=$("$apksigner" verify --print-certs "$src" 2>&1)
+          got=$(printf '%s\n' "$certs" | grep -m1 'certificate SHA-256 digest:' | sed 's/.*digest:[[:space:]]*//' | tr -d ':[:space:]' | tr 'A-F' 'a-f' || true)
+          want=$(tr -d ':[:space:]' < android/signing-fingerprint.txt | tr 'A-F' 'a-f')
+          if [ -z "$got" ] || [ "$got" != "$want" ]; then
+            echo "::error::The APK is not signed by the certificate in android/signing-fingerprint.txt (expected $want, apksigner reported \"$got\")."
+            printf '%s\n' "$certs"
+            exit 1
+          fi
           aapt2=$(ls -d "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)
           "$aapt2" dump badging "$src" | grep -q "versionName='$version'" || { echo "::error::APK versionName is not $version"; exit 1; }
           "$aapt2" dump badging "$src" | grep -q "versionCode='$code'" || { echo "::error::APK versionCode is not $code"; exit 1; }

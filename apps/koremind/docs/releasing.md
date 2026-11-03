@@ -27,6 +27,7 @@ git push origin v0.2.0
 - the tagged commit is not on `main`,
 - the tests fail,
 - the Android signing secrets are missing.
+- the APK is not signed by the certificate recorded in `android/signing-fingerprint.txt` (run the **Android signing check** workflow to print the stored key's SHA-256).
 
 When it finishes you have a GitHub Release `KoreMind 0.2.0` with the signed APK and its `.sha256`, auto-generated notes grouped by label (`.github/release.yml`), and install commands.
 
