@@ -7,6 +7,12 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -53,6 +59,8 @@ import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** What the widget draws from: only the phone's own copy, never the network. */
@@ -82,6 +90,7 @@ internal suspend fun loadWidgetData(context: Context): WidgetData {
 }
 
 const val EXTRA_EVENT_ID = "event_id"
+private const val MAX_CHILDREN = 10
 const val EXTRA_OCC_KEY = "occ_key"
 
 /** Opens the app on one event. The data URI makes each row's intent distinct, so their PendingIntents do not overwrite each other. */
@@ -95,8 +104,15 @@ class AgendaWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val data = loadWidgetData(context)
-        provideContent { Content(data) }
+        val first = loadWidgetData(context)
+        provideContent {
+            // Glance keeps this composition alive between updates and does not call provideGlance again, so
+            // the data is re-read whenever WidgetUpdater says something changed (a sync, a hidden calendar).
+            val version by WidgetUpdater.version.collectAsState()
+            var data by remember { mutableStateOf(first) }
+            LaunchedEffect(version) { data = loadWidgetData(context) }
+            Content(data)
+        }
     }
 
     @Composable
@@ -129,22 +145,26 @@ class AgendaWidget : GlanceAppWidget() {
                 !data.signedIn -> Text(context.getString(R.string.widget_sign_in), style = style(Palette.muted))
                 model == null || model.empty -> Text(context.getString(R.string.widget_empty), style = style(Palette.muted))
                 else -> {
-                    for (day in fitRows(model.days, heightDp, footer != null)) {
-                        Text(
-                            dayLabel(day.date, today, labels),
-                            style = TextStyle(color = ColorProvider(if (day.date == today) Palette.accent else Palette.muted), fontSize = 11.sp, fontWeight = FontWeight.Bold),
-                        )
-                        for (item in day.items) {
-                            Row(
-                                modifier = GlanceModifier.fillMaxWidth().padding(vertical = 1.dp).clickable(
-                                    actionStartActivity(eventIntent(context, item.occ.eventId, item.occ.key)),
-                                ),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Box(modifier = GlanceModifier.size(8.dp).cornerRadius(4.dp).background(ColorProvider(parseHex(item.colorHex, Palette.accent)))) {}
-                                Spacer(GlanceModifier.width(8.dp))
-                                Text(timeText(item, day.date, data.clock24, allDay, until), style = style(Palette.muted), maxLines = 1, modifier = GlanceModifier.width(92.dp))
-                                Text(item.occ.title.ifBlank { context.getString(R.string.no_title) }, style = style(Palette.text), maxLines = 1)
+                    // A RemoteViews column holds at most 10 children and silently drops the rest, so each
+                    // day is one nested column (heading + its rows) and the outer one counts days only.
+                    for (day in fitRows(model.days, heightDp, footer != null).take(if (footer != null) MAX_CHILDREN - 1 else MAX_CHILDREN)) {
+                        Column(modifier = GlanceModifier.fillMaxWidth()) {
+                            Text(
+                                dayLabel(day.date, today, labels),
+                                style = TextStyle(color = ColorProvider(if (day.date == today) Palette.accent else Palette.muted), fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                            )
+                            for (item in day.items.take(MAX_CHILDREN - 1)) {
+                                Row(
+                                    modifier = GlanceModifier.fillMaxWidth().padding(vertical = 1.dp).clickable(
+                                        actionStartActivity(eventIntent(context, item.occ.eventId, item.occ.key)),
+                                    ),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Box(modifier = GlanceModifier.size(8.dp).cornerRadius(4.dp).background(ColorProvider(parseHex(item.colorHex, Palette.accent)))) {}
+                                    Spacer(GlanceModifier.width(8.dp))
+                                    Text(timeText(item, day.date, data.clock24, allDay, until), style = style(Palette.muted), maxLines = 1, modifier = GlanceModifier.width(92.dp))
+                                    Text(item.occ.title.ifBlank { context.getString(R.string.no_title) }, style = style(Palette.text), maxLines = 1)
+                                }
                             }
                         }
                     }
@@ -162,8 +182,12 @@ class AgendaWidgetReceiver : GlanceAppWidgetReceiver() {
 }
 
 object WidgetUpdater {
+    /** Bumped on every update so a running widget composition reloads its data. */
+    val version = MutableStateFlow(0L)
+
     /** Redraws every Agenda widget and arms the alarm for when its first listed event ends. */
     suspend fun updateAll(context: Context) {
+        version.update { it + 1 }
         AgendaWidget().updateAll(context)
         scheduleTick(context)
     }
