@@ -27,13 +27,9 @@ object InstantSerializer : KSerializer<Instant> {
 @Serializable
 data class User(val id: String, val email: String, val role: String = "user", val timezone: String = "UTC")
 
-@Serializable
-data class Session(val token: String, val user: User)
-
 /** `GET /api/auth/config`: the sign-in methods the server offers. */
 @Serializable
 data class AuthConfig(
-    @kotlinx.serialization.SerialName("password_login") val passwordLogin: Boolean = true,
     val oidc: OidcInfo? = null,
 )
 

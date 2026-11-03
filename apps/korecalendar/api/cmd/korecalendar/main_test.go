@@ -89,7 +89,7 @@ func TestServeStartsBackgroundWorkAndStopsOnCancel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	u, _ := users.Create(context.Background(), seed, "a@example.com", "x", "admin")
+	u, _ := users.Create(context.Background(), seed, "a@example.com", "admin")
 	calendars.CreateDefault(context.Background(), seed, u.ID)
 	e, err := events.Create(context.Background(), seed, events.Actor{UserID: u.ID, Label: "user"}, events.Input{Title: "old", Start: "2026-01-01T09:00:00", TZ: "UTC"})
 	if err != nil {

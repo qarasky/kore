@@ -41,7 +41,7 @@ describe("signOut", () => {
     delete (globalThis as { window?: unknown }).window;
   });
 
-  it("returns null for a password session (204)", async () => {
+  it("returns null for a token session (204)", async () => {
     globalThis.fetch = (async () => new Response(null, { status: 204 })) as typeof fetch;
     expect(await signOut()).toBeNull();
   });

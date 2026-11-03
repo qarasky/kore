@@ -23,7 +23,7 @@ func newFixture(t *testing.T) fixture {
 	t.Helper()
 	db := testutil.NewDB(t)
 	ctx := context.Background()
-	u, err := users.Create(ctx, db, "a@example.com", "x", "admin")
+	u, err := users.Create(ctx, db, "a@example.com", "admin")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +229,7 @@ func TestCalendarFilter(t *testing.T) {
 func TestOnlyOwnEventsReturned(t *testing.T) {
 	f := newFixture(t)
 	f.create(t, Input{Title: "Mine", Start: "2026-11-04T09:00:00", TZ: "UTC"})
-	other, _ := users.Create(context.Background(), f.db, "b@example.com", "x", "user")
+	other, _ := users.Create(context.Background(), f.db, "b@example.com", "user")
 	got, err := Occurrences(context.Background(), f.db, other.ID, rng("2026-11-04T00:00:00Z", "2026-11-05T00:00:00Z"))
 	if err != nil || len(got) != 0 {
 		t.Fatalf("other user sees %v, %v", keysOf(got), err)

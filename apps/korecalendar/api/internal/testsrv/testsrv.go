@@ -5,28 +5,41 @@ package testsrv
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/qarasky/korecalendar/api/internal/auth"
+	"github.com/qarasky/korecalendar/api/internal/calendars"
 	"github.com/qarasky/korecalendar/api/internal/httpapi"
 	"github.com/qarasky/korecalendar/api/internal/testutil"
+	"github.com/qarasky/korecalendar/api/internal/users"
 )
 
 const (
-	AdminEmail    = "admin@example.com"
+	AdminEmail = "admin@example.com"
+	// AdminPassword is a placeholder no account has: password sign-in is gone,
+	// and tests assert that it is refused (e.g. CalDAV Basic auth).
 	AdminPassword = "correct horse battery"
 )
+
+// servers maps a test server's URL to its database, so Login can seed an
+// account and a session without every caller passing the handle around.
+var servers sync.Map
 
 // New returns a running server over a fresh migrated database.
 func New(t *testing.T) (*httptest.Server, *sql.DB) {
 	t.Helper()
 	db := testutil.NewDB(t)
 	srv := httptest.NewServer(httpapi.New(db, t.TempDir()))
-	t.Cleanup(srv.Close)
+	servers.Store(srv.URL, db)
+	t.Cleanup(func() { servers.Delete(srv.URL); srv.Close() })
 	return srv, db
 }
 
@@ -90,34 +103,61 @@ func Do(t *testing.T, srv *httptest.Server, token, method, path string, body any
 	return Resp{Status: res.StatusCode, Header: res.Header, Body: b}
 }
 
-// Login returns a bearer token for the admin account, creating it through
-// first-run setup if no user exists yet.
-func Login(t *testing.T, srv *httptest.Server) string {
+func dbFor(t *testing.T, srv *httptest.Server) *sql.DB {
 	t.Helper()
-	creds := map[string]string{"email": AdminEmail, "password": AdminPassword}
-	r := Do(t, srv, "", "POST", "/api/setup", creds)
-	if r.Status != 201 {
-		r = Do(t, srv, "", "POST", "/api/login", creds)
+	v, ok := servers.Load(srv.URL)
+	if !ok {
+		t.Fatalf("testsrv: unknown server %s (use testsrv.New)", srv.URL)
 	}
-	var out struct{ Token string }
-	r.Decode(t, &out)
-	if out.Token == "" {
-		t.Fatalf("no token from setup/login: %d %s", r.Status, r.Body)
-	}
-	return out.Token
+	return v.(*sql.DB)
 }
 
-// AddUser creates a regular user through the admin API and returns a token for them.
+// CreateUser inserts a local account with a default calendar and returns it.
+// It is how tests model an account that exists before (or without) Kore ID.
+func CreateUser(t *testing.T, db *sql.DB, email, role string) users.User {
+	t.Helper()
+	ctx := context.Background()
+	u, err := users.Create(ctx, db, email, role)
+	if err != nil {
+		t.Fatalf("create user %s: %v", email, err)
+	}
+	if _, err := calendars.CreateDefault(ctx, db, u.ID); err != nil {
+		t.Fatalf("default calendar for %s: %v", email, err)
+	}
+	return u
+}
+
+// Session returns a bearer token for an existing user.
+func Session(t *testing.T, db *sql.DB, userID string) string {
+	t.Helper()
+	tok, err := auth.NewSession(context.Background(), db, userID, time.Hour)
+	if err != nil {
+		t.Fatalf("session: %v", err)
+	}
+	return tok
+}
+
+// Login returns a bearer token for the admin account, creating it (and its
+// default calendar) if it does not exist yet. No password is involved.
+func Login(t *testing.T, srv *httptest.Server) string {
+	t.Helper()
+	db := dbFor(t, srv)
+	u, _, err := users.GetLinkByEmail(context.Background(), db, AdminEmail)
+	if err == users.ErrNotFound {
+		u = CreateUser(t, db, AdminEmail, "admin")
+	} else if err != nil {
+		t.Fatalf("find admin: %v", err)
+	}
+	return Session(t, db, u.ID)
+}
+
+// AddUser creates a regular user and returns a token for them. adminToken is
+// accepted for call-site compatibility; accounts no longer need an admin to
+// create them (Kore ID auto-provisions on first sign-in).
 func AddUser(t *testing.T, srv *httptest.Server, adminToken, email string) string {
 	t.Helper()
-	r := Do(t, srv, adminToken, "POST", "/api/admin/users", map[string]string{"email": email, "password": "another long password", "role": "user"})
-	if r.Status != 201 {
-		t.Fatalf("add user: %d %s", r.Status, r.Body)
-	}
-	r = Do(t, srv, "", "POST", "/api/login", map[string]string{"email": email, "password": "another long password"})
-	var out struct{ Token string }
-	r.Decode(t, &out)
-	return out.Token
+	u := CreateUser(t, dbFor(t, srv), email, "user")
+	return Session(t, dbFor(t, srv), u.ID)
 }
 
 // DoRaw sends a request with a raw (non-JSON) body.

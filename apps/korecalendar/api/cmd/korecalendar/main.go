@@ -264,9 +264,10 @@ func serveWith(ctx context.Context, cfg config.Config, logger *log.Logger, onBac
 
 // signInOptions builds the sign-in settings from the config. Kore ID is
 // discovered lazily on first use, so a provider that is down at startup does
-// not stop the calendar (or password sign-in) from coming up.
+// not stop the calendar from coming up. Without a provider nobody can sign in;
+// the web and Android apps say so rather than offering a password form.
 func signInOptions(db *sql.DB, cfg config.Config) (httpapi.Options, error) {
-	o := httpapi.Options{PasswordLogin: cfg.PasswordLogin, PublicURL: strings.TrimRight(cfg.PublicURL, "/")}
+	o := httpapi.Options{PublicURL: strings.TrimRight(cfg.PublicURL, "/")}
 	if !cfg.OIDC.Enabled() {
 		return o, nil
 	}

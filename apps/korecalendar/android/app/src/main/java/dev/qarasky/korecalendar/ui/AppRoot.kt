@@ -105,7 +105,6 @@ fun AppRoot(controller: AppController, pendingOpen: StateFlow<Pair<String, Strin
         }
         is AppState.SignedOut -> SignInScreen(
             s,
-            onSignIn = { url, email, password -> controller.signIn(url, email, password) },
             onKoreId = { url, browse -> controller.signInWithKoreId(url, browse) },
         )
         is AppState.Ready -> if (editor != null) {

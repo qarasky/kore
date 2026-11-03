@@ -27,7 +27,7 @@ type ssoEnv struct {
 }
 
 // newSSO runs the API against a fake Kore ID.
-func newSSO(t *testing.T, mut func(*config.OIDC), passwords bool) *ssoEnv {
+func newSSO(t *testing.T, mut func(*config.OIDC)) *ssoEnv {
 	t.Helper()
 	db := testutil.NewDB(t)
 	kore := oidctest.New(t, "korecalendar", "s3cret")
@@ -43,7 +43,7 @@ func newSSO(t *testing.T, mut func(*config.OIDC), passwords bool) *ssoEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h = httpapi.NewWithOptions(db, t.TempDir(), httpapi.Options{PasswordLogin: passwords, ButtonName: "Kore ID",
+	h = httpapi.NewWithOptions(db, t.TempDir(), httpapi.Options{ButtonName: "Kore ID",
 		PublicURL: srv.URL, SSO: &sso.Service{DB: db, Provider: p, Cfg: cfg}})
 	return &ssoEnv{srv: srv, kore: kore, db: db}
 }
@@ -96,7 +96,7 @@ func (b *browser) me(e *ssoEnv) testsrv.Resp {
 }
 
 func TestOIDCLoginProvisionsAndCreatesASession(t *testing.T) {
-	e := newSSO(t, func(c *config.OIDC) { c.AdminSubs = []string{adaSub} }, true)
+	e := newSSO(t, func(c *config.OIDC) { c.AdminSubs = []string{adaSub} })
 	b := newBrowser(t)
 	if loc := b.signIn(e, "/calendar/week"); loc != "/calendar/week" {
 		t.Fatalf("redirected to %q", loc)
@@ -123,7 +123,7 @@ func TestOIDCLoginProvisionsAndCreatesASession(t *testing.T) {
 }
 
 func TestOIDCCallbackRejectsBadState(t *testing.T) {
-	e := newSSO(t, func(c *config.OIDC) { c.AdminSubs = []string{adaSub} }, true)
+	e := newSSO(t, func(c *config.OIDC) { c.AdminSubs = []string{adaSub} })
 
 	// No flow cookie: a callback forged by another site cannot finish a login.
 	b := newBrowser(t)
@@ -154,7 +154,7 @@ func TestOIDCCallbackRejectsBadState(t *testing.T) {
 }
 
 func TestOIDCCallbackProviderErrorsAndIssuer(t *testing.T) {
-	e := newSSO(t, nil, true)
+	e := newSSO(t, nil)
 	b := newBrowser(t)
 	start := func() string {
 		a := b.get(e.srv.URL + "/api/auth/oidc/login").Header.Get("Location")
@@ -172,7 +172,7 @@ func TestOIDCCallbackProviderErrorsAndIssuer(t *testing.T) {
 }
 
 func TestOIDCNextIsNeverAnOpenRedirect(t *testing.T) {
-	e := newSSO(t, func(c *config.OIDC) { c.AdminSubs = []string{adaSub} }, true)
+	e := newSSO(t, func(c *config.OIDC) { c.AdminSubs = []string{adaSub} })
 	for _, next := range []string{"https://evil.example", "//evil.example", "/\\evil.example", "/login", "/setup?x=1", "calendar"} {
 		if loc := newBrowser(t).signIn(e, next); loc != "/" {
 			t.Errorf("next %q -> %q", next, loc)
@@ -181,13 +181,13 @@ func TestOIDCNextIsNeverAnOpenRedirect(t *testing.T) {
 }
 
 func TestOIDCFirstUserNeedsToBeNamedAdmin(t *testing.T) {
-	e := newSSO(t, nil, true) // no admin_subs, empty database
+	e := newSSO(t, nil) // no admin_subs, empty database
 	loc := newBrowser(t).signIn(e, "/")
 	if loc != "/login?error=no_admin" {
 		t.Fatalf("%q", loc)
 	}
-	// After setup exists, a Kore ID user is provisioned as a normal user.
-	testsrv.Do(t, e.srv, "", "POST", "/api/setup", map[string]string{"email": testsrv.AdminEmail, "password": testsrv.AdminPassword})
+	// Once an account exists, a Kore ID user is provisioned as a normal user.
+	testsrv.CreateUser(t, e.db, testsrv.AdminEmail, "admin")
 	b := newBrowser(t)
 	b.signIn(e, "/")
 	var me struct{ Role string }
@@ -199,7 +199,7 @@ func TestOIDCFirstUserNeedsToBeNamedAdmin(t *testing.T) {
 
 func TestOIDCOwnerEmailCanCreateTheFirstAdministrator(t *testing.T) {
 	t.Run("owner email, verified, fresh database", func(t *testing.T) {
-		e := newSSO(t, func(c *config.OIDC) { c.OwnerEmail = "ada@example.com" }, true)
+		e := newSSO(t, func(c *config.OIDC) { c.OwnerEmail = "ada@example.com" })
 		b := newBrowser(t)
 		if loc := b.signIn(e, "/"); loc != "/" {
 			t.Fatalf("redirected to %q", loc)
@@ -216,7 +216,7 @@ func TestOIDCOwnerEmailCanCreateTheFirstAdministrator(t *testing.T) {
 		}
 	})
 	t.Run("a different email is still refused", func(t *testing.T) {
-		e := newSSO(t, func(c *config.OIDC) { c.OwnerEmail = "owner@example.com" }, true)
+		e := newSSO(t, func(c *config.OIDC) { c.OwnerEmail = "owner@example.com" })
 		if loc := newBrowser(t).signIn(e, "/"); loc != "/login?error=no_admin" {
 			t.Fatalf("%q", loc)
 		}
@@ -227,7 +227,7 @@ func TestOIDCOwnerEmailCanCreateTheFirstAdministrator(t *testing.T) {
 		}
 	})
 	t.Run("the owner email must be verified", func(t *testing.T) {
-		e := newSSO(t, func(c *config.OIDC) { c.OwnerEmail = "ada@example.com" }, true)
+		e := newSSO(t, func(c *config.OIDC) { c.OwnerEmail = "ada@example.com" })
 		e.kore.User["email_verified"] = false
 		if loc := newBrowser(t).signIn(e, "/"); loc != "/login?error=no_admin" {
 			t.Fatalf("%q", loc)
@@ -239,8 +239,8 @@ func TestOIDCOwnerEmailCanCreateTheFirstAdministrator(t *testing.T) {
 		}
 	})
 	t.Run("no promotion once an account exists", func(t *testing.T) {
-		e := newSSO(t, func(c *config.OIDC) { c.OwnerEmail = "ada@example.com" }, true)
-		testsrv.Do(t, e.srv, "", "POST", "/api/setup", map[string]string{"email": testsrv.AdminEmail, "password": testsrv.AdminPassword})
+		e := newSSO(t, func(c *config.OIDC) { c.OwnerEmail = "ada@example.com" })
+		testsrv.CreateUser(t, e.db, testsrv.AdminEmail, "admin")
 		b := newBrowser(t)
 		b.signIn(e, "/")
 		var me struct{ Role string }
@@ -252,8 +252,8 @@ func TestOIDCOwnerEmailCanCreateTheFirstAdministrator(t *testing.T) {
 }
 
 func TestOIDCAutoProvisionOff(t *testing.T) {
-	e := newSSO(t, func(c *config.OIDC) { c.AutoProvision = false }, true)
-	testsrv.Do(t, e.srv, "", "POST", "/api/setup", map[string]string{"email": testsrv.AdminEmail, "password": testsrv.AdminPassword})
+	e := newSSO(t, func(c *config.OIDC) { c.AutoProvision = false })
+	testsrv.CreateUser(t, e.db, testsrv.AdminEmail, "admin")
 	if loc := newBrowser(t).signIn(e, "/"); loc != "/login?error=no_account" {
 		t.Fatalf("%q", loc)
 	}
@@ -261,14 +261,11 @@ func TestOIDCAutoProvisionOff(t *testing.T) {
 
 func TestOIDCEmailLinking(t *testing.T) {
 	setupWithAda := func(e *ssoEnv) string {
-		// A local password account that owns ada@example.com.
-		tok := testsrv.Do(t, e.srv, "", "POST", "/api/setup", map[string]string{"email": "ada@example.com", "password": testsrv.AdminPassword})
-		var out struct{ Token string }
-		tok.Decode(t, &out)
-		return out.Token
+		// An existing local account that owns ada@example.com (from before Kore ID).
+		return testsrv.CreateUser(t, e.db, "ada@example.com", "admin").ID
 	}
 	t.Run("off: never links, the email is not enough", func(t *testing.T) {
-		e := newSSO(t, func(c *config.OIDC) { c.LinkByEmail = "off" }, true)
+		e := newSSO(t, func(c *config.OIDC) { c.LinkByEmail = "off" })
 		setupWithAda(e)
 		if loc := newBrowser(t).signIn(e, "/"); loc != "/login?error=email_in_use" {
 			t.Fatalf("%q", loc)
@@ -280,7 +277,7 @@ func TestOIDCEmailLinking(t *testing.T) {
 		}
 	})
 	t.Run("verified (the default): needs email_verified", func(t *testing.T) {
-		e := newSSO(t, nil, true)
+		e := newSSO(t, nil)
 		setupWithAda(e)
 		e.kore.User["email_verified"] = false
 		if loc := newBrowser(t).signIn(e, "/"); loc != "/login?error=email_in_use" {
@@ -298,7 +295,7 @@ func TestOIDCEmailLinking(t *testing.T) {
 		}
 	})
 	t.Run("an account linked to someone else is never taken over", func(t *testing.T) {
-		e := newSSO(t, func(c *config.OIDC) { c.LinkByEmail = "trusted" }, true)
+		e := newSSO(t, func(c *config.OIDC) { c.LinkByEmail = "trusted" })
 		setupWithAda(e)
 		newBrowser(t).signIn(e, "/") // links sub 1111...
 		e.kore.User["sub"] = "22222222-2222-4222-8222-222222222222"
@@ -312,7 +309,7 @@ func TestKoreIDAccessTokenAsBearer(t *testing.T) {
 	e := newSSO(t, func(c *config.OIDC) {
 		c.AdminSubs = []string{adaSub}
 		c.ExtraAudiences = []string{"korecalendar-android"}
-	}, true)
+	})
 	for _, aud := range []string{"korecalendar", "korecalendar-android"} {
 		r := testsrv.Do(t, e.srv, e.kore.AccessToken(aud), "GET", "/api/me", nil)
 		if r.Status != 200 {
@@ -348,7 +345,7 @@ func TestKoreIDAccessTokenAsBearer(t *testing.T) {
 		t.Fatalf("kcal token minted a token: %d", r.Status)
 	}
 	// Without the extra audience configured the Android client id is refused.
-	e2 := newSSO(t, func(c *config.OIDC) { c.AdminSubs = []string{adaSub} }, true)
+	e2 := newSSO(t, func(c *config.OIDC) { c.AdminSubs = []string{adaSub} })
 	if r := testsrv.Do(t, e2.srv, e2.kore.AccessToken("korecalendar-android"), "GET", "/api/me", nil); r.Status != 401 {
 		t.Fatalf("unconfigured audience: %d", r.Status)
 	}
@@ -361,29 +358,22 @@ func TestKoreIDBearerNotOfferedWithoutSSO(t *testing.T) {
 	}
 }
 
-func TestPasswordLoginCanBeDisabled(t *testing.T) {
-	e := newSSO(t, func(c *config.OIDC) { c.AdminSubs = []string{adaSub} }, false)
-	for _, path := range []string{"/api/login", "/api/setup"} {
-		r := testsrv.Do(t, e.srv, "", "POST", path, map[string]string{"email": "a@example.com", "password": "long enough pw"})
-		if r.Status != 403 || r.ErrorCode() != "password_login_disabled" {
-			t.Errorf("%s: %d %s", path, r.Status, r.Body)
-		}
-	}
-	// Kore ID still works.
+func TestKoreIDOnlySignIn(t *testing.T) {
+	e := newSSO(t, func(c *config.OIDC) { c.AdminSubs = []string{adaSub} })
+	// Kore ID works...
 	b := newBrowser(t)
 	b.signIn(e, "/")
 	if r := b.me(e); r.Status != 200 {
 		t.Fatalf("me: %d", r.Status)
 	}
-	var cfg struct {
-		PasswordLogin bool `json:"password_login"`
-		OIDC          struct {
-			Name     string `json:"name"`
-			LoginURL string `json:"login_url"`
-		} `json:"oidc"`
-	}
+	// ...and the sign-in config advertises only it.
+	var cfg map[string]any
 	testsrv.Do(t, e.srv, "", "GET", "/api/auth/config", nil).Decode(t, &cfg)
-	if cfg.PasswordLogin || cfg.OIDC.Name != "Kore ID" || cfg.OIDC.LoginURL != "/api/auth/oidc/login" {
+	if _, ok := cfg["password_login"]; ok {
+		t.Fatalf("password_login still advertised: %v", cfg)
+	}
+	oidc, _ := cfg["oidc"].(map[string]any)
+	if oidc["name"] != "Kore ID" || oidc["login_url"] != "/api/auth/oidc/login" {
 		t.Fatalf("config %+v", cfg)
 	}
 }
@@ -393,7 +383,7 @@ func TestAuthConfigFirstUserSSO(t *testing.T) {
 		FirstUserSSO bool `json:"first_user_sso"`
 	}
 	for name, owner := range map[string]string{"unset": "", "set": "ada@example.com"} {
-		e := newSSO(t, func(c *config.OIDC) { c.OwnerEmail = owner }, true)
+		e := newSSO(t, func(c *config.OIDC) { c.OwnerEmail = owner })
 		testsrv.Do(t, e.srv, "", "GET", "/api/auth/config", nil).Decode(t, &cfg)
 		if cfg.FirstUserSSO != (owner != "") {
 			t.Errorf("%s: first_user_sso = %v", name, cfg.FirstUserSSO)
@@ -404,7 +394,7 @@ func TestAuthConfigFirstUserSSO(t *testing.T) {
 func TestAuthConfigWithoutSSO(t *testing.T) {
 	srv, _ := testsrv.New(t)
 	r := testsrv.Do(t, srv, "", "GET", "/api/auth/config", nil)
-	if r.Status != 200 || string(r.Body) != "{\"first_user_sso\":false,\"oidc\":null,\"password_login\":true}\n" {
+	if r.Status != 200 || string(r.Body) != "{\"first_user_sso\":false,\"oidc\":null}\n" {
 		t.Fatalf("%d %q", r.Status, r.Body)
 	}
 	if r := testsrv.Do(t, srv, "", "GET", "/api/auth/oidc/login", nil); r.Status != 404 {
@@ -413,14 +403,15 @@ func TestAuthConfigWithoutSSO(t *testing.T) {
 }
 
 func TestLogoutEndsTheKoreIDSessionToo(t *testing.T) {
-	e := newSSO(t, func(c *config.OIDC) { c.AdminSubs = []string{adaSub} }, true)
+	e := newSSO(t, func(c *config.OIDC) { c.AdminSubs = []string{adaSub} })
 	b := newBrowser(t)
 	b.signIn(e, "/")
 	sess := b.cookie(e, "korecal_session")
-	// A password session on the same server logs out as before: 204.
-	pwTok := testsrv.AddUser(t, e.srv, sess, "bob@example.com")
+	// A token session on the same server logs out as before: 204.
+	bob := testsrv.CreateUser(t, e.db, "bob@example.com", "user")
+	pwTok := testsrv.Session(t, e.db, bob.ID)
 	if r := testsrv.Do(t, e.srv, pwTok, "POST", "/api/logout", nil); r.Status != 204 {
-		t.Fatalf("password logout: %d", r.Status)
+		t.Fatalf("token logout: %d", r.Status)
 	}
 	r := testsrv.Do(t, e.srv, sess, "POST", "/api/logout", nil)
 	var out struct {

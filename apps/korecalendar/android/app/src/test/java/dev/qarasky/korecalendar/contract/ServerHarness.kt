@@ -9,10 +9,13 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Files
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.util.Base64
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assume
 
 /**
@@ -80,15 +83,29 @@ object ServerHarness {
 
 class RunningServer(val base: String, private val process: Process, private val data: File, private val http: HttpClient) : AutoCloseable {
     val email = "owner@korecal.test"
-    val password = "owner-password-123"
     lateinit var ownerSession: String
         private set
     val url get() = ServerUrl(base, cleartext = true)
 
+    /**
+     * Kore ID is the only sign-in, and a contract test cannot drive a browser to
+     * a real provider. Seed the owner and a session directly in the server's
+     * SQLite database (the same SHA-256-at-rest rule the API uses).
+     */
     internal fun setup() {
-        val r = call("POST", "/api/setup", """{"email":"$email","password":"$password"}""", token = null)
-        check(r.first == 201) { "setup failed: $r" }
-        ownerSession = ApiJson.parseToJsonElement(r.second).jsonObject["token"]!!.jsonPrimitive.content
+        val id = UUID.randomUUID().toString().replace("-", "")
+        val bytes = ByteArray(32).also { SecureRandom().nextBytes(it) }
+        ownerSession = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+        val hash = MessageDigest.getInstance("SHA-256").digest(ownerSession.toByteArray()).joinToString("") { "%02x".format(it) }
+        val now = System.currentTimeMillis() / 1000
+        val sql = """
+            INSERT INTO users(id,email,pw_hash,role,timezone,created_at,oidc_sub) VALUES('$id','$email','!','admin','UTC',$now,'contract-owner');
+            INSERT INTO calendars(id,user_id,name,color,created_at) VALUES('${UUID.randomUUID()}', '$id', 'Personal', '#5b8def', $now);
+            INSERT INTO sessions(token_hash,user_id,expires_at,id_token,oidc_sid) VALUES('$hash','$id',${now + 3600},'','');
+        """.trimIndent()
+        val p = ProcessBuilder("sqlite3", File(data, "korecal.db").path, sql).redirectErrorStream(true).start()
+        val log = p.inputStream.bufferedReader().readText()
+        check(p.waitFor(30, TimeUnit.SECONDS) && p.exitValue() == 0) { "seeding the test database failed (is sqlite3 installed?):\n$log" }
     }
 
     /** A plain REST call as the owner (or as [token]); returns status and body. */

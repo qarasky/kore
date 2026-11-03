@@ -8,53 +8,10 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
-	"sync"
 	"time"
 
 	"github.com/qarasky/korecalendar/api/internal/users"
-	"golang.org/x/crypto/argon2"
 )
-
-// ErrInvalidCredentials is returned for both unknown email and wrong password.
-var ErrInvalidCredentials = errors.New("invalid email or password")
-
-var (
-	dummyOnce sync.Once
-	dummyHash string
-)
-
-// dummy returns a hash verified against when the email is unknown, to
-// equalize timing. Computed once, outside the slot pool.
-func dummy() string {
-	dummyOnce.Do(func() {
-		salt := []byte("korecal-dummy-salt!!")[:saltLen]
-		dummyHash = encodeHash(salt, argon2.IDKey([]byte("korecal-dummy-password"), salt, argonTime, argonMemory, argonThreads, argonKeyLen))
-	})
-	return dummyHash
-}
-
-// Authenticate verifies credentials. Failure is ErrInvalidCredentials, or
-// ErrBusy when the password-hash pool is saturated.
-func Authenticate(ctx context.Context, db *sql.DB, email, pw string) (users.User, error) {
-	u, hash, err := users.GetByEmail(ctx, db, email)
-	if err != nil {
-		if errors.Is(err, users.ErrNotFound) {
-			if _, err := VerifyPassword(dummy(), pw); err != nil {
-				return users.User{}, err
-			}
-			return users.User{}, ErrInvalidCredentials
-		}
-		return users.User{}, err
-	}
-	ok, err := VerifyPassword(hash, pw)
-	if err != nil {
-		return users.User{}, err
-	}
-	if !ok {
-		return users.User{}, ErrInvalidCredentials
-	}
-	return u, nil
-}
 
 func hashToken(tok string) string {
 	s := sha256.Sum256([]byte(tok))

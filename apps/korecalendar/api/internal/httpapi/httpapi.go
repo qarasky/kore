@@ -14,20 +14,16 @@ import (
 type server struct {
 	db      *sql.DB
 	dataDir string
-	limiter *auth.Limiter // login attempts per email|IP
-	ipLimit *auth.Limiter // login attempts per client IP across all emails
+	ipLimit *auth.Limiter // sign-in attempts per client IP
 
-	passwordLogin bool
-	sso           *sso.Service // nil when Kore ID sign-in is not configured
-	ssoName       string
-	publicURL     string
-	apps          map[string]string
+	sso       *sso.Service // nil when Kore ID sign-in is not configured
+	ssoName   string
+	publicURL string
+	apps      map[string]string
 }
 
 // Options are the sign-in settings of a running server.
 type Options struct {
-	// PasswordLogin allows email + password sign-in and first-run setup.
-	PasswordLogin bool
 	// SSO enables Kore ID sign-in and Kore ID access tokens as bearer tokens.
 	SSO *sso.Service
 	// ButtonName labels the sign-in button ("Kore ID").
@@ -38,18 +34,17 @@ type Options struct {
 	Apps map[string]string
 }
 
-// New returns the API handler with password sign-in only. dataDir is the
-// (already checked) volume.
+// New returns the API handler without Kore ID sign-in (tests and embedders
+// that seed accounts themselves). The real server uses NewWithOptions.
 func New(db *sql.DB, dataDir string) http.Handler {
-	return NewWithOptions(db, dataDir, Options{PasswordLogin: true})
+	return NewWithOptions(db, dataDir, Options{})
 }
 
 // NewWithOptions is New with explicit sign-in options.
 func NewWithOptions(db *sql.DB, dataDir string, o Options) http.Handler {
 	s := &server{db: db, dataDir: dataDir,
-		limiter:       auth.NewLimiter(5, 15*time.Minute),
-		ipLimit:       auth.NewLimiter(30, 15*time.Minute),
-		passwordLogin: o.PasswordLogin, sso: o.SSO, ssoName: o.ButtonName, publicURL: o.PublicURL, apps: o.Apps}
+		ipLimit: auth.NewLimiter(30, 15*time.Minute),
+		sso:     o.SSO, ssoName: o.ButtonName, publicURL: o.PublicURL, apps: o.Apps}
 	return s.handler()
 }
 
@@ -81,9 +76,6 @@ func (s *server) routes() []route {
 	return []route{
 		{"GET /api/healthz", accessPublic, func(w http.ResponseWriter, r *http.Request) { writeJSON(w, http.StatusOK, map[string]bool{"ok": true}) }},
 		{"GET /api/openapi.json", accessPublic, s.handleOpenAPI},
-		{"GET /api/setup", accessPublic, s.handleSetupStatus},
-		{"POST /api/setup", accessPublic, s.handleSetup},
-		{"POST /api/login", accessPublic, s.handleLogin},
 		{"GET /api/auth/config", accessPublic, s.handleAuthConfig},
 		{"GET /api/auth/oidc/login", accessPublic, s.handleOIDCLogin},
 		{"GET /api/auth/oidc/callback", accessPublic, s.handleOIDCCallback},
@@ -111,7 +103,8 @@ func (s *server) routes() []route {
 		{"GET /api/push/key", accessUser, s.handlePushKey},
 		{"POST /api/push/subscriptions", accessUser, s.handleSubscribe},
 		{"DELETE /api/push/subscriptions/{id}", accessUser, s.handleUnsubscribe},
-		{"POST /api/admin/users", accessAdmin, s.handleAdminCreateUser},
+		{"GET /api/admin/users", accessAdmin, s.handleAdminListUsers},
+		{"PATCH /api/admin/users/{id}", accessAdmin, s.handleAdminPatchUser},
 	}
 }
 
@@ -126,6 +119,11 @@ func Routes() []string {
 
 func (s *server) handler() http.Handler {
 	mux := http.NewServeMux()
+	// The removed local account-creation endpoint (POST /api/admin/users) is
+	// gone: answer 404 rather than 405 now that the same path lists accounts.
+	mux.HandleFunc("/api/admin/users", func(w http.ResponseWriter, r *http.Request) {
+		errJSON(w, http.StatusNotFound, "not_found", "not found")
+	})
 	var extra auth.BearerVerifier
 	if s.sso != nil {
 		extra = s.sso.Bearer

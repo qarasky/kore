@@ -14,7 +14,7 @@ import (
 func TestCreateListUpdateDelete(t *testing.T) {
 	db := testutil.NewDB(t)
 	ctx := context.Background()
-	u, _ := users.Create(ctx, db, "a@example.com", "x", "admin")
+	u, _ := users.Create(ctx, db, "a@example.com", "admin")
 	c, err := Create(ctx, db, u.ID, "Work", "#7b6cf0")
 	if err != nil {
 		t.Fatal(err)
@@ -39,7 +39,7 @@ func TestCreateListUpdateDelete(t *testing.T) {
 func TestValidation(t *testing.T) {
 	db := testutil.NewDB(t)
 	ctx := context.Background()
-	u, _ := users.Create(ctx, db, "a@example.com", "x", "admin")
+	u, _ := users.Create(ctx, db, "a@example.com", "admin")
 	for _, color := range []string{"blue", "#12345", "#12345g", "123456", ""} {
 		if _, err := Create(ctx, db, u.ID, "X", color); !errors.Is(err, ErrValidation) {
 			t.Errorf("color %q accepted: %v", color, err)
@@ -53,8 +53,8 @@ func TestValidation(t *testing.T) {
 func TestOtherUsersCalendarIsNotFound(t *testing.T) {
 	db := testutil.NewDB(t)
 	ctx := context.Background()
-	a, _ := users.Create(ctx, db, "a@example.com", "x", "admin")
-	b, _ := users.Create(ctx, db, "b@example.com", "x", "user")
+	a, _ := users.Create(ctx, db, "a@example.com", "admin")
+	b, _ := users.Create(ctx, db, "b@example.com", "user")
 	c, _ := Create(ctx, db, a.ID, "Mine", "#112233")
 	if _, err := Get(ctx, db, b.ID, c.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Get: %v", err)
@@ -71,7 +71,7 @@ func TestOtherUsersCalendarIsNotFound(t *testing.T) {
 func TestListIsInCreationOrder(t *testing.T) {
 	db := testutil.NewDB(t)
 	ctx := context.Background()
-	u, _ := users.Create(ctx, db, "a@example.com", "x", "admin")
+	u, _ := users.Create(ctx, db, "a@example.com", "admin")
 	want := []string{}
 	for i := 0; i < 12; i++ { // created within the same second
 		name := string(rune('A' + i))
@@ -93,7 +93,7 @@ func TestListIsInCreationOrder(t *testing.T) {
 func TestDeletedCalendarIsHiddenAndRestorable(t *testing.T) {
 	db := testutil.NewDB(t)
 	ctx := context.Background()
-	u, _ := users.Create(ctx, db, "a@example.com", "x", "admin")
+	u, _ := users.Create(ctx, db, "a@example.com", "admin")
 	c, _ := Create(ctx, db, u.ID, "Work", "#7b6cf0")
 	if err := Delete(ctx, db, u.ID, "user", c.ID, false); err != nil {
 		t.Fatal(err)
@@ -119,8 +119,8 @@ func TestDeletedCalendarIsHiddenAndRestorable(t *testing.T) {
 func TestRestoreAfter30DaysAndOtherUsersAreNotFound(t *testing.T) {
 	db := testutil.NewDB(t)
 	ctx := context.Background()
-	a, _ := users.Create(ctx, db, "a@example.com", "x", "admin")
-	b, _ := users.Create(ctx, db, "b@example.com", "x", "user")
+	a, _ := users.Create(ctx, db, "a@example.com", "admin")
+	b, _ := users.Create(ctx, db, "b@example.com", "user")
 	c, _ := Create(ctx, db, a.ID, "Old", "#112233")
 	Delete(ctx, db, a.ID, "user", c.ID, false)
 	if _, err := Restore(ctx, db, b.ID, "user", c.ID); !errors.Is(err, ErrNotFound) {

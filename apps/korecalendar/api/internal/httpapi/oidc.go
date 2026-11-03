@@ -52,7 +52,6 @@ func hashState(state string) string {
 // handleAuthConfig tells the sign-in pages (web, Android) which ways in exist.
 func (s *server) handleAuthConfig(w http.ResponseWriter, r *http.Request) {
 	out := map[string]any{
-		"password_login": s.passwordLogin,
 		"first_user_sso": s.sso != nil && s.sso.Cfg.OwnerEmail != "",
 		"oidc":           nil,
 	}

@@ -1,7 +1,7 @@
 # KoreCalendar configuration for running the binary directly
 # (`korecalendar -config korecal.toml`). Copy to korecal.toml and edit.
 # Every setting can also come from a KORECAL_* environment variable
-# (KORECAL_PORT, KORECAL_BIND, KORECAL_DATA_DIR, KORECAL_PUBLIC_URL, KORECAL_PASSWORD_LOGIN,
+# (KORECAL_PORT, KORECAL_BIND, KORECAL_DATA_DIR, KORECAL_PUBLIC_URL,
 # KORECAL_OIDC_*; see the [oidc] section).
 
 # Port to listen on (default 8080).
@@ -13,18 +13,16 @@
 # Directory for the database (required). Initialize it once with `korecalendar init`.
 data_dir = "./data"
 
-# Optional: the public https address, sent to push services as the operator contact.
+# The public https address: required for Kore ID (it builds the redirect URI), and
+# sent to push services as the operator contact.
 # public_url = "https://calendar.example.com"
 
-# Email + password sign-in and first-run setup (default true). Set false to allow only
-# Kore ID; this needs the [oidc] section below. Access tokens (kcal_...) and CalDAV are
-# not affected either way.
-# password_login = true
-
 # Sign in with Kore ID, a standard OpenID Connect provider (authorization code + PKCE).
-# Enabled by setting issuer; public_url (above) is then required, because the redirect URI
-# registered with Kore ID is <public_url>/api/auth/oidc/callback and the back-channel logout
-# URI (backchannelLogoutUri) is <public_url>/api/auth/oidc/backchannel-logout. Who may use
+# Kore ID is the ONLY way in: there is no email + password login, no first-run form and
+# no password reset. Without [oidc] the apps start but say no sign-in method is
+# configured. Enabled by setting issuer; public_url (above) is then required, because the
+# redirect URI registered with Kore ID is <public_url>/api/auth/oidc/callback and the
+# back-channel logout URI (backchannelLogoutUri) is <public_url>/api/auth/oidc/backchannel-logout. Who may use
 # KoreCalendar at all is decided by Kore ID (per-user access to the app "korecalendar").
 # [oidc]
 # issuer = "https://id.kore.example"        # https (http only for localhost)
@@ -34,7 +32,7 @@ data_dir = "./data"
 # scopes = ["openid", "profile", "email"]
 # extra_audiences = ["korecalendar-android"]  # more client ids whose access tokens the API accepts
 # admin_subs = ["00000000-0000-4000-8000-000000000000"]  # Kore ID subjects that are administrators here
-# owner_email = "owner@example.com"         # first Kore ID sign-in with this verified email becomes the admin (fresh install)
+# owner_email = "owner@example.com"         # first Kore ID sign-in with this verified email becomes the admin (fresh install; required to start with Kore ID alone)
 # auto_provision = true                     # create a local account on first sign-in
 # link_by_email = "verified"                # verified (default) | off | trusted (see docs/deploy.md)
 # apps = { kore = "https://kore.example", koremind = "https://mind.example", flatline = "https://mon.example" }

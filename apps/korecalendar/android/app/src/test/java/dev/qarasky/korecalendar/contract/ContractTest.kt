@@ -27,15 +27,12 @@ class ContractTest {
 
     private val today: LocalDate = LocalDate.now(ZoneOffset.UTC)
 
-    private fun anon() = HttpApi(server.url, null)
     private fun withToken(t: String) = HttpApi(server.url, t)
 
-    /** The app's own sign-in: password → session → its own access token → session ended. */
+    /** The app's own token: seeded Kore ID session → its own access token → session ended. */
     private fun appToken(): Pair<String, String> = runBlocking {
-        val session = anon().login(server.email, server.password)
-        val api = withToken(session.token)
+        val api = withToken(server.ownerSession)
         val created = api.createToken("Android, test")
-        api.logout()
         created.token to created.id
     }
 
@@ -52,16 +49,8 @@ class ContractTest {
         return mapOf("weekly" to weeklyId, "allDay" to allDay["id"]!!.jsonPrimitive.content, "doomed" to doomedId)
     }
 
-    @Test fun aWrongPasswordIsA401() = runBlocking {
-        val e = assertThrows(ApiException::class.java) { runBlocking { anon().login(server.email, "not-the-password") } }
-        assertEquals(401, e.status)
-        val s = anon().login(server.email, server.password)
-        assertTrue(s.user.timezone.isNotEmpty())
-    }
-
     @Test fun theAppsSignInMakesItsOwnTokenAndEndsTheSession() = runBlocking {
-        val session = anon().login(server.email, server.password)
-        val sessionApi = withToken(session.token)
+        val sessionApi = withToken(server.ownerSession)
         val created = sessionApi.createToken("Android, test")
         assertTrue(created.token.startsWith("kcal_"))
         sessionApi.logout()

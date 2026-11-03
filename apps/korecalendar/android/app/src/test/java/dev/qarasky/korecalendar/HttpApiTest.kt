@@ -30,17 +30,6 @@ class HttpApiTest {
     private fun api(token: String? = null) = HttpApi(normalizeServerUrl(server.url("/").toString())!!, token)
     private fun json(status: Int, body: String) = MockResponse().setResponseCode(status).setHeader("Content-Type", "application/json").setBody(body)
 
-    @Test fun loginPostsCredentialsWithoutAuthorization() = runTest {
-        server.enqueue(json(200, """{"token":"sess","user":{"id":"u","email":"a@b.c","role":"user","timezone":"Europe/Berlin"}}"""))
-        val s = api().login("a@b.c", "secret-password")
-        assertEquals("sess", s.token)
-        val req = server.takeRequest()
-        assertEquals("POST", req.method)
-        assertEquals("/api/login", req.path)
-        assertNull(req.getHeader("Authorization"))
-        assertTrue(req.body.readUtf8().let { it.contains("\"email\":\"a@b.c\"") && it.contains("\"password\":\"secret-password\"") })
-    }
-
     @Test fun authenticatedCallsSendTheBearerToken() = runTest {
         server.enqueue(json(200, """[{"id":"c1","name":"Work","color":"#7b6cf0","created_at":1}]"""))
         val cals = api("kcal_abc").calendars()
@@ -83,12 +72,6 @@ class HttpApiTest {
         assertEquals(401, e.status)
         assertEquals("unauthorized", e.code)
         assertEquals("Sign in first.", e.message)
-    }
-
-    @Test fun rateLimitKeepsItsCode() = runTest {
-        server.enqueue(json(429, """{"error":{"code":"rate_limited","message":"Try again later."}}"""))
-        val e = assertThrows(ApiException::class.java) { kotlinx.coroutines.runBlocking { api().login("a@b.c", "x") } }
-        assertEquals("rate_limited", e.code)
     }
 
     @Test fun aDroppedConnectionIsANetworkException() = runTest {

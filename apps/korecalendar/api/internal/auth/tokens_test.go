@@ -13,7 +13,7 @@ import (
 func TestTokenShownOnceAndHashedAtRest(t *testing.T) {
 	db := testutil.NewDB(t)
 	ctx := context.Background()
-	u, _ := users.Create(ctx, db, "a@example.com", "x", "admin")
+	u, _ := users.Create(ctx, db, "a@example.com", "admin")
 	id, secret, err := CreateToken(ctx, db, u.ID, "claude")
 	if err != nil {
 		t.Fatal(err)
@@ -35,8 +35,8 @@ func TestTokenShownOnceAndHashedAtRest(t *testing.T) {
 func TestRevokeOtherUsersTokenIsNotFound(t *testing.T) {
 	db := testutil.NewDB(t)
 	ctx := context.Background()
-	a, _ := users.Create(ctx, db, "a@example.com", "x", "admin")
-	b, _ := users.Create(ctx, db, "b@example.com", "x", "user")
+	a, _ := users.Create(ctx, db, "a@example.com", "admin")
+	b, _ := users.Create(ctx, db, "b@example.com", "user")
 	id, _, _ := CreateToken(ctx, db, a.ID, "t")
 	if err := RevokeToken(ctx, db, b.ID, id); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("got %v, want ErrNotFound", err)

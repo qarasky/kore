@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { exportFileName, summarizeImport } from "@/lib/ics";
-import { generatePassword } from "@/lib/password";
 import type { ImportResult } from "@/lib/types";
 
 const result = (p: Partial<ImportResult>): ImportResult => ({ imported: 0, created: 0, updated: 0, errors: [], warnings: [], ...p });
@@ -39,15 +38,5 @@ describe("exportFileName", () => {
     expect(exportFileName("My Health & Fitness!", "2026-11-02")).toBe("my-health-fitness-2026-11-02.ics");
     expect(exportFileName(null, "2026-11-02")).toBe("calendar-2026-11-02.ics");
     expect(exportFileName("???", "2026-11-02")).toBe("calendar-2026-11-02.ics");
-  });
-});
-
-describe("generatePassword", () => {
-  it("makes a long, readable, different password each time", () => {
-    const a = generatePassword();
-    const b = generatePassword();
-    expect(a).toHaveLength(18);
-    expect(a).toMatch(/^[A-HJ-NP-Za-km-z2-9]+$/); // no look-alike characters (0 O 1 l I)
-    expect(a).not.toBe(b);
   });
 });

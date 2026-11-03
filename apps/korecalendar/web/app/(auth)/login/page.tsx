@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { SignIn } from "@/components/SignIn";
 import { api } from "@/lib/api";
 import { t, type MessageKey } from "@/lib/i18n";
@@ -26,16 +25,11 @@ function ssoError(raw: string | string[] | undefined): string | null {
   return t(SSO_ERRORS[code] ?? "auth.error.generic");
 }
 
+/** Kore ID is the only sign-in method. A fresh install's first admin comes
+ *  from KORECAL_OIDC_OWNER_EMAIL on the first Kore ID sign-in. */
 export default async function LoginPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
   const next = safeNext(sp.next);
   const config = await api<AuthConfig>("/api/auth/config");
-  // A brand-new install has no account yet: send people to create one (with a password).
-  if (config.password_login) {
-    const status = await api<{ setup_required: boolean }>("/api/setup");
-    if (status.setup_required) {
-      redirect(`/setup?next=${encodeURIComponent(next)}`);
-    }
-  }
   return <SignIn config={config} next={next} expired={"expired" in sp} initialError={ssoError(sp.error)} />;
 }

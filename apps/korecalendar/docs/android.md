@@ -15,15 +15,16 @@ Design: [specs/2026-11-03-android-design.md](superpowers/specs/2026-11-03-androi
 
 ## First run
 
-Enter the **server address** (the same one you use in the browser, for example `calendar.example.com` or `192.168.1.5:8080`), your **email** and **password**.
+Enter the **server address** (the same one you use in the browser, for example `calendar.example.com` or `192.168.1.5:8080`) and tap **Sign in with Kore ID**.
+There are no email or password fields: Kore ID is the only way in, on every Kore app.
 
 - A bare local address (an IP, `localhost`, a name ending in `.local` or `.lan`) is tried with `http://`, anything else with `https://`. If the address is plain `http://`, the app says so:
   your sign-in and your calendar then travel unencrypted. That is fine at home or over Tailscale, not on public Wi-Fi.
-- The password is used **once**. The app signs in, asks the server for its own access token named `Android, <your phone>`, ends that session, and keeps only the token, encrypted with a key
-  held by the phone's hardware-backed keystore. To cut the phone off, delete that token in the web app (Settings, Access tokens): the app then asks you to sign in again.
-- **Sign in with Kore ID** (when the server has it on, see [deploy.md](deploy.md#sign-in-with-kore-id)): the button opens the system browser (not a WebView) on Kore ID with PKCE and
-  returns through `dev.qarasky.korecalendar:/oauth2redirect`. The app trades the code for a Kore ID access token, uses it once to create the same `Android, <your phone>` access token, and drops it:
-  no Kore ID token is stored. Needs a public client `korecalendar-android` in Kore ID with that redirect URI, and `KORECAL_OIDC_EXTRA_AUDIENCES=korecalendar-android` on the server.
+- The button opens the system browser (not a WebView) on Kore ID with PKCE and returns through `dev.qarasky.korecalendar:/oauth2redirect`. The app trades the code for a Kore ID access token,
+  uses it once to create its own access token named `Android, <your phone>`, and drops the Kore ID token: only that app token is kept, encrypted with a key held by the phone's
+  hardware-backed keystore. To cut the phone off, delete that token in the web app (Settings, Access tokens): the app then asks you to sign in again.
+- Needs a public client `korecalendar-android` in Kore ID with that redirect URI, and `KORECAL_OIDC_EXTRA_AUDIENCES=korecalendar-android` on the server
+  (see [deploy.md](deploy.md#sign-in-with-kore-id)). If the server has no provider configured, the app says so and there is nothing else to try.
   Status: the flow and its logic are unit-tested (`KoreIdTest`) but have **not been run on a device or against a real Kore ID** yet.
 - Times are shown in the time zone of your **account** (Settings on the web), not the phone's current zone.
 
@@ -96,6 +97,7 @@ your server, it keeps showing the last copy. Nothing is sent anywhere except to 
 | What you see | What it means |
 | --- | --- |
 | "Cannot reach the server" at sign-in | wrong address or no connection. Try the address in the phone's browser first. A server on your home network needs Wi-Fi or Tailscale |
+| "This server does not offer Kore ID sign-in" | the operator has not configured `KORECAL_OIDC_ISSUER`; there is no password fallback |
 | "Your sign-in ended" | the token was revoked (or the account removed). Sign in again; your copy is replaced |
 | The widget says "Updated 9 h ago" | the phone has not reached the server for a while. Open the app on a network that can |
 | The widget does not change when you hide a calendar | it redraws within moments; if not, open the app once |

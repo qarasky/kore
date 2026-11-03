@@ -114,7 +114,7 @@ class KoreIdTest {
     private val signIn = SignIn({ _, token -> tokensUsed += token; api }, accounts, "Pixel 9", provider)
 
     private fun serverOffersKoreId() {
-        api.onAuthConfig = { AuthConfig(passwordLogin = true, oidc = OidcInfo("Kore ID", issuer)) }
+        api.onAuthConfig = { AuthConfig(oidc = OidcInfo("Kore ID", issuer)) }
         api.onMe = { User("u1", "me@example.com", "user", "Europe/Berlin") }
         api.onCreateToken = { TokenCreated("t1", it, "kcal_app_token") }
     }

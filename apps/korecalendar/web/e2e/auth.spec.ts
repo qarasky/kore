@@ -1,24 +1,36 @@
 import { expect, test } from "./fixtures";
 import { resetApi } from "./harness/api-server";
-import { login, OWNER, setup } from "./helpers";
+import { API_URL } from "./harness/env";
+import { freshOwner, login, OWNER } from "./helpers";
 
 test.beforeAll(async () => {
   await resetApi();
 });
 
 test.describe.serial("authentication", () => {
-  test("first run: create the account, land on the calendar, sign out and in again", async ({ page }) => {
-    await page.goto("/");
-    // No account yet: everything leads to account creation, which only works once.
+  test("a fresh install has no local form: /setup leads to Kore ID sign-in", async ({ page }) => {
     await page.goto("/setup");
-    await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
-    await setup(page);
+    await expect(page).toHaveURL(/\/login/);
+    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+    // Kore ID is the only way in; there is no email or password field.
+    await expect(page.getByRole("link", { name: /Continue with Kore ID/ })).toBeVisible();
+    await expect(page.getByLabel("Email")).toHaveCount(0);
+    await expect(page.getByLabel("Password")).toHaveCount(0);
+  });
+
+  test("the password endpoints are gone", async ({ request }) => {
+    const creds = { email: "a@example.com", password: "long enough pw" };
+    for (const path of ["/api/setup", "/api/login"]) {
+      const res = await request.post(`${API_URL}${path}`, { data: creds });
+      expect([404, 410], `${path} should be gone`).toContain(res.status());
+    }
+  });
+
+  test("a signed-in session lands on the calendar, and signing out returns to Kore ID sign-in", async ({ page }) => {
+    await freshOwner();
+    await login(page);
     await expect(page).toHaveURL(/\/calendar\/(week|month|day|agenda)/);
     await expect(page.getByTestId("time-grid")).toBeVisible();
-
-    // A signed-in person is sent on to the calendar.
-    await page.goto("/setup");
-    await expect(page).toHaveURL(/\/calendar\//);
 
     await page.goto("/");
     await page.getByRole("button", { name: /^Account/ }).click();
@@ -26,7 +38,7 @@ test.describe.serial("authentication", () => {
     await expect(page).toHaveURL(/\/login/);
     await page.goto("/calendar/week");
     await expect(page).toHaveURL(/\/login/);
-    // Once an account exists, /setup is a door to sign-in.
+    // /setup is only a redirect to sign-in now.
     await page.goto("/setup");
     await expect(page).toHaveURL(/\/login/);
 
@@ -34,35 +46,13 @@ test.describe.serial("authentication", () => {
     await expect(page.getByTestId("time-grid")).toBeVisible();
   });
 
-  test("a wrong password says so and keeps you on the form", async ({ page }) => {
-    await page.goto("/login");
-    await page.getByLabel("Email").fill(OWNER.email);
-    await page.getByLabel("Password").fill("not-the-password");
-    await page.getByRole("button", { name: "Sign in" }).click();
-    await expect(page.getByRole("main").getByRole("alert")).toContainText(/wrong email or password/i);
-    await expect(page).toHaveURL(/\/login/);
-  });
-
   test("an expired session returns to the login page, and back to the page afterwards", async ({ page, context }) => {
+    await freshOwner();
     await login(page);
     await context.clearCookies();
     await page.goto("/calendar/month?date=2026-03-10");
     await expect(page).toHaveURL(/\/login\?next=/);
-    await page.getByLabel("Email").fill(OWNER.email);
-    await page.getByLabel("Password").fill(OWNER.password);
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await login(page, OWNER, "/calendar/month?date=2026-03-10");
     await expect(page).toHaveURL(/\/calendar\/month\?date=2026-03-10/);
-  });
-
-  test("repeated wrong passwords are rate limited, with a message that says when to retry", async ({ page }) => {
-    // Use an address that is not the owner's so the owner's own limit is untouched by later specs.
-    for (let i = 0; i < 6; i++) {
-      await page.goto("/login");
-      await page.getByLabel("Email").fill("nobody@korecal.test");
-      await page.getByLabel("Password").fill("wrong-password-" + i);
-      await page.getByRole("button", { name: "Sign in" }).click();
-      await expect(page.getByRole("main").getByRole("alert")).toBeVisible();
-    }
-    await expect(page.getByRole("main").getByRole("alert")).toContainText(/try again in \d+ min/i);
   });
 });

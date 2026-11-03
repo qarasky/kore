@@ -21,7 +21,7 @@ func sessionWorks(t *testing.T, e *ssoEnv, tok string) bool {
 }
 
 func TestOIDCSessionStoresSid(t *testing.T) {
-	e := newSSO(t, func(c *config.OIDC) { c.AdminSubs = []string{adaSub} }, true)
+	e := newSSO(t, func(c *config.OIDC) { c.AdminSubs = []string{adaSub} })
 	e.kore.Sid = "kore-session-7"
 	newBrowser(t).signIn(e, "/")
 	var sid string
@@ -34,7 +34,7 @@ func TestBackchannelLogoutEndsSessionsOfThatSid(t *testing.T) {
 	e := newSSO(t, func(c *config.OIDC) {
 		c.AdminSubs = []string{adaSub}
 		c.ExtraAudiences = []string{"korecalendar-android"}
-	}, true)
+	})
 	// Two browsers in Kore ID session A, one in session B, all the same user.
 	e.kore.Sid = "A"
 	a1, a2 := newBrowser(t), newBrowser(t)
@@ -48,7 +48,8 @@ func TestBackchannelLogoutEndsSessionsOfThatSid(t *testing.T) {
 	r := testsrv.Do(t, e.srv, sA1, "POST", "/api/tokens", map[string]string{"name": "agent"})
 	var kcal struct{ Token string }
 	r.Decode(t, &kcal)
-	bob := testsrv.AddUser(t, e.srv, sA1, "bob@example.com")
+	bobUser := testsrv.CreateUser(t, e.db, "bob@example.com", "user")
+	bob := testsrv.Session(t, e.db, bobUser.ID)
 	e.kore.Sid = "A"
 	bearerA := e.kore.AccessToken("korecalendar-android")
 	if !sessionWorks(t, e, bearerA) {
@@ -83,7 +84,7 @@ func TestBackchannelLogoutEndsSessionsOfThatSid(t *testing.T) {
 }
 
 func TestBackchannelLogoutBySubWithoutSid(t *testing.T) {
-	e := newSSO(t, func(c *config.OIDC) { c.AdminSubs = []string{adaSub} }, true)
+	e := newSSO(t, func(c *config.OIDC) { c.AdminSubs = []string{adaSub} })
 	e.kore.Sid = "A"
 	a := newBrowser(t)
 	a.signIn(e, "/")
@@ -91,7 +92,8 @@ func TestBackchannelLogoutBySubWithoutSid(t *testing.T) {
 	n := newBrowser(t)
 	n.signIn(e, "/")
 	sA, sN := a.cookie(e, "korecal_session"), n.cookie(e, "korecal_session")
-	bob := testsrv.AddUser(t, e.srv, sA, "bob@example.com")
+	bobUser := testsrv.CreateUser(t, e.db, "bob@example.com", "user")
+	bob := testsrv.Session(t, e.db, bobUser.ID)
 	if r := e.backchannel(t, e.kore.LogoutToken("", adaSub, nil)); r.Status != 200 {
 		t.Fatalf("logout: %d %s", r.Status, r.Body)
 	}
@@ -111,7 +113,7 @@ func TestBackchannelLogoutRejectsBadTokens(t *testing.T) {
 	e := newSSO(t, func(c *config.OIDC) {
 		c.AdminSubs = []string{adaSub}
 		c.ExtraAudiences = []string{"korecalendar-android"}
-	}, true)
+	})
 	e.kore.Sid = "A"
 	b := newBrowser(t)
 	b.signIn(e, "/")
@@ -158,7 +160,7 @@ func TestBackchannelLogoutWithoutSSO(t *testing.T) {
 }
 
 func TestAuthConfigAccountURLAndApps(t *testing.T) {
-	e := newSSO(t, nil, true)
+	e := newSSO(t, nil)
 	var cfg struct {
 		OIDC struct {
 			AccountURL string            `json:"account_url"`

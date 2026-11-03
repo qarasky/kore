@@ -76,7 +76,7 @@ test.describe.serial("settings", () => {
 
     await page.getByRole("button", { name: "Rename and recolour Errands" }).click();
     await page.locator('input[id^="name-"]').fill("Chores");
-    await page.getByRole("radio", { name: "Colour #4fb286" }).click();
+    await page.getByRole("radio", { name: "#4fb286" }).click();
     await page.getByRole("button", { name: "Save" }).first().click();
     await expect(rows.filter({ hasText: "Chores" })).toHaveCount(1);
     expect((await calendars(token)).find((c) => c.name === "Chores")?.color).toBe("#4fb286");
@@ -163,32 +163,22 @@ test.describe.serial("settings", () => {
     const ok = await ask(secret);
     expect(ok.status()).toBe(207);
     expect(await ok.text()).toContain("current-user-principal");
-    expect((await ask(OWNER.password)).status()).toBe(401); // the account password is not accepted
+    expect((await ask("not-an-access-token")).status()).toBe(401); // only an access token is accepted
     const wellKnown = await request.get(`${API_URL}/.well-known/caldav`, { maxRedirects: 0 });
     expect(wellKnown.status()).toBe(301);
   });
 
-  test("an admin adds a user who signs in and sees none of the admin's events", async ({ page, browser }) => {
+  test("the users page shows accounts and roles, never passwords", async ({ page }) => {
     await page.goto("/settings/users");
-    await page.locator("#user-email").fill("guest@korecal.test");
-    await page.getByRole("button", { name: "Create user" }).click();
-    await expect(page.getByTestId("user-reveal")).toBeVisible();
-    const password = await page.getByTestId("user-password").innerText();
+    await expect(page.getByTestId("user-list")).toContainText(OWNER.email);
+    await expect(page.getByTestId("user-row").first()).toContainText("Kore ID linked");
+    // There is no create form and no password field anywhere.
+    await expect(page.getByLabel("Password")).toHaveCount(0);
+    await expect(page.locator("#user-email")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Create user" })).toHaveCount(0);
 
-    const ctx = await browser.newContext();
-    const guest = await ctx.newPage();
-    await guest.goto("/login");
-    await guest.getByLabel("Email").fill("guest@korecal.test");
-    await guest.getByLabel("Password").fill(password);
-    await guest.getByRole("button", { name: "Sign in" }).click();
-    await guest.waitForURL((u) => !u.pathname.startsWith("/login"));
-    await openWeek(guest, wed);
-    await expect(guest.getByTestId("event")).toHaveCount(0);
-    // Another person's things are not found, and the guest is no administrator.
-    const adminEvent = (await occurrences(token, wed, addDays(wed, 1)))[0];
-    const peek = await guest.request.get(`${BASE_URL}/api/events/${adminEvent.event_id}`);
-    expect(peek.status()).toBe(404);
-    expect((await guest.goto("/settings/users"))!.status()).toBe(404);
-    await ctx.close();
+    // Roles are editable without any password.
+    const role = page.getByRole("combobox", { name: new RegExp(`Role: ${OWNER.email}`) });
+    await expect(role).toBeDisabled(); // your own role is locked so you cannot lock yourself out
   });
 });

@@ -105,8 +105,8 @@ func (s *Service) Resolve(ctx context.Context, c oidc.Claims) (users.User, error
 		return users.User{}, err
 	} else if n == 0 && role != "admin" {
 		// Never let whoever signs in first on a fresh install become (or
-		// pre-empt) the administrator: that is `setup`, admin_subs, or the
-		// explicitly configured owner email (with a verified claim).
+		// pre-empt) the administrator: that is admin_subs, or the explicitly
+		// configured owner email (with a verified claim).
 		if s.Cfg.OwnerEmail == "" || !c.EmailVerified || !strings.EqualFold(email, s.Cfg.OwnerEmail) {
 			return users.User{}, ErrNoAdmin
 		}

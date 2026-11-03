@@ -54,7 +54,7 @@ describe("api()", () => {
 
   it("turns the API's error body into an ApiError with code and retryAfterSec", async () => {
     reply = async () => jsonResponse(429, { error: { code: "rate_limited", message: "slow down", retryAfterSec: 900 } });
-    const err = await api("/api/login", { method: "POST", body: "{}" }).catch((e) => e);
+    const err = await api("/api/me").catch((e) => e);
     expect(isApiError(err, 429)).toBe(true);
     expect(err).toMatchObject({ status: 429, code: "rate_limited", retryAfterSec: 900 });
   });

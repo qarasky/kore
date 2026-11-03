@@ -27,12 +27,13 @@ Status: **phase 1 (API and core), phase 2 (web app) and CalDAV are done;** the *
   a record of who last changed each event (you, or the token's name).
 - **Reminders** to browsers over Web Push, de-duplicated and restart-safe.
 - **Several calendars** with colours, text search, a change feed for sync, `.ics` import/export, and **CalDAV** for apps and libraries that speak it ([docs/caldav.md](docs/caldav.md)).
-- **Accounts like Kore**: the first account is the admin and can add others. Everyone's data is private (another person's item is a 404). Optional **Sign in with Kore ID** (OpenID Connect) next to, or instead of, passwords: [docs/deploy.md](docs/deploy.md#sign-in-with-kore-id).
+- **Accounts like Kore**: **Kore ID** (OpenID Connect) is the only way in; the first sign-in with the configured owner email is the admin, and everyone else is provisioned on first sign-in. Everyone's data is private (another person's item is a 404): [docs/deploy.md](docs/deploy.md#sign-in-with-kore-id).
 
 ## Install
 
-You need a Linux host (or any machine) with Docker and the Compose plugin. Run the installer, open the address it prints and **create your account**
-(the first account becomes the administrator):
+You need a Linux host (or any machine) with Docker and the Compose plugin, and a **Kore ID** provider ([kore-id](https://github.com/qarasky/kore-id)).
+Run the installer, configure Kore ID in `.env` (`KORECAL_OIDC_ISSUER`, `KORECAL_OIDC_CLIENT_SECRET`, `KORECAL_OIDC_OWNER_EMAIL`), open the address it prints and
+**continue with Kore ID** (the first sign-in with the owner email becomes the administrator):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/qarasky/korecalendar/main/install.sh | bash
@@ -85,7 +86,7 @@ the designs and plans are in [`docs/superpowers/`](docs/superpowers/).
 
 - An event added shortly before it starts may not reach a phone in time (the Android app, in a later phase, syncs in the background
   without a push service).
-- The web app is dark and English only, and has no password-change screen yet. See [docs/web.md](docs/web.md#known-limits).
+- The web app is dark and English only; passwords, password changes and resets live in Kore ID. See [docs/web.md](docs/web.md#known-limits).
 - No sharing or invitations. `.ics` export and CalDAV have no `VTIMEZONE` blocks (IANA zone names only), and CalDAV has no `sync-collection`: see [docs/caldav.md](docs/caldav.md#known-limits).
 - Reminders go to browsers only for now; Telegram and email are planned.
-- There is no "forgot password" flow yet: keep a second administrator account and your backups.
+- There is no local password reset: recover access through Kore ID, and keep a second administrator account and your backups.

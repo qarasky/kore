@@ -1,9 +1,8 @@
 /** Shapes of the KoreCalendar API (docs/openapi.yaml). Times are wall-clock
  *  strings in the event's own zone; `*_utc` fields are RFC 3339 instants. */
 
-/** `GET /api/auth/config`: which sign-in methods the server offers. */
+/** `GET /api/auth/config`: the sign-in method the server offers. */
 export type AuthConfig = {
-  password_login: boolean;
   /** Kore ID and an owner email are configured: the first Kore ID sign-in with that email becomes the administrator. */
   first_user_sso: boolean;
   oidc: {
@@ -21,6 +20,9 @@ export type AuthConfig = {
 export type Role = "admin" | "user";
 
 export type User = { id: string; email: string; role: Role; timezone: string };
+
+/** `GET /api/admin/users`: an account as the administrator's user page sees it. */
+export type AdminUser = User & { created_at: number; kore_id_linked: boolean };
 
 export type Calendar = { id: string; name: string; color: string; created_at: number };
 

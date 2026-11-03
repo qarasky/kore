@@ -21,8 +21,8 @@ import okhttp3.Request
  *
  * The app is a public client, `korecalendar-android` in Kore ID, with the private-use redirect
  * [KOREID_REDIRECT_URI]. The browser (not a WebView) signs the person in; the app trades the code for a
- * Kore ID access token, uses it once against the KoreCalendar API to create its own access token (the same
- * `kcal_` token the password flow creates), and drops the Kore ID tokens: only the `kcal_` token is kept.
+ * Kore ID access token, uses it once against the KoreCalendar API to create its own access token (a
+ * `kcal_` token), and drops the Kore ID tokens: only the `kcal_` token is kept.
  */
 const val KOREID_CLIENT_ID = "korecalendar-android"
 const val KOREID_REDIRECT_URI = "dev.qarasky.korecalendar:/oauth2redirect"

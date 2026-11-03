@@ -12,11 +12,10 @@ export function buildApi(): void {
 
 function writeConfig(): void {
   let cfg = `data_dir = "${DATA_DIR}"\nbind = "127.0.0.1"\nport = ${API_PORT}\n`;
-  // E2E_OIDC=1 turns on "Continue with Kore ID" (the provider is never contacted unless it is clicked;
-  // discovery is lazy), for specs and screenshots of the sign-in screen with SSO.
-  if (process.env.E2E_OIDC === "1") {
-    cfg += `public_url = "${BASE_URL}"\n[oidc]\nissuer = "http://127.0.0.1:9"\nclient_id = "korecalendar"\napps = { kore = "https://files.example.com/", koremind = "https://mind.example.com/", flatline = "https://status.example.com/" }\n`;
-  }
+  // Kore ID is the only sign-in method, so always configure a provider. The
+  // issuer is never contacted unless the button is clicked (discovery is lazy);
+  // specs sign in by seeding a session (see harness/session.ts).
+  cfg += `public_url = "${BASE_URL}"\n[oidc]\nissuer = "http://127.0.0.1:9"\nclient_id = "korecalendar"\napps = { kore = "https://files.example.com/", koremind = "https://mind.example.com/", flatline = "https://status.example.com/" }\n`;
   writeFileSync(CONFIG_FILE, cfg);
 }
 

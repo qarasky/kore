@@ -16,6 +16,7 @@ import androidx.compose.ui.test.click
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import dev.qarasky.korecalendar.data.Account
 import dev.qarasky.korecalendar.data.ApiJson
 import dev.qarasky.korecalendar.data.HttpApi
 import dev.qarasky.korecalendar.data.WriteRequest
@@ -40,28 +41,28 @@ class ViewsFlowTest {
     private val args = InstrumentationRegistry.getArguments()
     private val server = args.getString("server")
     private val email = args.getString("email")
-    private val password = args.getString("password")
+    private val session = args.getString("session")
     private val graph = Graph.get(InstrumentationRegistry.getInstrumentation().targetContext)
     private var scenario: ActivityScenario<MainActivity>? = null
     private val tomorrow: LocalDate = LocalDate.now(ZoneOffset.UTC).plusDays(1)
 
     @Before fun setUp() {
-        Assume.assumeTrue("no server given: skipping the UI flows", server != null && email != null && password != null)
+        Assume.assumeTrue("no server given: skipping the UI flows", server != null && email != null && session != null)
         // The system's notification permission dialog would cover the app: the tests grant it up front.
         val target = InstrumentationRegistry.getInstrumentation().targetContext
         InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(target.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
         runBlocking { graph.controller.signOut() }
         runBlocking {
             val url = normalizeServerUrl(server!!)!!
-            val s = HttpApi(url, HttpApi(url, null).login(email!!, password!!).token)
+            // Kore ID is browser-only; the test script seeds a session and an app token replaces it.
+            val api = HttpApi(url, session!!)
+            val me = api.me()
+            val appToken = api.createToken("Android, ui test").token
+            graph.accounts.save(Account(url.base, me.id, me.email, me.timezone, appToken))
+            val s = HttpApi(url, appToken)
             s.write(WriteRequest("POST", "/api/events", ApiJson.parseToJsonElement("""{"title":"Kayak (views test)","start":"${tomorrow}T10:00:00","end":"${tomorrow}T11:00:00","tz":"UTC"}""") as JsonObject, null, null))
-            s.logout()
         }
         scenario = ActivityScenario.launch(MainActivity::class.java)
-        rule.onNode(hasSetTextAction() and hasText("Server address")).performTextInput(server!!)
-        rule.onNode(hasSetTextAction() and hasText("Email")).performTextInput(email!!)
-        rule.onNode(hasSetTextAction() and hasText("Password")).performTextInput(password!!)
-        rule.onNode(hasText("Sign in") and hasClickAction()).performClick()
         rule.waitUntilExactlyOneExists(hasText("Agenda") and hasClickAction(), 30_000)
         rule.waitUntil(30_000) { rule.onAllNodesWithText("Not updated yet").fetchSemanticsNodes().isEmpty() }
     }

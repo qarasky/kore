@@ -45,7 +45,7 @@ export function restoreEvent(id: string): Promise<Event> {
 
 export type { EditResult };
 
-import type { Calendar, ImportResult, Token, User } from "./types";
+import type { AdminUser, Calendar, ImportResult, Token, User } from "./types";
 
 export function updateTimezone(timezone: string): Promise<User> {
   return api<User>("/api/me", { method: "PATCH", body: JSON.stringify({ timezone }) });
@@ -86,6 +86,12 @@ export function importIcs(text: string, calendarId?: string): Promise<ImportResu
   return api<ImportResult>(`/api/import${q}`, { method: "POST", body: text, headers: { "content-type": "text/calendar" } });
 }
 
-export function createUser(email: string, password: string, role: "user" | "admin"): Promise<User> {
-  return api<User>("/api/admin/users", { method: "POST", body: JSON.stringify({ email, password, role }) });
+/** Admin only: every account, with roles and Kore ID linkage (never passwords). */
+export function listUsers(): Promise<AdminUser[]> {
+  return api<AdminUser[]>("/api/admin/users");
+}
+
+/** Admin only: change a role. People sign in with Kore ID, so there is no password to set. */
+export function updateUserRole(id: string, role: "user" | "admin"): Promise<User> {
+  return api<User>(`/api/admin/users/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ role }) });
 }

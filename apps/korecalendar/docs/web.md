@@ -88,7 +88,7 @@ The view you last used, the week start, the clock format and the hidden calendar
 ## Known limits
 
 - Dark theme only; English only.
-- No password change screen (the API has no endpoint for it yet).
+- No local password screen: sign-in, password changes and resets all happen in Kore ID.
 - No offline mode: the app needs its server. When the server can't be reached it says so, keeps what you typed, and a retry
   brings the page back.
 - Deleting one occurrence, or "this and following", can't be undone from the toast; deleting a whole event can.

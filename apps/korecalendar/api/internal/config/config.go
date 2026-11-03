@@ -22,10 +22,7 @@ type Config struct {
 	Bind      string `toml:"bind"`
 	DataDir   string `toml:"data_dir"`
 	PublicURL string `toml:"public_url"`
-	// PasswordLogin allows email + password sign-in and first-run setup (default
-	// true). Set false to require Kore ID; needs [oidc].
-	PasswordLogin bool `toml:"password_login"`
-	OIDC          OIDC `toml:"oidc"`
+	OIDC      OIDC   `toml:"oidc"`
 }
 
 // OIDC configures sign-in with Kore ID (or any OpenID Connect provider with
@@ -79,7 +76,7 @@ func splitList(v string) []string {
 // set and non-empty, override the file (this is how the Docker image is
 // configured from .env).
 func Load(path string) (Config, error) {
-	c := Config{Port: 8080, Bind: "127.0.0.1", PasswordLogin: true, OIDC: OIDC{AutoProvision: true}}
+	c := Config{Port: 8080, Bind: "127.0.0.1", OIDC: OIDC{AutoProvision: true}}
 	b, err := os.ReadFile(path)
 	switch {
 	case err == nil:
@@ -136,11 +133,8 @@ func envBool(name string, dst *bool) error {
 	return nil
 }
 
-// loadOIDCEnv applies the KORECAL_PASSWORD_LOGIN and KORECAL_OIDC_* overrides.
+// loadOIDCEnv applies the KORECAL_OIDC_* overrides.
 func (c *Config) loadOIDCEnv() error {
-	if err := envBool("KORECAL_PASSWORD_LOGIN", &c.PasswordLogin); err != nil {
-		return err
-	}
 	if err := envBool("KORECAL_OIDC_AUTO_PROVISION", &c.OIDC.AutoProvision); err != nil {
 		return err
 	}
@@ -188,9 +182,8 @@ func (c *Config) validateOIDC() error {
 		}
 	}
 	if !o.Enabled() {
-		if !c.PasswordLogin {
-			return errors.New("password_login is off but no [oidc] issuer is set: nobody could sign in")
-		}
+		// KoreCalendar can run without a provider, but then nobody can sign in:
+		// the web and Android apps say so instead of offering a password form.
 		return nil
 	}
 	if o.ClientID == "" {

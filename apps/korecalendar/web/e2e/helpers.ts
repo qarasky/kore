@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { resetApi } from "./harness/api-server";
-import { API_URL, OWNER } from "./harness/env";
+import { API_URL, BASE_URL, OWNER } from "./harness/env";
+import { seedSession, seedUser } from "./harness/session";
 
 export { OWNER };
 
@@ -47,20 +48,11 @@ export function clockIn(instant: string | Date, tz: string): string {
 
 // ---- auth
 
-/** First-run: create the owner account through the UI (leaves the page signed in). */
-export async function setup(page: Page, creds = OWNER): Promise<void> {
-  await page.goto("/setup");
-  await page.getByLabel("Email").fill(creds.email);
-  await page.getByLabel("Password").fill(creds.password);
-  await page.getByRole("button", { name: "Create your account" }).click();
-  await page.waitForURL((u) => !u.pathname.startsWith("/setup"));
-}
-
-export async function login(page: Page, creds = OWNER, next = "/"): Promise<void> {
-  await page.goto(`/login?next=${encodeURIComponent(next)}`);
-  await page.getByLabel("Email").fill(creds.email);
-  await page.getByLabel("Password").fill(creds.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+/** Sign in without the Kore ID browser round-trip: seed a session and set its cookie. */
+export async function login(page: Page, creds: { email: string } = OWNER, next = "/"): Promise<void> {
+  const token = seedSession(creds.email);
+  await page.context().addCookies([{ name: "korecal_session", value: token, domain: new URL(BASE_URL).hostname, path: "/" }]);
+  await page.goto(next);
   await page.waitForURL((u) => !u.pathname.startsWith("/login"));
 }
 
@@ -79,22 +71,18 @@ export async function api<T = unknown>(token: string, method: string, path: stri
   return (text ? JSON.parse(text) : {}) as T;
 }
 
-/** A session token for `creds`. */
-export async function apiSession(creds = OWNER): Promise<string> {
-  const res = await fetch(`${API_URL}/api/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(creds) });
-  if (res.status !== 200) throw new Error(`login failed: ${res.status} ${await res.text()}`);
-  return ((await res.json()) as { token: string }).token;
+/** A session token for `creds`, seeding the account if it does not exist. */
+export async function apiSession(creds: { email: string } = OWNER): Promise<string> {
+  return seedSession(creds.email);
 }
 
 /**
- * A clean slate with the owner account already created (through the API, so specs
- * that are not about sign-up skip the form). Returns the owner's session token.
+ * A clean slate with the owner account already created (directly in the test
+ * database, since sign-in is Kore ID only). Returns the owner's session token.
  */
 export async function freshOwner(opts: { timezone?: string } = {}): Promise<string> {
   await resetApi();
-  const res = await fetch(`${API_URL}/api/setup`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(OWNER) });
-  if (res.status >= 300) throw new Error(`setup failed: ${res.status} ${await res.text()}`);
-  const token = ((await res.json()) as { token: string }).token;
+  const { token } = seedUser(OWNER.email, "admin");
   await api(token, "PATCH", "/api/me", { timezone: opts.timezone ?? "UTC" });
   return token;
 }

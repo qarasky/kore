@@ -53,10 +53,8 @@ class EditContractTest {
     @Before fun start() = runBlocking {
         server = ServerHarness.start()
         server.json("PATCH", "/api/me", """{"timezone":"UTC"}""")
-        val session = HttpApi(server.url, null).login(server.email, server.password)
-        val s = HttpApi(server.url, session.token)
-        val token = s.createToken("Android, test").token
-        s.logout()
+        val session = HttpApi(server.url, server.ownerSession)
+        val token = session.createToken("Android, test").token
         api = HttpApi(server.url, token)
         workId = ApiJsonId(server.json("POST", "/api/calendars", """{"name":"Work","color":"#7b6cf0"}""", expect = 201))
         firstId = api.calendars().first { it.name != "Work" }.id

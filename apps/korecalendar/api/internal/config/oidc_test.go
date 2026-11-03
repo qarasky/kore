@@ -6,13 +6,18 @@ import (
 	"testing"
 )
 
-func TestOIDCDefaultsToOffAndPasswordsOn(t *testing.T) {
+func TestOIDCDefaultsToOffAndConfigStillLoads(t *testing.T) {
 	c, err := Load(write(t, "data_dir = \"/d\"\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.OIDC.Enabled() || !c.PasswordLogin {
+	if c.OIDC.Enabled() {
 		t.Fatalf("%+v", c)
+	}
+	// There is no password fallback: with no provider nobody can sign in, and
+	// the apps show a "no sign-in method configured" state.
+	if _, err := Load(write(t, "data_dir = \"/d\"\npassword_login = false\n")); err != nil {
+		t.Fatalf("legacy key should be ignored, got %v", err)
 	}
 }
 
@@ -21,14 +26,13 @@ func TestOIDCFromFileAndEnv(t *testing.T) {
 	t.Setenv("KORECAL_OIDC_ADMIN_SUBS", "a, b")
 	t.Setenv("KORECAL_OIDC_EXTRA_AUDIENCES", "korecalendar-android")
 	t.Setenv("KORECAL_OIDC_OWNER_EMAIL", "  Ada@Example.COM ")
-	t.Setenv("KORECAL_PASSWORD_LOGIN", "false")
 	c, err := Load(write(t, "data_dir = \"/d\"\npublic_url = \"https://cal.example.com\"\n[oidc]\nissuer = \"https://id.example.com\"\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	o := c.OIDC
 	if !o.Enabled() || o.ClientID != "korecalendar" || o.ClientSecret != "from-env" || o.LinkByEmail != "verified" || !o.AutoProvision ||
-		len(o.AdminSubs) != 2 || o.AdminSubs[1] != "b" || o.ExtraAudiences[0] != "korecalendar-android" || c.PasswordLogin || o.Name != "Kore ID" ||
+		len(o.AdminSubs) != 2 || o.AdminSubs[1] != "b" || o.ExtraAudiences[0] != "korecalendar-android" || o.Name != "Kore ID" ||
 		o.OwnerEmail != "ada@example.com" {
 		t.Fatalf("%+v", c)
 	}
@@ -93,18 +97,13 @@ func TestOIDCSecretFile(t *testing.T) {
 func TestOIDCValidation(t *testing.T) {
 	base := "data_dir = \"/d\"\n"
 	for name, body := range map[string]string{
-		"oidc without public_url":    base + "[oidc]\nissuer = \"https://id.example.com\"\n",
-		"public_url with a path":     base + "public_url = \"https://c.example/cal\"\n[oidc]\nissuer = \"https://id.example.com\"\n",
-		"bad link_by_email":          base + "public_url = \"https://c.example\"\n[oidc]\nissuer = \"https://id.example.com\"\nlink_by_email = \"yes\"\n",
-		"bad owner_email":            base + "public_url = \"https://c.example\"\n[oidc]\nissuer = \"https://id.example.com\"\nowner_email = \"not an address\"\n",
-		"passwords off, no provider": base + "password_login = false\n",
+		"oidc without public_url": base + "[oidc]\nissuer = \"https://id.example.com\"\n",
+		"public_url with a path":  base + "public_url = \"https://c.example/cal\"\n[oidc]\nissuer = \"https://id.example.com\"\n",
+		"bad link_by_email":       base + "public_url = \"https://c.example\"\n[oidc]\nissuer = \"https://id.example.com\"\nlink_by_email = \"yes\"\n",
+		"bad owner_email":         base + "public_url = \"https://c.example\"\n[oidc]\nissuer = \"https://id.example.com\"\nowner_email = \"not an address\"\n",
 	} {
 		if _, err := Load(write(t, body)); err == nil {
 			t.Errorf("%s: accepted", name)
 		}
-	}
-	t.Setenv("KORECAL_PASSWORD_LOGIN", "maybe")
-	if _, err := Load(write(t, base)); err == nil {
-		t.Error("bad KORECAL_PASSWORD_LOGIN accepted")
 	}
 }

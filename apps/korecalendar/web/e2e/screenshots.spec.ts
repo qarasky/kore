@@ -7,7 +7,7 @@ import { addDays, createEventViaApi, freshOwner, login, today, weekOf } from "./
 
 /**
  * Screenshots of the main screens, for design reviews (not a test of behaviour).
- * Runs only with SCREENSHOTS=<name>: `E2E_OIDC=1 SCREENSHOTS=after npx playwright test screenshots`
+ * Runs only with SCREENSHOTS=<name>: `SCREENSHOTS=after npx playwright test screenshots`
  * writes docs/screenshots/kore-ui-migration/<name>-*.png.
  */
 const NAME = process.env.SCREENSHOTS;
@@ -36,13 +36,8 @@ test.describe.serial("screenshots", () => {
 
   test("desktop", async ({ page }) => {
     await page.goto("/login");
-    await expect(page.getByLabel("Email")).toBeVisible();
+    await expect(page.getByRole("link", { name: /Continue with Kore ID/ })).toBeVisible();
     await shot(page, "login");
-    await page.getByLabel("Email").fill("owner@korecal.test");
-    await page.getByLabel("Password").fill("wrong-password");
-    await page.getByRole("button", { name: "Sign in" }).click();
-    await page.waitForTimeout(800);
-    await shot(page, "login-error");
     await login(page);
 
     await page.goto(`/calendar/week?date=${wed}`);

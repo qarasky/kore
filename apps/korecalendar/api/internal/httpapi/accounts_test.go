@@ -7,57 +7,33 @@ import (
 	"github.com/qarasky/korecalendar/api/internal/testsrv"
 )
 
-func TestSetupOnlyOnce(t *testing.T) {
+// KoreCalendar has no human password path: the old endpoints are gone from the
+// router (404), not merely disabled.
+func TestPasswordEndpointsAreGone(t *testing.T) {
 	srv, _ := testsrv.New(t)
 	creds := map[string]string{"email": "a@example.com", "password": "long enough pw"}
-	if r := testsrv.Do(t, srv, "", "POST", "/api/setup", creds); r.Status != 201 {
-		t.Fatalf("first setup: %d %s", r.Status, r.Body)
-	}
-	r := testsrv.Do(t, srv, "", "POST", "/api/setup", creds)
-	if r.Status != 409 || r.ErrorCode() != "setup_closed" {
-		t.Fatalf("second setup: %d %s", r.Status, r.Body)
-	}
-}
-
-func TestSetupRejectsShortPassword(t *testing.T) {
-	srv, _ := testsrv.New(t)
-	r := testsrv.Do(t, srv, "", "POST", "/api/setup", map[string]string{"email": "a@example.com", "password": "short"})
-	if r.Status != 422 || r.ErrorCode() != "validation_error" {
-		t.Fatalf("%d %s", r.Status, r.Body)
-	}
-}
-
-func TestLoginWrongPasswordAndUnknownEmailSameResponse(t *testing.T) {
-	srv, _ := testsrv.New(t)
-	testsrv.Login(t, srv)
-	a := testsrv.Do(t, srv, "", "POST", "/api/login", map[string]string{"email": testsrv.AdminEmail, "password": "wrong password!"})
-	b := testsrv.Do(t, srv, "", "POST", "/api/login", map[string]string{"email": "nobody@example.com", "password": "wrong password!"})
-	if a.Status != 401 || b.Status != 401 || a.ErrorCode() != "bad_credentials" || string(a.Body) != string(b.Body) {
-		t.Fatalf("a=%d %s b=%d %s", a.Status, a.Body, b.Status, b.Body)
-	}
-}
-
-func TestLoginRateLimited(t *testing.T) {
-	srv, _ := testsrv.New(t)
-	testsrv.Login(t, srv)
-	creds := map[string]string{"email": testsrv.AdminEmail, "password": "wrong password!"}
-	for i := 0; i < 5; i++ {
-		if r := testsrv.Do(t, srv, "", "POST", "/api/login", creds); r.Status != 401 {
-			t.Fatalf("attempt %d: %d", i+1, r.Status)
+	for _, r := range []struct{ method, path string }{
+		{"GET", "/api/setup"},
+		{"POST", "/api/setup"},
+		{"POST", "/api/login"},
+		{"POST", "/api/admin/users"},
+	} {
+		got := testsrv.Do(t, srv, "", r.method, r.path, creds)
+		if got.Status != http.StatusNotFound && got.Status != http.StatusGone {
+			t.Errorf("%s %s: %d %s", r.method, r.path, got.Status, got.Body)
 		}
 	}
-	r := testsrv.Do(t, srv, "", "POST", "/api/login", creds)
-	if r.Status != 429 || r.ErrorCode() != "rate_limited" {
-		t.Fatalf("6th attempt: %d %s", r.Status, r.Body)
+}
+
+func TestAuthConfigOffersNoPasswordLogin(t *testing.T) {
+	srv, _ := testsrv.New(t)
+	var cfg map[string]any
+	testsrv.Do(t, srv, "", "GET", "/api/auth/config", nil).Decode(t, &cfg)
+	if _, ok := cfg["password_login"]; ok {
+		t.Fatalf("password_login still advertised: %v", cfg)
 	}
-	var e struct {
-		Error struct {
-			RetryAfterSec int `json:"retryAfterSec"`
-		} `json:"error"`
-	}
-	r.Decode(t, &e)
-	if e.Error.RetryAfterSec <= 0 || r.Header.Get("Retry-After") == "" {
-		t.Fatalf("missing retry info: %s %v", r.Body, r.Header)
+	if cfg["oidc"] != nil {
+		t.Fatalf("oidc should be null without a provider: %v", cfg)
 	}
 }
 
@@ -93,17 +69,52 @@ func TestPatchMeTimezoneRejectsBogusZone(t *testing.T) {
 	}
 }
 
-func TestAdminUsersHiddenFromNonAdmin(t *testing.T) {
+func TestAdminUsersListAndRolesWithoutPasswords(t *testing.T) {
 	srv, _ := testsrv.New(t)
 	admin := testsrv.Login(t, srv)
 	user := testsrv.AddUser(t, srv, admin, "u@example.com")
-	r := testsrv.Do(t, srv, user, "POST", "/api/admin/users", map[string]string{"email": "x@example.com", "password": "long enough pw", "role": "user"})
-	if r.Status != 404 || r.ErrorCode() != "not_found" {
-		t.Fatalf("non-admin: %d %s", r.Status, r.Body)
+
+	var list []struct {
+		ID           string `json:"id"`
+		Email        string `json:"email"`
+		Role         string `json:"role"`
+		KoreIDLinked bool   `json:"kore_id_linked"`
 	}
-	dup := testsrv.Do(t, srv, admin, "POST", "/api/admin/users", map[string]string{"email": "u@example.com", "password": "long enough pw", "role": "user"})
-	if dup.Status != 409 || dup.ErrorCode() != "email_taken" {
-		t.Fatalf("duplicate: %d %s", dup.Status, dup.Body)
+	r := testsrv.Do(t, srv, admin, "GET", "/api/admin/users", nil)
+	r.Decode(t, &list)
+	if r.Status != 200 || len(list) != 2 {
+		t.Fatalf("list: %d %s", r.Status, r.Body)
+	}
+	var id string
+	for _, u := range list {
+		if u.Email == "u@example.com" {
+			id = u.ID
+			if u.Role != "user" || u.KoreIDLinked {
+				t.Fatalf("user row %+v", u)
+			}
+		}
+	}
+	if id == "" {
+		t.Fatalf("missing user in %s", r.Body)
+	}
+
+	// Non-admins do not even see the route.
+	if r := testsrv.Do(t, srv, user, "GET", "/api/admin/users", nil); r.Status != 404 || r.ErrorCode() != "not_found" {
+		t.Fatalf("non-admin list: %d %s", r.Status, r.Body)
+	}
+	if r := testsrv.Do(t, srv, user, "PATCH", "/api/admin/users/"+id, map[string]string{"role": "admin"}); r.Status != 404 {
+		t.Fatalf("non-admin patch: %d %s", r.Status, r.Body)
+	}
+
+	// A role change needs no password, just the admin's session.
+	r = testsrv.Do(t, srv, admin, "PATCH", "/api/admin/users/"+id, map[string]string{"role": "admin"})
+	var patched struct{ Role string }
+	r.Decode(t, &patched)
+	if r.Status != 200 || patched.Role != "admin" {
+		t.Fatalf("patch: %d %s", r.Status, r.Body)
+	}
+	if r := testsrv.Do(t, srv, admin, "PATCH", "/api/admin/users/"+id, map[string]string{"role": "owner"}); r.Status != 422 {
+		t.Fatalf("bad role: %d %s", r.Status, r.Body)
 	}
 }
 
@@ -118,25 +129,11 @@ func TestLogoutInvalidatesToken(t *testing.T) {
 	}
 }
 
-func TestSessionCookieSecureOnlyWhenForwardedHTTPS(t *testing.T) {
+func TestSessionCookieAuthenticates(t *testing.T) {
 	srv, _ := testsrv.New(t)
-	creds := map[string]string{"email": testsrv.AdminEmail, "password": testsrv.AdminPassword}
-	r := testsrv.Do(t, srv, "", "POST", "/api/setup", creds)
-	plain := (&http.Response{Header: r.Header}).Cookies()
-	if len(plain) != 1 || plain[0].Name != "korecal_session" || !plain[0].HttpOnly || plain[0].Secure || plain[0].SameSite != http.SameSiteLaxMode {
-		t.Fatalf("plain cookie: %+v", plain)
+	tok := testsrv.Login(t, srv)
+	r := testsrv.Do(t, srv, "", "GET", "/api/me", nil, "Cookie", "korecal_session="+tok)
+	if r.Status != 200 {
+		t.Fatalf("cookie auth: %d %s", r.Status, r.Body)
 	}
-	r = testsrv.Do(t, srv, "", "POST", "/api/login", creds, "X-Forwarded-Proto", "https")
-	secure := (&http.Response{Header: r.Header}).Cookies()
-	if len(secure) != 1 || !secure[0].Secure {
-		t.Fatalf("https cookie: %+v", secure)
-	}
-	// the cookie alone authenticates
-	req, _ := http.NewRequest("GET", srv.URL+"/api/me", nil)
-	req.AddCookie(plain[0])
-	res, err := http.DefaultClient.Do(req)
-	if err != nil || res.StatusCode != 200 {
-		t.Fatalf("cookie auth: %v %v", err, res)
-	}
-	res.Body.Close()
 }

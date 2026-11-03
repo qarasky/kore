@@ -63,7 +63,7 @@ class KeystoreSecretBox(private val alias: String = "korecal-token") : SecretBox
     }
 }
 
-/** Who is signed in, and the app's access token (sealed). The password is never kept. */
+/** Who is signed in, and the app's access token (sealed). No sign-in secret is kept. */
 data class Account(val serverUrl: String, val userId: String, val email: String, val timezone: String, val token: String)
 
 class AccountStore(private val kv: KeyValue, private val box: SecretBox) {

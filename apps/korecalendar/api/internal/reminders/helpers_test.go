@@ -22,7 +22,7 @@ type fixture struct {
 func newFixture(t *testing.T) fixture {
 	t.Helper()
 	db := testutil.NewDB(t)
-	u, err := users.Create(context.Background(), db, "a@example.com", "x", "admin")
+	u, err := users.Create(context.Background(), db, "a@example.com", "admin")
 	if err != nil {
 		t.Fatal(err)
 	}
