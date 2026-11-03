@@ -131,18 +131,30 @@ type ssoEnv struct {
 
 func setupSSO(t *testing.T, linkByEmail, autoProvision, password bool) *ssoEnv {
 	t.Helper()
+	e := newSSOEnv(t, linkByEmail, autoProvision, password, "")
+	hash, _ := auth.HashPassword("right-pw")
+	if _, err := users.Create(context.Background(), e.db, "local@kore.test", hash, "admin", 7); err != nil {
+		t.Fatal(err)
+	}
+	return e
+}
+
+// setupSSOEmpty is setupSSO without the seeded local admin: a fresh install.
+func setupSSOEmpty(t *testing.T, ownerEmail string) *ssoEnv {
+	t.Helper()
+	return newSSOEnv(t, false, true, true, ownerEmail)
+}
+
+func newSSOEnv(t *testing.T, linkByEmail, autoProvision, password bool, ownerEmail string) *ssoEnv {
+	t.Helper()
 	db, err := store.Open(filepath.Join(t.TempDir(), "k.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	hash, _ := auth.HashPassword("right-pw")
-	if _, err := users.Create(context.Background(), db, "local@kore.test", hash, "admin", 7); err != nil {
-		t.Fatal(err)
-	}
 	idp := newFakeID(t)
 	p := oidc.New(oidc.Config{Issuer: idp.srv.URL, ClientID: "kore", ClientSecret: "secret", RedirectURL: pubURL + callbackPath})
-	return &ssoEnv{h: New(db, t.TempDir(), WithProvider(p, pubURL, linkByEmail, autoProvision, password)), db: db, idp: idp}
+	return &ssoEnv{h: New(db, t.TempDir(), WithProvider(p, pubURL, linkByEmail, autoProvision, password, ownerEmail)), db: db, idp: idp}
 }
 
 func (e *ssoEnv) do(method, target string, hdr map[string]string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
@@ -193,6 +205,14 @@ func (e *ssoEnv) callback(q url.Values, code string, fc *http.Cookie, cookies ..
 		cs = append([]*http.Cookie{fc}, cookies...)
 	}
 	return e.do("GET", callbackPath+"?"+cb.Encode(), nil, cs...)
+}
+
+// signIn runs a whole login flow with the fake provider's current identity.
+func (e *ssoEnv) signIn(t *testing.T) *httptest.ResponseRecorder {
+	t.Helper()
+	q, fc := e.startLogin(t, "/api/auth/oidc/login")
+	e.idp.nonce = q.Get("nonce")
+	return e.callback(q, "code", fc)
 }
 
 func TestSSOFullLoginProvisionsAndCreatesSession(t *testing.T) {
@@ -410,11 +430,82 @@ func TestSSODisablesLocalLogin(t *testing.T) {
 	}
 }
 
+func TestOIDCOwnerEmailCreatesTheFirstAdministrator(t *testing.T) {
+	t.Run("owner email, verified, fresh database", func(t *testing.T) {
+		e := setupSSOEmpty(t, "New@Kore.Test")
+		e.idp.emailVerified = true
+		rec := e.signIn(t)
+		if rec.Code != 302 || rec.Header().Get("Location") != pubURL+defaultNext {
+			t.Fatalf("callback: %d %s", rec.Code, rec.Header().Get("Location"))
+		}
+		var email, role string
+		if err := e.db.QueryRow(`SELECT email,role FROM users`).Scan(&email, &role); err != nil {
+			t.Fatal(err)
+		}
+		if email != "new@kore.test" || role != "admin" {
+			t.Fatalf("user: %q %q", email, role)
+		}
+	})
+	t.Run("a different email is refused", func(t *testing.T) {
+		e := setupSSOEmpty(t, "owner@example.com")
+		e.idp.emailVerified = true
+		if rec := e.signIn(t); !strings.HasSuffix(rec.Header().Get("Location"), "/login?error=sso_no_admin") {
+			t.Fatalf("redirected to %q", rec.Header().Get("Location"))
+		}
+		var n int
+		e.db.QueryRow(`SELECT count(*) FROM users`).Scan(&n)
+		if n != 0 {
+			t.Fatalf("%d users", n)
+		}
+	})
+	t.Run("the owner email must be verified", func(t *testing.T) {
+		e := setupSSOEmpty(t, "new@kore.test")
+		e.idp.emailVerified = false
+		if rec := e.signIn(t); !strings.HasSuffix(rec.Header().Get("Location"), "/login?error=sso_no_admin") {
+			t.Fatalf("redirected to %q", rec.Header().Get("Location"))
+		}
+		var n int
+		e.db.QueryRow(`SELECT count(*) FROM users`).Scan(&n)
+		if n != 0 {
+			t.Fatalf("%d users", n)
+		}
+	})
+	t.Run("no promotion once an account exists", func(t *testing.T) {
+		e := setupSSOEmpty(t, "new@kore.test")
+		hash, _ := auth.HashPassword("right-pw")
+		if _, err := users.Create(context.Background(), e.db, "local@kore.test", hash, "admin", 7); err != nil {
+			t.Fatal(err)
+		}
+		e.idp.emailVerified = true
+		e.signIn(t)
+		var role string
+		e.db.QueryRow(`SELECT role FROM users WHERE email='new@kore.test'`).Scan(&role)
+		if role != "user" {
+			t.Fatalf("role %q", role)
+		}
+	})
+}
+
+func TestAuthConfigFirstUserSSO(t *testing.T) {
+	for name, owner := range map[string]string{"unset": "", "set": "owner@example.com"} {
+		e := newSSOEnv(t, false, true, true, owner)
+		var cfg struct {
+			FirstUserSSO bool `json:"first_user_sso"`
+		}
+		if err := json.Unmarshal(e.do("GET", "/api/auth/config", nil).Body.Bytes(), &cfg); err != nil {
+			t.Fatal(err)
+		}
+		if cfg.FirstUserSSO != (owner != "") {
+			t.Errorf("%s: first_user_sso = %v", name, cfg.FirstUserSSO)
+		}
+	}
+}
+
 func TestAuthConfigDefaultWithoutSSO(t *testing.T) {
 	h := setup(t)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/auth/config", nil))
-	if strings.TrimSpace(rec.Body.String()) != `{"local_login":true,"oidc":false}` {
+	if strings.TrimSpace(rec.Body.String()) != `{"local_login":true,"oidc":false,"first_user_sso":false}` {
 		t.Fatal(rec.Body.String())
 	}
 	rec = httptest.NewRecorder()

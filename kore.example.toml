@@ -10,8 +10,11 @@
 # Directory for the database and stored files (required).
 data_dir = "./data"
 
-# First admin account (required), created on the first start. Kore refuses
-# to start while the password is still "change-me" or shorter than 8 characters.
+# First admin account, created on the first start. Kore refuses to start while
+# the password is still "change-me" or shorter than 8 characters.
+# On a fresh install with Kore ID you may leave both empty and set
+# oidc.owner_email instead; the first Kore ID sign-in with that verified email
+# becomes the administrator.
 admin_email = "admin@example.com"
 admin_password = "change-me"
 
@@ -29,12 +32,13 @@ admin_password = "change-me"
 # issuer = "https://id.example.com"    # setting it enables Kore ID
 # client_id = "kore"
 # client_secret = ""                   # or KORE_OIDC_CLIENT_SECRET
+# owner_email = "owner@example.com"    # first Kore ID sign-in with this verified email becomes the admin (fresh install)
 # auto_provision = true                # create accounts on first login
 # link_by_email = true                 # adopt an unlinked local account with the
 #                                      # same email when email_verified is true
 # # The other Kore apps, for the app switcher (optional; left-out apps are hidden):
 # apps = { koremind = "https://mind.example.com", korecalendar = "https://cal.example.com", flatline = "https://status.example.com" }
 # All of these also exist as KORE_PUBLIC_URL, KORE_LOCAL_LOGIN, KORE_OIDC_ISSUER,
-# KORE_OIDC_CLIENT_ID, KORE_OIDC_CLIENT_SECRET, KORE_OIDC_AUTO_PROVISION,
-# KORE_OIDC_LINK_BY_EMAIL and KORE_APP_URLS (app=url,app=url); the environment
-# wins over the file.
+# KORE_OIDC_CLIENT_ID, KORE_OIDC_CLIENT_SECRET, KORE_OIDC_OWNER_EMAIL,
+# KORE_OIDC_AUTO_PROVISION, KORE_OIDC_LINK_BY_EMAIL and KORE_APP_URLS
+# (app=url,app=url); the environment wins over the file.

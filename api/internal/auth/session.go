@@ -111,13 +111,18 @@ func DeleteSession(ctx context.Context, db *sql.DB, tok string) error {
 	return err
 }
 
-// Bootstrap creates the first admin from config when no users exist.
+// Bootstrap creates the first admin from config when no users exist. With
+// Kore ID and oidc.owner_email configured instead of admin credentials, the
+// first administrator is created by the first Kore ID sign-in.
 func Bootstrap(ctx context.Context, db *sql.DB, cfg config.Config) error {
 	n, err := users.Count(ctx, db)
 	if err != nil {
 		return err
 	}
 	if n > 0 {
+		return nil
+	}
+	if cfg.AdminEmail == "" && cfg.AdminPassword == "" && cfg.FirstUserSSO() {
 		return nil
 	}
 	if cfg.AdminPassword == placeholderPassword {

@@ -33,6 +33,7 @@ type ssoState struct {
 	publicURL     string
 	linkByEmail   bool
 	autoProvision bool
+	ownerEmail    string            // first admin on a fresh install ("" = none)
 	apps          map[string]string // app switcher: app key -> base URL (this app included)
 	limit         *auth.Limiter
 	refreshMu     sync.Mutex // serialises refresh-token rotation (parallel redemptions look like theft)
@@ -55,18 +56,25 @@ func WithConfig(cfg config.Config) Option {
 				RedirectURL: cfg.PublicURL + callbackPath,
 			}),
 			publicURL: cfg.PublicURL, linkByEmail: cfg.OIDC.LinkByEmailEnabled(), autoProvision: cfg.OIDC.AutoProvisionEnabled(),
-			apps:  appURLs(cfg.PublicURL, cfg.OIDC.Apps),
-			limit: auth.NewLimiter(30, 15*time.Minute),
+			ownerEmail: cfg.OIDC.OwnerEmail,
+			apps:       appURLs(cfg.PublicURL, cfg.OIDC.Apps),
+			limit:      auth.NewLimiter(30, 15*time.Minute),
 		}
 	}
 }
 
-// WithProvider is WithConfig with a ready provider (tests).
-func WithProvider(p *oidc.Provider, publicURL string, linkByEmail, autoProvision, passwordLogin bool) Option {
+// WithProvider is WithConfig with a ready provider (tests). The optional
+// ownerEmail names the first administrator on a fresh install.
+func WithProvider(p *oidc.Provider, publicURL string, linkByEmail, autoProvision, passwordLogin bool, ownerEmail ...string) Option {
 	return func(s *server) {
+		owner := ""
+		if len(ownerEmail) > 0 {
+			owner = ownerEmail[0]
+		}
 		s.passwordLogin = passwordLogin
 		s.sso = &ssoState{p: p, publicURL: publicURL, linkByEmail: linkByEmail, autoProvision: autoProvision,
-			limit: auth.NewLimiter(30, 15*time.Minute)}
+			ownerEmail: owner,
+			limit:      auth.NewLimiter(30, 15*time.Minute)}
 	}
 }
 
@@ -91,6 +99,9 @@ func appURLs(publicURL string, apps map[string]string) map[string]string {
 type authConfigJSON struct {
 	LocalLogin bool `json:"local_login"`
 	OIDC       bool `json:"oidc"`
+	// FirstUserSSO is true when Kore ID is configured with an owner email:
+	// the first sign-in with that verified email becomes the administrator.
+	FirstUserSSO bool `json:"first_user_sso"`
 	// Issuer is Kore ID's base URL (its account page is Issuer + "/account").
 	Issuer string `json:"issuer,omitempty"`
 	// Apps are the Kore apps' base URLs for the app switcher.
@@ -98,7 +109,8 @@ type authConfigJSON struct {
 }
 
 func (s *server) authConfig(w http.ResponseWriter, r *http.Request) {
-	out := authConfigJSON{LocalLogin: s.passwordLogin, OIDC: s.sso != nil}
+	out := authConfigJSON{LocalLogin: s.passwordLogin, OIDC: s.sso != nil,
+		FirstUserSSO: s.sso != nil && s.sso.ownerEmail != ""}
 	if s.sso != nil {
 		out.Issuer = s.sso.p.Issuer()
 		out.Apps = s.sso.apps
@@ -298,7 +310,21 @@ func (s *server) resolveSSOUser(ctx context.Context, c oidc.Claims, linkUserID s
 	if !s.sso.autoProvision {
 		return users.User{}, "sso_not_provisioned"
 	}
-	u, err = auth.ProvisionSSO(ctx, s.db, c.Sub, c.Email, settings.DefaultQuotaBytes(ctx, s.db))
+	role := "user"
+	if n, err := users.Count(ctx, s.db); err != nil {
+		log.Printf("sso: count users: %v", err)
+		return users.User{}, "sso_failed"
+	} else if n == 0 {
+		// Never let whoever signs in first on a fresh install become the
+		// administrator by accident: only the explicitly configured owner
+		// email, with a verified claim, creates the first admin account.
+		if s.sso.ownerEmail == "" || !c.EmailVerified ||
+			!strings.EqualFold(strings.TrimSpace(c.Email), s.sso.ownerEmail) {
+			return users.User{}, "sso_no_admin"
+		}
+		role = "admin"
+	}
+	u, err = auth.ProvisionSSO(ctx, s.db, c.Sub, c.Email, role, settings.DefaultQuotaBytes(ctx, s.db))
 	if err != nil {
 		// A parallel first login for the same subject may have won.
 		if u2, err2 := auth.UserBySub(ctx, s.db, c.Sub); err2 == nil {
