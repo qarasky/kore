@@ -85,8 +85,8 @@ services:
       KORE_PORT: "8080"
       KORE_DATA_DIR: /data
       # First admin account, created on the first start.
-      KORE_ADMIN_EMAIL: ${KORE_ADMIN_EMAIL:?set KORE_ADMIN_EMAIL in .env}
-      KORE_ADMIN_PASSWORD: ${KORE_ADMIN_PASSWORD:?set KORE_ADMIN_PASSWORD in .env}
+      KORE_ADMIN_EMAIL: ${KORE_ADMIN_EMAIL:-}
+      KORE_ADMIN_PASSWORD: ${KORE_ADMIN_PASSWORD:-}
       # Sign in with Kore ID (OpenID Connect). Empty KORE_OIDC_ISSUER = off.
       KORE_PUBLIC_URL: ${KORE_PUBLIC_URL:-}
       KORE_OIDC_ISSUER: ${KORE_OIDC_ISSUER:-}
@@ -94,6 +94,9 @@ services:
       KORE_OIDC_CLIENT_SECRET: ${KORE_OIDC_CLIENT_SECRET:-}
       KORE_OIDC_LINK_BY_EMAIL: ${KORE_OIDC_LINK_BY_EMAIL:-true}
       KORE_OIDC_AUTO_PROVISION: ${KORE_OIDC_AUTO_PROVISION:-true}
+      # The first administrator on a fresh install can come from Kore ID instead of
+      # local admin credentials: set this to the owner's verified email.
+      KORE_OIDC_OWNER_EMAIL: ${KORE_OIDC_OWNER_EMAIL:-}
       KORE_APP_URLS: ${KORE_APP_URLS:-}
       KORE_LOCAL_LOGIN: ${KORE_LOCAL_LOGIN:-true}
     volumes:
