@@ -107,19 +107,27 @@ test("mapModels marks free models by their price tiers and gives every listed pr
   expect(mapModels([{ id: "opencode", name: "OpenCode" }], [], undefined, new Set())[0]).toMatchObject({ status: "ready", connected: false });
 });
 
-test("mapConnections offers OpenCode, Codex and OpenRouter with their login methods, and nothing else", () => {
+test("Groq's safety classifiers are not offered as chat models", () => {
+  const m = (id: string) => ({ id, modelID: id, providerID: "groq", name: id, capabilities: { input: ["text"] }, variants: [], enabled: true, status: "active" });
+  const out = mapModels([{ id: "groq", name: "Groq" }], [m("openai/gpt-oss-120b"), m("meta-llama/llama-prompt-guard-2-86m"), m("openai/gpt-oss-safeguard-20b"), m("qwen/qwen3.8-27b")], undefined, new Set(["groq"]));
+  expect(out[0].models.map((x) => x.id)).toEqual(["openai/gpt-oss-120b", "qwen/qwen3.8-27b"]);
+});
+
+test("mapConnections offers Groq, OpenRouter, OpenCode and Codex (recommended first) with their login methods, and nothing else", () => {
   const integrations = [
     { id: "anthropic", name: "Anthropic", methods: [{ type: "key" }], connections: [] },
+    { id: "groq", name: "Groq", methods: [{ type: "key" }, { type: "env", names: ["GROQ_API_KEY"] }], connections: [] },
     { id: "opencode", name: "OpenCode", methods: [{ type: "key" }, { id: "go", type: "oauth", label: "OpenCode account" }], connections: [] },
     { id: "openrouter", name: "OpenRouter", methods: [{ type: "key" }, { type: "env", names: ["OPENROUTER_API_KEY"] }], connections: [{ id: "c1" }] },
     { id: "openai", name: "OpenAI", methods: [{ type: "key" }, { id: "chatgpt-token-sharing", type: "oauth", label: "Sign in with ChatGPT" }], connections: [] },
   ];
   const out = mapConnections(integrations);
-  expect(out.map((c) => c.id)).toEqual(["opencode", "openai", "openrouter"]);
-  expect(out.find((c) => c.id === "openai")).toEqual({ id: "openai", name: "Codex", connected: false, methods: ["key", "signin"], supportsFreeFilter: false });
-  expect(out.find((c) => c.id === "openrouter")).toEqual({ id: "openrouter", name: "OpenRouter", connected: true, methods: ["key"], supportsFreeFilter: true });
+  expect(out.map((c) => c.id)).toEqual(["groq", "openrouter", "opencode", "openai"]);
+  expect(out.find((c) => c.id === "openai")).toEqual({ id: "openai", name: "Codex", connected: false, methods: ["key", "signin"], recommended: false, supportsFreeFilter: false });
+  expect(out.find((c) => c.id === "openrouter")).toEqual({ id: "openrouter", name: "OpenRouter", connected: true, methods: ["key"], recommended: true, supportsFreeFilter: true });
   expect(out.find((c) => c.id === "opencode")?.methods).toEqual(["key"]);
-  expect(out.map((c) => [c.id, c.supportsFreeFilter])).toEqual([["opencode", true], ["openai", false], ["openrouter", true]]);
+  expect(out.map((c) => [c.id, c.supportsFreeFilter])).toEqual([["groq", false], ["openrouter", true], ["opencode", true], ["openai", false]]);
+  expect(out.find((c) => c.id === "groq")).toEqual({ id: "groq", name: "Groq", connected: false, methods: ["key"], recommended: true, supportsFreeFilter: false });
 });
 
 test("disconnecting removes saved credentials by id; an env-only connection cannot be removed from the app", () => {

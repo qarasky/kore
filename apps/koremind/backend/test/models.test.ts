@@ -16,7 +16,7 @@ const base = { memoryEnabled: true, displayName: "", tone: "", about: "" };
 test("providers come from the engine and exactly one default model exists", async () => {
   const { models } = setup();
   const ps = await models.providers("u1");
-  expect(ps[0].models.filter((m) => m.isDefault)).toHaveLength(1);
+  expect(ps.find((p) => p.id === "opencode")!.models.filter((m) => m.isDefault)).toHaveLength(1);
 });
 
 test("favorites persist per user", async () => {
@@ -43,11 +43,22 @@ test("connect and disconnect forward to the engine", async () => {
 test("every offered provider is listed with a status; only ready ones carry models", async () => {
   const { models } = setup();
   const ps = await models.providers("u1");
-  expect(ps.map((p) => [p.id, p.status, p.models.length > 0])).toEqual([["opencode", "ready", true], ["openai", "needs_connection", false], ["openrouter", "needs_connection", false]]);
+  expect(ps.map((p) => [p.id, p.status, p.models.length > 0])).toEqual([["groq", "needs_connection", false], ["openrouter", "needs_connection", false], ["opencode", "ready", true], ["openai", "needs_connection", false]]);
   await models.connect("openrouter", "sk-or");
   const after = await models.providers("u1");
   expect(after.find((p) => p.id === "openrouter")).toMatchObject({ status: "ready", connected: true });
   expect(after.find((p) => p.id === "openrouter")!.models.map((m) => m.free)).toEqual([true, false]);
+});
+
+test("Groq and OpenRouter are the recommended providers and come first", async () => {
+  const { models } = setup();
+  const ps = await models.providers("u1");
+  expect(ps.map((p) => [p.id, p.recommended])).toEqual([["groq", true], ["openrouter", true], ["opencode", false], ["openai", false]]);
+  await models.connect("groq", "gsk-test");
+  const g = (await models.providers("u1")).find((p) => p.id === "groq")!;
+  expect(g).toMatchObject({ status: "ready", connected: true });
+  expect(g.models.filter((m) => m.isDefault)).toHaveLength(1);
+  expect(await models.allowed("u1", "groq", "llama-fast")).toBe(true);
 });
 
 test("a provider the user turned off is disabled and empty for that user only", async () => {

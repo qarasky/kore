@@ -30,8 +30,10 @@ class ContractJsonTest {
     }
 
     @Test fun `provider connections carry the free-filter capability`() {
-        val c = KoreMindJson.decodeFromString(ListSerializer(ProviderConnection.serializer()), """[{"id":"openrouter","name":"OpenRouter","connected":true,"methods":["key"],"supportsFreeFilter":true},{"id":"openai","name":"Codex","connected":false,"methods":["key","signin"]}]""")
+        val c = KoreMindJson.decodeFromString(ListSerializer(ProviderConnection.serializer()), """[{"id":"openrouter","name":"OpenRouter","connected":true,"methods":["key"],"supportsFreeFilter":true,"recommended":true},{"id":"openai","name":"Codex","connected":false,"methods":["key","signin"]}]""")
         assertTrue(c[0].supportsFreeFilter)
+        assertTrue(c[0].recommended)
+        assertFalse(c[1].recommended)
         assertFalse(c[1].supportsFreeFilter)
     }
 
