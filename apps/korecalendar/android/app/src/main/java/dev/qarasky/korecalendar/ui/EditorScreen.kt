@@ -218,8 +218,8 @@ private fun Form(editor: EventEditor, s: EditorState.Editing, ready: AppState.Re
     }
 
     when (picker) {
-        Picker.StartDate -> DateDialog(f.startDay, { d -> editor.edit { it.withStart(d, it.startTime) } }, { picker = null })
-        Picker.StartTime -> TimeDialog(f.startTime, ready.clock24, { t -> editor.edit { it.withStart(it.startDay, t) } }, { picker = null })
+        Picker.StartDate -> DateDialog(f.startDay, { d -> editor.edit { it.withStart(d, it.startTime, rebase = s.creating) } }, { picker = null })
+        Picker.StartTime -> TimeDialog(f.startTime, ready.clock24, { t -> editor.edit { it.withStart(it.startDay, t, rebase = s.creating) } }, { picker = null })
         Picker.EndDate -> DateDialog(f.endDay, { d -> editor.edit { it.copy(endDay = d) } }, { picker = null })
         Picker.EndTime -> TimeDialog(f.endTime, ready.clock24, { t -> editor.edit { it.copy(endTime = t) } }, { picker = null })
         Picker.Zone -> TimezoneDialog(f.tz, { z -> editor.edit { it.copy(tz = z) } }, { picker = null })

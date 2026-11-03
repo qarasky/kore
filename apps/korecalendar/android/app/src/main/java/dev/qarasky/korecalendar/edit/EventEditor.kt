@@ -6,8 +6,11 @@ import dev.qarasky.korecalendar.data.Event
 import dev.qarasky.korecalendar.data.Occurrence
 import dev.qarasky.korecalendar.data.WriteResult
 import java.time.Duration
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withContext
 
 sealed interface EditorState {
     data object Closed : EditorState
@@ -37,7 +40,8 @@ sealed interface SaveResult {
 }
 
 sealed interface DeleteResult {
-    data class Deleted(val message: String, val eventId: String) : DeleteResult
+    /** [undoable]: the whole event was deleted, so restoring it brings it back (removing one occurrence or the tail of a series is not undone that way). */
+    data class Deleted(val message: String, val eventId: String, val undoable: Boolean) : DeleteResult
     data class Failed(val message: String) : DeleteResult
 }
 
@@ -74,16 +78,35 @@ class EventEditor(
         _state.value = EditorState.Loading
         try {
             val e = api.event(occ.eventId)
+            // The phone's copy may be minutes old: edit what the server has now, so the planner's idea of
+            // "what changed" and the version it sends belong together.
+            val fresh = freshOccurrence(occ)
+            if (fresh == null) {
+                _state.value = EditorState.LoadFailed(msg.get("edit_err_not_found"))
+                return
+            }
             master = e
-            occurrence = occ
+            occurrence = fresh
             _state.value = EditorState.Editing(
-                formFromEvent(e, occ), FormErrors(null, null), saving = false, banner = null, conflict = false, creating = false,
-                recurring = occ.isRecurring,
+                formFromEvent(e, fresh), FormErrors(null, null), saving = false, banner = null, conflict = false, creating = false,
+                recurring = fresh.isRecurring,
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             _state.value = EditorState.LoadFailed(errorMessage(e, msg))
         }
     }
+
+    /** [occ] as the server has it now, or null when it is gone (or its series moved so that its key no longer exists). */
+    private suspend fun freshOccurrence(occ: Occurrence): Occurrence? {
+        val near = occ.startUtc.minus(Duration.ofDays(2)) to occ.startUtc.plus(Duration.ofDays(2))
+        return api.occurrences(near.first, near.second).firstOrNull { it.eventId == occ.eventId && it.key == occ.key }
+    }
+
+    private fun sameAs(a: Occurrence, b: Occurrence) =
+        a.title == b.title && a.notes == b.notes && a.location == b.location && a.start == b.start && a.end == b.end &&
+            a.tz == b.tz && a.allDay == b.allDay && a.reminders == b.reminders
 
     fun close() {
         master = null
@@ -130,19 +153,25 @@ class EventEditor(
         }
         _state.value = s.copy(saving = true, banner = null, conflict = false)
         val results = ArrayList<WriteResult>()
+        // A write that has started is finished and its outcome recorded even if the screen that asked for it
+        // is recreated (a rotation): otherwise it could land on the server while the app reports a failure.
         try {
-            for (req in plan.requests) {
-                val sent = if (s.creating || m == null) {
-                    attempt = nextAttempt(attempt, req, newKey)
-                    req.copy(idempotencyKey = attempt!!.key)
-                } else {
-                    req
+            withContext(NonCancellable) {
+                for (req in plan.requests) {
+                    val sent = if (s.creating || m == null) {
+                        attempt = nextAttempt(attempt, req, newKey)
+                        req.copy(idempotencyKey = attempt!!.key)
+                    } else {
+                        req
+                    }
+                    results += api.write(sent)
                 }
-                results += api.write(sent)
             }
         } catch (e: Exception) {
             val conflict = e is ApiException && e.code == "version_conflict"
-            _state.value = s.copy(saving = false, banner = errorMessage(e, msg), conflict = conflict)
+            // What was typed while the request was in flight is kept: build on the form as it is now.
+            val now = editing() ?: s
+            _state.value = now.copy(saving = false, banner = errorMessage(e, msg), conflict = conflict)
             return SaveResult.Failed
         }
         val base = msg.get(if (s.creating) "toast_created" else "toast_saved")
@@ -152,8 +181,10 @@ class EventEditor(
             1 -> "$base. ${msg.get("toast_dropped_one")}"
             else -> "$base. ${msg.get("toast_dropped_many", dropped)}"
         }
-        close()
-        onWritten()
+        withContext(NonCancellable) {
+            close()
+            onWritten()
+        }
         return SaveResult.Saved(text)
     }
 
@@ -182,27 +213,32 @@ class EventEditor(
         }
     }
 
-    /** Deletes [occ] at [scope] (the version comes from a fresh read, so a stale screen cannot delete over someone else's change). */
-    suspend fun delete(occ: Occurrence, scope: Scope): DeleteResult {
+    /**
+     * Deletes [occ] at [scope]. The event is read again first: if it is gone, or someone changed it since the phone's copy
+     * was made, nothing is deleted and the message says to reload (a delete must not hit what the person did not see).
+     */
+    suspend fun delete(occ: Occurrence, scope: Scope): DeleteResult = withContext(NonCancellable) {
         try {
             val m = api.event(occ.eventId)
+            val fresh = freshOccurrence(occ) ?: return@withContext DeleteResult.Failed(msg.get("edit_err_not_found"))
+            if (!sameAs(fresh, occ)) return@withContext DeleteResult.Failed(msg.get("edit_err_version_conflict"))
             val plan = planDelete(m, occ, scope)
             for (req in plan.requests) api.write(req)
+            onWritten()
+            DeleteResult.Deleted(msg.get("toast_deleted"), occ.eventId, undoable = scope == Scope.All || !occ.isRecurring)
         } catch (e: Exception) {
-            return DeleteResult.Failed(errorMessage(e, msg))
+            DeleteResult.Failed(errorMessage(e, msg))
         }
-        onWritten()
-        return DeleteResult.Deleted(msg.get("toast_deleted"), occ.eventId)
     }
 
     /** Brings back a deleted event (valid for 30 days). Returns the message to show, or the error. */
-    suspend fun undo(eventId: String): String {
+    suspend fun undo(eventId: String): String = withContext(NonCancellable) {
         try {
             api.restoreEvent(eventId)
         } catch (e: Exception) {
-            return errorMessage(e, msg)
+            return@withContext errorMessage(e, msg)
         }
         onWritten()
-        return msg.get("toast_restored")
+        msg.get("toast_restored")
     }
 }

@@ -16,6 +16,9 @@ import dev.qarasky.korecalendar.edit.newFormValues
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -37,6 +40,7 @@ class EventEditorTest {
         eventId = id, calendarId = "c1", key = key, title = "Gym", start = key, end = key.replace("T16:", "T17:"), tz = "Europe/Berlin",
         isRecurring = recurring, startUtc = Instant.parse("2026-11-11T15:00:00Z"), endUtc = Instant.parse("2026-11-11T16:00:00Z"),
     )
+    init { api.onOccurrences = { _, _ -> listOf(occ()) } }
     private fun ok(e: Event = gym, dropped: List<String> = emptyList()) = WriteResult(e, null, dropped)
     private fun state() = editor.state.value as EditorState.Editing
 
@@ -45,7 +49,7 @@ class EventEditorTest {
     @Test fun opensAnExistingEventFromTheServer() = runTest {
         api.onEvent = { gym }
         editor.openExisting(occ())
-        assertEquals(listOf("event:g1"), api.calls)
+        assertEquals(listOf("event:g1", "occurrences"), api.calls)
         assertEquals("Gym", state().form.title)
         assertEquals(false, state().creating)
         assertEquals(true, state().recurring)
@@ -152,7 +156,7 @@ class EventEditorTest {
         api.onEvent = { gym }
         api.onWrite = { ok(gym.copy(deletedAt = 99)) }
         val r = editor.delete(occ(), Scope.This)
-        assertEquals(DeleteResult.Deleted("Event deleted", "g1"), r)
+        assertEquals(DeleteResult.Deleted("Event deleted", "g1", undoable = false), r)
         assertEquals("/api/events/g1?scope=this&occurrence=2026-11-11T16%3A00%3A00", api.writes.single().path)
         assertEquals("DELETE", api.writes.single().method)
         assertEquals(1, written)
@@ -176,5 +180,67 @@ class EventEditorTest {
     @Test fun aRepeatingOccurrenceOffersThreeDeleteScopesAndASingleEventOne() {
         assertEquals(listOf(Scope.This, Scope.Following, Scope.All), editor.deleteScopes(occ()))
         assertEquals(listOf(Scope.All), editor.deleteScopes(occ(recurring = false)))
+    }
+
+    @Test fun undoIsOfferedOnlyWhenTheWholeSeriesWasDeleted() = runTest {
+        api.onEvent = { gym }
+        api.onWrite = { ok(gym.copy(deletedAt = 99)) }
+        assertEquals(true, (editor.delete(occ(), Scope.All) as DeleteResult.Deleted).undoable)
+        assertEquals(false, (editor.delete(occ(), Scope.Following) as DeleteResult.Deleted).undoable)
+        assertEquals(true, (editor.delete(occ(recurring = false), Scope.All) as DeleteResult.Deleted).undoable)
+    }
+
+    @Test fun theFormShowsTheEventAsTheServerHasItNotAStaleLocalCopy() = runTest {
+        // Moved to 10:00 on the web; the phone's copy still says 09:00.
+        val moved = gym.copy(start = "2026-11-04T10:00:00", end = "2026-11-04T11:00:00", version = 4)
+        api.onEvent = { moved }
+        api.onOccurrences = { _, _ -> listOf(occ().copy(start = "2026-11-11T10:00:00", end = "2026-11-11T11:00:00")) }
+        editor.openExisting(occ())
+        assertEquals(LocalTime.of(10, 0), state().form.startTime)
+    }
+
+    @Test fun anOccurrenceThatNoLongerExistsOnTheServerIsNotOpened() = runTest {
+        api.onEvent = { gym }
+        api.onOccurrences = { _, _ -> emptyList() }
+        editor.openExisting(occ())
+        assertTrue(editor.state.value is EditorState.LoadFailed)
+    }
+
+    @Test fun deletingFromAStaleScreenIsRefusedNotAppliedToWhatSomeoneElseChanged() = runTest {
+        api.onEvent = { gym }
+        api.onOccurrences = { _, _ -> listOf(occ().copy(title = "Gym (renamed elsewhere)")) }
+        val r = editor.delete(occ(), Scope.All) as DeleteResult.Failed
+        assertEquals("This event was changed somewhere else. Reload to see the latest.", r.message)
+        assertTrue(api.writes.isEmpty())
+    }
+
+    @Test fun aSaveSurvivesTheScreenBeingRecreatedMidWrite() = runTest {
+        api.onEvent = { gym }
+        api.onWrite = { ok() }
+        editor.openExisting(occ())
+        editor.edit { it.copy(title = "Gym 2") }
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        api.writeGate = gate
+        val job = launch { editor.save(Scope.All) }
+        runCurrent()
+        job.cancel() // the activity was recreated: its coroutine scope is gone
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(1, written)
+        assertEquals(EditorState.Closed, editor.state.value)
+    }
+
+    @Test fun whatIsTypedWhileASaveIsInFlightSurvivesItsFailure() = runTest {
+        editor.openNew(newForm)
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        api.writeGate = gate
+        api.onWrite = { throw NetworkException("down") }
+        val job = launch { editor.save(Scope.All) }
+        runCurrent()
+        editor.edit { it.copy(notes = "typed meanwhile") }
+        gate.complete(Unit)
+        job.join()
+        assertEquals("typed meanwhile", state().form.notes)
+        assertEquals(false, state().saving)
     }
 }

@@ -329,4 +329,38 @@ class EditContractTest {
         send(planUpdate(m, o, formFromEvent(m, o).copy(title = "Dentist 2"), Scope.All))
         assertEquals(listOf(1440, 30), api.event(made.id).reminders.map { it.minutesBefore })
     }
+
+    // --- the editor session end to end
+
+    private fun editor() = dev.qarasky.korecalendar.edit.EventEditor(api, dev.qarasky.korecalendar.TestMessages, { java.util.UUID.randomUUID().toString() }, {})
+
+    @Test fun theEditorSessionSavesOneOccurrenceOfASeriesAgainstTheRealServer() = runBlocking {
+        gym()
+        val e = editor()
+        e.openExisting(occurrenceOn("Gym", wedIn(1))!!)
+        e.edit { it.copy(title = "Gym (via editor)") }
+        assertEquals(dev.qarasky.korecalendar.edit.SaveResult.Saved("Event saved"), e.save(Scope.This))
+        assertEquals(1, series("Gym (via editor)").size)
+    }
+
+    @Test fun theEditorSessionDeletesAnOccurrenceWithoutUndoAndASeriesWithIt() = runBlocking {
+        val g = gym()
+        val e = editor()
+        val one = e.delete(occurrenceOn("Gym", wedIn(1))!!, Scope.This) as dev.qarasky.korecalendar.edit.DeleteResult.Deleted
+        assertFalse(one.undoable)
+        assertNull(occurrenceOn("Gym", wedIn(1)))
+        val all = e.delete(occurrenceOn("Gym", wedIn(2))!!, Scope.All) as dev.qarasky.korecalendar.edit.DeleteResult.Deleted
+        assertTrue(all.undoable)
+        e.undo(g.id)
+        assertNotNull(occurrenceOn("Gym", wedIn(2)))
+    }
+
+    @Test fun aDeleteFromAStaleScreenIsRefused() = runBlocking {
+        val g = gym()
+        val stale = occurrenceOn("Gym", wedIn(1))!!
+        server.json("PATCH", "/api/events/${g.id}", """{"title":"Gym (renamed elsewhere)"}""")
+        val r = editor().delete(stale, Scope.All)
+        assertTrue(r is dev.qarasky.korecalendar.edit.DeleteResult.Failed)
+        assertNotNull(occurrenceOn("Gym (renamed elsewhere)", wedIn(1)))
+    }
 }

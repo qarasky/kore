@@ -278,10 +278,14 @@ fun planUpdate(master: Event, occurrence: Occurrence?, form: FormValues, scope: 
     )
 }
 
-/** The form with its start moved; the end moves with it, so the duration (or an all-day event's length in days) stays. */
-fun FormValues.withStart(day: LocalDate, time: LocalTime): FormValues {
-    if (allDay) return copy(startDay = day, endDay = day.plusDays(ChronoUnit.DAYS.between(startDay, endDay)))
+/**
+ * The form with its start moved; the end moves with it, so the duration (or an all-day event's length in days) stays.
+ * With [rebase] (a new event) a preset repeat follows the new date.
+ */
+fun FormValues.withStart(day: LocalDate, time: LocalTime, rebase: Boolean = false): FormValues {
+    val rule = if (rebase) rebased(recurrence, startDay, day) else recurrence
+    if (allDay) return copy(startDay = day, endDay = day.plusDays(ChronoUnit.DAYS.between(startDay, endDay)), recurrence = rule)
     val length = diffMinutes(startDay.atTime(startTime), endDay.atTime(endTime))
     val end = day.atTime(time).plusMinutes(length)
-    return copy(startDay = day, startTime = time, endDay = end.toLocalDate(), endTime = end.toLocalTime())
+    return copy(startDay = day, startTime = time, endDay = end.toLocalDate(), endTime = end.toLocalTime(), recurrence = rule)
 }

@@ -167,9 +167,9 @@ class AppController(
         val local = now().atZone(zone)
         val target = day ?: local.toLocalDate()
         val time = if (target == local.toLocalDate()) local.toLocalTime().truncatedTo(java.time.temporal.ChronoUnit.HOURS).plusHours(1) else java.time.LocalTime.of(9, 0)
-        // A "next hour" that wraps past midnight belongs to tomorrow at 00:00; keep the event on the chosen day instead.
-        val start = if (target == local.toLocalDate() && time < local.toLocalTime()) java.time.LocalTime.of(23, 0) else time
-        return newFormValues(target, start, 60, false, zone.id, calendarId)
+        // The next hour wraps past midnight: it is tomorrow at 00:00 (as on the web), not a time that is already past.
+        val wraps = target == local.toLocalDate() && time < local.toLocalTime()
+        return newFormValues(if (wraps) target.plusDays(1) else target, time, 60, false, zone.id, calendarId)
     }
 
     /** Opens the editor on a new event on [day] (today by default). */
@@ -195,9 +195,10 @@ class AppController(
     suspend fun save(scope: dev.qarasky.korecalendar.edit.Scope): dev.qarasky.korecalendar.edit.SaveResult {
         val e = _editor.value ?: return dev.qarasky.korecalendar.edit.SaveResult.Failed
         val r = e.save(scope)
+        // Only close the editor this save belonged to: the person may have cancelled and opened another meanwhile.
         when (r) {
-            is dev.qarasky.korecalendar.edit.SaveResult.Saved -> { _editor.value = null; _notice.value = Notice(r.message) }
-            dev.qarasky.korecalendar.edit.SaveResult.Unchanged -> _editor.value = null
+            is dev.qarasky.korecalendar.edit.SaveResult.Saved -> { if (_editor.value === e) _editor.value = null; _notice.value = Notice(r.message) }
+            dev.qarasky.korecalendar.edit.SaveResult.Unchanged -> if (_editor.value === e) _editor.value = null
             else -> Unit
         }
         return r
@@ -206,7 +207,7 @@ class AppController(
     suspend fun delete(occ: dev.qarasky.korecalendar.data.Occurrence, scope: dev.qarasky.korecalendar.edit.Scope) {
         val e = newEditor() ?: return
         _notice.value = when (val r = e.delete(occ, scope)) {
-            is dev.qarasky.korecalendar.edit.DeleteResult.Deleted -> Notice(r.message, r.eventId)
+            is dev.qarasky.korecalendar.edit.DeleteResult.Deleted -> Notice(r.message, if (r.undoable) r.eventId else null)
             is dev.qarasky.korecalendar.edit.DeleteResult.Failed -> Notice(r.message)
         }
     }

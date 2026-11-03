@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Runs the Android app's device tests, including the UI flows against a real server.
 #
-# Builds the server, starts it on a free port with a fresh data directory (reachable from the
-# emulator as 10.0.2.2), creates the owner, then runs `connectedDebugAndroidTest` on the attached
+# Builds the server, starts it on a free port with a fresh data directory (an emulator reaches the
+# computer's loopback as 10.0.2.2; set KORECAL_UI_TEST_BIND=0.0.0.0 and the address for a real phone), creates the owner, then runs `connectedDebugAndroidTest` on the attached
 # emulator or phone with the server's address and the owner's login as instrumentation arguments.
 # Set KORECAL_UI_TEST_CLASS to run one test class. Needs `go`, a running emulator/device (adb), and the Android SDK.
 set -euo pipefail
@@ -21,7 +21,7 @@ email="owner@korecal.test"
 password="owner-password-123"
 
 (cd "$root/api" && go build -o "$work/korecalendar" ./cmd/korecalendar)
-export KORECAL_DATA_DIR="$work/data" KORECAL_BIND=0.0.0.0 KORECAL_PORT="$port"
+export KORECAL_DATA_DIR="$work/data" KORECAL_BIND="${KORECAL_UI_TEST_BIND:-127.0.0.1}" KORECAL_PORT="$port"
 mkdir -p "$KORECAL_DATA_DIR"
 "$work/korecalendar" init >/dev/null
 "$work/korecalendar" serve >"$work/server.log" 2>&1 &

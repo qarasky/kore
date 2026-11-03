@@ -34,14 +34,25 @@ class FormOpsTest {
         editor.openNew(base)
         assertTrue(editor.hasChanges())
         api.onEvent = { dev.qarasky.korecalendar.data.Event(id = "e", calendarId = "c1", title = "x", start = "2026-11-05T09:00:00", end = "2026-11-05T10:00:00", version = 1) }
-        editor.openExisting(
-            dev.qarasky.korecalendar.data.Occurrence(
-                eventId = "e", calendarId = "c1", key = "2026-11-05T09:00:00", title = "x", start = "2026-11-05T09:00:00", end = "2026-11-05T10:00:00", tz = "UTC",
-                startUtc = java.time.Instant.EPOCH, endUtc = java.time.Instant.EPOCH,
-            ),
+        val occ = dev.qarasky.korecalendar.data.Occurrence(
+            eventId = "e", calendarId = "c1", key = "2026-11-05T09:00:00", title = "x", start = "2026-11-05T09:00:00", end = "2026-11-05T10:00:00", tz = "UTC",
+            startUtc = java.time.Instant.EPOCH, endUtc = java.time.Instant.EPOCH,
         )
+        api.onOccurrences = { _, _ -> listOf(occ) }
+        editor.openExisting(occ)
         assertFalse(editor.hasChanges())
         editor.edit { it.copy(title = "y") }
         assertTrue(editor.hasChanges())
+    }
+
+    @Test fun aPresetRepeatOfANewEventFollowsTheStartDate() {
+        val tue = newFormValues(LocalDate.parse("2026-11-03"), LocalTime.of(9, 0), 60, false, "UTC", "c1")
+            .copy(recurrence = dev.qarasky.korecalendar.edit.Recurrence.Rule(dev.qarasky.korecalendar.edit.Freq.WEEKLY, 1, listOf(2), dev.qarasky.korecalendar.edit.MonthlyMode.DayOfMonth, dev.qarasky.korecalendar.edit.End.Never))
+        val thu = tue.withStart(LocalDate.parse("2026-11-05"), tue.startTime, rebase = true)
+        assertEquals(listOf(4), (thu.recurrence as dev.qarasky.korecalendar.edit.Recurrence.Rule).byDay)
+        // A custom rule is left alone, and so is an existing event's rule.
+        val custom = tue.copy(recurrence = dev.qarasky.korecalendar.edit.Recurrence.Rule(dev.qarasky.korecalendar.edit.Freq.WEEKLY, 2, listOf(2), dev.qarasky.korecalendar.edit.MonthlyMode.DayOfMonth, dev.qarasky.korecalendar.edit.End.Never))
+        assertEquals(custom.recurrence, custom.withStart(LocalDate.parse("2026-11-05"), custom.startTime, rebase = true).recurrence)
+        assertEquals(tue.recurrence, tue.withStart(LocalDate.parse("2026-11-05"), tue.startTime, rebase = false).recurrence)
     }
 }

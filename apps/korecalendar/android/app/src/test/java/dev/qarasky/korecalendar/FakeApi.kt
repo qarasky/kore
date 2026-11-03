@@ -26,6 +26,9 @@ class FakeApi : CalendarApi {
     var onWrite: (WriteRequest) -> WriteResult = { error("write not scripted") }
     var onRestore: (String) -> Event = { error("restore not scripted") }
 
+    /** When set, writes wait for it (to cancel a caller mid-write). */
+    var writeGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
     val calls = mutableListOf<String>()
     val writes = mutableListOf<WriteRequest>()
     val occurrenceRequests = mutableListOf<Pair<Instant, Instant>>()
@@ -43,6 +46,6 @@ class FakeApi : CalendarApi {
     }
     override suspend fun changes(since: Long): ChangeSet { calls += "changes"; changeRequests += since; return onChanges(since) }
     override suspend fun event(id: String): Event { calls += "event:$id"; return onEvent(id) }
-    override suspend fun write(request: WriteRequest): WriteResult { calls += "write"; writes += request; return onWrite(request) }
+    override suspend fun write(request: WriteRequest): WriteResult { calls += "write"; writes += request; writeGate?.await(); return onWrite(request) }
     override suspend fun restoreEvent(id: String): Event { calls += "restore:$id"; return onRestore(id) }
 }

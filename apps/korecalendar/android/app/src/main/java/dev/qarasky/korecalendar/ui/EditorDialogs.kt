@@ -90,7 +90,8 @@ fun <T> ChoiceDialog(title: String, options: List<Pair<T, String>>, selected: T?
 /** Which events a repeating-event edit or delete applies to. */
 @Composable
 fun ScopeDialog(delete: Boolean, allowed: List<Scope>, onPick: (Scope) -> Unit, onDismiss: () -> Unit) {
-    var choice by remember { mutableStateOf(allowed.last()) }
+    // The narrowest change is the default, as on the web: a tap on Save must not change the whole series.
+    var choice by remember { mutableStateOf(allowed.first()) }
     val label = mapOf(Scope.This to R.string.scope_this, Scope.Following to R.string.scope_following, Scope.All to R.string.scope_all)
     AlertDialog(
         onDismissRequest = onDismiss,

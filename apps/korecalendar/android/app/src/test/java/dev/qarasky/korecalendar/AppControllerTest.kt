@@ -230,6 +230,7 @@ class AppControllerTest {
         signedIn()
         val o = occ("gym")
         api.onEvent = { dev.qarasky.korecalendar.data.Event(id = "gym", title = "gym", version = 2) }
+        api.onOccurrences = { _, _ -> listOf(o) }
         api.onWrite = { dev.qarasky.korecalendar.data.WriteResult(dev.qarasky.korecalendar.data.Event(id = "gym", deletedAt = 1), null, emptyList()) }
         controller.delete(o, dev.qarasky.korecalendar.edit.Scope.All)
         assertEquals(dev.qarasky.korecalendar.ui.Notice("Event deleted", "gym"), controller.notice.value)
@@ -251,5 +252,24 @@ class AppControllerTest {
         controller.signOut()
         assertNull(controller.editor.value)
         assertNull(controller.notice.value)
+    }
+
+    @Test fun afterElevenAtNightANewEventStartsAtMidnightTomorrowNotInThePast() = runTest {
+        serverWith("u1", occ("gym"))
+        now = Instant.parse("2026-11-04T22:30:00Z") // 23:30 in Berlin
+        controller.start()
+        controller.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+        val f = controller.newEventForm()!!
+        assertEquals(java.time.LocalDate.parse("2026-11-05"), f.startDay)
+        assertEquals(java.time.LocalTime.of(0, 0), f.startTime)
+    }
+
+    @Test fun deletingOneOccurrenceOffersNoUndo() = runTest {
+        signedIn()
+        api.onEvent = { dev.qarasky.korecalendar.data.Event(id = "gym", title = "gym", version = 2, rrule = "FREQ=DAILY") }
+        api.onOccurrences = { _, _ -> listOf(occ("gym").copy(isRecurring = true)) }
+        api.onWrite = { dev.qarasky.korecalendar.data.WriteResult(dev.qarasky.korecalendar.data.Event(id = "gym"), null, emptyList()) }
+        controller.delete(occ("gym").copy(isRecurring = true), dev.qarasky.korecalendar.edit.Scope.This)
+        assertEquals(dev.qarasky.korecalendar.ui.Notice("Event deleted", null), controller.notice.value)
     }
 }

@@ -205,6 +205,13 @@ fun presets(start: LocalDate, msg: Messages): List<Preset> {
     )
 }
 
+/** [r] for a new event whose start moved from [from] to [to]: a preset ("every week on Tuesday") follows the new date, anything else stays. */
+fun rebased(r: Recurrence, from: LocalDate, to: LocalDate): Recurrence {
+    val noText = Messages { key, _ -> key }
+    val id = presets(from, noText).firstOrNull { it.recurrence == r }?.id ?: return r
+    return presets(to, noText).first { it.id == id }.recurrence
+}
+
 /** The id of the preset [r] equals, or null when it is a custom rule. */
 fun matchPreset(r: Recurrence, start: LocalDate, msg: Messages): String? = presets(start, msg).firstOrNull { it.recurrence == r }?.id
 
