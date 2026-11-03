@@ -163,7 +163,7 @@ class AppController(
         val snapshot = repo.snapshot.value ?: return null
         val zone = zoneOf(account.timezone)
         val hidden = prefs.hiddenCalendars
-        val calendarId = (snapshot.calendars.firstOrNull { it.id !in hidden } ?: snapshot.calendars.firstOrNull())?.id ?: return null
+        val calendarId = (snapshot.calendars.firstOrNull { it.id !in hidden } ?: snapshot.calendars.firstOrNull())?.id ?: ""
         val local = now().atZone(zone)
         val target = day ?: local.toLocalDate()
         val time = if (target == local.toLocalDate()) local.toLocalTime().truncatedTo(java.time.temporal.ChronoUnit.HOURS).plusHours(1) else java.time.LocalTime.of(9, 0)

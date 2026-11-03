@@ -74,6 +74,8 @@ class EditingFlowTest {
         rule.onNode(hasSetTextAction() and hasText("Password")).performTextInput(password!!)
         rule.onNode(hasText("Sign in") and hasClickAction()).performClick()
         rule.waitUntilExactlyOneExists(hasText("Agenda"), 30_000)
+        // The first sync has to finish: until then the phone does not know the calendars or the events.
+        rule.waitUntil(30_000) { rule.onAllNodesWithText("Not updated yet").fetchSemanticsNodes().isEmpty() }
     }
 
     @Test fun createAnEventFromTheAgenda() {

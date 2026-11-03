@@ -170,6 +170,16 @@ class AppControllerTest {
         assertEquals(java.time.LocalTime.of(9, 0), controller.newEventForm(java.time.LocalDate.parse("2026-11-09"))!!.startTime)
     }
 
+    @Test fun theEditorOpensEvenBeforeTheCalendarsAreKnown() = runTest {
+        serverWith("u1", occ("gym"))
+        api.onCalendars = { emptyList() }
+        controller.start()
+        controller.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+        assertEquals("", controller.newEventForm()!!.calendarId)
+        controller.beginNew()
+        assertTrue(controller.editor.value != null)
+    }
+
     @Test fun savingThroughTheEditorSyncsSoTheScreensAndTheWidgetAgree() = runTest {
         serverWith("u1", occ("gym"))
         controller.start()

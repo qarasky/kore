@@ -120,6 +120,11 @@ class EditPlanTest {
         assertEquals(JsonPrimitive("2026-12-25"), body["end"])
     }
 
+    @Test fun withoutAKnownCalendarTheServerPicksTheDefaultOne() {
+        val body = planCreate(form(gym, null) { it.copy(calendarId = "") }).requests[0].body!!
+        assertFalse(body.containsKey("calendar_id"))
+    }
+
     @Test fun sendsTheRuleOnlyWhenTheEventRepeats() {
         assertEquals(JsonPrimitive("FREQ=WEEKLY;BYDAY=WE,FR"), planCreate(form(gym, null)).requests[0].body!!["rrule"])
         assertFalse(planCreate(form(gym, null) { it.copy(recurrence = Recurrence.None) }).requests[0].body!!.containsKey("rrule"))

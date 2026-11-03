@@ -117,7 +117,8 @@ fun planCreate(f: FormValues): Plan {
     val t = apiTimes(f)
     val rrule = buildRule(f.recurrence, f.startDay, RuleContext(zoneOf(f.tz), f.allDay))
     val body = buildJsonObject {
-        put("calendar_id", f.calendarId)
+        // Without a known calendar the server puts it in the person's first one.
+        if (f.calendarId.isNotEmpty()) put("calendar_id", f.calendarId)
         put("title", f.title.trim())
         put("notes", f.notes)
         put("location", f.location)
