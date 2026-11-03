@@ -71,7 +71,7 @@ func run(ctx context.Context, args []string, stderr io.Writer) int {
 	switch cmd {
 	case "serve", "init":
 	case "link":
-		linkEmail = fs.String("email", "", "email of the existing Kore account")
+		linkEmail = fs.String("email", "", "email of the existing KoreDrive account")
 		linkSub = fs.String("sub", "", "Kore ID subject (UUID) to bind to it")
 	case "healthcheck":
 		url = fs.String("url", "", "health URL (default: derived from the config's bind and port)")
