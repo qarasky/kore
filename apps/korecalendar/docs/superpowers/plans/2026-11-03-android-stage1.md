@@ -1,5 +1,7 @@
 # KoreCalendar Android, Stage 1 Implementation Plan (foundation, agenda, widget, first signed release)
 
+> **Status:** executed and released as `android-v0.1.0` (2026-11-03). Kept as the record of what was planned; the code and `docs/android.md` are authoritative where they differ.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A signed Android app `android-v0.1.0` that signs in to the owner's server, keeps a local copy of the next 60 days, shows it as an Agenda screen and as a home-screen Agenda widget (about three rows), works offline for reading, and is built, signed and published by CI from a tag.
