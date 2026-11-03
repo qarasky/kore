@@ -1,4 +1,4 @@
-import { ApprovalAnswer, AuthRequest, PairRedeem, Settings, SendMessageRequest, type PairStart, type StreamEvent } from "@zero/shared";
+import { ApprovalAnswer, AuthRequest, PairRedeem, Settings, SendMessageRequest, type PairStart, type StreamEvent } from "@koremind/shared";
 import { z } from "zod";
 import { AuthError } from "./auth";
 import type { Services } from "./services";
@@ -35,7 +35,7 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
     const path = url.pathname;
     const m = req.method;
     if (m === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
-    if (m === "GET" && path === "/health") return json(200, { name: "zero", version: s.version, setupRequired: s.auth.setupRequired() });
+    if (m === "GET" && path === "/health") return json(200, { name: "koremind", version: s.version, setupRequired: s.auth.setupRequired() });
 
     // A tunnel (cloudflared, tailscale serve) on this machine arrives from loopback: believe its forwarded address, nobody else's.
     const ip = (opts.trustProxy || isLoopback(socketIp) ? req.headers.get("x-forwarded-for")?.split(",")[0].trim() : undefined) ?? socketIp ?? "unknown";
@@ -65,7 +65,7 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
     if (m === "POST" && path === "/auth/pair") {
       const { code, expiresAt } = s.auth.startPair(u);
       const urls = s.addresses();
-      const link = `zero://pair?${[`c=${encodeURIComponent(code)}`, ...urls.map((x) => `u=${encodeURIComponent(x)}`)].join("&")}`;
+      const link = `koremind://pair?${[`c=${encodeURIComponent(code)}`, ...urls.map((x) => `u=${encodeURIComponent(x)}`)].join("&")}`;
       const out: PairStart = { code, expiresAt, urls, link };
       return json(200, out);
     }

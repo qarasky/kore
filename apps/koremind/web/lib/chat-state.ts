@@ -1,4 +1,4 @@
-import type { Activity, Attachment, ChatMessage, Source, StreamEvent } from "@zero/shared";
+import type { Activity, Attachment, ChatMessage, Source, StreamEvent } from "@koremind/shared";
 import type { PendingApproval } from "./notes-ui";
 
 export type Draft = { text: string; sources: Source[]; status: "thinking" | "searching" | null; activity: Activity[]; approvals: PendingApproval[]; expired: boolean };

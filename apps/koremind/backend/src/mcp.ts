@@ -51,7 +51,7 @@ export function createMcp(o: { resolveSession(sessionId: string): NoteCtx | null
       if (!parsed.success) return bad(null, -32600, "Invalid request");
       const { id, method, params } = parsed.data;
       if (id === undefined) return { status: 202 }; // notifications
-      if (method === "initialize") return ok(id, { protocolVersion: typeof params?.protocolVersion === "string" ? params.protocolVersion : PROTOCOL, capabilities: { tools: {} }, serverInfo: { name: "zero", version: "1" } });
+      if (method === "initialize") return ok(id, { protocolVersion: typeof params?.protocolVersion === "string" ? params.protocolVersion : PROTOCOL, capabilities: { tools: {} }, serverInfo: { name: "koremind", version: "1" } });
       if (method === "ping") return ok(id, {});
       if (method === "tools/list") return ok(id, { tools: TOOLS });
       if (method !== "tools/call") return bad(id, -32601, `Method not found: ${method}`);

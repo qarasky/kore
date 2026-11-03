@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import type { ModelInfo, ProviderConnection, ProviderInfo } from "@zero/shared";
+import type { ModelInfo, ProviderConnection, ProviderInfo } from "@koremind/shared";
 import { CLOSED, IDLE, Pump } from "./pump";
 import type { Engine, EngineEvent, PromptArgs } from "./types";
 
@@ -41,7 +41,7 @@ export function mapEvent(sessionId: string, raw: Raw): EngineEvent[] {
   }
 }
 
-/** Providers Zero offers. Everything else OpenCode knows about stays hidden: few providers, no config sprawl. */
+/** Providers KoreMind offers. Everything else OpenCode knows about stays hidden: few providers, no config sprawl. */
 const OFFERED: { id: string; name: string }[] = [
   { id: "opencode", name: "OpenCode" },
   { id: "openai", name: "Codex" },
@@ -88,20 +88,20 @@ export function mapModels(providers: { id: string; name: string }[], models: any
 }
 
 // OpenCode 2.2 always registers an (inert) `skill` tool that no config can hide, so the model is told plainly what it has.
-export const AGENT_SYSTEM = "You are Zero, a concise, friendly personal assistant. Answer directly. Your tools: web search (use it only when you need current facts) and notes (save_note, read_notes, edit_note) for things the user wants written down in this chat. Notes belong to one chat; to look at or change another chat's notes, pass that chat's title in the tool call and the user is asked to approve, so only do that when they ask you to. If it is refused, accept that. Never mention or try other tools. You remember useful things about the user between chats automatically: what you remember is given to you at the start of a chat, so never say you cannot remember.";
+export const AGENT_SYSTEM = "You are KoreMind, a concise, friendly personal assistant. Answer directly. Your tools: web search (use it only when you need current facts) and notes (save_note, read_notes, edit_note) for things the user wants written down in this chat. Notes belong to one chat; to look at or change another chat's notes, pass that chat's title in the tool call and the user is asked to approve, so only do that when they ask you to. If it is refused, accept that. Never mention or try other tools. You remember useful things about the user between chats automatically: what you remember is given to you at the start of a chat, so never say you cannot remember.";
 
-export const zeroOpencodeConfig = {
-  default_agent: "zero",
+export const koremindOpencodeConfig = {
+  default_agent: "koremind",
   websearch: { provider: "random" },
   warming: true,
   agents: {
-    zero: {
+    koremind: {
       mode: "primary",
       system: AGENT_SYSTEM,
       permissions: [
         { action: "*", resource: "*", effect: "deny" },
         { action: "websearch", resource: "*", effect: "allow" },
-        { action: "zero_*", resource: "*", effect: "allow" }, // Zero's own notes tools (MCP server "zero")
+        { action: "koremind_*", resource: "*", effect: "allow" }, // KoreMind's own notes tools (MCP server "koremind")
       ],
     },
   },
@@ -117,7 +117,7 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
       ...process.env,
       XDG_DATA_HOME: join(xdg, "data"), XDG_CONFIG_HOME: join(xdg, "config"),
       XDG_STATE_HOME: join(xdg, "state"), XDG_CACHE_HOME: join(xdg, "cache"),
-      OPENCODE_CONFIG_CONTENT: JSON.stringify({ ...zeroOpencodeConfig, ...opts.config }),
+      OPENCODE_CONFIG_CONTENT: JSON.stringify({ ...koremindOpencodeConfig, ...opts.config }),
     },
     stdout: "pipe", stderr: "ignore",
   });
@@ -138,7 +138,7 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
   const pumps = new Set<Pump<EngineEvent>>();
   void proc.exited.then(() => {
     dead = true;
-    for (const p of pumps) p.push({ type: "error", message: "The assistant engine stopped. Restart Zero." });
+    for (const p of pumps) p.push({ type: "error", message: "The assistant engine stopped. Restart KoreMind." });
   });
   const auth = "Basic " + btoa("opencode:" + banner.password);
   const call = async (method: string, path: string, body?: unknown) => {
@@ -196,15 +196,15 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
 
   const createSession = async (model?: { providerId: string; modelId: string }) => {
     const m = model ?? defaultModel ?? (await listProviders().then(() => defaultModel));
-    // A title of our own stops OpenCode making a second model call just to name the session; Zero names chats itself.
-    const r = await call("POST", "/api/session", { title: "Zero", ...(m ? { model: { id: m.modelId, providerID: m.providerId } } : {}) });
+    // A title of our own stops OpenCode making a second model call just to name the session; KoreMind names chats itself.
+    const r = await call("POST", "/api/session", { title: "KoreMind", ...(m ? { model: { id: m.modelId, providerID: m.providerId } } : {}) });
     if (!r.ok) throw new Error(`could not create engine session (${r.status})`);
     if (m) sessionModel.set(r.json.data.id, `${m.providerId}/${m.modelId}/`);
     return r.json.data.id as string;
   };
 
   async function* prompt(a: PromptArgs): AsyncIterable<EngineEvent> {
-    if (dead) { yield { type: "error", message: "The assistant engine stopped. Restart Zero." }; return; }
+    if (dead) { yield { type: "error", message: "The assistant engine stopped. Restart KoreMind." }; return; }
     const pump = new Pump<EngineEvent>(IDLE_MS);
     pumps.add(pump);
     const set = listeners.get(a.sessionId) ?? new Set();

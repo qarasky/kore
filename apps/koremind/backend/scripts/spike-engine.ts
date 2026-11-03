@@ -3,7 +3,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const base = mkdtempSync(join(tmpdir(), "zero-spike-"));
+const base = mkdtempSync(join(tmpdir(), "koremind-spike-"));
 const env = {
   ...process.env,
   XDG_DATA_HOME: join(base, "data"), XDG_CONFIG_HOME: join(base, "config"),

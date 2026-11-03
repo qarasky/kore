@@ -2,17 +2,17 @@ import { expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { StreamEvent } from "@zero/shared";
+import type { StreamEvent } from "@koremind/shared";
 import { createApp } from "../src/http";
 import { createServices } from "../src/services";
 import { openDb } from "../src/db";
 import { FakeEngine } from "../src/engine/fake";
 
 const setup = (engine = new FakeEngine({ reply: () => [{ type: "delta", text: "Hi " }, { type: "delta", text: "there" }] }), maxUpload = 1024, appOpts: { trustProxy?: boolean; keepAliveMs?: number } = { trustProxy: true }) => {
-  const services = createServices({ db: openDb(":memory:"), dataDir: mkdtempSync(join(tmpdir(), "zero-http-")), engine, version: "0.0.0-test", maxUploadBytes: maxUpload });
+  const services = createServices({ db: openDb(":memory:"), dataDir: mkdtempSync(join(tmpdir(), "koremind-http-")), engine, version: "0.0.0-test", maxUploadBytes: maxUpload });
   const app = createApp(services, appOpts);
   const call = (method: string, path: string, opts: { token?: string; body?: unknown; form?: FormData; ip?: string; socketIp?: string } = {}) =>
-    app.fetch(new Request("http://zero.test" + path, {
+    app.fetch(new Request("http://koremind.test" + path, {
       method,
       headers: { ...(opts.token ? { authorization: `Bearer ${opts.token}` } : {}), ...(opts.body ? { "content-type": "application/json" } : {}), ...(opts.ip !== null ? { "x-forwarded-for": opts.ip ?? "1.1.1.1" } : {}) },
       body: opts.form ?? (opts.body ? JSON.stringify(opts.body) : undefined),
@@ -27,7 +27,7 @@ const model = { providerId: "opencode", modelId: "fast" };
 
 test("GET /health reports setupRequired true on an empty db", async () => {
   const { call } = setup();
-  expect(await (await call("GET", "/health")).json()).toEqual({ name: "zero", version: "0.0.0-test", setupRequired: true });
+  expect(await (await call("GET", "/health")).json()).toEqual({ name: "koremind", version: "0.0.0-test", setupRequired: true });
   await register(call);
   expect(((await (await call("GET", "/health")).json()) as { setupRequired: boolean }).setupRequired).toBe(false);
 });
@@ -215,7 +215,7 @@ test("pairing over HTTP: signed-in start, anonymous redeem, link carries code an
   const pair = (await (await call("POST", "/auth/pair", { token })).json()) as { code: string; urls: string[]; link: string; expiresAt: number };
   expect(pair.urls.length).toBeGreaterThan(0);
   const link = new URL(pair.link);
-  expect(link.protocol).toBe("zero:");
+  expect(link.protocol).toBe("koremind:");
   expect(link.searchParams.get("c")).toBe(pair.code);
   expect(link.searchParams.getAll("u")).toEqual(pair.urls);
   const redeemed = await call("POST", "/auth/pair/redeem", { body: { code: pair.code } });

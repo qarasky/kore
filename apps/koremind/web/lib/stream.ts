@@ -1,4 +1,4 @@
-import { StreamEvent } from "@zero/shared";
+import { StreamEvent } from "@koremind/shared";
 
 /** Parses a server-sent-events body into typed events. Tolerates chunks split anywhere. */
 export async function* parseStream(body: ReadableStream<Uint8Array>): AsyncGenerator<StreamEvent> {

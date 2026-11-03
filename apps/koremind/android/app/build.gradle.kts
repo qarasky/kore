@@ -1,22 +1,44 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+// Version comes from android/version.properties, written by `bun scripts/version.ts set <version>`.
+val versionProps = Properties().apply { file("../version.properties").inputStream().use { load(it) } }
+
+// Release signing comes from the environment (CI secrets); without it the release APK is left unsigned.
+val keystorePath: String? = System.getenv("KOREMIND_KEYSTORE_FILE")?.takeIf { it.isNotBlank() }
+
+
 android {
-    namespace = "dev.qarasky.zero"
+    namespace = "dev.qarasky.koremind"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "dev.qarasky.zero"
+        applicationId = "dev.qarasky.koremind"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = (findProperty("versionCode") as String?)?.toInt() ?: versionProps.getProperty("versionCode").toInt()
+        versionName = (findProperty("versionName") as String?) ?: versionProps.getProperty("versionName")
+    }
+    signingConfigs {
+        if (keystorePath != null) {
+            create("release") {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("KOREMIND_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KOREMIND_KEY_ALIAS")
+                keyPassword = System.getenv("KOREMIND_KEY_PASSWORD")
+            }
+        }
     }
     buildTypes {
-        release { isMinifyEnabled = false }
+        release {
+            isMinifyEnabled = false
+            if (keystorePath != null) signingConfig = signingConfigs.getByName("release")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

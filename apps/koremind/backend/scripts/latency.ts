@@ -1,7 +1,7 @@
 // Measures request -> first stream frame and first delta against a running backend.
-// Usage: bun run backend/scripts/latency.ts [baseUrl]   (creates/logs into latency@zero.local)
+// Usage: bun run backend/scripts/latency.ts [baseUrl]   (creates/logs into latency@koremind.local)
 const base = process.argv[2] ?? "http://127.0.0.1:8787";
-const creds = { email: "latency@zero.local", password: "latency-test-password" };
+const creds = { email: "latency@koremind.local", password: "latency-test-password" };
 const j = async (path: string, init: RequestInit = {}, token?: string) => {
   const r = await fetch(base + path, { ...init, headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) } });
   return r;

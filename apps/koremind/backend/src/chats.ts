@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import type { Activity, Attachment, ChatMessage, ChatSummary, SendMessageRequest, Source, StreamEvent } from "@zero/shared";
+import type { Activity, Attachment, ChatMessage, ChatSummary, SendMessageRequest, Source, StreamEvent } from "@koremind/shared";
 import type { Engine, EngineFile, ModelRef } from "./engine/types";
 import { CLOSED, IDLE, Pump } from "./engine/pump";
 import { TITLE_SYSTEM, cleanTitle, titlePrompt } from "./title";

@@ -1,4 +1,4 @@
-import type { ProviderConnection, ProviderInfo, SignInStart, SignInStatus } from "@zero/shared";
+import type { ProviderConnection, ProviderInfo, SignInStart, SignInStatus } from "@koremind/shared";
 
 export type EngineEvent =
   | { type: "status"; state: "thinking" | "searching" }

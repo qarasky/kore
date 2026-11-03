@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { Activity } from "@zero/shared";
+import type { Activity } from "@koremind/shared";
 import { openDb } from "../src/db";
 import { createNotes } from "../src/notes";
 

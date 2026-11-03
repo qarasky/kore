@@ -1,0 +1,84 @@
+# Builds the signed release APK. Called by release.yml for a v* tag; it is not meant to run on its own.
+name: Android release build
+
+on:
+  workflow_call:
+    secrets:
+      KOREMIND_KEYSTORE_BASE64: { required: false, description: "Base64 of the release keystore (.jks)" }
+      KOREMIND_KEYSTORE_PASSWORD: { required: false }
+      KOREMIND_KEY_ALIAS: { required: false }
+      KOREMIND_KEY_PASSWORD: { required: false }
+    outputs:
+      apk:
+        description: "File name of the signed APK"
+        value: ${{ jobs.build.outputs.apk }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    outputs:
+      apk: ${{ steps.name.outputs.apk }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v4
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Check the signing secrets exist
+        env:
+          KS: ${{ secrets.KOREMIND_KEYSTORE_BASE64 }}
+          PW: ${{ secrets.KOREMIND_KEYSTORE_PASSWORD }}
+          AL: ${{ secrets.KOREMIND_KEY_ALIAS }}
+          KP: ${{ secrets.KOREMIND_KEY_PASSWORD }}
+        run: |
+          for v in KS PW AL KP; do
+            [ -n "${!v}" ] || { echo "::error::An Android signing secret is missing. See docs/releasing.md, 'Android signing key'."; exit 1; }
+          done
+      - name: Decode the keystore
+        env:
+          KS: ${{ secrets.KOREMIND_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KS" | base64 --decode > "$RUNNER_TEMP/release.jks"
+          echo "KOREMIND_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+      - name: Unit tests
+        working-directory: android
+        run: ./gradlew --no-daemon testDebugUnitTest
+      - name: Build the signed release APK
+        working-directory: android
+        env:
+          KOREMIND_KEYSTORE_PASSWORD: ${{ secrets.KOREMIND_KEYSTORE_PASSWORD }}
+          KOREMIND_KEY_ALIAS: ${{ secrets.KOREMIND_KEY_ALIAS }}
+          KOREMIND_KEY_PASSWORD: ${{ secrets.KOREMIND_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon assembleRelease
+      - id: name
+        name: Verify signature and name the file
+        run: |
+          set -euo pipefail
+          meta=$(bun scripts/version.ts meta)
+          version=$(grep '^version=' <<< "$meta" | cut -d= -f2)
+          code=$(grep '^android_version_code=' <<< "$meta" | cut -d= -f2)
+          src=android/app/build/outputs/apk/release/app-release.apk
+          [ -f "$src" ] || { echo "::error::No signed APK was produced (is the keystore wired in?)"; exit 1; }
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$apksigner" verify --print-certs "$src"
+          aapt2=$(ls -d "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)
+          "$aapt2" dump badging "$src" | grep -q "versionName='$version'" || { echo "::error::APK versionName is not $version"; exit 1; }
+          "$aapt2" dump badging "$src" | grep -q "versionCode='$code'" || { echo "::error::APK versionCode is not $code"; exit 1; }
+          mkdir -p dist
+          out="koremind-android-${version}.apk"
+          cp "$src" "dist/$out"
+          (cd dist && sha256sum "$out" > "$out.sha256")
+          echo "apk=$out" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android-release
+          path: dist/*
+          if-no-files-found: error

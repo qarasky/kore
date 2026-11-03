@@ -1,4 +1,11 @@
+import { join } from "node:path";
 import type { NextConfig } from "next";
 
-const config: NextConfig = { transpilePackages: ["@zero/shared"], reactStrictMode: true };
+// The Docker image builds with KOREMIND_STANDALONE=1 to get a small self-contained server.
+const standalone = process.env.KOREMIND_STANDALONE === "1";
+const config: NextConfig = {
+  transpilePackages: ["@koremind/shared"],
+  reactStrictMode: true,
+  ...(standalone ? { output: "standalone" as const, outputFileTracingRoot: join(import.meta.dirname, "..") } : {}),
+};
 export default config;

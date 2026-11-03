@@ -8,7 +8,7 @@ import { createSettings } from "../src/settings";
 import { FakeEngine } from "../src/engine/fake";
 
 const setup = (completeReply: string, enabled = true) => {
-  const dir = mkdtempSync(join(tmpdir(), "zero-mem-"));
+  const dir = mkdtempSync(join(tmpdir(), "koremind-mem-"));
   const engine = new FakeEngine({ completeReply });
   let calls = 0;
   const orig = engine.complete.bind(engine);

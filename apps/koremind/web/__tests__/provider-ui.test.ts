@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { ModelInfo, ProviderInfo, Settings } from "@zero/shared";
+import type { ModelInfo, ProviderInfo, Settings } from "@koremind/shared";
 import { defaultChoice, filterModels, initialRail, isChoiceAllowed, isReady, providerIconKey, railDimmed, railNotice } from "../lib/model-picker";
 import { freeOnly, providerEnabled, toggleInList, withFreeOnly, withProviderEnabled } from "../lib/settings-model";
 

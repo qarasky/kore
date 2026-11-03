@@ -1,4 +1,4 @@
-import type { ModelInfo, ProviderInfo } from "@zero/shared";
+import type { ModelInfo, ProviderInfo } from "@koremind/shared";
 import { t } from "./strings";
 
 export type PickerRow = { key: string; providerId: string; providerName: string; model: ModelInfo };

@@ -1,4 +1,4 @@
-/** Zero mark: a ring of four arcs with Kore's 1 / 0.6 / 0.3 / 0.6 opacity ramp. Inline SVG, nothing is downloaded. */
+/** KoreMind mark: a ring of four arcs with Kore's 1 / 0.6 / 0.3 / 0.6 opacity ramp. Inline SVG, nothing is downloaded. */
 export function Mark({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="14 14 36 36" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="round" className="text-accent">
@@ -14,7 +14,7 @@ export function Wordmark() {
   return (
     <span className="inline-flex items-center gap-2 text-brand font-semibold tracking-[-0.03em]">
       <Mark size={20} />
-      Zero
+      KoreMind
     </span>
   );
 }

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Zero</string>
+    <string name="app_name">KoreMind</string>
     <string name="connect_title">Connect to your server</string>
-    <string name="connect_hint">The address of your Zero backend, for example 192.168.1.20:8787.</string>
+    <string name="connect_hint">The address of your KoreMind backend, for example 192.168.1.20:8787.</string>
     <string name="connect_action">Connect</string>
     <string name="backend_url">Backend URL</string>
     <string name="checking">Checking…</string>
@@ -48,12 +48,12 @@
     <string name="connected">Connected</string>
     <string name="not_connected">Not connected</string>
     <string name="free_tier">Free tier, no key</string>
-    <string name="sign_in_on_web">Sign in with ChatGPT must be finished on the computer that runs Zero. Open Zero there, or paste an API key here.</string>
+    <string name="sign_in_on_web">Sign in with ChatGPT must be finished on the computer that runs KoreMind. Open KoreMind there, or paste an API key here.</string>
     <string name="section_models">Models</string>
     <string name="section_providers">Providers</string>
     <string name="models_hint">Pinned in the model picker for quick access.</string>
     <string name="providers_hint">Where answers come from. Connect one and its models appear in the picker.</string>
-    <string name="personalization_hint">Zero reads this at the start of every chat.</string>
+    <string name="personalization_hint">KoreMind reads this at the start of every chat.</string>
     <string name="account_hint">Signed in to this server.</string>
     <string name="no_favorites_title">No favorites yet</string>
     <string name="add_key">Use an API key</string>
@@ -91,7 +91,7 @@
     <string name="save">Save</string>
     <string name="saved">Saved</string>
     <string name="memory">Memory</string>
-    <string name="memory_hint">What Zero remembers about you. Edit or delete anything.</string>
+    <string name="memory_hint">What KoreMind remembers about you. Edit or delete anything.</string>
     <string name="memory_on">Remember things about me</string>
     <string name="memory_empty">Nothing remembered yet.</string>
     <string name="edit">Edit</string>
@@ -118,8 +118,8 @@
     <string name="activity_read">Read notes</string>
     <string name="activity_read_other">Read notes from “%1$s”</string>
     <string name="activity_denied">Access to “%1$s” was denied</string>
-    <string name="approval_read">Zero wants to read the notes from “%1$s”</string>
-    <string name="approval_edit">Zero wants to edit the notes in “%1$s”</string>
+    <string name="approval_read">KoreMind wants to read the notes from “%1$s”</string>
+    <string name="approval_edit">KoreMind wants to edit the notes in “%1$s”</string>
     <string name="approval_allow">Allow</string>
     <string name="approval_deny">Deny</string>
     <string name="approval_expired">The request expired.</string>

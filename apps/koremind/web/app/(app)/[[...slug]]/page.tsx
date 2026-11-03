@@ -1,5 +1,5 @@
 "use client";
-import type { Attachment } from "@zero/shared";
+import type { Attachment } from "@koremind/shared";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";

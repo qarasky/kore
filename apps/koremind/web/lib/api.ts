@@ -1,6 +1,6 @@
 import type {
   Attachment, AuthRequest, AuthResponse, ChatMessage, ChatSummary, Health, MemoryEntry, PairStart, ProviderConnection, ProviderInfo, SendMessageRequest, Settings, SignInStart, SignInStatus, StreamEvent, User,
-} from "@zero/shared";
+} from "@koremind/shared";
 import { parseStream } from "./stream";
 
 export class ApiError extends Error {

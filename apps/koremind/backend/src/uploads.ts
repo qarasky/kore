@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { mkdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import type { Attachment } from "@zero/shared";
+import type { Attachment } from "@koremind/shared";
 import type { EngineFile } from "./engine/types";
 
 export class UploadError extends Error {

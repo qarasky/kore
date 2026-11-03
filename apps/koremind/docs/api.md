@@ -1,4 +1,4 @@
-# Zero API contract
+# KoreMind API contract
 
 Source of truth: `shared/src/api.ts` (zod). All bodies are JSON unless noted. Authenticated routes need `Authorization: Bearer <token>`. Errors are `{ "error": { "code": string, "message": string, "retryAfterSec"?: number } }` with the matching HTTP status.
 
@@ -6,7 +6,7 @@ Source of truth: `shared/src/api.ts` (zod). All bodies are JSON unless noted. Au
 
 | Route | Auth | Request | Response |
 | --- | --- | --- | --- |
-| `GET /health` | no | | `{name:"zero",version,setupRequired}` |
+| `GET /health` | no | | `{name:"koremind",version,setupRequired}` |
 | `POST /auth/register` | only while no users exist, afterwards owner token | `{email,password(min 8)}` | `{token,user}` |
 | `POST /auth/login` | no | `{email,password}` | `{token,user}`; 401 `bad_credentials`; 429 `rate_limited` with `retryAfterSec` |
 | `POST /auth/logout` | yes | | `{ok:true}` |
@@ -44,9 +44,9 @@ Source of truth: `shared/src/api.ts` (zod). All bodies are JSON unless noted. Au
 - Picker behavior (both clients): all providers appear in the rail; non-`ready` ones are dimmed and selecting one explains why ("Connect X in Settings." / "X is turned off in Settings.") with an Open Settings action. A saved choice that is no longer allowed falls back to the default of the first ready provider.
 
 ## Pairing (QR sign-in)
-- `POST /auth/pair` (signed in) returns `{code, expiresAt, urls, link}`. The code is 128-bit, single-use and valid for 2 minutes; one live code per user. `urls` are the backend's addresses, best first (local network, Tailscale, `ZERO_PUBLIC_URL`). `link` is `zero://pair?c=<code>&u=<url>&u=<url>` (percent-encoded) and is what the QR contains.
+- `POST /auth/pair` (signed in) returns `{code, expiresAt, urls, link}`. The code is 128-bit, single-use and valid for 2 minutes; one live code per user. `urls` are the backend's addresses, best first (local network, Tailscale, `KOREMIND_PUBLIC_URL`). `link` is `koremind://pair?c=<code>&u=<url>&u=<url>` (percent-encoded) and is what the QR contains.
 - `POST /auth/pair/redeem {code}` (no auth) trades the code for a normal session of the same account. Guessing is rate limited per address (10 attempts per 15 minutes).
-- Web shows the QR (Settings → Account → Connect your phone). Android scans it, or opens the `zero://pair` link: it tries each url's `/health` in order, redeems against the first that answers, and saves the url and token.
+- Web shows the QR (Settings → Account → Connect your phone). Android scans it, or opens the `koremind://pair` link: it tries each url's `/health` in order, redeems against the first that answers, and saves the url and token.
 
 ## StreamEvent (SSE `data:` lines)
 | Event | When |

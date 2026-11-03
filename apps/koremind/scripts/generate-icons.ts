@@ -1,4 +1,4 @@
-// Regenerates every copy of the Zero mark from scripts/icons.ts. Never hand-edit the outputs.
+// Regenerates every copy of the KoreMind mark from scripts/icons.ts. Never hand-edit the outputs.
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { androidForeground, markSvg } from "./icons";

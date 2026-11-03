@@ -1,8 +1,11 @@
 {
-  "name": "@zero/shared",
+  "name": "@koremind/shared",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
-  "dependencies": { "zod": "^4.0.0" }
+  "dependencies": {
+    "zod": "^4.0.0"
+  },
+  "version": "0.1.0"
 }

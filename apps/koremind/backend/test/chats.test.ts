@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { StreamEvent } from "@zero/shared";
+import type { StreamEvent } from "@koremind/shared";
 import { openDb } from "../src/db";
 import { createChats } from "../src/chats";
 import { FakeEngine } from "../src/engine/fake";

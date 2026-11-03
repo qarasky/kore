@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import type { ProviderInfo, Settings } from "@zero/shared";
+import type { ProviderInfo, Settings } from "@koremind/shared";
 import type { Engine } from "./engine/types";
 
 export function createModels(db: Database, engine: Engine, getSettings: (userId: string) => Settings) {

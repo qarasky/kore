@@ -1,4 +1,4 @@
-import type { StreamEvent } from "@zero/shared";
+import type { StreamEvent } from "@koremind/shared";
 
 export type Outcome = "allowed" | "denied" | "expired";
 export type AskArgs = { userId: string; chatId: string; targetChatId: string; chatTitle: string; action: "read" | "edit" };

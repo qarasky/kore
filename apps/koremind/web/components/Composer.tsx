@@ -1,5 +1,5 @@
 "use client";
-import type { Attachment } from "@zero/shared";
+import type { Attachment } from "@koremind/shared";
 import { ArrowUp, FileText, Paperclip, Square, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRef, useState, type KeyboardEvent } from "react";

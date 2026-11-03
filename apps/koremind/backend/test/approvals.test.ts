@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { StreamEvent } from "@zero/shared";
+import type { StreamEvent } from "@koremind/shared";
 import { createApprovals } from "../src/approvals";
 
 const setup = (timeoutMs = 1000) => {

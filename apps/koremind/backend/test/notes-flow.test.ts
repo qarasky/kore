@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { StreamEvent } from "@zero/shared";
+import type { StreamEvent } from "@koremind/shared";
 import { createApp } from "../src/http";
 import { createServices } from "../src/services";
 import { openDb } from "../src/db";
@@ -17,7 +17,7 @@ const textOf = (r: { body: unknown }) => ((r.body as any).result.content[0].text
 async function world(during: (services: ReturnType<typeof createServices>, sessionId: string) => Promise<void>, approvalTimeoutMs?: number) {
   let services!: ReturnType<typeof createServices>;
   const engine = new FakeEngine({ reply: () => [{ type: "delta", text: "All done" }], during: (a) => during(services, a.sessionId) });
-  services = createServices({ db: openDb(":memory:"), dataDir: mkdtempSync(join(tmpdir(), "zero-nf-")), engine, version: "t", mcpSecret: SECRET, approvalTimeoutMs });
+  services = createServices({ db: openDb(":memory:"), dataDir: mkdtempSync(join(tmpdir(), "koremind-nf-")), engine, version: "t", mcpSecret: SECRET, approvalTimeoutMs });
   const owner = await services.auth.register({ email: "me@home.lan", password: "correct horse" });
   const u = owner.user.id;
   const other = services.chats.create(u);
@@ -78,7 +78,7 @@ test("HTTP: only the local engine with the secret may use /mcp; the approvals ro
   const { services, u, here, token } = await world(async () => {});
   const app = createApp(services, { trustProxy: false });
   const post = (path: string, body: unknown, headers: Record<string, string> = {}, socketIp?: string) =>
-    app.fetch(new Request("http://zero.test" + path, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body) }), socketIp);
+    app.fetch(new Request("http://koremind.test" + path, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body) }), socketIp);
   const ping = { jsonrpc: "2.0", id: 1, method: "ping" };
   expect((await post("/mcp", ping, {}, "127.0.0.1")).status).toBe(401);
   expect((await post("/mcp", ping, { authorization: "Bearer wrong" }, "127.0.0.1")).status).toBe(401);

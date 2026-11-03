@@ -1,0 +1,26 @@
+# /etc/systemd/system/koremind.service
+# Runs the KoreMind backend (:8787) and web UI (:3210). See docs/deployment-linux.md.
+[Unit]
+Description=KoreMind personal assistant
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=koremind
+Group=koremind
+WorkingDirectory=/opt/koremind
+EnvironmentFile=/etc/koremind/koremind.env
+# systemd gives services a minimal PATH: bun and opencode live in the koremind user's home.
+Environment=PATH=/home/koremind/.bun/bin:/home/koremind/.opencode/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/koremind/.bun/bin/bun run start
+Restart=on-failure
+RestartSec=3
+# Stop the whole group so the OpenCode engine process never outlives the backend.
+KillMode=control-group
+TimeoutStopSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

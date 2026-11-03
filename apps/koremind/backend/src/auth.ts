@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import type { AuthRequest, AuthResponse, User } from "@zero/shared";
+import type { AuthRequest, AuthResponse, User } from "@koremind/shared";
 
 export class AuthError extends Error {
   constructor(
