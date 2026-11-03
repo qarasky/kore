@@ -13,6 +13,8 @@ class Prefs(context: Context) {
     var providerId: String? get() = sp.getString("providerId", null); set(v) = sp.edit().putString("providerId", v).apply()
     var modelId: String? get() = sp.getString("modelId", null); set(v) = sp.edit().putString("modelId", v).apply()
     var thinking: String? get() = sp.getString("thinking", null); set(v) = sp.edit().putString("thinking", v).apply()
+    /** PKCE verifier of a Kore ID sign-in in progress; kept across the browser round trip (the process may be killed meanwhile). */
+    var ssoVerifier: String? get() = sp.getString("ssoVerifier", null); set(v) = sp.edit().putString("ssoVerifier", v).apply()
     fun signOut() = sp.edit().remove("token").remove("email").apply()
 }
 

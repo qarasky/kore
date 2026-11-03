@@ -50,6 +50,7 @@ The product used to be called Zero. A `zero.sqlite` database in your data direct
 | `KOREMIND_PUBLIC_URL` | unset; shown as the `domain` address and put into phone-pairing QR codes |
 | `KOREMIND_TRUST_PROXY=1` | believe `x-forwarded-for` from any peer (a proxy on this machine is trusted automatically) |
 | `KOREMIND_OPENCODE_BIN` | `opencode`; set the full path when running under a service manager |
+| `KOREMIND_OIDC_ISSUER` | unset = no Kore ID. Set to turn on Kore ID sign-in; the other `KOREMIND_OIDC_*`, `KOREMIND_WEB_ORIGINS` and `KOREMIND_PASSWORD_LOGIN` settings are in [docs/kore-id.md](docs/kore-id.md) |
 | `KOREMIND_FAKE_ENGINE=1` | run without OpenCode (scripted replies, and `note: …` / `read <chat title>` to exercise notes) for development |
 
 ## Develop
@@ -74,6 +75,7 @@ web and Android are kept 1:1: same features, same strings, same pure helpers wit
 | --- | --- |
 | [DESIGN.md](DESIGN.md) | How KoreMind looks, moves and talks (tokens, components, motion, copy). The contract for both clients. |
 | [docs/api.md](docs/api.md) | The REST + SSE contract. Source of truth is `shared/src/api.ts`. |
+| [docs/kore-id.md](docs/kore-id.md) | Single sign-on with Kore ID: setup, settings, migration of existing accounts, how the flow works. |
 | [docs/deployment-docker.md](docs/deployment-docker.md) | Running KoreMind from the GHCR images with Docker Compose. |
 | [docs/deployment-linux.md](docs/deployment-linux.md) | Running KoreMind on a Linux server with systemd. |
 | [docs/claude-integration.md](docs/claude-integration.md) | Planned, not built: how Claude could be added within Anthropic's terms (the owner's own subscription, and the rules for it). |

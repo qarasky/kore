@@ -7,6 +7,10 @@ import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.qarasky.koremind.data.ApiException
+import dev.qarasky.koremind.data.Health
+import dev.qarasky.koremind.data.Pkce
+import dev.qarasky.koremind.data.SsoLink
+import dev.qarasky.koremind.data.parseSsoLink
 import dev.qarasky.koremind.data.PairResult
 import dev.qarasky.koremind.data.pair
 import dev.qarasky.koremind.data.parsePairLink
@@ -98,6 +102,39 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     suspend fun setupRequired(): Boolean = try { api?.health()?.setupRequired ?: false } catch (_: Exception) { false }
+
+    /** The server's /health (it says whether Kore ID and password sign-in are on), or null when it can't be reached. */
+    suspend fun health(): Health? = try { api?.health() } catch (_: Exception) { null }
+
+    // ---- Kore ID ------------------------------------------------------------
+    /** Starts a Kore ID sign-in. Returns the URL to open in the browser; the result arrives as a koremind://sso link. */
+    suspend fun ssoStart(): Result<String> = try {
+        val a = api ?: error("Not connected")
+        val verifier = Pkce.newVerifier()
+        val url = a.ssoStart(Pkce.challenge(verifier)).url
+        prefs.ssoVerifier = verifier
+        Result.success(url)
+    } catch (e: Exception) { Result.failure(e) }
+
+    /** Finishes a Kore ID sign-in from the koremind://sso link the backend sent the browser to. */
+    fun handleSsoLink(text: String) {
+        val link = parseSsoLink(text) ?: return
+        val verifier = prefs.ssoVerifier
+        prefs.ssoVerifier = null
+        val a = api
+        if (link !is SsoLink.Ticket) { if (link is SsoLink.Error) _pair.value = PairUi.Failed(dev.qarasky.koremind.R.string.sso_failed); return }
+        if (verifier == null || a == null) { _pair.value = PairUi.Failed(dev.qarasky.koremind.R.string.sso_failed); return }
+        _pair.value = PairUi.Working
+        viewModelScope.launch {
+            try {
+                val r = a.ssoExchange(link.ticket, verifier)
+                prefs.token = r.token; prefs.email = r.user.email
+                _session.value = Session(prefs.baseUrl, true, r.user.email)
+                refreshAll()
+                _pair.value = PairUi.Done
+            } catch (_: Exception) { _pair.value = PairUi.Failed(dev.qarasky.koremind.R.string.sso_failed) }
+        }
+    }
 
     suspend fun authenticate(email: String, password: String, create: Boolean): Result<Unit> = try {
         val a = api ?: error("Not connected")

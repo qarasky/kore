@@ -27,7 +27,7 @@ const model = { providerId: "opencode", modelId: "fast" };
 
 test("GET /health reports setupRequired true on an empty db", async () => {
   const { call } = setup();
-  expect(await (await call("GET", "/health")).json()).toEqual({ name: "koremind", version: "0.0.0-test", setupRequired: true });
+  expect(await (await call("GET", "/health")).json()).toEqual({ name: "koremind", version: "0.0.0-test", setupRequired: true, sso: false, passwordLogin: true });
   await register(call);
   expect(((await (await call("GET", "/health")).json()) as { setupRequired: boolean }).setupRequired).toBe(false);
 });

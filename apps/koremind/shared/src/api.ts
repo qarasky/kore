@@ -1,13 +1,29 @@
 import { z } from "zod";
 
-export const User = z.object({ id: z.string(), email: z.string(), isOwner: z.boolean() });
+/** `ssoLinked` is only present (true) when the account is linked to a Kore ID. */
+export const User = z.object({ id: z.string(), email: z.string(), isOwner: z.boolean(), ssoLinked: z.boolean().optional() });
 export type User = z.infer<typeof User>;
 
-export const Health = z.object({ name: z.literal("koremind"), version: z.string(), setupRequired: z.boolean() });
+/** `sso` = Kore ID sign-in is configured; `passwordLogin` = email + password still works. Older servers omit both. */
+export const Health = z.object({ name: z.literal("koremind"), version: z.string(), setupRequired: z.boolean(), sso: z.boolean().default(false), passwordLogin: z.boolean().default(true) });
 export type Health = z.infer<typeof Health>;
 
 export const AuthRequest = z.object({ email: z.string().email(), password: z.string().min(8) });
 export type AuthRequest = z.infer<typeof AuthRequest>;
+/** Start of a Kore ID sign-in. `challenge` is the client's own PKCE challenge (base64url SHA-256 of a secret verifier it keeps). */
+export const SsoStart = z.object({
+  challenge: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+  platform: z.enum(["web", "android"]),
+  /** Web only: the page to come back to. Its origin must be allowed by the server (KOREMIND_WEB_ORIGINS). */
+  returnTo: z.string().url().optional(),
+});
+export type SsoStart = z.infer<typeof SsoStart>;
+export const SsoStartResponse = z.object({ url: z.string() });
+export type SsoStartResponse = z.infer<typeof SsoStartResponse>;
+export const SsoExchange = z.object({ ticket: z.string().min(1), verifier: z.string().regex(/^[A-Za-z0-9._~-]{43,128}$/) });
+export type SsoExchange = z.infer<typeof SsoExchange>;
+export const LogoutResponse = z.object({ ok: z.literal(true), logoutUrl: z.string().optional() });
+export type LogoutResponse = z.infer<typeof LogoutResponse>;
 export const AuthResponse = z.object({ token: z.string(), user: User });
 export type AuthResponse = z.infer<typeof AuthResponse>;
 

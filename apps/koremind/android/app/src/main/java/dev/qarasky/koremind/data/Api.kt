@@ -65,6 +65,9 @@ class KoreMindApi(val baseUrl: String, private val token: () -> String?) {
     suspend fun login(email: String, password: String): AuthResponse = send("POST", "/auth/login", AuthRequest(email, password))
     suspend fun logout(): Ok = call("POST", "/auth/logout", null, serializer())
     suspend fun me(): User = get("/me")
+    /** Kore ID sign-in: the URL to open in the browser. [challenge] is the PKCE challenge of a verifier kept on the phone. */
+    suspend fun ssoStart(challenge: String): SsoStartResponse = send("POST", "/auth/oidc/start", SsoStartBody(challenge, "android"))
+    suspend fun ssoExchange(ticket: String, verifier: String): AuthResponse = send("POST", "/auth/oidc/exchange", SsoExchangeBody(ticket, verifier))
     suspend fun models(): List<ProviderInfo> = get("/models")
     suspend fun providers(): List<ProviderConnection> = get("/providers")
     suspend fun favorites(): List<String> = get("/favorites")

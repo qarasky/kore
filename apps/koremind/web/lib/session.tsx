@@ -63,8 +63,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setBaseUrl: useCallback((u: string) => { localStorage.setItem(URL_KEY, u); localStorage.removeItem(TOKEN_KEY); setToken(null); setUser(null); setBase(u); }, []),
     signedIn: useCallback((r: AuthResponse) => { localStorage.setItem(TOKEN_KEY, r.token); setToken(r.token); setUser(r.user); }, []),
     signOut: useCallback(async () => {
-      try { await api?.logout(); } catch { /* already gone */ }
-      localStorage.removeItem(TOKEN_KEY); setToken(null); setUser(null); router.replace("/login");
+      let logoutUrl: string | undefined;
+      try { logoutUrl = (await api?.logout())?.logoutUrl; } catch { /* already gone */ }
+      localStorage.removeItem(TOKEN_KEY); setToken(null); setUser(null);
+      // Signed in with Kore ID: also end the Kore ID session (RP-initiated logout), which sends the browser back to /login.
+      if (logoutUrl) location.assign(logoutUrl); else router.replace("/login");
     }, [api, router]),
   };
   void token;

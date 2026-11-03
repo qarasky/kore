@@ -25,6 +25,13 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="koremind" android:host="pair" />
             </intent-filter>
+            <!-- Kore ID sign-in finishing in the browser: koremind://sso?ticket=... A ticket is useless without the PKCE verifier kept in the app. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="koremind" android:host="sso" />
+            </intent-filter>
         </activity>
     </application>
 </manifest>

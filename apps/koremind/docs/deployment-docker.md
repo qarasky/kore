@@ -28,6 +28,9 @@ Open <http://localhost:3210>, enter `http://localhost:8787` when asked, and crea
 | `KOREMIND_PORT`, `KOREMIND_WEB_PORT` | Host ports. Defaults `8787` and `3210`. |
 | `KOREMIND_PUBLIC_URL` | The address phones and browsers use to reach the backend (`https://api.example.com`). **Set it** if you use QR sign-in: inside a container the backend only knows its internal Docker address, which a phone cannot reach. |
 | `KOREMIND_TRUST_PROXY=1` | Only when a proxy on another machine terminates TLS in front of the backend. |
+| `KOREMIND_OIDC_*`, `KOREMIND_WEB_ORIGINS`, `KOREMIND_PASSWORD_LOGIN` | Kore ID single sign-on and the password switch. All optional; see [kore-id.md](kore-id.md) for what each does. With `KOREMIND_OIDC_ISSUER` empty nothing changes. |
+
+Kore ID needs `KOREMIND_PUBLIC_URL` (the callback is `<it>/auth/callback`) and `KOREMIND_WEB_ORIGINS` (the address you open the web UI at), then `docker compose up -d` again. Put the secret in the `.env` file next to the compose file, not in the compose file.
 
 ## Data and backups
 

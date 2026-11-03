@@ -20,6 +20,16 @@ const MIGRATIONS: string[] = [
   create index notes_chat on notes(chat_id, created_at);
   alter table messages add column activity_json text not null default '[]';
   `,
+  // Kore ID single sign-on. users.oidc_sub is the OIDC `sub` (same UUID in every Kore app); accounts created through Kore ID
+  // have password_hash = '' (no password; password login refuses an empty hash). oidc_flows holds one in-flight login (state ->
+  // nonce, PKCE verifier, the client's own PKCE challenge); oidc_tickets is the one-time handover from the callback to the client.
+  `
+  alter table users add column oidc_sub text;
+  create unique index users_oidc_sub on users(oidc_sub) where oidc_sub is not null;
+  alter table tokens add column logout_url text;
+  create table oidc_flows(state_hash text primary key, nonce text not null, verifier text not null, app_challenge text not null, platform text not null, return_to text, link_user_id text references users(id) on delete cascade, expires_at integer not null);
+  create table oidc_tickets(ticket_hash text primary key, user_id text not null references users(id) on delete cascade, app_challenge text not null, logout_url text, expires_at integer not null);
+  `,
 ];
 
 export function openDb(path: string): Database {

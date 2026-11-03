@@ -8,10 +8,13 @@ import kotlinx.serialization.json.jsonPrimitive
 
 val KoreMindJson = Json { ignoreUnknownKeys = true; explicitNulls = false; encodeDefaults = true }
 
-@Serializable data class User(val id: String, val email: String, val isOwner: Boolean)
+@Serializable data class User(val id: String, val email: String, val isOwner: Boolean, val ssoLinked: Boolean = false)
 @Serializable data class AuthRequest(val email: String, val password: String)
 @Serializable data class AuthResponse(val token: String, val user: User)
-@Serializable data class Health(val name: String, val version: String, val setupRequired: Boolean)
+@Serializable data class Health(val name: String, val version: String, val setupRequired: Boolean, val sso: Boolean = false, val passwordLogin: Boolean = true)
+@Serializable data class SsoStartBody(val challenge: String, val platform: String)
+@Serializable data class SsoStartResponse(val url: String)
+@Serializable data class SsoExchangeBody(val ticket: String, val verifier: String)
 @Serializable data class ModelInfo(val id: String, val name: String, val vision: Boolean, val thinkingLevels: List<String>, val isDefault: Boolean, val free: Boolean = false)
 /** status: "ready", "needs_connection" (no key / not signed in) or "disabled" (turned off in Settings). Models are empty unless ready. */
 @Serializable data class ProviderInfo(val id: String, val name: String, val connected: Boolean, val models: List<ModelInfo>, val status: String = "ready", val recommended: Boolean = false)

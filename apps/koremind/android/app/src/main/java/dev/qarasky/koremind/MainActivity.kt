@@ -19,13 +19,20 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT), navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT))
         setContent { KoreMindTheme { KoreMindApp(vm) } }
-        if (savedInstanceState == null) handlePairLink(intent)
+        if (savedInstanceState == null) handleLinks(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        handleLinks(intent)
+    }
+
+    private fun handleLinks(intent: Intent?) {
         handlePairLink(intent)
+        // Back from Kore ID in the browser: koremind://sso?ticket=... (the backend redirects there after the callback).
+        val data = intent?.data ?: return
+        if (data.scheme == "koremind" && data.host == "sso") { vm.handleSsoLink(data.toString()); intent.data = null }
     }
 
     /** A pairing QR code scanned with the camera opens koremind://pair?... and signs in. */

@@ -9,7 +9,10 @@ Source of truth: `shared/src/api.ts` (zod). All bodies are JSON unless noted. Au
 | `GET /health` | no | | `{name:"koremind",version,setupRequired}` |
 | `POST /auth/register` | only while no users exist, afterwards owner token | `{email,password(min 8)}` | `{token,user}` |
 | `POST /auth/login` | no | `{email,password}` | `{token,user}`; 401 `bad_credentials`; 429 `rate_limited` with `retryAfterSec` |
-| `POST /auth/logout` | yes | | `{ok:true}` |
+| `POST /auth/logout` | yes | | `{ok:true, logoutUrl?}`; `logoutUrl` (Kore ID sessions) is where the client sends the browser to end the Kore ID session too |
+| `POST /auth/oidc/start` | no (token = link Kore ID to this account) | `{challenge, platform:"web"\|"android", returnTo?}` | `{url}` to open in the browser. 404 when Kore ID is off. See Kore ID below |
+| `GET /auth/callback` | no | Kore ID redirects the browser here | 302 to `<returnTo>#sso_ticket=…` (web) or `koremind://sso?ticket=…` (Android); `sso_error=<code>` / `error=<code>` on failure; `sso_linked=1` / `linked=1` after linking |
+| `POST /auth/oidc/exchange` | no | `{ticket, verifier}` | `{token,user}`; 401 `bad_code`; 429 `rate_limited` |
 | `POST /auth/pair` | yes | | `PairStart` `{code,expiresAt,urls[],link}`. See Pairing. |
 | `POST /auth/pair/redeem` | no | `{code}` | `{token,user}`; 401 `bad_code`; 429 `rate_limited` |
 | `GET /me` | yes | | `{id,email,isOwner}` |
@@ -80,3 +83,10 @@ POST /chats/c1/messages {"text":"note: buy milk","attachmentIds":[],"model":{"pr
    data: {"type":"done","messageId":"m2"}
    data: {"type":"title","title":"Shopping list"}
 ```
+
+## Kore ID (single sign-on)
+
+Off unless `KOREMIND_OIDC_ISSUER` is set; `GET /health` then reports `sso: true` and `passwordLogin`. The backend is the OIDC client; clients only handle a one-time ticket. Details and settings: [kore-id.md](kore-id.md).
+
+- `Authorization: Bearer <Kore ID access token>` (audience `koremind`) is accepted next to KoreMind's own session tokens, for accounts that are linked to that Kore ID `sub`. ID tokens are refused. Unlinked subjects get 401; bearers never create accounts.
+- With `KOREMIND_PASSWORD_LOGIN=0`, `/auth/register` and `/auth/login` answer 403 `password_disabled`.

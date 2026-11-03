@@ -3,7 +3,7 @@ import type { AuthRequest, AuthResponse, User } from "@koremind/shared";
 
 export class AuthError extends Error {
   constructor(
-    public code: "setup_closed" | "bad_credentials" | "rate_limited" | "bad_code",
+    public code: "setup_closed" | "bad_credentials" | "rate_limited" | "bad_code" | "password_disabled" | "sso_failed",
     message: string,
     public retryAfterSec?: number,
   ) {
@@ -19,21 +19,35 @@ const WINDOW_MS = 15 * 60 * 1000;
 
 const sha256 = (s: string) => new Bun.CryptoHasher("sha256").update(s).digest("hex");
 
-type UserRow = { id: string; email: string; password_hash: string; is_owner: number };
-const toUser = (r: UserRow): User => ({ id: r.id, email: r.email, isOwner: !!r.is_owner });
+type UserRow = { id: string; email: string; password_hash: string; is_owner: number; oidc_sub?: string | null };
+export const toUser = (r: UserRow): User => ({ id: r.id, email: r.email, isOwner: !!r.is_owner, ...(r.oidc_sub ? { ssoLinked: true } : {}) });
 
-export function createAuth(db: Database, now: () => number = Date.now) {
-  const issue = (user: User): AuthResponse => {
+export function createAuth(db: Database, now: () => number = Date.now, opts: { passwordLogin?: boolean } = {}) {
+  const passwordLogin = opts.passwordLogin ?? true;
+  const issue = (user: User, logoutUrl?: string | null): AuthResponse => {
     const token = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url");
-    db.run("insert into tokens(token_hash,user_id,expires_at) values(?,?,?)", [sha256(token), user.id, now() + TOKEN_TTL_MS]);
+    db.run("insert into tokens(token_hash,user_id,expires_at,logout_url) values(?,?,?,?)", [sha256(token), user.id, now() + TOKEN_TTL_MS, logoutUrl ?? null]);
     return { token, user };
   };
   const setupRequired = () => (db.query("select count(*) c from users").get() as { c: number }).c === 0;
 
   return {
     setupRequired,
+    passwordLogin,
+    /** Starts a normal session for an existing user (used by Kore ID sign-in). `logoutUrl` is kept to end the Kore ID session on sign-out. */
+    issueFor(userId: string, logoutUrl?: string | null): AuthResponse {
+      const r = db.query("select * from users where id=?").get(userId) as UserRow | null;
+      if (!r) throw new AuthError("sso_failed", "Unknown user");
+      return issue(toUser(r), logoutUrl);
+    },
+    /** The local user a Kore ID `sub` is linked to. */
+    userBySub(sub: string): User | null {
+      const r = db.query("select * from users where oidc_sub=?").get(sub) as UserRow | null;
+      return r ? toUser(r) : null;
+    },
 
     async register(req: AuthRequest, caller?: User): Promise<AuthResponse> {
+      if (!passwordLogin) throw new AuthError("password_disabled", "Password sign-in is turned off. Use Kore ID");
       const first = setupRequired();
       if (!first && !caller?.isOwner) throw new AuthError("setup_closed", "Registration is closed");
       const user: User = { id: crypto.randomUUID(), email: req.email.toLowerCase(), isOwner: first };
@@ -44,6 +58,7 @@ export function createAuth(db: Database, now: () => number = Date.now) {
     },
 
     async login(req: AuthRequest, ip: string): Promise<AuthResponse> {
+      if (!passwordLogin) throw new AuthError("password_disabled", "Password sign-in is turned off. Use Kore ID");
       const email = req.email.toLowerCase();
       const key = `${ip}|${email}`;
       const t = now();
@@ -55,7 +70,8 @@ export function createAuth(db: Database, now: () => number = Date.now) {
         throw new AuthError("rate_limited", "Too many attempts", Math.ceil((active.window_start + WINDOW_MS - t) / 1000));
       }
       const user = db.query("select * from users where email=?").get(email) as UserRow | null;
-      const ok = user ? await Bun.password.verify(req.password, user.password_hash) : false;
+      // An empty hash marks an account created through Kore ID: it has no password and can never match one.
+      const ok = user && user.password_hash ? await Bun.password.verify(req.password, user.password_hash) : false;
       if (!ok || !user) {
         db.run("insert or replace into login_attempts(key,count,window_start) values(?,?,?)", [
           key, (active?.count ?? 0) + 1, active?.window_start ?? t,
@@ -100,8 +116,11 @@ export function createAuth(db: Database, now: () => number = Date.now) {
       return r ? toUser(r) : null;
     },
 
-    logout(token: string) {
+    /** Ends the session. Returns the Kore ID logout URL when the session came from Kore ID. */
+    logout(token: string): string | null {
+      const row = db.query("select logout_url from tokens where token_hash=?").get(sha256(token)) as { logout_url: string | null } | null;
       db.run("delete from tokens where token_hash=?", [sha256(token)]);
+      return row?.logout_url ?? null;
     },
   };
 }
