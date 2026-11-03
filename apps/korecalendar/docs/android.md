@@ -3,8 +3,8 @@
 A native Android app (Kotlin, Jetpack Compose, dark) for **glancing at your calendar**: an Agenda widget for the home screen, and an Agenda screen that opens instantly and works offline.
 Design: [specs/2026-11-03-android-design.md](superpowers/specs/2026-11-03-android-design.md). Release process: [releasing.md](releasing.md#android).
 
-> **Status: stage 2 of 4.** You can sign in, see the agenda, add the widget, hide calendars, sign out, and **create, edit and delete events**. Day, week and month views (stage 3) and
-> reminders as phone alarms (stage 4) are not in the app yet: use the web app for those.
+> **Status: stage 3 of 4.** You can sign in, see the agenda, **day, week and month views and search**, add the widget, hide calendars, sign out, and create, edit and delete events.
+> Reminders as phone alarms (stage 4) are not in the app yet: use the web app for those.
 
 ## Install
 
@@ -31,6 +31,17 @@ Tap a row for the details. Pull down to refresh. **Today** jumps back to the top
 
 **Settings** has the server and account, a 12/24-hour clock, **show/hide for each calendar** (hidden calendars disappear from the agenda and the widget, their events stay on the server) and
 **Sign out** (which also deletes the copy on the phone).
+
+## Day, week, month and search
+
+The chips under the title switch between **Agenda, Day, Week and Month**; the arrows move by a day, a week or a month, **Today** comes back.
+
+- **Day and Week** are a 24-hour grid in your account's time zone (every day has 24 rows, even when the clocks change), with an all-day strip on top, a red line for now, and overlapping events side by side.
+  The week is seven columns that scroll sideways together. **Tap an empty slot** to start a new event at that half hour; tap an event to open it; tap a day heading in the week to open that day.
+- **Month** shows six weeks with a few chips per day and "+N more"; tap a day to open it.
+- Inside the copy kept on the phone (14 days back, 60 ahead) the views open instantly and work offline. Further away, the app asks the server for just that stretch; offline it shows what it has and says it may be incomplete.
+- **Search** looks through titles, notes and places, 90 days back and 300 ahead (offline: the copy on the phone). Hidden calendars stay hidden in every view and in search.
+- Settings has **the week starts on** (Monday, Sunday or Saturday).
 
 ## Editing events
 
@@ -80,7 +91,8 @@ Run this after installing a new release; it is what the automated tests cannot s
 5. Tap a widget row: the app opens on that event.
 6. Rotate the phone and change the font size: nothing is clipped.
 7. Create an event with a reminder and a repeat; it shows on the agenda and in the widget. Edit one occurrence ("This event"), then delete the series and Undo.
-8. Start an edit, switch on airplane mode and press Save: the editor stays open with your text and says it cannot reach the server; switch it off and Save again.
+8. Open Day, Week and Month, go to another month (needs the server), search for an event and tap an empty slot in the Day view.
+9. Start an edit, switch on airplane mode and press Save: the editor stays open with your text and says it cannot reach the server; switch it off and Save again.
 
 ## Building it yourself
 
