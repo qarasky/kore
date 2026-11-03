@@ -2,3 +2,5 @@
 
 # local installation (written by install.sh)
 /.env
+
+.worktrees/
