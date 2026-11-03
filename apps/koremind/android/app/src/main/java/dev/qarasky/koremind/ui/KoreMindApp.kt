@@ -70,7 +70,7 @@ fun KoreMindApp(vm: AppViewModel) {
         popExitTransition = { if (on) fadeOut(tween(100)) + slideOutHorizontally(tween(180)) { it / 14 } else ExitTransition.None },
     ) {
         composable("connect") { ConnectScreen(vm) { nav.navigate("login") { popUpTo(0) } } }
-        composable("login") { LoginScreen(vm, onSignedIn = { nav.navigate("chat") { popUpTo(0) } }, onChangeServer = { nav.navigate("connect") }) }
+        composable("login") { LoginScreen(vm, onChangeServer = { nav.navigate("connect") }) }
         composable("chat") { ChatScreen(vm, onSettings = { nav.navigate("settings") }, onProviders = { nav.navigate("settings?section=providers") }) }
         composable("settings?section={section}", arguments = listOf(navArgument("section") { type = NavType.StringType; nullable = true; defaultValue = null })) { entry ->
             SettingsScreen(vm, entry.arguments?.getString("section"), onBack = { nav.popBackStack() }, onChangeServer = { nav.navigate("connect") })

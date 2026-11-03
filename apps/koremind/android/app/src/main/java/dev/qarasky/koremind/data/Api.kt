@@ -61,8 +61,6 @@ class KoreMindApi(val baseUrl: String, private val token: () -> String?) {
     @kotlinx.serialization.Serializable data class Ok(val ok: Boolean = true)
 
     suspend fun health(): Health = get("/health")
-    suspend fun register(email: String, password: String): AuthResponse = send("POST", "/auth/register", AuthRequest(email, password))
-    suspend fun login(email: String, password: String): AuthResponse = send("POST", "/auth/login", AuthRequest(email, password))
     suspend fun logout(): LogoutResponse = call("POST", "/auth/logout", null, serializer())
     suspend fun me(): User = get("/me")
     /** Kore ID: the URL to open in the browser. [challenge] is the PKCE challenge of a verifier kept on the phone.

@@ -1,4 +1,4 @@
-import { ApprovalAnswer, AuthRequest, PairRedeem, Settings, SsoExchange, SsoStart, SendMessageRequest, type PairStart, type StreamEvent } from "@koremind/shared";
+import { ApprovalAnswer, PairRedeem, Settings, SsoExchange, SsoStart, SendMessageRequest, type PairStart, type StreamEvent } from "@koremind/shared";
 import { z } from "zod";
 import { AuthError } from "./auth";
 import { BACKCHANNEL_LOGOUT_PATH } from "./config";
@@ -37,7 +37,10 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
     const path = url.pathname;
     const m = req.method;
     if (m === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
-    if (m === "GET" && path === "/health") return json(200, { name: "koremind", version: s.version, setupRequired: s.auth.setupRequired(), sso: !!s.sso, passwordLogin: s.auth.passwordLogin, ...(s.koreId ? { koreId: s.koreId } : {}), ...(Object.keys(s.apps).length ? { apps: s.apps } : {}) });
+    if (m === "GET" && path === "/health") return json(200, { name: "koremind", version: s.version, setupRequired: s.auth.setupRequired(), sso: !!s.sso, ...(s.koreId ? { koreId: s.koreId } : {}), ...(Object.keys(s.apps).length ? { apps: s.apps } : {}) });
+
+    // Password auth was removed when Kore ID became the only human sign-in. These old paths answer 404 even without a token.
+    if (path === "/auth/login" || path === "/auth/register") return fail(404, "not_found", "Password sign-in is gone. Use Kore ID.");
 
     // A tunnel (cloudflared, tailscale serve) on this machine arrives from loopback: believe its forwarded address, nobody else's.
     const ip = (opts.trustProxy || isLoopback(socketIp) ? req.headers.get("x-forwarded-for")?.split(",")[0].trim() : undefined) ?? socketIp ?? "unknown";
@@ -79,8 +82,7 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
       return json(200, await s.sso.exchange(b.ticket, b.verifier, ip));
     }
 
-    if (m === "POST" && path === "/auth/register") return json(200, await s.auth.register(await body(req, AuthRequest), caller ?? undefined));
-    if (m === "POST" && path === "/auth/login") return json(200, await s.auth.login(await body(req, AuthRequest), ip));
+    // Kore ID is the only human sign-in. There is deliberately no /auth/login or /auth/register.
 
     // The local OpenCode engine reaches the notes tools here. Loopback only, and it must know the per-run secret.
     if (path === "/mcp") {
@@ -205,7 +207,7 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
       catch (e) {
         if (e instanceof HttpError) return fail(e.status, e.code, e.message);
         if (e instanceof AuthError) {
-          const status = e.code === "rate_limited" ? 429 : e.code === "setup_closed" || e.code === "password_disabled" ? 403 : e.code === "sso_failed" ? 400 : 401; // bad_code and bad_credentials: 401
+          const status = e.code === "rate_limited" ? 429 : e.code === "sso_failed" ? 400 : 401; // bad_code: 401
           return fail(status, e.code, e.message, e.retryAfterSec ? { retryAfterSec: e.retryAfterSec } : {});
         }
         if (e instanceof Error && /UNIQUE constraint/.test(e.message)) return fail(409, "conflict", "That email is already registered");

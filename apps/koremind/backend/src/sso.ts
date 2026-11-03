@@ -68,6 +68,7 @@ export function createSso(db: Database, auth: Auth, oidc: Oidc, cfg: OidcConfig,
     if (cfg.allowedEmails.length > 0 && !emailAllowed(cfg.allowedEmails, id.email)) throw new SsoError("not_allowed", "This KoreMind does not accept new accounts");
     if (!first && !cfg.autoProvision) throw new SsoError("not_allowed", "This KoreMind does not accept new accounts");
     const user: User = { id: crypto.randomUUID(), email: id.email, isOwner: first, ssoLinked: true };
+    // Keep the legacy password_hash NOT NULL column satisfied with an empty placeholder; it is never read for sign-in again.
     db.run("insert into users(id,email,password_hash,is_owner,created_at,oidc_sub) values(?,?,?,?,?,?)", [user.id, user.email, "", first ? 1 : 0, now(), id.sub]);
     return user;
   }
@@ -149,8 +150,9 @@ export function createSso(db: Database, auth: Auth, oidc: Oidc, cfg: OidcConfig,
     },
 
     /**
-     * OIDC Back-Channel Logout: Kore ID POSTs a logout token when a Kore ID session ends (sign-out, admin disable, password reset…).
-     * Verifies it and ends the matching KoreMind sessions. Throws OidcError (invalid token → 400, Kore ID unreachable → 503).
+     * OIDC Back-Channel Logout: Kore ID POSTs a logout token when a Kore ID session ends (sign-out, "sign out everywhere", an
+     * admin disabling the user…). Verifies it and ends the matching KoreMind sessions. Throws OidcError (invalid token → 400,
+     * Kore ID unreachable → 503).
      */
     async backchannelLogout(logoutToken: string): Promise<{ ended: number }> {
       const req = await oidc.verifyLogoutToken(logoutToken, seenJti);

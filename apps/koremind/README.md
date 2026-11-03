@@ -18,7 +18,7 @@ A personal assistant that feels like the ChatGPT app, with its own apps instead 
 - **Providers:** **Groq** and **OpenRouter** (the recommended ones, an API key each), OpenCode (free models need no key) and **Codex** (OpenAI: sign in with ChatGPT or paste an API key). Each can be turned off, and OpenCode and OpenRouter can be limited to free models, in **Settings → Providers**.
 - **Memory** you can see and edit. The assistant decides what is worth remembering; it is written in the background so it never slows an answer.
 - **Notes:** the assistant can save, read and edit notes, per chat and per user. Asking it to use another chat's notes shows an **Allow / Deny** card. Notes live in KoreMind's own database.
-- **Phone pairing:** Settings → Account → **Show QR code** on the web, then **Scan QR code** in the Android app. It signs the phone in as you, no typing.
+- **Phone pairing:** Settings → Account → **Show QR code** on the web, then **Scan QR code** in the Android app. The code is minted from your signed-in (Kore ID) web session and signs the phone in as you, no typing.
 
 ## Run it (development, one machine)
 
@@ -29,7 +29,7 @@ bun install
 bun run start        # backend on :8787 and web UI on :3210
 ```
 
-The first run builds the web UI. The backend prints the addresses it is reachable at (local IP, a Tailscale address if you have one, or `KOREMIND_PUBLIC_URL` if set). Open the web UI on the same machine and it finds the backend by itself; create your account on first run (the first account is the owner).
+The first run builds the web UI. The backend prints the addresses it is reachable at (local IP, a Tailscale address if you have one, or `KOREMIND_PUBLIC_URL` if set). Open the web UI on the same machine and it finds the backend by itself. Sign-in is **Kore ID only**: set `KOREMIND_OIDC_ISSUER` and sign in with the account pinned by `KOREMIND_OIDC_OWNER_EMAIL` (that first sign-in creates the owner); everyone else is created automatically on their first Kore ID sign-in.
 
 For the phone: install the app, scan the QR code from the web UI (or type one of the printed addresses into **Backend URL**) and sign in. KoreMind does no tunnel or TLS setup; use Tailscale, a Cloudflare tunnel or your own domain for access away from home.
 
@@ -50,7 +50,7 @@ The product used to be called Zero. A `zero.sqlite` database in your data direct
 | `KOREMIND_PUBLIC_URL` | unset; shown as the `domain` address and put into phone-pairing QR codes |
 | `KOREMIND_TRUST_PROXY=1` | believe `x-forwarded-for` from any peer (a proxy on this machine is trusted automatically) |
 | `KOREMIND_OPENCODE_BIN` | `opencode`; set the full path when running under a service manager |
-| `KOREMIND_OIDC_ISSUER` | unset = no Kore ID. Set to turn on Kore ID sign-in; the other `KOREMIND_OIDC_*`, `KOREMIND_WEB_ORIGINS` and `KOREMIND_PASSWORD_LOGIN` settings are in [docs/kore-id.md](docs/kore-id.md) |
+| `KOREMIND_OIDC_ISSUER` | unset = nobody can sign in. Set it to the Kore ID base URL; the other `KOREMIND_OIDC_*` and `KOREMIND_WEB_ORIGINS` settings are in [docs/kore-id.md](docs/kore-id.md) |
 | `KOREMIND_KORE_APPS` | unset; the other Kore apps for the web UI's app switcher, e.g. `kore=https://files.example.com,korecalendar=https://cal.example.com,flatline=https://status.example.com` |
 | `KOREMIND_FAKE_ENGINE=1` | run without OpenCode (scripted replies, and `note: …` / `read <chat title>` to exercise notes) for development |
 
@@ -61,7 +61,7 @@ bun test                                         # backend, shared, web, scripts
 cd android && ./gradlew :app:testDebugUnitTest   # Android logic
 cd android && ./gradlew :app:assembleDebug       # debug APK (app/build/outputs/apk/debug)
 bun run build                                    # production build of the web UI
-bun run backend/scripts/latency.ts               # time to first token against a running backend
+KOREMIND_TOKEN=<session token> bun run backend/scripts/latency.ts   # time to first token against a running backend
 bun run scripts/generate-icons.ts                # regenerate the mark everywhere
 bun scripts/version.ts set 0.2.0                 # bump the version everywhere (see docs/releasing.md)
 ```

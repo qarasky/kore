@@ -13,7 +13,7 @@ type Ctx = {
   api: Api | null;
   user: User | null;
   baseUrl: string | null;
-  /** The server's /health: Kore ID on/off, password sign-in, the Kore ID account page, other Kore apps. Null until loaded. */
+  /** The server's /health: Kore ID on/off, the Kore ID account page, other Kore apps. Null until loaded. */
   server: Health | null;
   /** Re-reads /health (after setup, when the owner exists). */
   reloadServer(): Promise<Health | null>;

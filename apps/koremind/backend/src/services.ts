@@ -15,10 +15,10 @@ import { createSettings } from "./settings";
 import { createUploads } from "./uploads";
 
 export type ServiceOptions = { db: Database; dataDir: string; engine: Engine; version: string; maxUploadBytes?: number; /** Shared secret the local engine presents on /mcp. */ mcpSecret?: string; approvalTimeoutMs?: number; /** Backend addresses a phone can use, best first. */ addresses?: () => string[];
-  /** Kore ID sign-in; null/undefined = off. */ oidc?: OidcConfig | null; /** Other Kore apps, for the web UI's app switcher. */ apps?: Record<string, string>; /** Test seam: a ready-made OIDC client. */ oidcClient?: Oidc; /** false = turn email + password sign-in off (needs oidc). */ passwordLogin?: boolean };
+  /** Kore ID sign-in; null/undefined = off, and then nobody can sign in. */ oidc?: OidcConfig | null; /** Other Kore apps, for the web UI's app switcher. */ apps?: Record<string, string>; /** Test seam: a ready-made OIDC client. */ oidcClient?: Oidc };
 
 export function createServices(o: ServiceOptions) {
-  const auth = createAuth(o.db, Date.now, { passwordLogin: o.oidc || o.oidcClient ? o.passwordLogin ?? true : true, ssoOwnerOnly: !!o.oidc?.ownerEmail });
+  const auth = createAuth(o.db);
   const sso = o.oidc ? createSso(o.db, auth, o.oidcClient ?? createOidc(o.oidc), o.oidc) : null;
   const settings = createSettings(o.db);
   const memory = createMemory(join(o.dataDir, "users"), o.engine, (u) => settings.get(u).memoryEnabled);

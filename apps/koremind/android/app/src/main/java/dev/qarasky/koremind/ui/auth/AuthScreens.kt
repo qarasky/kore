@@ -31,7 +31,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.qarasky.koremind.R
-import dev.qarasky.koremind.data.ApiException
 import dev.qarasky.koremind.ui.AppViewModel
 import dev.qarasky.koremind.ui.PairUi
 import dev.qarasky.koremind.ui.ErrorText
@@ -87,43 +86,22 @@ fun ConnectScreen(vm: AppViewModel, onConnected: () -> Unit) {
 }
 
 @Composable
-fun LoginScreen(vm: AppViewModel, onSignedIn: () -> Unit, onChangeServer: () -> Unit) {
-    var setup by remember { mutableStateOf<Boolean?>(null) }
-    var sso by remember { mutableStateOf(false) }
-    var passwordLogin by remember { mutableStateOf(true) }
+fun LoginScreen(vm: AppViewModel, onChangeServer: () -> Unit) {
+    var sso by remember { mutableStateOf<Boolean?>(null) }
     val context = LocalContext.current
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val tooMany = stringResource(R.string.too_many_attempts, 1)
 
-    LaunchedEffect(Unit) { vm.health()?.let { setup = it.setupRequired; sso = it.sso; passwordLogin = it.passwordLogin } }
+    LaunchedEffect(Unit) { vm.health()?.let { sso = it.sso } }
 
     Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         Appear { Column(Modifier.widthIn(max = 380.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Wordmark()
-            Text(if (setup == true) stringResource(R.string.create_account_title) else stringResource(R.string.login_title), style = MaterialTheme.typography.titleLarge)
-            if (setup == true) Text(stringResource(R.string.create_account_hint), style = MaterialTheme.typography.bodySmall, color = KoreMindColors.Muted)
-            if (passwordLogin) {
-                KoreMindField(stringResource(R.string.email), email, { email = it }, keyboardType = KeyboardType.Email)
-                KoreMindField(stringResource(R.string.password), password, { password = it }, password = true, hint = if (setup == true) stringResource(R.string.password_hint) else null)
-                ErrorText(error)
-                KoreMindButton(if (setup == true) stringResource(R.string.create_account) else stringResource(R.string.sign_in), enabled = !busy && email.isNotBlank() && password.length >= 8, modifier = Modifier.fillMaxWidth(), onClick = {
-                    error = null; busy = true
-                    scope.launch {
-                        vm.authenticate(email.trim(), password, setup == true).onSuccess { onSignedIn() }.onFailure {
-                            error = if (it is ApiException && it.code == "rate_limited") tooMany.replace("1", "${((it.retryAfterSec ?: 60) + 59) / 60}") else it.message
-                        }
-                        busy = false
-                    }
-                })
-            } else {
-                Text(stringResource(R.string.koreid_only), style = MaterialTheme.typography.bodySmall, color = KoreMindColors.Muted)
-                ErrorText(error)
-            }
-            if (sso) KoreMindButton(stringResource(R.string.continue_koreid), ghost = passwordLogin, enabled = !busy, modifier = Modifier.fillMaxWidth(), onClick = {
+            Text(stringResource(R.string.login_title), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(if (sso == false) R.string.koreid_unavailable else R.string.koreid_only), style = MaterialTheme.typography.bodySmall, color = KoreMindColors.Muted)
+            ErrorText(error)
+            KoreMindButton(stringResource(R.string.continue_koreid), enabled = sso == true && !busy, modifier = Modifier.fillMaxWidth(), onClick = {
                 error = null; busy = true
                 scope.launch {
                     vm.ssoStart()

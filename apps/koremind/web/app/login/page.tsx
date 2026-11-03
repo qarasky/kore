@@ -1,19 +1,17 @@
 "use client";
-import { AuthScreen, minLengthRule, Spinner } from "@qarasky/kore-ui";
+import { AuthScreen, Spinner } from "@qarasky/kore-ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ApiError } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { beginSso, parseSsoHash, ssoErrorMessage, takeVerifier } from "@/lib/sso";
 import { t } from "@/lib/strings";
 
-/** Sign-in (and first-account setup): kore-ui's AuthScreen, "Continue with Kore ID" first when the server has it. */
+/** Sign-in: Kore ID is the only way in. No password form, no first-account setup. */
 export default function LoginPage() {
-  const { api, user, signedIn, ready, server } = useSession();
+  const { api, user, ready, server, signedIn } = useSession();
   const router = useRouter();
   const [error, setError] = useState("");
-  const [invalid, setInvalid] = useState(false);
   const [exchanging, setExchanging] = useState(false);
 
   useEffect(() => { if (ready && user) router.replace("/"); }, [ready, user, router]);
@@ -33,48 +31,21 @@ export default function LoginPage() {
     api.ssoExchange(back.ticket, verifier).then((r) => { signedIn(r); router.replace("/"); }).catch((err) => { setError(err instanceof Error ? err.message : t.genericError); setExchanging(false); });
   }, [api, signedIn, router]);
 
-  const setup = !!server?.setupRequired;
-  const passwordLogin = server?.passwordLogin !== false;
-
   async function startSso() {
-    if (!api) return;
+    if (!api || !server) return;
     setError("");
+    if (!server.sso) { setError(t.koreIdUnavailable); return; }
     try { await beginSso(api, "/login"); await new Promise(() => {}); /* stay pending while the browser leaves */ }
     catch (err) { setError(err instanceof Error ? err.message : t.genericError); }
-  }
-
-  async function submit({ email, password }: { email: string; password: string }) {
-    if (!api) return;
-    setError("");
-    setInvalid(false);
-    try {
-      const r = setup ? await api.register({ email, password }) : await api.login({ email, password });
-      signedIn(r);
-      router.replace("/");
-    } catch (err) {
-      if (err instanceof ApiError && err.code === "rate_limited") setError(t.tooManyAttempts(err.retryAfterSec ?? 60));
-      else if (err instanceof ApiError && err.code === "bad_credentials") { setError(t.wrongPassword); setInvalid(true); }
-      else setError(err instanceof Error ? err.message : t.genericError);
-      throw err;
-    }
   }
 
   return (
     <AuthScreen
       app="koremind"
-      mode={setup ? "set-password" : "sign-in"}
-      title={setup ? t.createAccountTitle : t.loginTitle}
-      description={setup ? t.createAccountHint : server?.sso && !passwordLogin ? t.koreIdOnly : undefined}
+      title={t.loginTitle}
+      description={server ? (server.sso ? t.koreIdOnly : t.koreIdUnavailable) : undefined}
       error={error}
-      sso={server?.sso ? { onClick: startSso, pending: exchanging, label: t.continueKoreId } : undefined}
-      password={server && passwordLogin ? {
-        onSubmit: submit, invalid,
-        rules: setup ? [minLengthRule(8, t.passwordHint)] : undefined,
-        labels: setup
-          ? { email: t.email, password: t.newPassword, submit: t.setPassword, pending: t.autoSaving }
-          : { email: t.email, password: t.password, submit: t.signIn, pending: t.signingIn },
-      } : undefined}
-      dividerLabel={t.or}
+      sso={{ onClick: startSso, pending: exchanging, label: t.continueKoreId }}
       footer={<Link href="/connect" className="rounded-ui hover:text-text">{t.changeServer}</Link>}
     >
       {!server && !error ? <div className="flex justify-center py-2 text-muted"><Spinner label={t.loading} /></div> : null}

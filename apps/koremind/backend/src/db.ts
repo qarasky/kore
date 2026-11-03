@@ -20,9 +20,9 @@ const MIGRATIONS: string[] = [
   create index notes_chat on notes(chat_id, created_at);
   alter table messages add column activity_json text not null default '[]';
   `,
-  // Kore ID single sign-on. users.oidc_sub is the OIDC `sub` (same UUID in every Kore app); accounts created through Kore ID
-  // have password_hash = '' (no password; password login refuses an empty hash). oidc_flows holds one in-flight login (state ->
-  // nonce, PKCE verifier, the client's own PKCE challenge); oidc_tickets is the one-time handover from the callback to the client.
+  // Kore ID single sign-on. users.oidc_sub is the OIDC `sub` (same UUID in every Kore app); the legacy users.password_hash
+  // column stays only so old databases need no rewrite, and is never read or written for sign-in again. oidc_flows holds one
+  // in-flight login (state -> nonce, PKCE verifier, the client's own PKCE challenge); oidc_tickets is the one-time handover to the client.
   `
   alter table users add column oidc_sub text;
   create unique index users_oidc_sub on users(oidc_sub) where oidc_sub is not null;

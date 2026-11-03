@@ -8,17 +8,15 @@ export type User = z.infer<typeof User>;
 export const KoreApps = z.object({ kore: z.string(), koremind: z.string(), korecalendar: z.string(), flatline: z.string() }).partial();
 export type KoreApps = z.infer<typeof KoreApps>;
 /**
- * `sso` = Kore ID sign-in is configured; `passwordLogin` = email + password still works. Older servers omit both.
+ * `sso` = Kore ID sign-in is configured (the only way in). `setupRequired` = no local account exists yet.
  * `koreId.accountUrl` = the Kore ID account page (only with Kore ID); `apps` = other Kore apps for the app switcher (KOREMIND_KORE_APPS).
  */
 export const Health = z.object({
-  name: z.literal("koremind"), version: z.string(), setupRequired: z.boolean(), sso: z.boolean().default(false), passwordLogin: z.boolean().default(true),
+  name: z.literal("koremind"), version: z.string(), setupRequired: z.boolean(), sso: z.boolean().default(false),
   koreId: z.object({ issuer: z.string(), accountUrl: z.string() }).optional(), apps: KoreApps.optional(),
 });
 export type Health = z.infer<typeof Health>;
 
-export const AuthRequest = z.object({ email: z.string().email(), password: z.string().min(8) });
-export type AuthRequest = z.infer<typeof AuthRequest>;
 /** Start of a Kore ID sign-in. `challenge` is the client's own PKCE challenge (base64url SHA-256 of a secret verifier it keeps). */
 export const SsoStart = z.object({
   challenge: z.string().regex(/^[A-Za-z0-9_-]{43}$/),

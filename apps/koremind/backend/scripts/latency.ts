@@ -1,14 +1,16 @@
 // Measures request -> first stream frame and first delta against a running backend.
-// Usage: bun run backend/scripts/latency.ts [baseUrl]   (creates/logs into latency@koremind.local)
+// Usage: KOREMIND_TOKEN=<session token> bun run backend/scripts/latency.ts [baseUrl]
+// Get a token by signing in through Kore ID (the web app stores it in localStorage as "koremind.token") or by pairing a phone.
 const base = process.argv[2] ?? "http://127.0.0.1:8787";
-const creds = { email: "latency@koremind.local", password: "latency-test-password" };
-const j = async (path: string, init: RequestInit = {}, token?: string) => {
-  const r = await fetch(base + path, { ...init, headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) } });
+const token = process.env.KOREMIND_TOKEN?.trim();
+if (!token) {
+  console.error("Set KOREMIND_TOKEN to a KoreMind session token (sign in with Kore ID first).");
+  process.exit(1);
+}
+const j = async (path: string, init: RequestInit = {}, tok?: string) => {
+  const r = await fetch(base + path, { ...init, headers: { "content-type": "application/json", ...(tok ? { authorization: `Bearer ${tok}` } : {}) } });
   return r;
 };
-let r = await j("/auth/register", { method: "POST", body: JSON.stringify(creds) });
-if (!r.ok) r = await j("/auth/login", { method: "POST", body: JSON.stringify(creds) });
-const { token } = (await r.json()) as { token: string };
 
 const t0 = performance.now();
 await j("/health");

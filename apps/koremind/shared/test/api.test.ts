@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test";
-import { AuthRequest, SendMessageRequest, StreamEvent } from "../src/index";
+import { Health, SendMessageRequest, StreamEvent } from "../src/index";
 
-test("AuthRequest rejects short password", () => {
-  expect(AuthRequest.safeParse({ email: "a@b.co", password: "short" }).success).toBe(false);
-  expect(AuthRequest.safeParse({ email: "a@b.co", password: "longenough" }).success).toBe(true);
+test("Health has no password-login switch and defaults sso to off", () => {
+  const h = Health.parse({ name: "koremind", version: "1", setupRequired: false });
+  expect(h).toEqual({ name: "koremind", version: "1", setupRequired: false, sso: false });
+  expect("passwordLogin" in h).toBe(false);
 });
 
 test("StreamEvent parses a delta", () => {

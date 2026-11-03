@@ -6,9 +6,7 @@ Source of truth: `shared/src/api.ts` (zod). All bodies are JSON unless noted. Au
 
 | Route | Auth | Request | Response |
 | --- | --- | --- | --- |
-| `GET /health` | no | | `{name:"koremind",version,setupRequired,sso,passwordLogin,koreId?:{issuer,accountUrl},apps?}`; `koreId` only with Kore ID, `apps` = `KOREMIND_KORE_APPS` (the web UI's app switcher) |
-| `POST /auth/register` | only while no users exist, afterwards owner token | `{email,password(min 8)}` | `{token,user}` |
-| `POST /auth/login` | no | `{email,password}` | `{token,user}`; 401 `bad_credentials`; 429 `rate_limited` with `retryAfterSec` |
+| `GET /health` | no | | `{name:"koremind",version,setupRequired,sso,koreId?:{issuer,accountUrl},apps?}`; `sso` = Kore ID is configured (the only sign-in), `setupRequired` = no account exists yet, `koreId` only with Kore ID, `apps` = `KOREMIND_KORE_APPS` (the web UI's app switcher) |
 | `POST /auth/logout` | yes | | `{ok:true, logoutUrl?}`; `logoutUrl` (Kore ID sessions) is where the client sends the browser to end the Kore ID session too |
 | `POST /auth/oidc/start` | no (token = link Kore ID to this account) | `{challenge, platform:"web"\|"android", returnTo?}` | `{url}` to open in the browser. 404 when Kore ID is off. See Kore ID below |
 | `GET /auth/callback` | no | Kore ID redirects the browser here | 302 to `<returnTo>#sso_ticket=…` (web) or `koremind://sso?ticket=…` (Android); `sso_error=<code>` / `error=<code>` on failure; `sso_linked=1` / `linked=1` after linking |
@@ -41,6 +39,8 @@ Source of truth: `shared/src/api.ts` (zod). All bodies are JSON unless noted. Au
 
 `Settings` = `{memoryEnabled, displayName, tone, about, disabledProviders: string[], freeOnlyProviders: string[]}`. The last two default to `[]`, so older clients that omit them keep working.
 
+**There is no password API.** `/auth/register` and `/auth/login` do not exist (404). Kore ID is the only human sign-in; session tokens and QR pairing are credentials, not a second login path.
+
 ## Models and providers
 - `GET /models` returns **every offered provider** (Groq, OpenRouter, OpenCode, Codex = `openai`, in that order: the recommended providers first): `{id,name,connected,recommended,status,models}`. Groq's safety classifiers (Prompt Guard, Safety GPT OSS) are not listed because they cannot chat.
   - `status` is `ready`, `needs_connection` (no key / not signed in; OpenCode counts as ready because its free tier needs no key) or `disabled` (the user turned it off in Settings).
@@ -48,8 +48,8 @@ Source of truth: `shared/src/api.ts` (zod). All bodies are JSON unless noted. Au
 - Picker behavior (both clients): all providers appear in the rail; non-`ready` ones are dimmed and selecting one explains why ("Connect X in Settings." / "X is turned off in Settings.") with an Open Settings action. A saved choice that is no longer allowed falls back to the default of the first ready provider.
 
 ## Pairing (QR sign-in)
-- `POST /auth/pair` (signed in) returns `{code, expiresAt, urls, link}`. The code is 128-bit, single-use and valid for 2 minutes; one live code per user. `urls` are the backend's addresses, best first (local network, Tailscale, `KOREMIND_PUBLIC_URL`). `link` is `koremind://pair?c=<code>&u=<url>&u=<url>` (percent-encoded) and is what the QR contains.
-- `POST /auth/pair/redeem {code}` (no auth) trades the code for a normal session of the same account. Guessing is rate limited per address (10 attempts per 15 minutes).
+- `POST /auth/pair` (signed in) returns `{code, expiresAt, urls, link}`. Pairing is **Kore ID-backed**: the signed-in session it starts from came from a Kore ID sign-in. The code is 128-bit, single-use and valid for 2 minutes; one live code per user. `urls` are the backend's addresses, best first (local network, Tailscale, `KOREMIND_PUBLIC_URL`). `link` is `koremind://pair?c=<code>&u=<url>&u=<url>` (percent-encoded) and is what the QR contains.
+- `POST /auth/pair/redeem {code}` (no auth) trades the code for a normal session of the same account. It cannot create an account. Guessing is rate limited per address (10 attempts per 15 minutes).
 - Web shows the QR (Settings → Account → Connect your phone). Android scans it, or opens the `koremind://pair` link: it tries each url's `/health` in order, redeems against the first that answers, and saves the url and token.
 
 ## StreamEvent (SSE `data:` lines)
@@ -74,7 +74,10 @@ A stream ends after `error`, or after `done` (and on the first turn of a chat up
 
 ## Examples
 ```
-POST /auth/login {"email":"me@home.lan","password":"correct horse"}
+POST /auth/oidc/start {"challenge":"<43-char PKCE S256>","platform":"web","returnTo":"https://koremind.example.com/login"}
+-> {"url":"https://id.kore.example/authorize?…"}      # open it; Kore ID redirects back with #sso_ticket=…
+
+POST /auth/oidc/exchange {"ticket":"…","verifier":"<the secret behind the challenge>"}
 -> {"token":"…","user":{"id":"u1","email":"me@home.lan","isOwner":true}}
 
 POST /chats/c1/messages {"text":"note: buy milk","attachmentIds":[],"model":{"providerId":"opencode","modelId":"big-pickle"}}
@@ -87,7 +90,7 @@ POST /chats/c1/messages {"text":"note: buy milk","attachmentIds":[],"model":{"pr
 
 ## Kore ID (single sign-on)
 
-Off unless `KOREMIND_OIDC_ISSUER` is set; `GET /health` then reports `sso: true` and `passwordLogin`. The backend is the OIDC client; clients only handle a one-time ticket. Details and settings: [kore-id.md](kore-id.md).
+Kore ID is the **only** human sign-in. `KOREMIND_OIDC_ISSUER` is required; `GET /health` reports `sso: true` when it is set. The backend is the OIDC client; clients only handle a one-time ticket. Details and settings: [kore-id.md](kore-id.md).
 
-- `Authorization: Bearer <Kore ID access token>` (header `typ: at+jwt`, audience `koremind`) is accepted next to KoreMind's own session tokens, for accounts that are linked to that Kore ID `sub`. Anything whose `typ` isn't `at+jwt` (ID tokens, logout tokens) is refused. Unlinked subjects get 401; bearers never create accounts.
-- With `KOREMIND_PASSWORD_LOGIN=0`, `/auth/register` and `/auth/login` answer 403 `password_disabled`.
+- `Authorization: Bearer <Kore ID access token>` (header `typ: at+jwt`, audience `koremind`) is accepted next to KoreMind's own opaque session tokens, for accounts that are linked to that Kore ID `sub`. Anything whose `typ` isn't `at+jwt` (ID tokens, logout tokens) is refused. Unlinked subjects get 401; bearers never create accounts.
+- There is no password login or registration endpoint: `/auth/login` and `/auth/register` are gone (404).

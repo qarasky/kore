@@ -18,7 +18,7 @@ services:
       KOREMIND_PUBLIC_URL: ${KOREMIND_PUBLIC_URL:-}
       # Only when a proxy on ANOTHER machine terminates TLS in front of KoreMind.
       KOREMIND_TRUST_PROXY: ${KOREMIND_TRUST_PROXY:-}
-      # Kore ID single sign-on (docs/kore-id.md). Off while KOREMIND_OIDC_ISSUER is empty.
+      # Kore ID single sign-on (docs/kore-id.md). REQUIRED: it is the only sign-in. Set KOREMIND_OIDC_ISSUER.
       KOREMIND_OIDC_ISSUER: ${KOREMIND_OIDC_ISSUER:-}
       KOREMIND_OIDC_CLIENT_ID: ${KOREMIND_OIDC_CLIENT_ID:-koremind}
       KOREMIND_OIDC_CLIENT_SECRET: ${KOREMIND_OIDC_CLIENT_SECRET:-}
@@ -30,8 +30,6 @@ services:
       KOREMIND_WEB_ORIGINS: ${KOREMIND_WEB_ORIGINS:-}
       # The other Kore apps for the web UI's app switcher: kore=https://…,korecalendar=https://…,flatline=https://…
       KOREMIND_KORE_APPS: ${KOREMIND_KORE_APPS:-}
-      # 0 = turn email + password sign-in off (only with Kore ID configured).
-      KOREMIND_PASSWORD_LOGIN: ${KOREMIND_PASSWORD_LOGIN:-}
 
   web:
     image: ghcr.io/qarasky/koremind-web:${KOREMIND_VERSION:-latest}

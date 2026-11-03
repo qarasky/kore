@@ -94,21 +94,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     init { if (_session.value.signedIn) refreshAll() }
 
     // ---- session -----------------------------------------------------------
-    /** Checks the server answers, then remembers it. Returns the server's setupRequired flag. */
-    suspend fun connect(input: String): Result<Boolean> {
+    /** Checks the server answers, then remembers it. */
+    suspend fun connect(input: String): Result<Unit> {
         val url = normalizeBackendUrl(input) ?: return Result.failure(IllegalArgumentException("That doesn't look like an address. Try something like 192.168.1.20:8787."))
         return try {
-            val h = KoreMindApi(url) { null }.health()
+            KoreMindApi(url) { null }.health()
             prefs.baseUrl = url; prefs.signOut()
             api = KoreMindApi(url) { prefs.token }
             _session.value = Session(url, false, null); _me.value = null
-            Result.success(h.setupRequired)
+            Result.success(Unit)
         } catch (e: Exception) { Result.failure(e) }
     }
 
-    suspend fun setupRequired(): Boolean = try { api?.health()?.setupRequired ?: false } catch (_: Exception) { false }
-
-    /** The server's /health (it says whether Kore ID and password sign-in are on), or null when it can't be reached. */
+    /** The server's /health (it says whether Kore ID is on), or null when it can't be reached. */
     suspend fun health(): Health? = try { api?.health() } catch (_: Exception) { null }
 
     // ---- Kore ID ------------------------------------------------------------
@@ -157,15 +155,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
-
-    suspend fun authenticate(email: String, password: String, create: Boolean): Result<Unit> = try {
-        val a = api ?: error("Not connected")
-        val r = if (create) a.register(email, password) else a.login(email, password)
-        prefs.token = r.token; prefs.email = r.user.email
-        _session.value = Session(prefs.baseUrl, true, r.user.email)
-        refreshAll()
-        Result.success(Unit)
-    } catch (e: Exception) { Result.failure(e) }
 
     /**
      * Signs out here at once. The server call runs in the background with the token captured now (the local copy is cleared

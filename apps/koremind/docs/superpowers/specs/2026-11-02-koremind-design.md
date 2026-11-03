@@ -5,6 +5,7 @@
 > - **Providers:** besides OpenCode there are **Codex** (OpenAI via ChatGPT sign-in or an API key) and **OpenRouter** (API key). Each can be turned off per user, and OpenCode and OpenRouter can be limited to free models. Unusable providers are dimmed in the model picker with an explanation.
 > - **Settings:** now five sections (Models, Providers, Personalization, Memory, Account) with autosave. Memory moved inside Settings.
 > - **Sign-in:** a signed-in web session can show a QR code that signs the Android app in as the same account.
+> - **Authentication:** **Kore ID only.** Email + password login, first-account registration and password setup/reset were removed on web, Android and the backend. Existing accounts link to Kore ID by verified email; QR pairing is Kore ID-backed.
 > - **Chat titles:** after the first answer the chosen model names the chat.
 > - **Engine:** the OpenCode SDK could not be used (see `docs/superpowers/notes/engine-spike.md`); KoreMind talks to `opencode serve` over HTTP.
 

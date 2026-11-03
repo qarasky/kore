@@ -9,6 +9,7 @@ import { FakeEngine } from "../src/engine/fake";
 import { createApp } from "../src/http";
 import { createOidc, s256 } from "../src/oidc";
 import { createServices } from "../src/services";
+import { addUser } from "./helpers";
 
 const ISSUER = "https://id.kore.test";
 const WEB = "http://localhost:3210";
@@ -65,12 +66,12 @@ const cfgOf = (o: Partial<OidcConfig> = {}): OidcConfig => ({
   autoProvision: true, allowedEmails: [], emailLink: true, ownerEmail: "", backchannelLogoutUri: "http://localhost:8787/auth/backchannel-logout", webOrigins: [], ...o,
 });
 
-function setup(o: { oidc?: Partial<OidcConfig>; passwordLogin?: boolean; kore?: Parameters<typeof koreId>[0] } = {}) {
+function setup(o: { oidc?: Partial<OidcConfig>; kore?: Parameters<typeof koreId>[0] } = {}) {
   const kore = koreId(o.kore);
   const oidc = cfgOf(o.oidc);
   const services = createServices({
     db: openDb(":memory:"), dataDir: mkdtempSync(join(tmpdir(), "koremind-sso-")), engine: new FakeEngine({ reply: () => [] }), version: "0.0.0-test",
-    oidc, oidcClient: createOidc(oidc, { fetch: kore.fetchImpl, jwks: jwks as never }), passwordLogin: o.passwordLogin,
+    oidc, oidcClient: createOidc(oidc, { fetch: kore.fetchImpl, jwks: jwks as never }),
   });
   const app = createApp(services, { trustProxy: true });
   const call = (method: string, path: string, opts: { token?: string; body?: unknown } = {}) =>
@@ -218,8 +219,8 @@ describe("provisioning policy", () => {
     const t = setup({ oidc: { ownerEmail: "bob@example.com" } });
     expect((await t.browserLogin(alice)).loc).toBe(`${WEB}/login#sso_error=owner_pending`);
     expect((await t.browserLogin(bob)).loc).toBe(`${WEB}/login#sso_error=owner_pending`); // email_verified missing
-    // password setup of the first account is closed: it could claim the owner's email without proving it
-    expect((await t.call("POST", "/auth/register", { body: { email: "bob@example.com", password: "correct horse" } })).status).toBe(403);
+    // there is no password setup route that could claim the owner's email without proving it
+    expect((await t.call("POST", "/auth/register", { body: { email: "bob@example.com", password: "correct horse" } })).status).toBe(404);
     expect(t.services.db.query("select count(*) c from users").get()).toEqual({ c: 0 });
     const b = (await (await t.exchange(t.ticketOf((await t.browserLogin({ ...bob, email_verified: true })).loc))).json()) as { user: { isOwner: boolean } };
     expect(b.user.isOwner).toBe(true);
@@ -236,8 +237,9 @@ describe("provisioning policy", () => {
 describe("existing local accounts", () => {
   const withLocalOwner = async (o: Parameters<typeof setup>[0] = {}) => {
     const t = setup(o);
-    const r = (await (await t.call("POST", "/auth/register", { body: { email: "alice@example.com", password: "correct horse" } })).json()) as { token: string };
-    return { ...t, localToken: r.token };
+    // A pre-Kore ID account: its chats and owner flag survive; the legacy password is not used anymore.
+    const user = addUser(t.services.db, "alice@example.com", { owner: true });
+    return { ...t, localToken: t.services.auth.issueFor(user.id).token };
   };
   test("same email without email_verified: true is NOT linked", async () => {
     const t = await withLocalOwner();
@@ -254,8 +256,8 @@ describe("existing local accounts", () => {
     const me = (await (await t.call("GET", "/me", { token: t.localToken })).json()) as { id: string };
     const r = (await (await t.exchange(t.ticketOf((await t.browserLogin({ ...alice, email_verified: true })).loc))).json()) as { user: { id: string; isOwner: boolean } };
     expect(r.user).toMatchObject({ id: me.id, isOwner: true });
-    // the password still works too
-    expect((await t.call("POST", "/auth/login", { body: { email: "alice@example.com", password: "correct horse" } })).status).toBe(200);
+    // there is no password fallback: the account is reached through Kore ID only
+    expect((await t.call("POST", "/auth/login", { token: t.localToken, body: { email: "alice@example.com", password: "correct horse" } })).status).toBe(404);
   });
   test("a signed-in user can link their own Kore ID, then signs in with it", async () => {
     const t = await withLocalOwner();
@@ -273,27 +275,30 @@ describe("existing local accounts", () => {
   });
   test("a Kore ID already linked to someone else cannot be linked again", async () => {
     const t = setup();
-    const owner = (await (await t.exchange(t.ticketOf((await t.browserLogin(alice)).loc))).json()) as { token: string };
-    const local = (await (await t.call("POST", "/auth/register", { token: owner.token, body: { email: "c@example.com", password: "correct horse" } })).json()) as { token: string };
-    expect((await t.browserLogin(alice, { token: local.token })).loc).toBe(`${WEB}/login#sso_error=sub_taken`);
+    await t.exchange(t.ticketOf((await t.browserLogin(alice)).loc));
+    const localUser = addUser(t.services.db, "c@example.com", { owner: false });
+    const localToken = t.services.auth.issueFor(localUser.id).token;
+    expect((await t.browserLogin(alice, { token: localToken })).loc).toBe(`${WEB}/login#sso_error=sub_taken`);
     // an account already linked to a different Kore ID cannot be re-pointed
     const bobToken = (await (await t.exchange(t.ticketOf((await t.browserLogin(bob)).loc))).json()) as { token: string };
     expect((await t.browserLogin(alice, { token: bobToken.token })).loc).toBe(`${WEB}/login#sso_error=already_linked`);
   });
 });
 
-describe("password login switch", () => {
-  test("Kore ID accounts have no password", async () => {
+describe("Kore ID is the only sign-in", () => {
+  test("there are no password login or registration routes, and Kore ID accounts have no password", async () => {
     const t = setup();
-    await t.exchange(t.ticketOf((await t.browserLogin(alice)).loc));
-    expect((await t.call("POST", "/auth/login", { body: { email: "alice@example.com", password: "" .padEnd(12, "x") } })).status).toBe(401);
+    const { token } = (await (await t.exchange(t.ticketOf((await t.browserLogin(alice)).loc))).json()) as { token: string };
+    expect((await t.call("POST", "/auth/login", { token, body: { email: "alice@example.com", password: "x".repeat(12) } })).status).toBe(404);
+    expect((await t.call("POST", "/auth/register", { token, body: { email: "a@b.co", password: "correct horse" } })).status).toBe(404);
   });
-  test("passwordLogin=false refuses register and login but SSO and /health still work", async () => {
-    const t = setup({ passwordLogin: false });
-    expect(await (await t.call("GET", "/health")).json()).toMatchObject({ sso: true, passwordLogin: false, koreId: { issuer: ISSUER, accountUrl: `${ISSUER}/account` } });
-    expect((await t.call("POST", "/auth/register", { body: { email: "a@b.co", password: "correct horse" } })).status).toBe(403);
-    expect((await t.call("POST", "/auth/login", { body: { email: "a@b.co", password: "correct horse" } })).status).toBe(403);
+  test("/health reports Kore ID and that setup is done, with no password switch", async () => {
+    const t = setup();
+    const empty = (await (await t.call("GET", "/health")).json()) as Record<string, unknown>;
+    expect(empty).toMatchObject({ sso: true, setupRequired: true, koreId: { issuer: ISSUER, accountUrl: `${ISSUER}/account` } });
+    expect(empty).not.toHaveProperty("passwordLogin");
     expect((await t.exchange(t.ticketOf((await t.browserLogin(alice)).loc))).status).toBe(200);
+    expect(((await (await t.call("GET", "/health")).json()) as { setupRequired: boolean }).setupRequired).toBe(false);
   });
   test("pairing still works for SSO sessions", async () => {
     const t = setup();
@@ -354,14 +359,14 @@ test("the routes answer 404 when Kore ID is not configured", async () => {
 });
 
 describe("config", () => {
-  test("Kore ID is off unless the issuer is set, and password login cannot be turned off then", () => {
+  test("Kore ID is off unless the issuer is set; the old password flag is ignored", () => {
     const c = loadConfig({ KOREMIND_PASSWORD_LOGIN: "0" });
     expect(c.oidc).toBeNull();
-    expect(c.passwordLogin).toBe(true);
+    expect(c).not.toHaveProperty("passwordLogin");
   });
   test("defaults and overrides", () => {
     const c = loadConfig({ KOREMIND_PORT: "9000", KOREMIND_OIDC_ISSUER: "https://id.kore.test/", KOREMIND_OIDC_CLIENT_SECRET: " s ", KOREMIND_PUBLIC_URL: "https://api.example.com/", KOREMIND_PASSWORD_LOGIN: "false", KOREMIND_OIDC_ALLOWED_EMAILS: "A@b.c, @d.e", KOREMIND_WEB_ORIGINS: "https://app.example.com/" });
-    expect(c.passwordLogin).toBe(false);
+    expect(c).not.toHaveProperty("passwordLogin");
     expect(c.oidc).toMatchObject({ issuer: "https://id.kore.test", clientId: "koremind", clientSecret: "s", redirectUri: "https://api.example.com/auth/callback", backchannelLogoutUri: "https://api.example.com/auth/backchannel-logout", scopes: "openid profile email", autoProvision: true, emailLink: true, ownerEmail: "", allowedEmails: ["a@b.c", "@d.e"], webOrigins: ["https://app.example.com"] });
   });
   test("provisioning switches, the owner pin, and the old name of the email-link switch", () => {
@@ -410,14 +415,16 @@ describe("back-channel logout", () => {
     expect(await alive(t, bobs)).toBe(true);
   });
 
-  test("without a sid it ends every session of the account linked to that sub (password sessions too)", async () => {
+  test("without a sid it ends every session of the account linked to that sub", async () => {
     const t = setup();
-    const pw = ((await (await t.call("POST", "/auth/register", { body: { email: "alice@example.com", password: "correct horse" } })).json()) as { token: string }).token;
+    // A session that existed before the Kore ID link (created directly, as there is no password route anymore).
+    const local = addUser(t.services.db, "alice@example.com", { owner: true });
+    const localSession = t.services.auth.issueFor(local.id).token;
     const sso = await signIn(t, { ...alice, email_verified: true, sid: "kore-sid-1" }); // links by verified email
     const bobs = await signIn(t, bob);
     expect((await send(t, await logoutToken({ sub: alice.sub }))).status).toBe(200);
     expect(await alive(t, sso)).toBe(false);
-    expect(await alive(t, pw)).toBe(false);
+    expect(await alive(t, localSession)).toBe(false);
     expect(await alive(t, bobs)).toBe(true);
     // an unknown sub is fine (nothing to end), still 200
     expect((await send(t, await logoutToken({ sub: "99999999-9999-4999-8999-999999999999" }))).status).toBe(200);

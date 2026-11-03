@@ -20,7 +20,7 @@ export type OidcConfig = {
   emailLink: boolean;
   /**
    * Pins who becomes the owner of an empty KoreMind: only a Kore ID sign-in with this (verified) email can create the first
-   * account, and password setup of the first account is closed. Empty = the first account made (Kore ID or password) is the owner.
+   * account. Empty = the first Kore ID account is the owner.
    */
   ownerEmail: string;
   /** This backend's back-channel logout endpoint, to register in Kore ID as the client's `backchannelLogoutUri`. */
@@ -33,9 +33,7 @@ export type Config = {
   port: number;
   dataDir: string;
   host: "0.0.0.0";
-  /** Email + password sign-in and registration. On unless KOREMIND_PASSWORD_LOGIN=0 (only honoured when Kore ID is configured). */
-  passwordLogin: boolean;
-  /** Null when Kore ID is not configured (KOREMIND_OIDC_ISSUER unset). */
+  /** This is the only way in. Null when Kore ID is not configured (KOREMIND_OIDC_ISSUER unset); the server then refuses every sign-in. */
   oidc: OidcConfig | null;
   /** Other Kore apps for the web UI's app switcher, from KOREMIND_KORE_APPS (`kore=https://…,korecalendar=https://…`). */
   apps: Partial<Record<"kore" | "koremind" | "korecalendar" | "flatline", string>>;
@@ -68,8 +66,8 @@ export function loadConfig(env: Record<string, string | undefined>, readFile: (p
       webOrigins: (env.KOREMIND_WEB_ORIGINS ?? "").split(",").map((s) => s.trim().replace(/\/+$/, "")).filter(Boolean),
     };
   }
-  // Turning password login off without a working alternative would lock everyone out, so it needs Kore ID.
-  const passwordLogin = oidc ? flag(env.KOREMIND_PASSWORD_LOGIN, true) : true;
+  // There is no password fallback: Kore ID is the only human sign-in. The owner is pinned by KOREMIND_OIDC_OWNER_EMAIL
+  // (or is the first Kore ID account); everyone else is auto-provisioned.
   const apps: Config["apps"] = {};
   for (const pair of (env.KOREMIND_KORE_APPS ?? "").split(",")) {
     const [k, ...rest] = pair.split("=");
@@ -79,5 +77,5 @@ export function loadConfig(env: Record<string, string | undefined>, readFile: (p
     if (!/^https?:\/\//.test(url)) throw new Error(`KOREMIND_KORE_APPS: ${key} needs an http(s) URL`);
     apps[key as keyof Config["apps"]] = url;
   }
-  return { port, dataDir: env.KOREMIND_DATA_DIR ?? "./data", host: "0.0.0.0", passwordLogin, oidc, apps };
+  return { port, dataDir: env.KOREMIND_DATA_DIR ?? "./data", host: "0.0.0.0", oidc, apps };
 }

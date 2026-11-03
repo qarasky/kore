@@ -1,5 +1,5 @@
 import type {
-  Attachment, AuthRequest, AuthResponse, ChatMessage, ChatSummary, Health, LogoutResponse, MemoryEntry, PairStart, ProviderConnection, ProviderInfo, SendMessageRequest, Settings, SignInStart, SsoStart, SsoStartResponse, SignInStatus, StreamEvent, User,
+  Attachment, AuthResponse, ChatMessage, ChatSummary, Health, LogoutResponse, MemoryEntry, PairStart, ProviderConnection, ProviderInfo, SendMessageRequest, Settings, SignInStart, SsoStart, SsoStartResponse, SignInStatus, StreamEvent, User,
 } from "@koremind/shared";
 import { parseStream } from "./stream";
 
@@ -30,8 +30,6 @@ export function createApi(baseUrl: string, getToken: () => string | null) {
   return {
     baseUrl,
     health: () => req<Health>("GET", "/health"),
-    register: (b: AuthRequest) => req<AuthResponse>("POST", "/auth/register", b),
-    login: (b: AuthRequest) => req<AuthResponse>("POST", "/auth/login", b),
     logout: () => req<LogoutResponse>("POST", "/auth/logout"),
     ssoStart: (b: SsoStart) => req<SsoStartResponse>("POST", "/auth/oidc/start", b),
     ssoExchange: (ticket: string, verifier: string) => req<AuthResponse>("POST", "/auth/oidc/exchange", { ticket, verifier }),

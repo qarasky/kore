@@ -34,7 +34,7 @@ const engine = process.env.KOREMIND_FAKE_ENGINE
 const version = (await Bun.file(join(import.meta.dir, "../package.json")).json()).version ?? "0.1.0";
 let servicePort = config.port;
 // eslint-disable-next-line prefer-const
-const services = createServices({ db: openDb(join(config.dataDir, "koremind.sqlite")), dataDir: config.dataDir, engine, version, mcpSecret, oidc: config.oidc, passwordLogin: config.passwordLogin, apps: config.apps, addresses: () => listAddresses(networkInterfaces(), servicePort, process.env).map((a) => a.url) });
+const services = createServices({ db: openDb(join(config.dataDir, "koremind.sqlite")), dataDir: config.dataDir, engine, version, mcpSecret, oidc: config.oidc, apps: config.apps, addresses: () => listAddresses(networkInterfaces(), servicePort, process.env).map((a) => a.url) });
 const app = createApp(services, { trustProxy: process.env.KOREMIND_TRUST_PROXY === "1" });
 
 const server = Bun.serve({
@@ -47,9 +47,10 @@ const server = Bun.serve({
 servicePort = server.port ?? config.port;
 if (config.oidc) {
   const o = config.oidc;
-  console.log(`Kore ID sign-in is on (${o.issuer}, client ${o.clientId}). In Kore ID's clients.json register redirectUris: ["${o.redirectUri}"] and backchannelLogoutUri: "${o.backchannelLogoutUri}".${config.passwordLogin ? "" : " Password sign-in is off."}`);
-  console.log(`  New accounts: ${o.autoProvision ? "anyone Kore ID lets into this app" : "first user and allow-list only"}${o.allowedEmails.length ? `, limited to ${o.allowedEmails.join(", ")}` : ""}. Owner of an empty instance: ${o.ownerEmail || "the first account"}. Link by verified email: ${o.emailLink ? "on" : "off"}.`);
+  console.log(`Kore ID sign-in is on (${o.issuer}, client ${o.clientId}). In Kore ID's clients.json register redirectUris: ["${o.redirectUri}"] and backchannelLogoutUri: "${o.backchannelLogoutUri}".`);
+  console.log(`  New accounts: ${o.autoProvision ? "anyone Kore ID lets into this app" : "first user and allow-list only"}${o.allowedEmails.length ? `, limited to ${o.allowedEmails.join(", ")}` : ""}. Owner of an empty instance: ${o.ownerEmail || "the first Kore ID account"}. Link by verified email: ${o.emailLink ? "on" : "off"}.`);
 }
+if (!config.oidc) console.log("Kore ID is not configured (KOREMIND_OIDC_ISSUER is empty). Nobody can sign in until it is set.");
 console.log(`KoreMind backend ${version} is running${process.env.KOREMIND_FAKE_ENGINE ? " (fake engine)" : ""}. Point the apps at:`);
 for (const a of listAddresses(networkInterfaces(), server.port ?? config.port, process.env)) console.log(`  ${a.label.padEnd(9)} ${a.url}`);
 
