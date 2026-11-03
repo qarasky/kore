@@ -86,8 +86,8 @@ test.describe.serial("what an editor save must not do", () => {
     // Anywhere but where the grid opens by itself (which depends on the time of day), so a
     // reset to the opening position cannot pass by coincidence.
     const opening = await grid.evaluate((el) => el.scrollTop);
-    // The top is always reachable; the bottom is clamped to the grid's own height, so only go there from near the top.
-    await grid.evaluate((el, target) => (el.scrollTop = target), opening < 200 ? 600 : 0);
+    // Two targets, both reachable and both well away from the opening position wherever it is.
+    await grid.evaluate((el, target) => (el.scrollTop = target), opening < 280 ? 520 : 120);
     const before = await grid.evaluate((el) => el.scrollTop);
     expect(Math.abs(before - opening)).toBeGreaterThan(100);
     const dialog = await openEditor(page, eventBlocks(page, "Late"));
