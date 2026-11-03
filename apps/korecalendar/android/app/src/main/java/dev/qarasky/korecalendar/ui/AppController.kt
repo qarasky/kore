@@ -15,6 +15,13 @@ import dev.qarasky.korecalendar.edit.EventEditor
 import dev.qarasky.korecalendar.edit.FormValues
 import dev.qarasky.korecalendar.edit.Messages
 import dev.qarasky.korecalendar.edit.newFormValues
+import dev.qarasky.korecalendar.views.RangeResult
+import dev.qarasky.korecalendar.views.RangeSource
+import dev.qarasky.korecalendar.views.SearchResult
+import dev.qarasky.korecalendar.views.SearchSource
+import dev.qarasky.korecalendar.views.View
+import dev.qarasky.korecalendar.views.WeekStart
+import dev.qarasky.korecalendar.views.navigate
 import dev.qarasky.korecalendar.sync.SyncEngine
 import dev.qarasky.korecalendar.sync.SyncResult
 import java.time.DateTimeException
@@ -52,6 +59,10 @@ sealed interface AppState {
         val calendars: List<CalendarChoice>,
         val clock24: Boolean,
         val zone: ZoneId,
+        val view: View = View.Agenda,
+        /** The day the Day, Week and Month views are showing (today unless the person moved). */
+        val day: java.time.LocalDate = java.time.LocalDate.MIN,
+        val weekStart: WeekStart = WeekStart.Mon,
     ) : AppState
 }
 
@@ -82,6 +93,17 @@ class AppController(
     private val _notice = MutableStateFlow<Notice?>(null)
     val notice: StateFlow<Notice?> = _notice
 
+    private var anchor: java.time.LocalDate? = null
+
+    private fun currentApi(): CalendarApi? {
+        val account = accounts.load() ?: return null
+        if (accounts.isRevoked()) return null
+        val server = normalizeServerUrl(account.serverUrl) ?: ServerUrl(account.serverUrl, account.serverUrl.startsWith("http://"))
+        return apiFor(server, account.token)
+    }
+
+    private val ranges = RangeSource({ currentApi() }, store)
+
     private var syncState: SyncState = SyncState.Idle
     private val mutex = Mutex()
 
@@ -110,6 +132,7 @@ class AppController(
         val server = normalizeServerUrl(account.serverUrl) ?: ServerUrl(account.serverUrl, account.serverUrl.startsWith("http://"))
         val result = SyncEngine(apiFor(server, account.token), store, account.userId, now).sync()
         repo.refreshFromStore()
+        ranges.forget()
         syncState = when (result) {
             is SyncResult.Ok -> SyncState.Idle
             SyncResult.Offline -> SyncState.Offline
@@ -135,6 +158,8 @@ class AppController(
     }
 
     suspend fun signOut() {
+        anchor = null
+        ranges.forget()
         _editor.value = null
         _notice.value = null
         background.cancelSync()
@@ -170,6 +195,51 @@ class AppController(
         // The next hour wraps past midnight: it is tomorrow at 00:00 (as on the web), not a time that is already past.
         val wraps = target == local.toLocalDate() && time < local.toLocalTime()
         return newFormValues(if (wraps) target.plusDays(1) else target, time, 60, false, zone.id, calendarId)
+    }
+
+    suspend fun setView(v: View) {
+        prefs.view = v
+        publish()
+    }
+
+    suspend fun setWeekStart(ws: WeekStart) {
+        prefs.weekStart = ws
+        publish()
+        background.refreshWidgets()
+    }
+
+    /** Previous (-1) or next (1) day, week or month. */
+    fun step(dir: Int) {
+        val day = (_state.value as? AppState.Ready)?.day ?: return
+        anchor = navigate(prefs.view, day, dir)
+        publish()
+    }
+
+    /** Shows [day] in [view] (a tap on a day of the month goes to that day). */
+    suspend fun goTo(day: java.time.LocalDate, view: View) {
+        anchor = day
+        prefs.view = view
+        publish()
+    }
+
+    fun today() {
+        anchor = null
+        publish()
+    }
+
+    /** What the views show for a range of time, without the calendars the person hid. */
+    suspend fun loadRange(from: Instant, to: Instant): RangeResult {
+        val hidden = prefs.hiddenCalendars
+        val r = ranges.load(from, to)
+        return r.copy(occurrences = r.occurrences.filter { it.calendarId !in hidden })
+    }
+
+    suspend fun search(q: String): SearchResult {
+        val account = accounts.load()
+        val zone = account?.let { zoneOf(it.timezone) } ?: ZoneId.of("UTC")
+        val hidden = prefs.hiddenCalendars
+        val r = SearchSource({ currentApi() }, store, zone, now).search(q)
+        return r.copy(occurrences = r.occurrences.filter { it.calendarId !in hidden })
     }
 
     /** Opens the editor on a new event on [day] (today by default). */
@@ -257,6 +327,9 @@ class AppController(
             calendars = snapshot.calendars.map { CalendarChoice(it, it.id in hidden) },
             clock24 = prefs.clock24,
             zone = zone,
+            view = prefs.view,
+            day = anchor ?: now().atZone(zone).toLocalDate(),
+            weekStart = prefs.weekStart,
         )
     }
 }

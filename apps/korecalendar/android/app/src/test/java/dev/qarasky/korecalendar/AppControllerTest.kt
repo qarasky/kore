@@ -282,4 +282,44 @@ class AppControllerTest {
         controller.delete(occ("gym").copy(isRecurring = true), dev.qarasky.korecalendar.edit.Scope.This)
         assertEquals(dev.qarasky.korecalendar.ui.Notice("Event deleted", null), controller.notice.value)
     }
+
+    // --- views
+
+    @Test fun theViewAndTheWeekStartAreChosenAndRemembered() = runTest {
+        signedIn()
+        assertEquals(dev.qarasky.korecalendar.views.View.Agenda, ready().view)
+        controller.setView(dev.qarasky.korecalendar.views.View.Month)
+        assertEquals(dev.qarasky.korecalendar.views.View.Month, ready().view)
+        assertEquals("month", kv.get("prefs.view"))
+        controller.setWeekStart(dev.qarasky.korecalendar.views.WeekStart.Sun)
+        assertEquals(dev.qarasky.korecalendar.views.WeekStart.Sun, ready().weekStart)
+        assertEquals("sun", kv.get("prefs.weekstart"))
+    }
+
+    @Test fun theDayMovesWithPreviousNextTodayAndAJumpToADay() = runTest {
+        signedIn()
+        val v = dev.qarasky.korecalendar.views.View.Day
+        controller.setView(v)
+        assertEquals(java.time.LocalDate.parse("2026-11-04"), ready().day)
+        controller.step(1)
+        assertEquals(java.time.LocalDate.parse("2026-11-05"), ready().day)
+        controller.goTo(java.time.LocalDate.parse("2026-12-24"), dev.qarasky.korecalendar.views.View.Day)
+        assertEquals(java.time.LocalDate.parse("2026-12-24"), ready().day)
+        controller.today()
+        assertEquals(java.time.LocalDate.parse("2026-11-04"), ready().day)
+        controller.setView(dev.qarasky.korecalendar.views.View.Month)
+        controller.step(-1)
+        assertEquals(java.time.LocalDate.parse("2026-10-04"), ready().day)
+    }
+
+    @Test fun aRangeHidesHiddenCalendarsAndSearchToo() = runTest {
+        signedIn()
+        api.onOccurrences = { _, _ -> listOf(occ("gym"), occ("home", "c2")) }
+        val from = Instant.parse("2026-11-03T00:00:00Z"); val to = Instant.parse("2026-11-10T00:00:00Z")
+        assertEquals(listOf("gym"), controller.loadRange(from, to).occurrences.map { it.eventId })
+        controller.toggleCalendar("c1")
+        assertEquals(emptyList<String>(), controller.loadRange(from, to).occurrences.map { it.eventId })
+        api.onOccurrences = { _, _ -> listOf(occ("gym"), occ("home", "c2")) }
+        assertEquals(listOf("home"), controller.search("o").occurrences.map { it.eventId })
+    }
 }

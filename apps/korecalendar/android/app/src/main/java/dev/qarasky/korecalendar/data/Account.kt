@@ -116,7 +116,17 @@ class Prefs(private val kv: KeyValue) {
         get() = kv.get(HIDDEN)?.split(',')?.filter { it.isNotEmpty() }?.toSet() ?: emptySet()
         set(v) = kv.put(HIDDEN, v.sorted().joinToString(","))
 
+    var view: dev.qarasky.korecalendar.views.View
+        get() = dev.qarasky.korecalendar.views.View.parse(kv.get(VIEW)) ?: dev.qarasky.korecalendar.views.View.Agenda
+        set(v) = kv.put(VIEW, v.wire)
+
+    var weekStart: dev.qarasky.korecalendar.views.WeekStart
+        get() = dev.qarasky.korecalendar.views.WeekStart.parse(kv.get(WEEK_START)) ?: dev.qarasky.korecalendar.views.WeekStart.Mon
+        set(v) = kv.put(WEEK_START, v.wire)
+
     private companion object {
+        const val VIEW = "prefs.view"
+        const val WEEK_START = "prefs.weekstart"
         const val CLOCK = "prefs.clock"
         const val HIDDEN = "prefs.hidden"
     }
