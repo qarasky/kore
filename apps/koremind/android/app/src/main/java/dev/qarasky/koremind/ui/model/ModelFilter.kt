@@ -28,6 +28,7 @@ fun isReady(p: ProviderInfo): Boolean = p.status == "ready"
 /** Real logos for the providers KoreMind offers. Unknown ids get the initial-letter fallback. */
 @androidx.annotation.DrawableRes
 fun providerIconRes(id: String): Int? = when (id) {
+    "groq" -> R.drawable.ic_provider_groq
     "opencode" -> R.drawable.ic_provider_opencode
     "openai" -> R.drawable.ic_provider_openai
     "openrouter" -> R.drawable.ic_provider_openrouter

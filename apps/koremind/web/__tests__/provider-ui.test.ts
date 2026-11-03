@@ -11,6 +11,7 @@ const all = [opencode, codex, router];
 const settings: Settings = { memoryEnabled: true, displayName: "", tone: "", about: "", disabledProviders: [], freeOnlyProviders: [] };
 
 test("each known provider has a real logo key and unknown ones fall back to the initial", () => {
+  expect(providerIconKey("groq")).toBe("groq");
   expect(providerIconKey("opencode")).toBe("opencode");
   expect(providerIconKey("openai")).toBe("openai"); // Codex runs on OpenAI; there is no separate Codex logo
   expect(providerIconKey("openrouter")).toBe("openrouter");

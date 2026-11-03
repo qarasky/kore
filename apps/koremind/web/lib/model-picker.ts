@@ -21,8 +21,9 @@ export const lacksVision = (attachments: { mime: string }[], model: ModelInfo | 
 export const isReady = (p: ProviderInfo) => p.status === "ready";
 
 /** Which bundled logo a provider uses. Codex runs on OpenAI, so it shares OpenAI's mark. */
-export type ProviderIconKey = "opencode" | "openai" | "openrouter";
-export const providerIconKey = (id: string): ProviderIconKey | null => (id === "opencode" || id === "openai" || id === "openrouter" ? id : null);
+export type ProviderIconKey = "groq" | "opencode" | "openai" | "openrouter";
+const ICON_KEYS: readonly string[] = ["groq", "opencode", "openai", "openrouter"];
+export const providerIconKey = (id: string): ProviderIconKey | null => (ICON_KEYS.includes(id) ? (id as ProviderIconKey) : null);
 
 /** Providers that can't be used right now stay on the rail but are dimmed. */
 export const railDimmed = (p: ProviderInfo) => !isReady(p);

@@ -229,7 +229,13 @@ private fun ProvidersSection(vm: AppViewModel, settings: Settings?, onChange: (S
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(Modifier.size(36.dp).background(KoreMindColors.Raised, UiShape), contentAlignment = Alignment.Center) { ProviderIcon(p.id, p.name, 20.dp) }
                     Column {
-                        Text(p.name, fontWeight = FontWeight.Medium, maxLines = 1)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(p.name, fontWeight = FontWeight.Medium, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
+                            if (p.recommended) Text(
+                                stringResource(R.string.recommended), color = KoreMindColors.Accent, style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.border(1.dp, KoreMindColors.Accent.copy(alpha = 0.4f), CircleShape).padding(horizontal = 8.dp, vertical = 1.dp),
+                            )
+                        }
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Box(Modifier.size(6.dp).background(dot, CircleShape))
                             Text(

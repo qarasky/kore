@@ -22,7 +22,7 @@ Everything KoreMind stores lives under one directory, `KOREMIND_DATA_DIR` (this 
 
 - A 64-bit Linux (x86-64 or ARM64) with systemd, `curl`, `git`, `unzip`.
 - 1 GB of RAM is enough for one person; the models run on the provider's servers, not here.
-- Outbound internet (OpenCode, OpenRouter, web search).
+- Outbound internet (OpenCode, Groq, OpenRouter, web search).
 - Optional: Tailscale or a Cloudflare tunnel for use away from home (section 6).
 
 ## 3. Install
@@ -74,7 +74,7 @@ The log lists the addresses the backend is reachable at (local network, Tailscal
 
 **Create the owner account right away.** Open `http://<server-address>:3210` from a computer on the same network and register. The first account becomes the owner and registration then closes. Do this *before* exposing the server anywhere else.
 
-Then, in **Settings → Providers**, add a key for OpenRouter or Codex if you want more than OpenCode's free models. (Only the owner can change providers.)
+Then, in **Settings → Providers**, add a key for Groq or OpenRouter (the recommended ones) or Codex if you want more than OpenCode's free models. (Only the owner can change providers.)
 
 ## 5. The phone
 
@@ -160,7 +160,7 @@ The Codex **Sign in with ChatGPT** flow finishes in a browser on the machine tha
 | The log says the engine "exited during startup" | OpenCode is v1, or cannot write its state. Check `opencode --version` and that `/var/lib/koremind` is owned by `koremind`. |
 | Web UI opens but asks for a server address | Expected when you open it through a hostname or a different host than the backend. Enter the backend URL once. |
 | Phone says it couldn't reach the server | Different network, or the firewall. Open the printed address in the phone's browser: it should show a small JSON answer at `/health`. |
-| "Free usage limit reached" in chat | OpenCode's free quota is used up. Add an OpenRouter or Codex key in Settings → Providers. |
+| "Free usage limit reached" in chat | OpenCode's free quota is used up. Add a Groq, OpenRouter or Codex key in Settings → Providers. |
 | Answers stop after a few seconds behind a proxy | The proxy is buffering the stream; see section 6. |
 | The page is blank after an update | Run `bun run build` again, then restart. The web UI is a production build. |
 

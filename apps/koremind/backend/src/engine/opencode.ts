@@ -41,11 +41,15 @@ export function mapEvent(sessionId: string, raw: Raw): EngineEvent[] {
   }
 }
 
-/** Providers KoreMind offers. Everything else OpenCode knows about stays hidden: few providers, no config sprawl. */
-const OFFERED: { id: string; name: string }[] = [
-  { id: "opencode", name: "OpenCode" },
-  { id: "openai", name: "Codex" },
-  { id: "openrouter", name: "OpenRouter" },
+/**
+ * Providers KoreMind offers, in the order clients show them: the recommended ones first.
+ * Everything else OpenCode knows about stays hidden: few providers, no config sprawl.
+ */
+export const OFFERED: { id: string; name: string; recommended: boolean }[] = [
+  { id: "groq", name: "Groq", recommended: true },
+  { id: "openrouter", name: "OpenRouter", recommended: true },
+  { id: "opencode", name: "OpenCode", recommended: false },
+  { id: "openai", name: "Codex", recommended: false },
 ];
 
 export function mapConnections(integrations: any[]): ProviderConnection[] {
@@ -55,7 +59,7 @@ export function mapConnections(integrations: any[]): ProviderConnection[] {
     const types = new Set<string>((i?.methods ?? []).map((m: any) => String(m?.type)));
     if (types.has("key") || o.id === "opencode") methods.push("key");
     if (o.id === "openai" && types.has("oauth")) methods.push("signin"); // ChatGPT sign-in is for Codex only
-    return { id: o.id, name: o.name, connected: Array.isArray(i?.connections) && i.connections.length > 0, methods, supportsFreeFilter: o.id !== "openai" };
+    return { id: o.id, name: o.name, connected: Array.isArray(i?.connections) && i.connections.length > 0, methods, recommended: o.recommended, supportsFreeFilter: o.id === "opencode" || o.id === "openrouter" };
   });
 }
 
@@ -69,9 +73,12 @@ export function credentialIdsFor(integration: any): { ids: string[]; envOnly: bo
 /** A model is free when it has price tiers and every one of them costs nothing. */
 export const isFree = (m: any): boolean => Array.isArray(m?.cost) && m.cost.length > 0 && m.cost.every((c: any) => c?.input === 0 && c?.output === 0);
 
-export function mapModels(providers: { id: string; name: string }[], models: any[], defaultModelId?: string, connected?: Set<string>): ProviderInfo[] {
+/** Groq also serves safety classifiers (Prompt Guard, Safety GPT OSS); they can't chat, so they stay out of the picker. */
+export const isChatModel = (m: any): boolean => !/prompt-guard|safeguard/i.test(String(m?.id ?? ""));
+
+export function mapModels(providers: { id: string; name: string; recommended?: boolean }[], models: any[], defaultModelId?: string, connected?: Set<string>): ProviderInfo[] {
   return providers.map((p): ProviderInfo => {
-    const ms = models.filter((m) => m.providerID === p.id && m.enabled !== false && m.status !== "disabled");
+    const ms = models.filter((m) => m.providerID === p.id && m.enabled !== false && m.status !== "disabled" && isChatModel(m));
     const defId = ms.find((m) => m.id === defaultModelId)?.id ?? ms[0]?.id;
     const out: ModelInfo[] = ms.map((m) => ({
       id: m.id,
@@ -83,7 +90,7 @@ export function mapModels(providers: { id: string; name: string }[], models: any
     }));
     const isConnected = connected ? connected.has(p.id) : true;
     // OpenCode's free tier needs no key, so it is usable while "not connected".
-    return { id: p.id, name: p.name, connected: isConnected, status: isConnected || p.id === "opencode" ? "ready" : "needs_connection", models: out };
+    return { id: p.id, name: p.name, recommended: p.recommended ?? false, connected: isConnected, status: isConnected || p.id === "opencode" ? "ready" : "needs_connection", models: out };
   });
 }
 
@@ -180,7 +187,7 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
 
   const listProviders = async (): Promise<ProviderInfo[]> => {
     const [m, d, ig] = await Promise.all([call("GET", "/api/model"), call("GET", "/api/model/default"), call("GET", "/api/integration")]);
-    const providers = OFFERED.map((o) => ({ id: o.id, name: o.name }));
+    const providers = OFFERED.map((o) => ({ id: o.id, name: o.name, recommended: o.recommended }));
     const connected = new Set<string>((ig.json?.data ?? []).filter((i: any) => Array.isArray(i.connections) && i.connections.length > 0).map((i: any) => String(i.id)));
     const out = mapModels(providers, m.json?.data ?? [], d.json?.data?.id, connected);
     const home = out.find((x) => x.id === "opencode" && x.models.length) ?? out.find((x) => x.models.length) ?? out[0];

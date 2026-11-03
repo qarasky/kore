@@ -29,6 +29,24 @@ T3 Code (`pingdotgg/t3code`, `apps/server/src/provider/ClaudeProvider.ts` and `o
 
 It is a desktop app for one person on their own machine, which is the case Anthropic's text clearly allows. KoreMind is a server with several accounts, so copying the pattern does not carry the same assurance.
 
+## How OpenClaw restricts what the CLIs can do
+
+OpenClaw (`openclaw/openclaw`) drives local CLIs (Claude Code, Codex, OpenCode) and has to stop them from using their own built-in tools. What it does, from its `docs/gateway/cli-backends.md`, `extensions/anthropic/cli-backend.ts` and `src/agents/codex-mcp-config.ts` (read 2026-11-03):
+
+| CLI | How tools are controlled |
+|---|---|
+| **Claude Code** | Starts it with `-p --output-format stream-json --include-partial-messages` and these flags: `--setting-sources user` (no project settings), `--allowedTools "mcp__<server>__*"` (only the host's own MCP tools), `--disallowedTools` for background and scheduling tools, `--strict-mcp-config --mcp-config <file>` (only the MCP servers it is given), `--append-system-prompt-file` for the system prompt. Tool-free completions (titles, summaries) need an *exact empty tool list*; OpenClaw refuses a backend that cannot guarantee it. |
+| **Codex** | Hands it the host's tools as an MCP server through the `mcp_servers` config patch, with per-server `enabled_tools` / `disabled_tools` (exact names only, no wildcards) and `default_tools_approval_mode`. |
+| **OpenCode** | OpenClaw mostly uses it as a model provider and session source. It isolates config with `OPENCODE_CONFIG_DIR` and `OPENCODE_CONFIG_PROJECT_DISABLE=1`. |
+
+Lessons for KoreMind:
+
+- **The host's tools go in through one MCP server.** That is what KoreMind already does for OpenCode (`/mcp`, notes tools, per-run secret). A Claude or Codex engine would reuse the same endpoint.
+- **Allow by pattern, deny the rest.** For Claude Code that is `--allowedTools "mcp__koremind__*"` plus the SDK's `tools: []`; for OpenCode KoreMind already denies `*` and allows `websearch` and `koremind_*`.
+- **Isolate configuration.** Settings from the server's own `~/.claude` or project folders must not leak in (`--setting-sources`, `--strict-mcp-config`, an isolated config dir).
+- **Title and memory calls must be tool-free.** KoreMind's `complete()` should refuse to run on an engine that cannot disable tools.
+- **Credentials stay in the CLI.** OpenClaw only points at the installed CLI's own login, the same rule as route C below.
+
 ## Three ways to add Claude
 
 | | Route | Risk |

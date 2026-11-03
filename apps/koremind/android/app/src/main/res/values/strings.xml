@@ -52,7 +52,8 @@
     <string name="section_models">Models</string>
     <string name="section_providers">Providers</string>
     <string name="models_hint">Pinned in the model picker for quick access.</string>
-    <string name="providers_hint">Where answers come from. Connect one and its models appear in the picker.</string>
+    <string name="providers_hint">Where answers come from. Connect one and its models appear in the picker. Groq and OpenRouter are the ones we recommend.</string>
+    <string name="recommended">Recommended</string>
     <string name="personalization_hint">KoreMind reads this at the start of every chat.</string>
     <string name="account_hint">Signed in to this server.</string>
     <string name="no_favorites_title">No favorites yet</string>

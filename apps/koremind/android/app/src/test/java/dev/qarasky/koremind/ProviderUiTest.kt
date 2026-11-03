@@ -32,6 +32,7 @@ class ProviderUiTest {
     private val all = listOf(opencode, codex, router)
 
     @Test fun `each known provider has a real logo and unknown ones fall back to the initial`() {
+        assertEquals(R.drawable.ic_provider_groq, providerIconRes("groq"))
         assertEquals(R.drawable.ic_provider_opencode, providerIconRes("opencode"))
         assertEquals(R.drawable.ic_provider_openai, providerIconRes("openai"))
         assertEquals(R.drawable.ic_provider_openrouter, providerIconRes("openrouter"))

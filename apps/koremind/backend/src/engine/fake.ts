@@ -23,8 +23,8 @@ export class FakeEngine implements Engine {
   constructor(private o: FakeOptions = {}) {}
 
   async listConnections(): Promise<ProviderConnection[]> {
-    const conn = (id: string, name: string, methods: ProviderConnection["methods"], supportsFreeFilter: boolean): ProviderConnection => ({ id, name, connected: this.connected(id), methods, supportsFreeFilter });
-    return [conn("opencode", "OpenCode", ["key"], true), conn("openai", "Codex", ["key", "signin"], false), conn("openrouter", "OpenRouter", ["key"], true)];
+    const conn = (id: string, name: string, methods: ProviderConnection["methods"], supportsFreeFilter: boolean, recommended = false): ProviderConnection => ({ id, name, connected: this.connected(id), methods, supportsFreeFilter, recommended });
+    return [conn("groq", "Groq", ["key"], false, true), conn("openrouter", "OpenRouter", ["key"], true, true), conn("opencode", "OpenCode", ["key"], true), conn("openai", "Codex", ["key", "signin"], false)];
   }
   async startSignIn(providerId: string): Promise<SignInStart> {
     const attemptId = `at_${crypto.randomUUID()}`;
@@ -47,10 +47,12 @@ export class FakeEngine implements Engine {
     const m = (id: string, name: string, over: Partial<ModelInfo> = {}): ModelInfo => ({ id, name, vision: false, thinkingLevels: [], isDefault: false, free: false, ...over });
     const or = this.connected("openrouter");
     const ai = this.connected("openai");
+    const gq = this.connected("groq");
     return [
-      { id: "opencode", name: "OpenCode", connected: this.connected("opencode"), status: "ready", models: [m("fast", "Fast", { isDefault: true, free: true }), m("vision", "Vision", { vision: true, thinkingLevels: ["low", "high"] })] },
-      { id: "openai", name: "Codex", connected: ai, status: ai ? "ready" : "needs_connection", models: ai ? [m("gpt", "GPT", { isDefault: true })] : [] },
-      { id: "openrouter", name: "OpenRouter", connected: or, status: or ? "ready" : "needs_connection", models: or ? [m("acme/free-model:free", "Free Model", { free: true, isDefault: true }), m("acme/pro", "Pro")] : [] },
+      { id: "groq", name: "Groq", recommended: true, connected: gq, status: gq ? "ready" : "needs_connection", models: gq ? [m("llama-fast", "Llama Fast", { isDefault: true }), m("gpt-oss", "GPT OSS", { thinkingLevels: ["low", "medium", "high"] })] : [] },
+      { id: "openrouter", name: "OpenRouter", recommended: true, connected: or, status: or ? "ready" : "needs_connection", models: or ? [m("acme/free-model:free", "Free Model", { free: true, isDefault: true }), m("acme/pro", "Pro")] : [] },
+      { id: "opencode", name: "OpenCode", recommended: false, connected: this.connected("opencode"), status: "ready", models: [m("fast", "Fast", { isDefault: true, free: true }), m("vision", "Vision", { vision: true, thinkingLevels: ["low", "high"] })] },
+      { id: "openai", name: "Codex", recommended: false, connected: ai, status: ai ? "ready" : "needs_connection", models: ai ? [m("gpt", "GPT", { isDefault: true })] : [] },
     ];
   }
   async setProviderKey(id: string, key: string) { this.keys.set(id, key); }

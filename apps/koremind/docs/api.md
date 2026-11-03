@@ -15,7 +15,7 @@ Source of truth: `shared/src/api.ts` (zod). All bodies are JSON unless noted. Au
 | `GET /me` | yes | | `{id,email,isOwner}` |
 | `GET /models` | yes | | `ProviderInfo[]` for this user. See Models and providers. |
 | `GET /favorites`, `PUT /favorites` | yes | `string[]` of `"providerId/modelId"` | `string[]` (entries the user can't use are dropped) |
-| `GET /providers` | yes | | `ProviderConnection[]` `{id,name,connected,methods:("key"\|"signin")[],supportsFreeFilter}` for OpenCode, Codex (`openai`) and OpenRouter |
+| `GET /providers` | yes | | `ProviderConnection[]` `{id,name,connected,methods:("key"\|"signin")[],supportsFreeFilter,recommended}` for Groq, OpenRouter, OpenCode and Codex (`openai`), in that order |
 | `POST /providers/:id/signin` | owner | | `{attemptId,url,instructions}`: open `url` in a browser **on the server's computer** (the engine listens for the callback on its own localhost) |
 | `GET /providers/:id/signin/:attemptId` | owner | | `{status:"pending"\|"complete"\|"failed"}` |
 | `PUT /providers/:id/key` | owner | `{key}` | `{ok:true}` (never echoes the key) |
@@ -38,7 +38,7 @@ Source of truth: `shared/src/api.ts` (zod). All bodies are JSON unless noted. Au
 `Settings` = `{memoryEnabled, displayName, tone, about, disabledProviders: string[], freeOnlyProviders: string[]}`. The last two default to `[]`, so older clients that omit them keep working.
 
 ## Models and providers
-- `GET /models` returns **every offered provider** (OpenCode, Codex = `openai`, OpenRouter, in that order): `{id,name,connected,status,models}`.
+- `GET /models` returns **every offered provider** (Groq, OpenRouter, OpenCode, Codex = `openai`, in that order: the recommended providers first): `{id,name,connected,recommended,status,models}`. Groq's safety classifiers (Prompt Guard, Safety GPT OSS) are not listed because they cannot chat.
   - `status` is `ready`, `needs_connection` (no key / not signed in; OpenCode counts as ready because its free tier needs no key) or `disabled` (the user turned it off in Settings).
   - `models` is empty unless `ready`, and already honors the user's "only free models" choice. A model is `{id,name,vision,thinkingLevels[],isDefault,free}`; `free` means every price tier is zero.
 - Picker behavior (both clients): all providers appear in the rail; non-`ready` ones are dimmed and selecting one explains why ("Connect X in Settings." / "X is turned off in Settings.") with an Open Settings action. A saved choice that is no longer allowed falls back to the default of the first ready provider.

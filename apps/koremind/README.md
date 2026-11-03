@@ -15,7 +15,7 @@ A personal assistant that feels like the ChatGPT app, with its own apps instead 
 ## What it does
 
 - **Chat** with streaming Markdown, photos and files, a model picker (provider rail, favorites, thinking level) and web search. Chats are named automatically by the model you chose.
-- **Providers:** OpenCode (free models need no key), **Codex** (OpenAI: sign in with ChatGPT or paste an API key) and **OpenRouter** (API key). Each can be turned off, and OpenCode and OpenRouter can be limited to free models, in **Settings → Providers**.
+- **Providers:** **Groq** and **OpenRouter** (the recommended ones, an API key each), OpenCode (free models need no key) and **Codex** (OpenAI: sign in with ChatGPT or paste an API key). Each can be turned off, and OpenCode and OpenRouter can be limited to free models, in **Settings → Providers**.
 - **Memory** you can see and edit. The assistant decides what is worth remembering; it is written in the background so it never slows an answer.
 - **Notes:** the assistant can save, read and edit notes, per chat and per user. Asking it to use another chat's notes shows an **Allow / Deny** card. Notes live in KoreMind's own database.
 - **Phone pairing:** Settings → Account → **Show QR code** on the web, then **Scan QR code** in the Android app. It signs the phone in as you, no typing.

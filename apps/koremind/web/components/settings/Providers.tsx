@@ -71,7 +71,7 @@ export function ProvidersSection({ settings, onChange }: { settings: Settings | 
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="grid size-9 shrink-0 place-items-center rounded-ui bg-raised text-text" aria-hidden><ProviderIcon id={p.id} name={p.name} size={20} /></span>
                     <div className="min-w-0">
-                      <p className="truncate text-sub font-medium">{p.name}</p>
+                      <p className="flex items-center gap-2 text-sub font-medium"><span className="truncate">{p.name}</span>{p.recommended && <span className="shrink-0 rounded-full border border-accent/40 px-2 py-px text-2xs font-normal text-accent">{t.recommended}</span>}</p>
                       <p className="flex items-center gap-1.5 text-meta text-muted">
                         <span className={`size-1.5 rounded-full ${state === "on" ? "bg-accent" : state === "free" ? "bg-warning" : "bg-border-strong"}`} aria-hidden />
                         {STATUS[state]}

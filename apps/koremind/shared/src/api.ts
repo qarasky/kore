@@ -29,6 +29,8 @@ export const ProviderInfo = z.object({
   name: z.string(),
   connected: z.boolean(),
   status: ProviderStatus,
+  /** KoreMind's suggested providers (Groq, OpenRouter); they are listed first and tagged "Recommended". */
+  recommended: z.boolean().default(false),
   /** Empty unless status is "ready". Already filtered by the user's "free models only" choice. */
   models: z.array(ModelInfo),
 });
@@ -40,6 +42,7 @@ export const ProviderConnection = z.object({
   name: z.string(),
   connected: z.boolean(),
   methods: z.array(z.enum(["key", "signin"])),
+  recommended: z.boolean().default(false),
   /** Providers with paid and free models can be limited to free ones (OpenCode, OpenRouter). */
   supportsFreeFilter: z.boolean(),
 });
