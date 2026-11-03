@@ -47,7 +47,7 @@ fun buildAgenda(
     val placed = ArrayList<Pair<LocalDate, AgendaItem>>()
     for (o in occurrences) {
         if (o.calendarId in hidden) continue
-        val item = itemOf(o, colors[o.calendarId], zone)
+        val item = agendaItemOf(o, colors[o.calendarId], zone)
         if (!item.endInstant.isAfter(startOfToday)) continue
         if (onlyUpcoming && !item.endInstant.isAfter(now)) continue
         val date = maxOf(item.startLocal.toLocalDate(), today)
@@ -66,7 +66,8 @@ fun buildAgenda(
         }
 }
 
-private fun itemOf(o: Occurrence, colorHex: String?, zone: ZoneId): AgendaItem {
+/** The row model for one occurrence, in the account's [zone]. */
+fun agendaItemOf(o: Occurrence, colorHex: String?, zone: ZoneId): AgendaItem {
     if (o.allDay) {
         val start = LocalDate.parse(o.start.take(10))
         val end = LocalDate.parse(o.end.take(10)).let { if (it.isAfter(start)) it else start.plusDays(1) }

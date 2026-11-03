@@ -3,8 +3,7 @@
 A native Android app (Kotlin, Jetpack Compose, dark) for **glancing at your calendar**: an Agenda widget for the home screen, and an Agenda screen that opens instantly and works offline.
 Design: [specs/2026-11-03-android-design.md](superpowers/specs/2026-11-03-android-design.md). Release process: [releasing.md](releasing.md#android).
 
-> **Status: stage 2 of 4.** You can sign in, see the agenda, add the widget, hide calendars, sign out, and **create, edit and delete events**. Day, week and month views (stage 3) and
-> reminders as phone alarms (stage 4) are not in the app yet: use the web app for those.
+> **Status: all four stages are in.** Sign in, the agenda, day, week and month views, search, the home-screen widget, creating, editing and deleting events, and **reminders as phone alarms**.
 
 ## Install
 
@@ -35,6 +34,35 @@ Tap a row for the details. Pull down to refresh. **Today** jumps back to the top
 
 **Settings** has the server and account, a 12/24-hour clock, **show/hide for each calendar** (hidden calendars disappear from the agenda and the widget, their events stay on the server) and
 **Sign out** (which also deletes the copy on the phone).
+
+## Day, week, month and search
+
+The chips under the title switch between **Agenda, Day, Week and Month**; the arrows move by a day, a week or a month, **Today** comes back.
+
+- **Day and Week** are a 24-hour grid in your account's time zone (every day has 24 rows, even when the clocks change), with an all-day strip on top, a red line for now, and overlapping events side by side.
+  The week is seven columns that scroll sideways together. **Tap an empty slot** to start a new event at that half hour; tap an event to open it; tap a day heading in the week to open that day.
+- **Month** shows six weeks with a few chips per day and "+N more"; tap a day to open it.
+- Inside the copy kept on the phone (14 days back, 60 ahead) the views open instantly and work offline. Further away, the app asks the server for just that stretch; offline it shows what it has and says it may be incomplete.
+- **Search** looks through titles, notes and places, 90 days back and 300 ahead (offline: the copy on the phone). Hidden calendars stay hidden in every view and in search.
+- Settings has **the week starts on** (Monday, Sunday or Saturday).
+
+## Reminders
+
+Each reminder you set on an event becomes a **notification on the phone at the right time**, even offline and with the app closed. The phone sets its own alarms from the copy it keeps (no push service,
+nothing is asked of the server at that moment): it sets the next alarm, and when that one goes off it shows what came due and sets the next. It also does this again after a restart, when the clock or time zone changes,
+after an update of the app and after every sync. A reminder missed while the phone was off still shows when it comes back on, as long as the event has not ended. Tap a notification to open the event.
+Hidden calendars are **not** muted: hiding only changes what you see.
+
+- The app asks for **notification permission** once, when you first sign in. If you said no, or turn notifications off later, **Settings, Reminders** says so in orange with a **Fix** button that opens the right system screen;
+  the same line says when the phone does not let the app set exact alarms or has restricted its battery use, and otherwise which reminder is next. When something stops reminders, the agenda also says "Reminders may not fire: see Settings", so you do not have to go looking.
+- A reminder on an all-day event counts back from midnight of the first day, in the event's own time zone (as on the web).
+- Known limit: an event added on another device a few minutes before it starts may remind late, because nothing is pushed to the phone. Opening the app syncs at once.
+
+## New versions
+
+Once a day while you use the app it asks GitHub for the newest `android-v*` release of this repository and shows "Version X is available" in Settings ((and a line on the agenda); Settings has a **Download** button.
+It is the app's only request to any host other than your server and carries no identifier. Switch it off in Settings (**Check for new versions once a day**). Installing is up to you: open the downloaded APK;
+Android replaces the old app because both are signed with the same key.
 
 ## Editing events
 
@@ -84,7 +112,8 @@ Run this after installing a new release; it is what the automated tests cannot s
 5. Tap a widget row: the app opens on that event.
 6. Rotate the phone and change the font size: nothing is clipped.
 7. Create an event with a reminder and a repeat; it shows on the agenda and in the widget. Edit one occurrence ("This event"), then delete the series and Undo.
-8. Start an edit, switch on airplane mode and press Save: the editor stays open with your text and says it cannot reach the server; switch it off and Save again.
+8. Open Day, Week and Month, go to another month (needs the server), search for an event and tap an empty slot in the Day view.
+10. Start an edit, switch on airplane mode and press Save: the editor stays open with your text and says it cannot reach the server; switch it off and Save again.
 
 ## Building it yourself
 

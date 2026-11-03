@@ -41,7 +41,7 @@ interface CalendarApi {
     suspend fun logout()
     suspend fun me(): User
     suspend fun calendars(): List<Calendar>
-    suspend fun occurrences(from: Instant, to: Instant): List<Occurrence>
+    suspend fun occurrences(from: Instant, to: Instant, q: String? = null): List<Occurrence>
     suspend fun changes(since: Long): ChangeSet
     suspend fun event(id: String): Event
     suspend fun write(request: WriteRequest): WriteResult
@@ -80,13 +80,13 @@ class HttpApi(
 
     override suspend fun calendars(): List<Calendar> = send("GET", "/api/calendars", null, ListSerializer(Calendar.serializer()))
 
-    override suspend fun occurrences(from: Instant, to: Instant): List<Occurrence> =
+    override suspend fun occurrences(from: Instant, to: Instant, q: String?): List<Occurrence> =
         send(
             "GET",
             "/api/occurrences",
             null,
             ListSerializer(Occurrence.serializer()),
-            query = listOf("from" to from.truncatedTo(ChronoUnit.SECONDS).toString(), "to" to to.truncatedTo(ChronoUnit.SECONDS).toString()),
+            query = listOf("from" to from.truncatedTo(ChronoUnit.SECONDS).toString(), "to" to to.truncatedTo(ChronoUnit.SECONDS).toString()) + listOfNotNull(q?.let { "q" to it }),
         )
 
     override suspend fun changes(since: Long): ChangeSet =

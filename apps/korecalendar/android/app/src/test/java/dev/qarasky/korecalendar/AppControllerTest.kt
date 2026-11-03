@@ -28,9 +28,13 @@ class AppControllerTest {
         var scheduled = 0
         var cancelled = 0
         var widgetRefreshes = 0
+        var reminderSyncs = 0
         override fun scheduleSync() { scheduled++ }
         override fun cancelSync() { cancelled++ }
         override suspend fun refreshWidgets() { widgetRefreshes++ }
+        override suspend fun syncReminders() { reminderSyncs++ }
+        var status: dev.qarasky.korecalendar.reminders.ReminderStatus = dev.qarasky.korecalendar.reminders.ReminderStatus.NoneScheduled
+        override suspend fun reminderStatus(): dev.qarasky.korecalendar.reminders.ReminderStatus = status
     }
 
     private val kv = MapKeyValue()
@@ -281,5 +285,104 @@ class AppControllerTest {
         api.onWrite = { dev.qarasky.korecalendar.data.WriteResult(dev.qarasky.korecalendar.data.Event(id = "gym"), null, emptyList()) }
         controller.delete(occ("gym").copy(isRecurring = true), dev.qarasky.korecalendar.edit.Scope.This)
         assertEquals(dev.qarasky.korecalendar.ui.Notice("Event deleted", null), controller.notice.value)
+    }
+
+    // --- views
+
+    @Test fun theViewAndTheWeekStartAreChosenAndRemembered() = runTest {
+        signedIn()
+        assertEquals(dev.qarasky.korecalendar.views.View.Agenda, ready().view)
+        controller.setView(dev.qarasky.korecalendar.views.View.Month)
+        assertEquals(dev.qarasky.korecalendar.views.View.Month, ready().view)
+        assertEquals("month", kv.get("prefs.view"))
+        controller.setWeekStart(dev.qarasky.korecalendar.views.WeekStart.Sun)
+        assertEquals(dev.qarasky.korecalendar.views.WeekStart.Sun, ready().weekStart)
+        assertEquals("sun", kv.get("prefs.weekstart"))
+    }
+
+    @Test fun theDayMovesWithPreviousNextTodayAndAJumpToADay() = runTest {
+        signedIn()
+        val v = dev.qarasky.korecalendar.views.View.Day
+        controller.setView(v)
+        assertEquals(java.time.LocalDate.parse("2026-11-04"), ready().day)
+        controller.step(1)
+        assertEquals(java.time.LocalDate.parse("2026-11-05"), ready().day)
+        controller.goTo(java.time.LocalDate.parse("2026-12-24"), dev.qarasky.korecalendar.views.View.Day)
+        assertEquals(java.time.LocalDate.parse("2026-12-24"), ready().day)
+        controller.today()
+        assertEquals(java.time.LocalDate.parse("2026-11-04"), ready().day)
+        controller.setView(dev.qarasky.korecalendar.views.View.Month)
+        controller.step(-1)
+        assertEquals(java.time.LocalDate.parse("2026-10-04"), ready().day)
+    }
+
+    @Test fun aRangeHidesHiddenCalendarsAndSearchToo() = runTest {
+        signedIn()
+        api.onOccurrences = { _, _ -> listOf(occ("gym"), occ("home", "c2")) }
+        val from = Instant.parse("2026-11-03T00:00:00Z"); val to = Instant.parse("2026-11-10T00:00:00Z")
+        assertEquals(listOf("gym"), controller.loadRange(from, to).occurrences.map { it.eventId })
+        controller.toggleCalendar("c1")
+        assertEquals(emptyList<String>(), controller.loadRange(from, to).occurrences.map { it.eventId })
+        api.onOccurrences = { _, _ -> listOf(occ("gym"), occ("home", "c2")) }
+        assertEquals(listOf("home"), controller.search("o").occurrences.map { it.eventId })
+    }
+
+    @Test fun anEventSeenInAViewOrASearchCanBeOpenedByIdAndKey() = runTest {
+        signedIn()
+        assertEquals("gym", controller.findOccurrence("gym", "gym")?.title)
+        val far = occ("far").copy(key = "far-key")
+        api.onOccurrences = { _, _ -> listOf(far) }
+        assertEquals(null, controller.findOccurrence("far", "far-key"))
+        controller.loadRange(Instant.parse("2026-06-01T00:00:00Z"), Instant.parse("2026-07-01T00:00:00Z"))
+        assertEquals("far", controller.findOccurrence("far", "far-key")?.title)
+    }
+
+    @Test fun aTapOnTheGridOpensTheEditorAtThatTime() = runTest {
+        signedIn()
+        controller.beginNew(java.time.LocalDate.parse("2026-11-09"), java.time.LocalTime.of(14, 30))
+        val f = (controller.editor.value!!.state.value as dev.qarasky.korecalendar.edit.EditorState.Editing).form
+        assertEquals(java.time.LocalDate.parse("2026-11-09"), f.startDay)
+        assertEquals(java.time.LocalTime.of(14, 30), f.startTime)
+        assertEquals(java.time.LocalTime.of(15, 30), f.endTime)
+    }
+
+    // --- reminders and updates
+
+    @Test fun everyRefreshResetsTheAlarmsAndSigningOutDoesToo() = runTest {
+        signedIn()
+        val after = background.reminderSyncs
+        assertTrue(after >= 1)
+        controller.refresh()
+        assertTrue(background.reminderSyncs > after)
+        val before = background.reminderSyncs
+        controller.signOut()
+        assertTrue(background.reminderSyncs > before)
+    }
+
+    @Test fun anAvailableUpdateIsShownUntilTheSwitchIsOff() = runTest {
+        val kv2 = MapKeyValue()
+        val checker = dev.qarasky.korecalendar.update.UpdateChecker(
+            { """[{"tag_name":"android-v0.9.0","html_url":"https://example.test/r","prerelease":false,"draft":false}]""" }, kv2,
+        ) { now }
+        val c = AppController(accounts, prefs, store, repo, signIn, { _, _ -> api }, background, TestMessages, checker, "0.1.0") { now }
+        serverWith("u1", occ("gym"))
+        c.start()
+        c.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+        c.checkForUpdate()
+        assertEquals(dev.qarasky.korecalendar.update.UpdateInfo("0.9.0", "https://example.test/r"), (c.state.value as AppState.Ready).update)
+        c.setUpdateCheck(false)
+        assertEquals(null, (c.state.value as AppState.Ready).update)
+        assertEquals(false, (c.state.value as AppState.Ready).updateCheck)
+    }
+
+    @Test fun aReminderProblemIsKnownToTheAgendaNotJustSettings() = runTest {
+        signedIn()
+        assertEquals(false, ready().reminderProblem)
+        background.status = dev.qarasky.korecalendar.reminders.ReminderStatus.NotificationsOff
+        controller.refresh()
+        assertEquals(true, ready().reminderProblem)
+        background.status = dev.qarasky.korecalendar.reminders.ReminderStatus.Ok(Instant.parse("2026-11-05T10:00:00Z"))
+        controller.remindersChanged()
+        assertEquals(false, ready().reminderProblem)
     }
 }

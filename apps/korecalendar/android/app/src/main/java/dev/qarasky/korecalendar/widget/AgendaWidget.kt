@@ -94,7 +94,7 @@ private const val MAX_CHILDREN = 10
 const val EXTRA_OCC_KEY = "occ_key"
 
 /** Opens the app on one event. The data URI makes each row's intent distinct, so their PendingIntents do not overwrite each other. */
-private fun eventIntent(context: Context, eventId: String, key: String): Intent =
+fun eventIntent(context: Context, eventId: String, key: String): Intent =
     Intent(context, MainActivity::class.java)
         .setData(Uri.parse("korecal://event/" + Uri.encode(eventId) + "/" + Uri.encode(key)))
         .putExtra(EXTRA_EVENT_ID, eventId)

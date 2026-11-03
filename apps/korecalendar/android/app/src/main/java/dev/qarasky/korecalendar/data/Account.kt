@@ -94,6 +94,9 @@ class AccountStore(private val kv: KeyValue, private val box: SecretBox) {
         return Account(server, kv.get(USER) ?: "", kv.get(EMAIL) ?: "", kv.get(TZ) ?: "UTC", token)
     }
 
+    /** The account's time zone when someone is signed in, read without opening the token (a Keystore hiccup must not look like a sign-out). */
+    fun timezone(): String? = if (kv.get(SERVER) != null && kv.get(TOKEN) != null) kv.get(TZ) ?: "UTC" else null
+
     fun clear() = listOf(SERVER, USER, EMAIL, TZ, TOKEN, REVOKED).forEach { kv.put(it, null) }
 
     private companion object {
@@ -116,7 +119,29 @@ class Prefs(private val kv: KeyValue) {
         get() = kv.get(HIDDEN)?.split(',')?.filter { it.isNotEmpty() }?.toSet() ?: emptySet()
         set(v) = kv.put(HIDDEN, v.sorted().joinToString(","))
 
+    var view: dev.qarasky.korecalendar.views.View
+        get() = dev.qarasky.korecalendar.views.View.parse(kv.get(VIEW)) ?: dev.qarasky.korecalendar.views.View.Agenda
+        set(v) = kv.put(VIEW, v.wire)
+
+    var weekStart: dev.qarasky.korecalendar.views.WeekStart
+        get() = dev.qarasky.korecalendar.views.WeekStart.parse(kv.get(WEEK_START)) ?: dev.qarasky.korecalendar.views.WeekStart.Mon
+        set(v) = kv.put(WEEK_START, v.wire)
+
+    /** The daily check for a newer app release (on by default). */
+    var updateCheck: Boolean
+        get() = kv.get(UPDATE_CHECK) != "off"
+        set(v) = kv.put(UPDATE_CHECK, if (v) "on" else "off")
+
+    /** The notification permission has been asked once: the app does not nag, Settings shows the state. */
+    var notificationsAsked: Boolean
+        get() = kv.get(NOTIF_ASKED) == "1"
+        set(v) = kv.put(NOTIF_ASKED, if (v) "1" else null)
+
     private companion object {
+        const val UPDATE_CHECK = "prefs.updatecheck"
+        const val NOTIF_ASKED = "prefs.notifasked"
+        const val VIEW = "prefs.view"
+        const val WEEK_START = "prefs.weekstart"
         const val CLOCK = "prefs.clock"
         const val HIDDEN = "prefs.hidden"
     }

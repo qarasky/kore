@@ -200,4 +200,50 @@
     <string name="discard">Discard</string>
     <string name="keep_editing">Keep editing</string>
     <string name="notice_undo_hint">Deleted</string>
+
+    <!-- Views -->
+    <string name="app_bar_title">Calendar</string>
+    <string name="view_agenda">Agenda</string>
+    <string name="view_day">Day</string>
+    <string name="view_week">Week</string>
+    <string name="view_month">Month</string>
+    <string name="previous">Previous</string>
+    <string name="next">Next</string>
+    <string name="search">Search</string>
+    <string name="search_hint">Search events</string>
+    <string name="search_prompt">Type to search titles, notes and places.</string>
+    <string name="search_none">Nothing found for \"%1$s\".</string>
+    <string name="search_count">Results: %1$d (%2$s to %3$s)</string>
+    <string name="search_count_offline">Results: %1$d</string>
+    <string name="search_offline_note">Offline: searching the copy on this phone only.</string>
+    <string name="range_offline_note">Offline: this part is not on the phone, so it may be incomplete.</string>
+    <string name="range_loading">Loading…</string>
+    <string name="more_events">+%1$d more</string>
+    <string name="week_starts_on">The week starts on</string>
+    <string name="week_start_mon">Monday</string>
+    <string name="week_start_sun">Sunday</string>
+    <string name="week_start_sat">Saturday</string>
+    <string name="day_cell_description">%1$s, events: %2$d</string>
+    <string name="new_event_here">New event here</string>
+    <string name="grid_slot_description">%1$s, time zone %2$s: tap an empty slot for a new event</string>
+
+    <!-- Reminders and updates -->
+    <string name="reminders_channel">Reminders</string>
+    <string name="reminders_channel_description">Event reminders, set on this phone.</string>
+    <string name="reminders">Reminders</string>
+    <string name="reminders_ok">Next reminder: %1$s</string>
+    <string name="reminders_none">No upcoming reminders on this phone.</string>
+    <string name="reminders_problem_note">Reminders may not fire: see Settings.</string>
+    <string name="reminders_fix_description">Fix reminders: open the system settings</string>
+    <string name="update_download_description">Download version %1$s</string>
+    <string name="reminders_notifications_off">Notifications are off, so reminders cannot show.</string>
+    <string name="reminders_exact_off">The phone does not let this app set exact alarms, so reminders may come late.</string>
+    <string name="reminders_battery">Battery use is restricted for this app, so reminders may not fire.</string>
+    <string name="reminders_fix">Fix</string>
+    <string name="cannot_open">This phone has nothing to open that with.</string>
+    <string name="reminders_hint">Reminders are set on the phone from the copy it keeps, so they work without a connection. An event added elsewhere a few minutes before it starts may remind late until the app syncs.</string>
+    <string name="update_available">Version %1$s is available</string>
+    <string name="update_download">Download</string>
+    <string name="update_check">Check for new versions once a day</string>
+    <string name="update_check_hint">Asks GitHub for the newest release of this app. Nothing else is sent. Installing is up to you.</string>
 </resources>

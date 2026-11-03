@@ -50,6 +50,9 @@ class EditingFlowTest {
 
     @Before fun setUp() {
         Assume.assumeTrue("no server given: skipping the UI flows", server != null && email != null && password != null)
+        // The system's notification permission dialog would cover the app: the tests grant it up front.
+        val target = InstrumentationRegistry.getInstrumentation().targetContext
+        InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(target.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
         runBlocking { graph.controller.signOut() }
     }
 
@@ -73,7 +76,7 @@ class EditingFlowTest {
         rule.onNode(hasSetTextAction() and hasText("Email")).performTextInput(email!!)
         rule.onNode(hasSetTextAction() and hasText("Password")).performTextInput(password!!)
         rule.onNode(hasText("Sign in") and hasClickAction()).performClick()
-        rule.waitUntilExactlyOneExists(hasText("Agenda"), 30_000)
+        rule.waitUntilAtLeastOneExists(hasText("Agenda") and hasClickAction(), 60_000)
         // The first sync has to finish: until then the phone does not know the calendars or the events.
         rule.waitUntil(30_000) { rule.onAllNodesWithText("Not updated yet").fetchSemanticsNodes().isEmpty() }
     }

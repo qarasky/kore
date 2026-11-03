@@ -19,6 +19,9 @@ sealed interface SyncResult {
 /** The window of occurrences kept on the phone: 14 days back, 60 days ahead, fetched in 30-day chunks. */
 private val BACK: Duration = Duration.ofDays(14)
 private val SPAN: Duration = Duration.ofDays(74)
+
+/** How far past the start of the stored window the copy reaches. */
+val KEPT_SPAN: Duration = SPAN
 private val CHUNK: Duration = Duration.ofDays(30)
 
 /**

@@ -7,13 +7,13 @@ and manage events, recurring series with single exclusions and single-occurrence
 Go API + SQLite and a Next.js web app behind Caddy, in the same shape as [Kore](https://github.com/qarasky/kore). The web app
 (and the Android app) uses exactly the same public API.
 
-Status: **phase 1 (API and core), phase 2 (web app) and CalDAV are done;** the **Android app** is in progress (stage 2 of 4: agenda, home-screen widget and editing; see [docs/android.md](docs/android.md)). See [`docs/`](docs/README.md) for everything below in detail.
+Status: **phase 1 (API and core), phase 2 (web app) and CalDAV are done;** the **Android app** is in progress (agenda, day/week/month views, search, home-screen widget, editing and reminders; see [docs/android.md](docs/android.md)). See [`docs/`](docs/README.md) for everything below in detail.
 
 - **[Deploying on Linux](docs/deploy.md)**: install, HTTPS, updates, backups, troubleshooting.
 - **[Web app](docs/web.md)**: what the UI does, shortcuts, drag behaviour, motion, notifications.
 - **[API guide](docs/api.md)**: real requests and responses for the common jobs.
 - **[OpenAPI contract](docs/openapi.yaml)**: also served at `GET /api/openapi.json`, no login needed.
-- **[Android app](docs/android.md)**: the agenda, home-screen widget and event editing on your phone (install, first run, how it syncs).
+- **[Android app](docs/android.md)**: the agenda, views, search, home-screen widget, event editing and reminders on your phone (install, first run, how it syncs).
 - **[CalDAV](docs/caldav.md)**: the same calendars for CalDAV clients and libraries, at `/dav/`.
 
 ## Features
