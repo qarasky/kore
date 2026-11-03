@@ -90,3 +90,56 @@ func TestLoadInvalidPortEnvFails(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestSSODefaultsKeepPasswordLogin(t *testing.T) {
+	c, err := Load(write(t, required))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.LocalLoginEnabled() || c.OIDC.Enabled() {
+		t.Fatalf("got %+v", c)
+	}
+}
+
+func TestSSOFromEnvironment(t *testing.T) {
+	t.Setenv("KORE_OIDC_ISSUER", "https://id.example.com/")
+	t.Setenv("KORE_OIDC_CLIENT_SECRET", "s3cret")
+	t.Setenv("KORE_PUBLIC_URL", "https://kore.example.com/")
+	t.Setenv("KORE_LOCAL_LOGIN", "false")
+	t.Setenv("KORE_OIDC_LINK_BY_EMAIL", "true")
+	t.Setenv("KORE_OIDC_AUTO_PROVISION", "false")
+	c, err := Load(write(t, required))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.OIDC.Issuer != "https://id.example.com" || c.PublicURL != "https://kore.example.com" || c.OIDC.ClientID != "kore" ||
+		c.OIDC.ClientSecret != "s3cret" || c.LocalLoginEnabled() || !c.OIDC.LinkByEmail || c.OIDC.AutoProvisionEnabled() {
+		t.Fatalf("got %+v", c)
+	}
+}
+
+func TestSSOFromFile(t *testing.T) {
+	c, err := Load(write(t, required+"public_url = \"http://localhost:3000\"\n[oidc]\nissuer = \"http://localhost:4000\"\nclient_id = \"kore\"\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.OIDC.Enabled() || !c.LocalLoginEnabled() || !c.OIDC.AutoProvisionEnabled() || c.OIDC.LinkByEmail {
+		t.Fatalf("got %+v", c)
+	}
+}
+
+func TestSSOMisconfigurationFails(t *testing.T) {
+	for name, body := range map[string]string{
+		"issuer without public_url":   required + "[oidc]\nissuer = \"https://id.example.com\"\n",
+		"relative issuer":             required + "public_url = \"https://k.example.com\"\n[oidc]\nissuer = \"id.example.com\"\n",
+		"local_login off without sso": required + "local_login = false\n",
+	} {
+		if _, err := Load(write(t, body)); err == nil {
+			t.Errorf("%s: expected an error", name)
+		}
+	}
+	t.Setenv("KORE_LOCAL_LOGIN", "maybe")
+	if _, err := Load(write(t, required)); err == nil {
+		t.Error("bad KORE_LOCAL_LOGIN accepted")
+	}
+}

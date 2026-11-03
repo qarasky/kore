@@ -286,6 +286,10 @@ func (s *server) resetPassword(w http.ResponseWriter, r *http.Request) {
 // per user and client IP, so a stolen session can't be used to guess it),
 // sets the new one, revokes every session and issues a fresh cookie.
 func (s *server) changeOwnPassword(w http.ResponseWriter, r *http.Request) {
+	if !s.passwordLogin {
+		errJSON(w, 403, "local_login_disabled")
+		return
+	}
 	me, ok := auth.FromContext(r.Context())
 	if !ok {
 		errJSON(w, 401, "unauthorized")

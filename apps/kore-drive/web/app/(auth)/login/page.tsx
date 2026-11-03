@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import { LoginArt } from "@/components/LoginArt";
 import { Wordmark } from "@/components/wordmark";
 import { api } from "@/lib/api";
+import { getAuthConfig } from "@/lib/authConfig";
 import { loginImageSrc, type Branding } from "@/lib/branding";
 import { t } from "@/lib/i18n";
 import { safeNext } from "@/lib/safe-next";
+import { loginSsoError } from "@/lib/ssoErrors";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: t("login.title") };
@@ -24,6 +26,9 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const next = safeNext(params.next);
   const expired = params.expired !== undefined;
   const custom = loginImageSrc(await branding());
+  const auth = await getAuthConfig();
+  const ssoError = loginSsoError(params.error);
+  const ssoHref = `/api/auth/oidc/login?next=${encodeURIComponent(next)}`;
 
   return (
     <div className="flex min-h-dvh">
@@ -34,8 +39,28 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           </div>
           <section className="rounded-ui border border-border bg-surface p-6 shadow-[0_1px_0_rgba(255,255,255,0.03)_inset,0_12px_32px_-12px_rgba(0,0,0,0.6)]">
             <h1 className="text-title font-semibold tracking-[-0.01em]">{t("login.title")}</h1>
-            <p className="mt-1 mb-5 text-muted">{t("login.subtitle")}</p>
-            <LoginForm next={next} expired={expired} />
+            <p className="mt-1 mb-5 text-muted">{t(auth.local_login ? "login.subtitle" : "login.sso.subtitle")}</p>
+            {auth.local_login ? <LoginForm next={next} expired={expired} /> : null}
+            {auth.oidc && ssoError ? (
+              <p role="alert" data-testid="login-sso-error" className="mb-3 text-meta text-danger">
+                {t(ssoError)}
+              </p>
+            ) : null}
+            {auth.oidc ? (
+              <>
+                {auth.local_login ? (
+                  <p className="my-4 text-center text-meta text-muted">{t("login.sso.or")}</p>
+                ) : null}
+                {/* A plain link: the API redirects the whole page to Kore ID. */}
+                <a
+                  href={ssoHref}
+                  data-testid="login-sso"
+                  className="flex min-h-control w-full items-center justify-center rounded-ui border border-border bg-raised px-3 py-2 font-medium text-text transition-colors hover:border-border-strong"
+                >
+                  {t("login.sso")}
+                </a>
+              </>
+            ) : null}
           </section>
         </div>
       </main>

@@ -1,16 +1,20 @@
 import { usagePercent } from "@/components/admin/UsageBar";
 import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { api } from "@/lib/api";
+import { getAuthConfig } from "@/lib/authConfig";
 import { formatBytes } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import type { Usage } from "@/lib/nodes";
 import { requireUser } from "@/lib/session";
+import { accountSsoMessage } from "@/lib/ssoErrors";
 
 export const metadata = { title: t("account.title") };
 
 /** `/account`: who you are, your storage use, and changing your password. */
-export default async function AccountPage() {
+export default async function AccountPage({ searchParams }: PageProps<"/account">) {
   const user = await requireUser();
+  const auth = await getAuthConfig();
+  const sso = accountSsoMessage((await searchParams).sso);
   const usage = await api<Usage>("/api/me/usage");
   const pct = usagePercent(usage.used_bytes, usage.quota_bytes);
   const text = t("account.storageUsed", {
@@ -55,15 +59,39 @@ export default async function AccountPage() {
           <p className="text-meta text-muted">{t("account.storageNote")}</p>
         </section>
 
-        <section aria-labelledby="password-heading" className="space-y-3">
-          <div>
-            <h2 id="password-heading" className="text-sub font-semibold">
-              {t("account.passwordTitle")}
-            </h2>
-            <p className="text-meta text-muted">{t("account.passwordHint")}</p>
-          </div>
-          <ChangePasswordForm />
-        </section>
+        {auth.local_login ? (
+          <section aria-labelledby="password-heading" className="space-y-3">
+            <div>
+              <h2 id="password-heading" className="text-sub font-semibold">
+                {t("account.passwordTitle")}
+              </h2>
+              <p className="text-meta text-muted">{t("account.passwordHint")}</p>
+            </div>
+            <ChangePasswordForm />
+          </section>
+        ) : null}
+
+        {auth.oidc ? (
+          <section aria-labelledby="sso-heading" className="space-y-3">
+            <div>
+              <h2 id="sso-heading" className="text-sub font-semibold">
+                {t("account.sso.title")}
+              </h2>
+              <p className="text-meta text-muted">{t("account.sso.hint")}</p>
+            </div>
+            {sso ? (
+              <p role="status" data-testid="account-sso-result" className={`text-meta ${sso.ok ? "text-muted" : "text-danger"}`}>
+                {t(sso.key)}
+              </p>
+            ) : null}
+            <a
+              href="/api/auth/oidc/login?link=1"
+              className="inline-flex min-h-control items-center rounded-ui border border-border bg-raised px-3 py-2 font-medium text-text transition-colors hover:border-border-strong"
+            >
+              {t("account.sso.link")}
+            </a>
+          </section>
+        ) : null}
       </div>
     </div>
   );

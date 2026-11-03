@@ -37,11 +37,19 @@ type server struct {
 	zipByIP     map[string]int // running public zips per client address
 	publicLimit *auth.Limiter  // requests per client IP across public routes
 	zipSlots    chan struct{}  // concurrent public zip streams
+
+	sso *ssoState // Kore ID login; nil unless configured (oidc.go)
+	// passwordLogin is false when local password login is disabled.
+	passwordLogin bool
 }
 
 // New returns the API handler. dataDir is the (already checked) volume.
-func New(db *sql.DB, dataDir string) http.Handler {
-	return newServer(db, dataDir).handler()
+func New(db *sql.DB, dataDir string, opts ...Option) http.Handler {
+	s := newServer(db, dataDir)
+	for _, o := range opts {
+		o(s)
+	}
+	return s.handler()
 }
 
 func newServer(db *sql.DB, dataDir string) *server {
@@ -62,16 +70,16 @@ func newServer(db *sql.DB, dataDir string) *server {
 		sizeCache:   newSizeCache(1000, time.Minute),
 		zipByIP:     map[string]int{},
 		publicLimit: auth.NewLimiter(300, time.Minute),
-		zipSlots:    make(chan struct{}, 4)}
+		zipSlots:    make(chan struct{}, 4), passwordLogin: true}
 }
 
 func (s *server) handler() http.Handler {
-	db := s.db
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]string{"status": "ok"})
 	})
 	mux.HandleFunc("POST /api/auth/login", s.login)
+	s.registerSSO(mux)
 	mux.HandleFunc("POST /api/auth/logout", s.logout)
 	mux.Handle("GET /api/auth/me", auth.RequireUser(http.HandlerFunc(s.me)))
 	s.registerMe(mux)
@@ -100,7 +108,7 @@ func (s *server) handler() http.Handler {
 		}
 		writeJSON(w, 404, map[string]string{"error": "not_found"})
 	})
-	authed := auth.Middleware(db)(mux)
+	authed := s.sessionMiddleware(mux)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Public share routes never look at the session cookie: they bypass
 		// the session middleware entirely, so being signed in (even as an
@@ -121,6 +129,10 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 }
 
 func (s *server) login(w http.ResponseWriter, r *http.Request) {
+	if !s.passwordLogin {
+		errJSON(w, 403, "local_login_disabled")
+		return
+	}
 	var in struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -180,13 +192,20 @@ func hashErr(w http.ResponseWriter, err error) {
 }
 
 func (s *server) logout(w http.ResponseWriter, r *http.Request) {
+	endSession := ""
 	if c, err := r.Cookie(auth.CookieName); err == nil {
+		endSession = s.ssoLogoutURL(r.Context(), c.Value)
 		auth.DeleteSession(r.Context(), s.db, c.Value)
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name: auth.CookieName, Value: "", Path: "/", HttpOnly: true,
 		SameSite: http.SameSiteLaxMode, Secure: auth.IsHTTPS(r), MaxAge: -1,
 	})
+	if endSession != "" {
+		// Signed in with Kore ID: the browser should also end the SSO session.
+		writeJSON(w, 200, map[string]string{"redirect": endSession})
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
