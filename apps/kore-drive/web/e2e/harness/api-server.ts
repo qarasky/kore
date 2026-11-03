@@ -35,18 +35,14 @@ writeFileSync(
     `port = ${E2E.apiPort}`,
     `bind = "127.0.0.1"`,
     `data_dir = ${JSON.stringify(dataDir)}`,
-    `admin_email = ${JSON.stringify(E2E.admin.email)}`,
-    `admin_password = ${JSON.stringify(E2E.admin.password)}`,
-    // E2E_OIDC_ISSUER turns on "Continue with Kore ID" (discovery is lazy, so
-    // any URL works until someone clicks it). Used for screenshots.
-    ...(process.env.E2E_OIDC_ISSUER
-      ? [
-          `public_url = ${JSON.stringify(E2E.webUrl)}`,
-          "[oidc]",
-          `issuer = ${JSON.stringify(process.env.E2E_OIDC_ISSUER)}`,
-          `apps = { koremind = "https://mind.example.com", korecalendar = "https://cal.example.com" }`,
-        ]
-      : []),
+    // Kore ID is the only sign-in. Discovery is lazy, so any issuer URL works
+    // until someone clicks the button; tests seed accounts and sessions in
+    // the database (see db.ts) rather than running a real provider.
+    `public_url = ${JSON.stringify(E2E.webUrl)}`,
+    "[oidc]",
+    `issuer = ${JSON.stringify(process.env.E2E_OIDC_ISSUER || "https://id.kore.test")}`,
+    `owner_email = ${JSON.stringify(E2E.admin.email)}`,
+    `apps = { koremind = "https://mind.example.com", korecalendar = "https://cal.example.com" }`,
     "",
   ].join("\n"),
 );

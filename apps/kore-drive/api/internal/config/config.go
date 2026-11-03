@@ -17,25 +17,20 @@ import (
 
 // Config holds the settings read from the config file.
 type Config struct {
-	Port          int    `toml:"port"`
-	Bind          string `toml:"bind"`
-	DataDir       string `toml:"data_dir"`
-	AdminEmail    string `toml:"admin_email"`
-	AdminPassword string `toml:"admin_password"`
+	Port    int    `toml:"port"`
+	Bind    string `toml:"bind"`
+	DataDir string `toml:"data_dir"`
 
 	// PublicURL is the externally visible base URL of Kore (scheme + host,
 	// e.g. https://kore.example.com). Required for Kore ID: the OIDC redirect
 	// URI is PublicURL + "/api/auth/oidc/callback".
 	PublicURL string `toml:"public_url"`
-	// LocalLogin enables email + password login (default true). Set false to
-	// make Kore ID the only way in; needs [oidc] to be configured.
-	LocalLogin *bool `toml:"local_login"`
-	OIDC       OIDC  `toml:"oidc"`
+	OIDC      OIDC   `toml:"oidc"`
 }
 
 // OIDC configures login with Kore ID (any OpenID Connect provider with
-// authorization-code + PKCE S256 and EdDSA-signed tokens). Enabled when
-// Issuer is set.
+// authorization-code + PKCE S256 and EdDSA-signed tokens). Kore ID is the only
+// way to sign in, so Issuer is required.
 type OIDC struct {
 	Issuer       string `toml:"issuer"`
 	ClientID     string `toml:"client_id"`
@@ -48,8 +43,7 @@ type OIDC struct {
 	// AutoProvision creates a local account on first login (default true).
 	AutoProvision *bool `toml:"auto_provision"`
 	// OwnerEmail names the first administrator on a fresh install: the first
-	// Kore ID sign-in whose verified email matches becomes an admin, so the
-	// install can start without a local password account.
+	// Kore ID sign-in whose verified email matches becomes an admin.
 	OwnerEmail string `toml:"owner_email"`
 	// Apps maps the other Kore apps (koremind, korecalendar, flatline) to
 	// their base URLs for the app switcher in the top bar and account menu.
@@ -63,9 +57,6 @@ var AppIDs = []string{"kore", "koremind", "korecalendar", "flatline"}
 
 // Enabled reports whether Kore ID login is configured.
 func (o OIDC) Enabled() bool { return o.Issuer != "" }
-
-// LocalLoginEnabled reports whether password login is allowed.
-func (c Config) LocalLoginEnabled() bool { return c.LocalLogin == nil || *c.LocalLogin }
 
 // LinkByEmailEnabled reports whether a verified email may link an existing account.
 func (o OIDC) LinkByEmailEnabled() bool { return o.LinkByEmail == nil || *o.LinkByEmail }
@@ -92,9 +83,8 @@ func envBool(name string, dst **bool) error {
 
 // Load reads and validates the config. The file at path is optional (it may
 // be missing when everything comes from the environment); KORE_PORT,
-// KORE_BIND, KORE_DATA_DIR, KORE_ADMIN_EMAIL and KORE_ADMIN_PASSWORD, when
-// set and non-empty, override the file (this is how the Docker image is
-// configured from .env).
+// KORE_BIND, KORE_DATA_DIR and the Kore ID settings, when set and non-empty,
+// override the file (this is how the Docker image is configured from .env).
 func Load(path string) (Config, error) {
 	c := Config{Port: 8080, Bind: "127.0.0.1"}
 	b, err := os.ReadFile(path)
@@ -116,8 +106,6 @@ func Load(path string) (Config, error) {
 	for env, dst := range map[string]*string{
 		"KORE_BIND":               &c.Bind,
 		"KORE_DATA_DIR":           &c.DataDir,
-		"KORE_ADMIN_EMAIL":        &c.AdminEmail,
-		"KORE_ADMIN_PASSWORD":     &c.AdminPassword,
 		"KORE_PUBLIC_URL":         &c.PublicURL,
 		"KORE_OIDC_ISSUER":        &c.OIDC.Issuer,
 		"KORE_OIDC_CLIENT_ID":     &c.OIDC.ClientID,
@@ -127,9 +115,6 @@ func Load(path string) (Config, error) {
 		if v := os.Getenv(env); v != "" {
 			*dst = v
 		}
-	}
-	if err := envBool("KORE_LOCAL_LOGIN", &c.LocalLogin); err != nil {
-		return Config{}, err
 	}
 	if err := envBool("KORE_OIDC_LINK_BY_EMAIL", &c.OIDC.LinkByEmail); err != nil {
 		return Config{}, err
@@ -159,14 +144,6 @@ func Load(path string) (Config, error) {
 	if c.DataDir == "" {
 		return Config{}, errors.New("data_dir is required (config file or KORE_DATA_DIR)")
 	}
-	if c.AdminEmail == "" && c.AdminPassword == "" && c.FirstUserSSO() {
-		// A fresh install can name its first administrator through Kore ID
-		// instead of creating a local password account.
-	} else if c.AdminEmail == "" {
-		return Config{}, errors.New("admin_email is required (config file or KORE_ADMIN_EMAIL)")
-	} else if c.AdminPassword == "" {
-		return Config{}, errors.New("admin_password is required (config file or KORE_ADMIN_PASSWORD)")
-	}
 	return c, nil
 }
 
@@ -181,10 +158,7 @@ func (c *Config) validateSSO() error {
 		}
 	}
 	if !c.OIDC.Enabled() {
-		if !c.LocalLoginEnabled() {
-			return errors.New("local_login = false needs Kore ID: set oidc.issuer (KORE_OIDC_ISSUER)")
-		}
-		return nil
+		return errors.New("Kore ID is required: set oidc.issuer (KORE_OIDC_ISSUER)")
 	}
 	if c.OIDC.ClientID == "" {
 		c.OIDC.ClientID = "kore"

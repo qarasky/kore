@@ -1,5 +1,4 @@
 import { Button, Meter, PageBody, PageHeader, SettingsSection } from "@qarasky/kore-ui";
-import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { api } from "@/lib/api";
 import { getAuthConfig } from "@/lib/authConfig";
 import { formatBytes } from "@/lib/format";
@@ -11,7 +10,7 @@ import { usagePercent } from "@/lib/usage";
 
 export const metadata = { title: t("account.title") };
 
-/** `/account`: who you are, your storage use, and changing your password. */
+/** `/account`: who you are, your storage use, and the Kore ID link. */
 export default async function AccountPage({ searchParams }: PageProps<"/account">) {
   const user = await requireUser();
   const auth = await getAuthConfig();
@@ -47,12 +46,6 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
             {text}
           </p>
         </SettingsSection>
-
-        {auth.local_login ? (
-          <SettingsSection title={t("account.passwordTitle")} description={t("account.passwordHint")}>
-            <ChangePasswordForm />
-          </SettingsSection>
-        ) : null}
 
         {auth.oidc ? (
           <SettingsSection title={t("account.sso.title")} description={t("account.sso.hint")}>

@@ -34,8 +34,7 @@ func newShareEnv(t *testing.T) *shareEnv {
 	t.Helper()
 	e := newEnv(t)
 	e.db.Exec(`UPDATE users SET quota_bytes=? WHERE id=?`, 1<<30, e.user.ID)
-	ph, _ := auth.HashPassword("password-1")
-	o, err := users.Create(context.Background(), e.db, "other@x.io", ph, "user", 1<<30)
+	o, err := users.Create(context.Background(), e.db, "other@x.io", "user", 1<<30)
 	if err != nil {
 		t.Fatal(err)
 	}

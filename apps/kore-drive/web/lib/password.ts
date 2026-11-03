@@ -1,7 +1,7 @@
 /**
- * Password rules mirrored from the API (lengths are UTF-8 bytes, like Go's
- * len()), strength hints, and a generator for initial / reset passwords.
- * Nothing here logs or stores a password.
+ * Password rules for share-link passwords, mirrored from the API (lengths are
+ * UTF-8 bytes, like Go's len()), plus kore-ui labels. Nothing here logs or
+ * stores a password, and none of it is a sign-in credential.
  */
 
 import type { PasswordRule } from "@qarasky/kore-ui";

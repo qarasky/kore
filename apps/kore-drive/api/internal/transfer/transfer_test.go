@@ -40,7 +40,7 @@ func setup(t *testing.T) *env {
 	}
 	t.Cleanup(func() { db.Close() })
 	mk := func(email, role string) users.User {
-		u, err := users.Create(ctx, db, email, "x", role, 1<<30)
+		u, err := users.Create(ctx, db, email, role, 1<<30)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -18,7 +18,7 @@ func setup(t *testing.T, quota int64) *sql.DB {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	if _, err := db.Exec(`INSERT INTO users(id,email,pw_hash,role,quota_bytes,created_at) VALUES('u1','a@b.c','x','user',?,0),('u2','d@e.f','x','user',1000,0)`, quota); err != nil {
+	if _, err := db.Exec(`INSERT INTO users(id,email,pw_hash,role,quota_bytes,created_at) VALUES('u1','a@b.c','','user',?,0),('u2','d@e.f','','user',1000,0)`, quota); err != nil {
 		t.Fatal(err)
 	}
 	return db

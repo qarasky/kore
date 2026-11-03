@@ -42,11 +42,9 @@ type ssoState struct {
 // Option configures the server.
 type Option func(*server)
 
-// WithConfig applies the login settings of cfg: Kore ID (if configured) and
-// whether password login stays enabled.
+// WithConfig applies the login settings of cfg: Kore ID (if configured).
 func WithConfig(cfg config.Config) Option {
 	return func(s *server) {
-		s.passwordLogin = cfg.LocalLoginEnabled()
 		if !cfg.OIDC.Enabled() {
 			return
 		}
@@ -65,13 +63,12 @@ func WithConfig(cfg config.Config) Option {
 
 // WithProvider is WithConfig with a ready provider (tests). The optional
 // ownerEmail names the first administrator on a fresh install.
-func WithProvider(p *oidc.Provider, publicURL string, linkByEmail, autoProvision, passwordLogin bool, ownerEmail ...string) Option {
+func WithProvider(p *oidc.Provider, publicURL string, linkByEmail, autoProvision bool, ownerEmail ...string) Option {
 	return func(s *server) {
 		owner := ""
 		if len(ownerEmail) > 0 {
 			owner = ownerEmail[0]
 		}
-		s.passwordLogin = passwordLogin
 		s.sso = &ssoState{p: p, publicURL: publicURL, linkByEmail: linkByEmail, autoProvision: autoProvision,
 			ownerEmail: owner,
 			limit:      auth.NewLimiter(30, 15*time.Minute)}
@@ -97,8 +94,7 @@ func appURLs(publicURL string, apps map[string]string) map[string]string {
 }
 
 type authConfigJSON struct {
-	LocalLogin bool `json:"local_login"`
-	OIDC       bool `json:"oidc"`
+	OIDC bool `json:"oidc"`
 	// FirstUserSSO is true when Kore ID is configured with an owner email:
 	// the first sign-in with that verified email becomes the administrator.
 	FirstUserSSO bool `json:"first_user_sso"`
@@ -109,7 +105,7 @@ type authConfigJSON struct {
 }
 
 func (s *server) authConfig(w http.ResponseWriter, r *http.Request) {
-	out := authConfigJSON{LocalLogin: s.passwordLogin, OIDC: s.sso != nil,
+	out := authConfigJSON{OIDC: s.sso != nil,
 		FirstUserSSO: s.sso != nil && s.sso.ownerEmail != ""}
 	if s.sso != nil {
 		out.Issuer = s.sso.p.Issuer()

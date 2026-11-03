@@ -13,27 +13,24 @@ import {
   TableRowHeader,
   useToast,
 } from "@qarasky/kore-ui";
-import { Plus } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { AdminUser } from "@/lib/admin";
 import { t } from "@/lib/i18n";
 import { RelativeTime } from "../RelativeTime";
 import { DeleteUserDialog } from "./DeleteUserDialog";
-import { ResetPasswordDialog } from "./ResetPasswordDialog";
 import { UsageBar } from "./UsageBar";
 import { UserDialog } from "./UserDialog";
 
 type Dialog =
-  | { kind: "add" }
   | { kind: "edit"; user: AdminUser }
-  | { kind: "reset"; user: AdminUser }
   | { kind: "delete"; user: AdminUser }
   | null;
 
-/** `/admin/users`: the accounts table with Add, Edit, Reset password and Delete. */
-export function UsersTable({ users, meId, defaultQuota }: { users: AdminUser[]; meId: string; defaultQuota: number }) {
+/** `/admin/users`: the accounts table with Edit and Delete. Accounts are
+ *  created by Kore ID on first sign-in; there is no add form and no password
+ *  to set. */
+export function UsersTable({ users, meId }: { users: AdminUser[]; meId: string }) {
   const router = useRouter();
   const toast = useToast();
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -48,13 +45,11 @@ export function UsersTable({ users, meId, defaultQuota }: { users: AdminUser[]; 
       <SectionHeader
         title={t("admin.users.title")}
         description={users.length === 1 ? t("admin.users.countOne") : t("admin.users.countMany", { count: users.length })}
-        actions={
-          <Button variant="primary" onClick={() => setDialog({ kind: "add" })}>
-            <Plus />
-            {t("admin.users.add")}
-          </Button>
-        }
       />
+
+      <p className="mb-4 max-w-content text-meta text-muted" data-testid="admin-users-sso-note">
+        {t("admin.users.ssoNote")}
+      </p>
 
       <Table caption={t("admin.users.table")} className="min-w-[760px]">
         <TableHeader>
@@ -95,21 +90,6 @@ export function UsersTable({ users, meId, defaultQuota }: { users: AdminUser[]; 
                   >
                     {t("admin.users.edit")}
                   </Button>
-                  {u.id === meId ? (
-                    // A reset would sign the admin out; their own password
-                    // is changed on the account page (keeps this session).
-                    <Button size="sm" asChild>
-                      <Link href="/account">{t("account.passwordTitle")}</Link>
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      aria-label={t("admin.users.resetPasswordFor", { email: u.email })}
-                      onClick={() => setDialog({ kind: "reset", user: u })}
-                    >
-                      {t("admin.users.resetPassword")}
-                    </Button>
-                  )}
                   <Button
                     size="sm"
                     variant="danger-outline"
@@ -125,20 +105,14 @@ export function UsersTable({ users, meId, defaultQuota }: { users: AdminUser[]; 
         </TableBody>
       </Table>
 
-      {dialog?.kind === "add" && (
-        <UserDialog mode="add" defaultQuota={defaultQuota} onClose={close} onSaved={saved} />
-      )}
       {dialog?.kind === "edit" && (
         <UserDialog
-          mode="edit"
           user={dialog.user}
           isSelf={dialog.user.id === meId}
-          defaultQuota={defaultQuota}
           onClose={close}
           onSaved={saved}
         />
       )}
-      {dialog?.kind === "reset" && <ResetPasswordDialog user={dialog.user} onClose={close} onDone={saved} />}
       {dialog?.kind === "delete" && (
         <DeleteUserDialog
           user={dialog.user}

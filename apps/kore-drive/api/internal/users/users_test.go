@@ -15,21 +15,25 @@ func TestCreateAndLookup(t *testing.T) {
 	}
 	defer db.Close()
 	ctx := context.Background()
-	u, err := Create(ctx, db, "A@B.c", "h", "user", 10)
+	u, err := Create(ctx, db, "A@B.c", "user", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, h, err := GetByEmail(ctx, db, "a@b.C")
-	if err != nil || got.ID != u.ID || h != "h" || got.QuotaBytes != 10 {
-		t.Fatalf("%v %q %v", got, h, err)
+	got, err := GetByEmail(ctx, db, "a@b.C")
+	if err != nil || got.ID != u.ID || got.QuotaBytes != 10 {
+		t.Fatalf("%v %v", got, err)
 	}
-	if _, err := Create(ctx, db, "a@b.c", "h", "user", 0); err != ErrExists {
+	var legacy string
+	if err := db.QueryRow(`SELECT pw_hash FROM users WHERE id=?`, u.ID).Scan(&legacy); err != nil || legacy != "" {
+		t.Fatalf("legacy password column: %q %v", legacy, err)
+	}
+	if _, err := Create(ctx, db, "a@b.c", "user", 0); err != ErrExists {
 		t.Fatalf("dup: %v", err)
 	}
-	if _, err := Create(ctx, db, "x@y.z", "h", "root", 0); err != ErrRole {
+	if _, err := Create(ctx, db, "x@y.z", "root", 0); err != ErrRole {
 		t.Fatalf("role: %v", err)
 	}
-	if _, _, err := GetByEmail(ctx, db, "no@y.z"); err != ErrNotFound {
+	if _, err := GetByEmail(ctx, db, "no@y.z"); err != ErrNotFound {
 		t.Fatalf("%v", err)
 	}
 }

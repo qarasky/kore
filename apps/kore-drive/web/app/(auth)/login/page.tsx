@@ -11,7 +11,7 @@ import { LoginScreen } from "./login-form";
 export const metadata: Metadata = { title: t("login.title") };
 
 /** The login picture setting; any failure falls back to the built-in art
- *  (the form must work even when this lookup doesn't). */
+ *  (the page must work even when this lookup doesn't). */
 async function branding(): Promise<Branding | null> {
   try {
     return await api<Branding>("/api/branding", { signal: AbortSignal.timeout(3000) });
@@ -31,9 +31,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
 
   return (
     <LoginScreen
-      next={next}
       expired={expired}
-      localLogin={auth.local_login}
       ssoHref={auth.oidc ? ssoHref : undefined}
       ssoError={auth.oidc ? ssoError : null}
       aside={

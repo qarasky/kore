@@ -17,8 +17,10 @@ export KORE_DATA_DIR="$WORK/data"
 export KORE_VERSION="$VERSION"
 export KORE_BIND=127.0.0.1
 export KORE_PORT="$PORT"
-export KORE_ADMIN_EMAIL=smoke@example.com
-export KORE_ADMIN_PASSWORD=smoke-test-password
+export KORE_PUBLIC_URL="http://127.0.0.1:$PORT"
+# Discovery is lazy: any issuer URL is enough for the stack to boot.
+export KORE_OIDC_ISSUER=https://id.example.com
+export KORE_OIDC_OWNER_EMAIL=smoke@example.com
 KORE_UID="$(id -u)"
 KORE_GID="$(id -g)"
 export KORE_UID KORE_GID
@@ -59,6 +61,7 @@ dc up -d --wait --no-build </dev/null
 base="http://127.0.0.1:$PORT"
 [ "$(status_of "$base/api/healthz")" = 200 ] || fail "GET /api/healthz did not answer 200"
 [ "$(status_of "$base/login")" = 200 ] || fail "GET /login did not answer 200"
-curl -fsS --max-time 10 "$base/api/auth/config" | grep -q '"local_login":true' || fail "GET /api/auth/config unexpected"
+curl -fsS --max-time 10 "$base/api/auth/config" | grep -q '"oidc":true' || fail "GET /api/auth/config unexpected"
+[ "$(status_of "$base/api/auth/login" -X POST)" = 404 ] || fail "POST /api/auth/login is not gone"
 [ "$(status_of "$base/api/auth/me")" = 401 ] || fail "GET /api/auth/me without a session did not answer 401"
 echo "smoke: ok ($VERSION)"

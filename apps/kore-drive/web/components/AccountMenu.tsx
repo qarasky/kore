@@ -1,7 +1,7 @@
 "use client";
 
 import { AccountMenu as KoreAccountMenu, MenuItem, useToast, type AppUrls } from "@qarasky/kore-ui";
-import { KeyRound, UserRound } from "lucide-react";
+import { UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { t } from "@/lib/i18n";
@@ -9,17 +9,15 @@ import type { KoreIdLinks } from "./AppFrame";
 
 /**
  * The top bar's account menu (kore-ui AccountMenu): who is signed in, the Kore
- * ID account (when Kore ID is on), this app's account page and password, the
- * other Kore apps, sign out.
+ * ID account (when Kore ID is on), this app's account page, the other Kore
+ * apps, sign out.
  */
 export function AccountMenu({
   email,
-  passwordLogin = true,
   koreId,
   apps,
 }: {
   email: string;
-  passwordLogin?: boolean;
   koreId: KoreIdLinks;
   apps?: AppUrls;
 }) {
@@ -45,7 +43,7 @@ export function AccountMenu({
   }
 
   // Kore ID's account page only when SSO is on; this app's /account is a child
-  // item either way (it holds storage, password and SSO linking).
+  // item either way (it holds storage and SSO linking).
   const accountUrl = koreId.accountUrl;
   return (
     <KoreAccountMenu
@@ -63,11 +61,6 @@ export function AccountMenu({
       <MenuItem icon={<UserRound />} onSelect={() => router.push("/account")}>
         {accountUrl ? t("account.storageAndSettings") : t("account.title")}
       </MenuItem>
-      {passwordLogin ? (
-        <MenuItem icon={<KeyRound />} onSelect={() => router.push("/account")}>
-          {t("account.changePassword")}
-        </MenuItem>
-      ) : null}
     </KoreAccountMenu>
   );
 }

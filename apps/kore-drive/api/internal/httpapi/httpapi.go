@@ -23,8 +23,8 @@ const sessionTTL = 30 * 24 * time.Hour
 type server struct {
 	db      *sql.DB
 	dataDir string
-	limiter *auth.Limiter // per email|IP (and per user|IP for password changes)
-	ipLimit *auth.Limiter // per client IP across all emails
+	limiter *auth.Limiter // share-link password attempts per share|IP
+	ipLimit *auth.Limiter // share-link password attempts per client IP
 	uploads *uploads.Uploads
 
 	// Public share links (shares.go, public.go).
@@ -39,8 +39,6 @@ type server struct {
 	zipSlots    chan struct{}  // concurrent public zip streams
 
 	sso *ssoState // Kore ID login; nil unless configured (oidc.go)
-	// passwordLogin is false when local password login is disabled.
-	passwordLogin bool
 }
 
 // New returns the API handler. dataDir is the (already checked) volume.
@@ -70,7 +68,7 @@ func newServer(db *sql.DB, dataDir string) *server {
 		sizeCache:   newSizeCache(1000, time.Minute),
 		zipByIP:     map[string]int{},
 		publicLimit: auth.NewLimiter(300, time.Minute),
-		zipSlots:    make(chan struct{}, 4), passwordLogin: true}
+		zipSlots:    make(chan struct{}, 4)}
 }
 
 func (s *server) handler() http.Handler {
@@ -78,7 +76,6 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("GET /api/healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]string{"status": "ok"})
 	})
-	mux.HandleFunc("POST /api/auth/login", s.login)
 	s.registerSSO(mux)
 	mux.HandleFunc("POST /api/auth/logout", s.logout)
 	mux.Handle("GET /api/auth/me", auth.RequireUser(http.HandlerFunc(s.me)))
@@ -134,55 +131,8 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-func (s *server) login(w http.ResponseWriter, r *http.Request) {
-	if !s.passwordLogin {
-		errJSON(w, 403, "local_login_disabled")
-		return
-	}
-	var in struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&in); err != nil {
-		errJSON(w, 400, "bad_request")
-		return
-	}
-	ip := limitKey(r)
-	ipKey := "ip|" + ip
-	key := strings.ToLower(strings.TrimSpace(in.Email)) + "|" + ip
-	if !s.ipLimit.Attempt(ipKey) || !s.limiter.Attempt(key) {
-		w.Header().Set("Retry-After", "900")
-		errJSON(w, 429, "too_many_attempts")
-		return
-	}
-	u, err := auth.Authenticate(r.Context(), s.db, in.Email, in.Password)
-	if err != nil {
-		switch {
-		case errors.Is(err, auth.ErrInvalidCredentials):
-			errJSON(w, 401, "invalid_credentials")
-		case errors.Is(err, auth.ErrBusy):
-			busy(w)
-		default:
-			errJSON(w, 500, "internal")
-		}
-		return
-	}
-	s.limiter.Reset(key)
-	s.ipLimit.Forgive(ipKey)
-	tok, err := auth.NewSession(r.Context(), s.db, u.ID, sessionTTL)
-	if err != nil {
-		errJSON(w, 500, "internal")
-		return
-	}
-	http.SetCookie(w, &http.Cookie{
-		Name: auth.CookieName, Value: tok, Path: "/", HttpOnly: true,
-		SameSite: http.SameSiteLaxMode, Secure: auth.IsHTTPS(r),
-		Expires: time.Now().Add(sessionTTL),
-	})
-	writeJSON(w, 200, u)
-}
-
-// busy answers a request that found the password-hash pool saturated.
+// busy answers a request that found the password-hash pool saturated (share
+// link passwords still use the argon2 pool).
 func busy(w http.ResponseWriter) {
 	w.Header().Set("Retry-After", "2")
 	errJSON(w, 503, "busy")

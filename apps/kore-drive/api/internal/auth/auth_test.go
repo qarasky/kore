@@ -3,14 +3,10 @@ package auth
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/qarasky/kore/api/internal/config"
-	"github.com/qarasky/kore/api/internal/settings"
 	"github.com/qarasky/kore/api/internal/store"
 	"github.com/qarasky/kore/api/internal/users"
 )
@@ -25,73 +21,26 @@ func testDB(t *testing.T) *sql.DB {
 	return db
 }
 
-func mkUser(t *testing.T, db *sql.DB, email, pw, role string) users.User {
+func mkUser(t *testing.T, db *sql.DB, email, role string) users.User {
 	t.Helper()
-	h, err := HashPassword(pw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	u, err := users.Create(context.Background(), db, email, h, role, 0)
+	u, err := users.Create(context.Background(), db, email, role, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return u
 }
 
-func TestVerifyPassword(t *testing.T) {
-	h, err := HashPassword("hunter2")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ok, err := VerifyPassword(h, "hunter2"); !ok || err != nil {
-		t.Fatal("right password rejected")
-	}
-	if ok, _ := VerifyPassword(h, "hunter3"); ok {
-		t.Fatal("wrong password accepted")
-	}
-	if ok, _ := VerifyPassword("garbage", "x"); ok {
-		t.Fatal("garbage hash accepted")
-	}
-}
-
-func TestHashesDiffer(t *testing.T) {
-	a, _ := HashPassword("same")
-	b, _ := HashPassword("same")
-	if a == b {
-		t.Fatal("hashes identical")
-	}
-}
-
-func TestAuthenticateWrongPasswordGeneric(t *testing.T) {
-	db := testDB(t)
-	mkUser(t, db, "a@b.c", "pw-correct", "user")
-	ctx := context.Background()
-	_, e1 := Authenticate(ctx, db, "a@b.c", "bad")
-	_, e2 := Authenticate(ctx, db, "nobody@b.c", "bad")
-	if e1 == nil || e2 == nil || e1.Error() != e2.Error() || e1 != e2 {
-		t.Fatalf("errors differ: %v / %v", e1, e2)
-	}
-	u, err := Authenticate(ctx, db, "a@b.c", "pw-correct")
-	if err != nil || u.Email != "a@b.c" {
-		t.Fatalf("good login: %v %v", u, err)
-	}
-}
-
 func TestEmailCaseInsensitive(t *testing.T) {
 	db := testDB(t)
-	mkUser(t, db, "Alice@Example.com", "pw", "user")
-	if _, err := Authenticate(context.Background(), db, "alice@EXAMPLE.com", "pw"); err != nil {
-		t.Fatal(err)
-	}
-	h, _ := HashPassword("x")
-	if _, err := users.Create(context.Background(), db, "ALICE@example.com", h, "user", 0); err == nil {
+	mkUser(t, db, "Alice@Example.com", "user")
+	if _, err := users.Create(context.Background(), db, "ALICE@example.com", "user", 0); err == nil {
 		t.Fatal("duplicate email differing by case accepted")
 	}
 }
 
 func TestSessionExpired(t *testing.T) {
 	db := testDB(t)
-	u := mkUser(t, db, "a@b.c", "pw", "user")
+	u := mkUser(t, db, "a@b.c", "user")
 	ctx := context.Background()
 	tok, err := NewSession(ctx, db, u.ID, time.Hour)
 	if err != nil {
@@ -112,70 +61,6 @@ func TestSessionExpired(t *testing.T) {
 	}
 	if _, err := UserForToken(ctx, db, "nope"); err == nil {
 		t.Fatal("unknown token accepted")
-	}
-}
-
-func TestBootstrapOnlyWhenEmpty(t *testing.T) {
-	db := testDB(t)
-	ctx := context.Background()
-	cfg := config.Config{AdminEmail: "root@x.y", AdminPassword: "s3cret-pass"}
-	if err := Bootstrap(ctx, db, cfg); err != nil {
-		t.Fatal(err)
-	}
-	u, err := Authenticate(ctx, db, "root@x.y", "s3cret-pass")
-	if err != nil || u.Role != "admin" {
-		t.Fatalf("%v %v", u, err)
-	}
-	cfg.AdminEmail = "other@x.y"
-	if err := Bootstrap(ctx, db, cfg); err != nil {
-		t.Fatal(err)
-	}
-	n, _ := users.Count(ctx, db)
-	if n != 1 {
-		t.Fatalf("users=%d", n)
-	}
-}
-
-func TestBootstrapLeavesTheFirstAdminToKoreIDOwner(t *testing.T) {
-	db := testDB(t)
-	ctx := context.Background()
-	cfg := config.Config{OIDC: config.OIDC{Issuer: "https://id.example.com", OwnerEmail: "owner@example.com"}}
-	if err := Bootstrap(ctx, db, cfg); err != nil {
-		t.Fatal(err)
-	}
-	if n, _ := users.Count(ctx, db); n != 0 {
-		t.Fatalf("users=%d", n)
-	}
-}
-
-func TestBootstrapAdminGetsDefaultQuota(t *testing.T) {
-	db := testDB(t)
-	ctx := context.Background()
-	if err := Bootstrap(ctx, db, config.Config{AdminEmail: "root@x.y", AdminPassword: "s3cret-pass"}); err != nil {
-		t.Fatal(err)
-	}
-	u, err := Authenticate(ctx, db, "root@x.y", "s3cret-pass")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if u.QuotaBytes != settings.DefaultQuotaBytes(ctx, db) || u.QuotaBytes != 50<<30 {
-		t.Fatalf("quota=%d", u.QuotaBytes)
-	}
-}
-
-func TestBootstrapRefusesPlaceholder(t *testing.T) {
-	db := testDB(t)
-	err := Bootstrap(context.Background(), db, config.Config{AdminEmail: "root@x.y", AdminPassword: "change-me"})
-	if err == nil {
-		t.Fatal("placeholder password accepted")
-	}
-	if n, _ := users.Count(context.Background(), db); n != 0 {
-		t.Fatal("user created")
-	}
-	// Non-empty DB: placeholder is irrelevant.
-	mkUser(t, db, "a@b.c", "pw", "admin")
-	if err := Bootstrap(context.Background(), db, config.Config{AdminEmail: "r@x.y", AdminPassword: "change-me"}); err != nil {
-		t.Fatal(err)
 	}
 }
 
@@ -206,30 +91,5 @@ func TestLimiter(t *testing.T) {
 		if !l.Attempt("k") {
 			t.Fatal("reset failed")
 		}
-	}
-}
-
-func TestBootstrapRefusesShortPassword(t *testing.T) {
-	ctx := context.Background()
-	for _, pw := range []string{"short", "1234567", "пароль7"} { // 7 characters max
-		db := testDB(t)
-		err := Bootstrap(ctx, db, config.Config{AdminEmail: "root@x.y", AdminPassword: pw})
-		if !errors.Is(err, ErrShortPassword) {
-			t.Fatalf("%q: got %v", pw, err)
-		}
-		if !strings.Contains(err.Error(), "at least 8") {
-			t.Fatalf("unclear error: %v", err)
-		}
-		if n, _ := users.Count(ctx, db); n != 0 {
-			t.Fatal("user created")
-		}
-	}
-	db := testDB(t)
-	if err := Bootstrap(ctx, db, config.Config{AdminEmail: "root@x.y", AdminPassword: "пароль78"}); err != nil {
-		t.Fatalf("8 characters: %v", err)
-	}
-	// Existing users: the config password is ignored, so no check.
-	if err := Bootstrap(ctx, db, config.Config{AdminEmail: "root@x.y", AdminPassword: "x"}); err != nil {
-		t.Fatal(err)
 	}
 }

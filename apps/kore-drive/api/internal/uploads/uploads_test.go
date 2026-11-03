@@ -41,11 +41,11 @@ func setup(t *testing.T, quotaBytes int64) *fixture {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	a, err := users.Create(ctx, db, "a@x.io", "x", "user", quotaBytes)
+	a, err := users.Create(ctx, db, "a@x.io", "user", quotaBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := users.Create(ctx, db, "b@x.io", "x", "user", quotaBytes)
+	b, err := users.Create(ctx, db, "b@x.io", "user", quotaBytes)
 	if err != nil {
 		t.Fatal(err)
 	}

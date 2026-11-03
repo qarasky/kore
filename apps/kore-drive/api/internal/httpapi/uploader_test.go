@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/qarasky/kore/api/internal/auth"
 	"github.com/qarasky/kore/api/internal/nodes"
 	"github.com/qarasky/kore/api/internal/users"
 )
@@ -32,8 +31,7 @@ func listJSON(t *testing.T, e *env, as users.User, path string) map[string]map[s
 func TestUploaderEmailOnlyInSharedSpace(t *testing.T) {
 	e := newEnv(t)
 	e.db.Exec(`UPDATE users SET quota_bytes=? WHERE id=?`, 1<<20, e.user.ID)
-	ph, _ := auth.HashPassword("password-1")
-	b, err := users.Create(context.Background(), e.db, "b@x.io", ph, "user", 1<<20)
+	b, err := users.Create(context.Background(), e.db, "b@x.io", "user", 1<<20)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,8 +77,7 @@ func TestUploaderEmailOnlyInSharedSpace(t *testing.T) {
 func TestUploaderEmailFollowsMoves(t *testing.T) {
 	e := newEnv(t)
 	e.db.Exec(`UPDATE users SET quota_bytes=? WHERE id=?`, 1<<20, e.user.ID)
-	ph, _ := auth.HashPassword("password-1")
-	b, err := users.Create(context.Background(), e.db, "b@x.io", ph, "user", 1<<20)
+	b, err := users.Create(context.Background(), e.db, "b@x.io", "user", 1<<20)
 	if err != nil {
 		t.Fatal(err)
 	}

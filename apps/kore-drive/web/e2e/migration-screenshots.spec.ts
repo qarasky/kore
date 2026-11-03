@@ -142,10 +142,10 @@ test("render kore-ui migration screenshots", async ({ page, browser }) => {
   await settle(ap);
   await shot(ap, "13-admin-users");
   await maybe("user dialog", async () => {
-    await ap.getByRole("button", { name: en["admin.users.add"] }).click();
+    await ap.getByRole("button", { name: `Edit ${user.email}` }).click();
     await expect(ap.getByRole("dialog")).toBeVisible();
     await settle(ap);
-    await shot(ap, "14-admin-add-user");
+    await shot(ap, "14-admin-edit-user");
     await ap.keyboard.press("Escape");
   });
   await ap.goto("/admin");

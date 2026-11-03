@@ -52,7 +52,8 @@ test("shell: sidebar, storage meter, account menu, search box", async ({ page })
   await page.getByRole("button", { name: en["account.menu"] }).click();
   const menu = page.getByRole("menu");
   await expect(menu).toContainText(user.email);
-  await expect(menu.getByRole("menuitem", { name: en["account.changePassword"] })).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: /change password/i })).toHaveCount(0);
+  await expect(menu.getByRole("menuitem", { name: en["account.title"] })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(menu).toBeHidden();
 
@@ -271,9 +272,13 @@ test("deep link to a folder while logged out returns to it after login", async (
 
   await page.goto(`/files/${id}`);
   await expect(page).toHaveURL(`/login?next=${encodeURIComponent(`/files/${id}`)}`);
-  await page.getByLabel(en["login.email"]).fill(user.email);
-  await page.getByLabel(en["login.password"]).fill(user.password);
-  await page.getByRole("button", { name: en["login.submit"] }).click();
+  // Kore ID carries the deep link through the flow (the harness has no provider).
+  await expect(page.getByRole("link", { name: en["login.sso"] })).toHaveAttribute(
+    "href",
+    `/api/auth/oidc/login?next=${encodeURIComponent(`/files/${id}`)}`,
+  );
+  await loginAs(page, user.email);
+  await page.goto(`/files/${id}`);
 
   await expect(page).toHaveURL(`/files/${id}`);
   await expect(row(page, "Child of linked")).toBeVisible();

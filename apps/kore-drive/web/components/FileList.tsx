@@ -376,7 +376,14 @@ export function FileList({
         </MenuItem>
       </>
     ) : (
-      <MenuItem icon={<FolderPlus />} onSelect={() => setEditing({ kind: "new" })}>
+      <MenuItem
+        icon={<FolderPlus />}
+        onSelect={() => {
+          // The point menu returns focus to the list as it closes; mounting the
+          // inline editor first would make it lose focus and cancel itself.
+          setTimeout(() => setEditing({ kind: "new" }), 0);
+        }}
+      >
         {t("new.folder")}
       </MenuItem>
     );
