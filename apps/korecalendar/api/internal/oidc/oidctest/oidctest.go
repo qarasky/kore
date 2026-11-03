@@ -30,6 +30,9 @@ type Server struct {
 	codes map[string]code
 	// User is who the next authorize request signs in. Set Sub, Email, etc.
 	User map[string]any
+	// Sid is the Kore ID session id put in the tokens the next sign-in gets
+	// (empty: no sid claim).
+	Sid string
 	// JWKSHits counts fetches of the key set.
 	JWKSHits int
 }
@@ -43,7 +46,7 @@ func New(t *testing.T, clientID, secret string) *Server {
 	t.Helper()
 	_, priv, _ := ed25519.GenerateKey(rand.Reader)
 	s := &Server{ClientID: clientID, Secret: secret, Kid: "key-1", priv: priv, codes: map[string]code{},
-		User: map[string]any{"sub": "11111111-1111-4111-8111-111111111111", "email": "ada@example.com", "name": "Ada"}}
+		User: map[string]any{"sub": "11111111-1111-4111-8111-111111111111", "email": "ada@example.com", "email_verified": true, "name": "Ada"}, Sid: "sid-1"}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]any{
@@ -80,15 +83,25 @@ func (s *Server) Rotate() {
 	s.mu.Unlock()
 }
 
-// Mint signs a token with the given claims; iss, iat and exp default sensibly.
+// Mint signs a token with the given claims (header typ "JWT"); iss, iat and
+// exp default sensibly. A nil claim value removes the claim.
 func (s *Server) Mint(claims map[string]any) string {
 	return s.MintWith(claims, "EdDSA", "")
 }
 
 // MintWith is Mint with an explicit alg ("EdDSA" or "HS256") and kid override.
 func (s *Server) MintWith(claims map[string]any, alg, kid string) string {
+	return s.MintTyp(claims, alg, kid, "JWT")
+}
+
+// MintTyp is MintWith with an explicit header typ ("" leaves it out).
+func (s *Server) MintTyp(claims map[string]any, alg, kid, typ string) string {
 	c := jwt.MapClaims{"iss": s.URL, "iat": time.Now().Unix(), "exp": time.Now().Add(10 * time.Minute).Unix()}
 	for k, v := range claims {
+		if v == nil {
+			delete(c, k)
+			continue
+		}
 		c[k] = v
 	}
 	s.mu.Lock()
@@ -104,6 +117,11 @@ func (s *Server) MintWith(claims map[string]any, alg, kid string) string {
 		tok, key = jwt.NewWithClaims(jwt.SigningMethodEdDSA, c), s.priv
 	}
 	tok.Header["kid"] = kid
+	if typ == "" {
+		delete(tok.Header, "typ")
+	} else {
+		tok.Header["typ"] = typ
+	}
 	out, err := tok.SignedString(key)
 	if err != nil {
 		panic(err)
@@ -111,11 +129,15 @@ func (s *Server) MintWith(claims map[string]any, alg, kid string) string {
 	return out
 }
 
-// IDToken is an id token for User as the client would receive it.
+// IDToken is an id token for User as the client would receive it (Kore ID:
+// typ JWT, azp, sid, no scope).
 func (s *Server) IDToken(nonce string) string {
-	c := map[string]any{"aud": s.ClientID}
+	c := map[string]any{"aud": s.ClientID, "azp": s.ClientID, "auth_time": time.Now().Unix()}
 	for k, v := range s.User {
 		c[k] = v
+	}
+	if s.Sid != "" {
+		c["sid"] = s.Sid
 	}
 	if nonce != "" {
 		c["nonce"] = nonce
@@ -123,13 +145,48 @@ func (s *Server) IDToken(nonce string) string {
 	return s.Mint(c)
 }
 
-// AccessToken is an access token for User (has a scope claim, like Kore ID's).
+// AccessToken is a Kore ID access token for User and client aud (RFC 9068:
+// header typ at+jwt, client_id, scope, jti, sid).
 func (s *Server) AccessToken(aud string) string {
-	c := map[string]any{"aud": aud, "scope": "openid profile email"}
-	for _, k := range []string{"sub", "email"} {
-		c[k] = s.User[k]
+	c := map[string]any{"aud": aud, "client_id": aud, "scope": "openid profile email", "jti": randomID()}
+	for _, k := range []string{"sub", "email", "email_verified"} {
+		if v, ok := s.User[k]; ok {
+			c[k] = v
+		}
 	}
-	return s.Mint(c)
+	if s.Sid != "" {
+		c["sid"] = s.Sid
+	}
+	return s.MintTyp(c, "EdDSA", "", "at+jwt")
+}
+
+// LogoutToken is a back-channel logout token for this client (typ logout+jwt,
+// exp +2 min, fresh jti, the back-channel event) for sid and sub; empty values
+// are left out. extra overrides or (nil) removes claims.
+func (s *Server) LogoutToken(sid, sub string, extra map[string]any) string {
+	c := map[string]any{"aud": s.ClientID, "jti": randomID(), "exp": time.Now().Add(2 * time.Minute).Unix(),
+		"events": map[string]any{"http://schemas.openid.net/event/backchannel-logout": map[string]any{}}}
+	if sid != "" {
+		c["sid"] = sid
+	}
+	if sub != "" {
+		c["sub"] = sub
+	}
+	typ := "logout+jwt"
+	for k, v := range extra {
+		if k == "typ" { // header, not a claim
+			typ, _ = v.(string)
+			continue
+		}
+		c[k] = v
+	}
+	return s.MintTyp(c, "EdDSA", "", typ)
+}
+
+func randomID() string {
+	b := make([]byte, 12)
+	rand.Read(b)
+	return base64.RawURLEncoding.EncodeToString(b)
 }
 
 func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {

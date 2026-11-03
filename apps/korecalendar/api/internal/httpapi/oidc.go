@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/qarasky/korecalendar/api/internal/auth"
+	"github.com/qarasky/korecalendar/api/internal/oidc"
 	"github.com/qarasky/korecalendar/api/internal/sso"
 )
 
@@ -57,9 +58,23 @@ func (s *server) handleAuthConfig(w http.ResponseWriter, r *http.Request) {
 			"issuer":    s.sso.Provider.Issuer(),
 			"login_url": "/api/auth/oidc/login",
 			"client_id": s.sso.Cfg.ClientID,
+			// The Kore ID account page and the other Kore apps, for the account menu.
+			"account_url": s.sso.Provider.Issuer() + "/account",
+			"apps":        s.koreApps(),
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *server) koreApps() map[string]string {
+	out := map[string]string{}
+	for k, v := range s.apps {
+		out[k] = v
+	}
+	if out["korecalendar"] == "" && s.publicURL != "" {
+		out["korecalendar"] = strings.TrimRight(s.publicURL, "/") + "/"
+	}
+	return out
 }
 
 func loginError(w http.ResponseWriter, r *http.Request, code string) {
@@ -175,7 +190,7 @@ func (s *server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		loginError(w, r, "internal")
 		return
 	}
-	tok, err := auth.NewSessionWithIDToken(r.Context(), s.db, u.ID, sessionTTL, idToken)
+	tok, err := auth.NewOIDCSession(r.Context(), s.db, u.ID, sessionTTL, idToken, claims.Sid)
 	if err != nil {
 		loginError(w, r, "internal")
 		return
@@ -183,6 +198,42 @@ func (s *server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{Name: auth.CookieName, Value: tok, Path: "/", HttpOnly: true,
 		SameSite: http.SameSiteLaxMode, Secure: auth.IsHTTPS(r), MaxAge: int(sessionTTL.Seconds())})
 	http.Redirect(w, r, safeNext(next), http.StatusFound)
+}
+
+// handleBackchannelLogout is Kore ID's OIDC Back-Channel Logout 1.0 target
+// (register <public_url>/api/auth/oidc/backchannel-logout as the client's
+// backchannelLogoutUri). It verifies the form field logout_token and ends the
+// local sessions of that Kore ID session; 400 for anything it cannot trust.
+func (s *server) handleBackchannelLogout(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if s.sso == nil {
+		errJSON(w, http.StatusNotFound, "not_found", "not found")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
+	raw := r.PostFormValue("logout_token")
+	if raw == "" || !oidc.IsJWT(raw) {
+		errJSON(w, http.StatusBadRequest, "invalid_request", "logout_token is missing or malformed")
+		return
+	}
+	claims, err := s.sso.Provider.VerifyLogoutToken(r.Context(), raw)
+	if err != nil {
+		log.Printf("oidc: back-channel logout refused: %v", err)
+		errJSON(w, http.StatusBadRequest, "invalid_request", "invalid logout_token")
+		return
+	}
+	n, err := s.sso.BackchannelLogout(r.Context(), claims)
+	switch {
+	case errors.Is(err, sso.ErrLogoutReplayed):
+		errJSON(w, http.StatusBadRequest, "invalid_request", "logout_token was already used")
+		return
+	case err != nil:
+		log.Printf("oidc: back-channel logout: %v", err)
+		errJSON(w, http.StatusInternalServerError, "internal", "could not end the sessions")
+		return
+	}
+	log.Printf("oidc: back-channel logout ended %d session(s)", n)
+	w.WriteHeader(http.StatusOK)
 }
 
 var nonCode = regexp.MustCompile(`[^a-z_]`)

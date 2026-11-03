@@ -195,3 +195,82 @@ func TestDiscoveryIssuerMustMatch(t *testing.T) {
 		t.Fatal("mismatched issuer accepted")
 	}
 }
+
+func TestAccessTokenTypIsEnforced(t *testing.T) {
+	f, p := setup(t, "korecalendar-android")
+	ctx := context.Background()
+	claims := map[string]any{"aud": "korecalendar", "client_id": "korecalendar", "sub": "s", "scope": "openid", "sid": "abc"}
+	c, err := p.VerifyAccessToken(ctx, f.MintTyp(claims, "EdDSA", "", "at+jwt"))
+	if err != nil || c.Sid != "abc" || c.ClientID != "korecalendar" {
+		t.Fatalf("at+jwt: %+v %v", c, err)
+	}
+	if _, err := p.VerifyAccessToken(ctx, f.MintTyp(claims, "EdDSA", "", "application/at+JWT")); err != nil {
+		t.Fatalf("application/at+jwt: %v", err)
+	}
+	// With a scope claim but the wrong (or no) typ: still refused, the scope heuristic is not enough.
+	for _, typ := range []string{"", "JWT", "logout+jwt", "at+jwtx"} {
+		if _, err := p.VerifyAccessToken(ctx, f.MintTyp(claims, "EdDSA", "", typ)); err == nil {
+			t.Errorf("typ %q accepted", typ)
+		}
+	}
+	// at+jwt without scope, or issued to another client than its audience.
+	noScope := map[string]any{"aud": "korecalendar", "sub": "s", "scope": nil}
+	if _, err := p.VerifyAccessToken(ctx, f.MintTyp(noScope, "EdDSA", "", "at+jwt")); err == nil {
+		t.Error("access token without scope accepted")
+	}
+	other := map[string]any{"aud": "korecalendar", "client_id": "koremind", "sub": "s", "scope": "openid"}
+	if _, err := p.VerifyAccessToken(ctx, f.MintTyp(other, "EdDSA", "", "at+jwt")); err == nil {
+		t.Error("client_id of another app accepted")
+	}
+	// The Android client's tokens (audience korecalendar-android) are accepted when configured.
+	if _, err := p.VerifyAccessToken(ctx, f.AccessToken("korecalendar-android")); err != nil {
+		t.Errorf("android token: %v", err)
+	}
+	// An access token is not an id token.
+	if _, err := p.VerifyIDToken(ctx, f.AccessToken("korecalendar"), ""); err == nil {
+		t.Error("access token accepted as an id token")
+	}
+	if c, err := p.VerifyIDToken(ctx, f.IDToken(""), ""); err != nil || c.Sid != "sid-1" {
+		t.Errorf("id token: %+v %v", c, err)
+	}
+}
+
+func TestVerifyLogoutToken(t *testing.T) {
+	f, p := setup(t, "korecalendar-android")
+	ctx := context.Background()
+	c, err := p.VerifyLogoutToken(ctx, f.LogoutToken("sid-9", "sub-9", nil))
+	if err != nil || c.Sid != "sid-9" || c.Subject != "sub-9" || c.JTI == "" || c.Expires.IsZero() {
+		t.Fatalf("good: %+v %v", c, err)
+	}
+	if c, err := p.VerifyLogoutToken(ctx, f.LogoutToken("", "sub-9", nil)); err != nil || c.Sid != "" {
+		t.Fatalf("sub only: %+v %v", c, err)
+	}
+	if c, err := p.VerifyLogoutToken(ctx, f.LogoutToken("sid-9", "", nil)); err != nil || c.Subject != "" {
+		t.Fatalf("sid only: %+v %v", c, err)
+	}
+	cases := map[string]string{
+		"neither sid nor sub":       f.LogoutToken("", "", nil),
+		"typ JWT":                   f.LogoutToken("s", "u", map[string]any{"typ": "JWT"}),
+		"no typ":                    f.LogoutToken("s", "u", map[string]any{"typ": ""}),
+		"typ at+jwt":                f.LogoutToken("s", "u", map[string]any{"typ": "at+jwt"}),
+		"extra audience (android)":  f.LogoutToken("s", "u", map[string]any{"aud": "korecalendar-android"}),
+		"other app":                 f.LogoutToken("s", "u", map[string]any{"aud": "koremind"}),
+		"wrong issuer":              f.LogoutToken("s", "u", map[string]any{"iss": "https://evil.example"}),
+		"expired":                   f.LogoutToken("s", "u", map[string]any{"exp": time.Now().Add(-time.Hour).Unix()}),
+		"no exp":                    f.LogoutToken("s", "u", map[string]any{"exp": nil}),
+		"no iat":                    f.LogoutToken("s", "u", map[string]any{"iat": nil}),
+		"no jti":                    f.LogoutToken("s", "u", map[string]any{"jti": nil}),
+		"no events":                 f.LogoutToken("s", "u", map[string]any{"events": nil}),
+		"other event":               f.LogoutToken("s", "u", map[string]any{"events": map[string]any{"urn:other": map[string]any{}}}),
+		"event not an object":       f.LogoutToken("s", "u", map[string]any{"events": map[string]any{oidc.BackchannelLogoutEvent: "x"}}),
+		"nonce present":             f.LogoutToken("s", "u", map[string]any{"nonce": "n"}),
+		"an id token":               f.IDToken(""),
+		"tampered":                  f.LogoutToken("s", "u", nil) + "x",
+		"HS256 with the public key": f.MintWith(map[string]any{"aud": "korecalendar", "sid": "s", "jti": "j", "events": map[string]any{oidc.BackchannelLogoutEvent: map[string]any{}}}, "HS256", ""),
+	}
+	for name, tok := range cases {
+		if _, err := p.VerifyLogoutToken(ctx, tok); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}

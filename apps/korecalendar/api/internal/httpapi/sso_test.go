@@ -34,7 +34,7 @@ func newSSO(t *testing.T, mut func(*config.OIDC), passwords bool) *ssoEnv {
 	var h http.Handler
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.ServeHTTP(w, r) }))
 	t.Cleanup(srv.Close)
-	cfg := config.OIDC{Issuer: kore.URL, ClientID: "korecalendar", AutoProvision: true, LinkByEmail: "off", Name: "Kore ID"}
+	cfg := config.OIDC{Issuer: kore.URL, ClientID: "korecalendar", AutoProvision: true, LinkByEmail: "verified", Name: "Kore ID"}
 	if mut != nil {
 		mut(&cfg)
 	}
@@ -214,7 +214,7 @@ func TestOIDCEmailLinking(t *testing.T) {
 		return out.Token
 	}
 	t.Run("off: never links, the email is not enough", func(t *testing.T) {
-		e := newSSO(t, nil, true)
+		e := newSSO(t, func(c *config.OIDC) { c.LinkByEmail = "off" }, true)
 		setupWithAda(e)
 		if loc := newBrowser(t).signIn(e, "/"); loc != "/login?error=email_in_use" {
 			t.Fatalf("%q", loc)
@@ -225,9 +225,10 @@ func TestOIDCEmailLinking(t *testing.T) {
 			t.Fatal("linked despite link_by_email=off")
 		}
 	})
-	t.Run("verified: needs email_verified", func(t *testing.T) {
-		e := newSSO(t, func(c *config.OIDC) { c.LinkByEmail = "verified" }, true)
+	t.Run("verified (the default): needs email_verified", func(t *testing.T) {
+		e := newSSO(t, nil, true)
 		setupWithAda(e)
+		e.kore.User["email_verified"] = false
 		if loc := newBrowser(t).signIn(e, "/"); loc != "/login?error=email_in_use" {
 			t.Fatalf("unverified: %q", loc)
 		}
@@ -264,11 +265,15 @@ func TestKoreIDAccessTokenAsBearer(t *testing.T) {
 			t.Fatalf("aud %s: %d %s", aud, r.Status, r.Body)
 		}
 	}
-	// Another app's token, an id token and a tampered token are all 401.
+	// Another app's token, an id token, a token without typ at+jwt and a tampered token are all 401.
 	for name, tok := range map[string]string{
 		"other app": e.kore.AccessToken("koremind"),
 		"id token":  e.kore.IDToken(""),
 		"tampered":  e.kore.AccessToken("korecalendar") + "x",
+		// An access token's claims without the at+jwt header (the old "has a scope" heuristic is not enough).
+		"no typ":     e.kore.MintTyp(map[string]any{"aud": "korecalendar", "sub": adaSub, "scope": "openid email"}, "EdDSA", "", ""),
+		"typ JWT":    e.kore.MintTyp(map[string]any{"aud": "korecalendar", "sub": adaSub, "scope": "openid email"}, "EdDSA", "", "JWT"),
+		"logout+jwt": e.kore.LogoutToken("sid-1", adaSub, nil),
 	} {
 		if r := testsrv.Do(t, e.srv, tok, "GET", "/api/me", nil); r.Status != 401 {
 			t.Errorf("%s: %d", name, r.Status)

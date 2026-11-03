@@ -63,19 +63,20 @@ func hashToken(tok string) string {
 
 // NewSession creates a session and returns the raw token; only its SHA-256 is stored.
 func NewSession(ctx context.Context, db *sql.DB, userID string, ttl time.Duration) (string, error) {
-	return NewSessionWithIDToken(ctx, db, userID, ttl, "")
+	return NewOIDCSession(ctx, db, userID, ttl, "", "")
 }
 
-// NewSessionWithIDToken is NewSession for a Kore ID login: it keeps the id
-// token, which RP-initiated logout needs as id_token_hint.
-func NewSessionWithIDToken(ctx context.Context, db *sql.DB, userID string, ttl time.Duration, idToken string) (string, error) {
+// NewOIDCSession is NewSession for a Kore ID login: it keeps the id token,
+// which RP-initiated logout needs as id_token_hint, and the Kore ID session id
+// (sid), which back-channel logout names.
+func NewOIDCSession(ctx context.Context, db *sql.DB, userID string, ttl time.Duration, idToken, sid string) (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
 	tok := base64.RawURLEncoding.EncodeToString(b)
-	_, err := db.ExecContext(ctx, `INSERT INTO sessions(token_hash,user_id,expires_at,id_token) VALUES(?,?,?,?)`,
-		hashToken(tok), userID, time.Now().Add(ttl).Unix(), idToken)
+	_, err := db.ExecContext(ctx, `INSERT INTO sessions(token_hash,user_id,expires_at,id_token,oidc_sid) VALUES(?,?,?,?,?)`,
+		hashToken(tok), userID, time.Now().Add(ttl).Unix(), idToken, sid)
 	if err != nil {
 		return "", err
 	}

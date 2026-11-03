@@ -9,6 +9,7 @@ import (
 	"net/mail"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/qarasky/korecalendar/api/internal/auth"
 	"github.com/qarasky/korecalendar/api/internal/calendars"
@@ -133,9 +134,71 @@ func (s *Service) Bearer(ctx context.Context, tok string) (auth.Principal, bool)
 	if err != nil {
 		return auth.Principal{}, false
 	}
+	// A token from a Kore ID session that has been logged out stays valid at
+	// Kore ID's side until it expires; refuse it here already.
+	if c.Sid != "" && s.sidEnded(ctx, c.Sid) {
+		return auth.Principal{}, false
+	}
 	u, err := s.Resolve(ctx, c)
 	if err != nil {
 		return auth.Principal{}, false
 	}
 	return auth.Principal{UserID: u.ID, Role: u.Role, Via: "session"}, true
+}
+
+// ErrLogoutReplayed is returned for a logout token whose jti was already used.
+var ErrLogoutReplayed = errors.New("logout token was already used")
+
+// endedSidTTL is how long an ended Kore ID session id is remembered, so that
+// access tokens minted in it (10 minutes) are refused: comfortably longer.
+const endedSidTTL = time.Hour
+
+func (s *Service) sidEnded(ctx context.Context, sid string) bool {
+	var n int
+	err := s.DB.QueryRowContext(ctx, `SELECT count(*) FROM oidc_ended_sids WHERE sid=? AND expires_at>?`, sid, time.Now().Unix()).Scan(&n)
+	return err != nil || n > 0 // fail closed
+}
+
+// BackchannelLogout handles a verified logout token: it records the jti
+// (refusing one already seen, until the token expires), then ends every local
+// session from that Kore ID session (sid), or every session of that user (sub)
+// when the token names no sid. Access tokens (kcal_) are not sessions and stay.
+// It returns how many sessions ended.
+func (s *Service) BackchannelLogout(ctx context.Context, c oidc.LogoutClaims) (int64, error) {
+	now := time.Now()
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM oidc_logout_jti WHERE expires_at<?`, now.Unix()); err != nil {
+		return 0, err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM oidc_ended_sids WHERE expires_at<?`, now.Unix()); err != nil {
+		return 0, err
+	}
+	// Keep the jti at least until the token expires (plus the verifier's leeway).
+	res, err := tx.ExecContext(ctx, `INSERT INTO oidc_logout_jti(jti,expires_at) VALUES(?,?) ON CONFLICT(jti) DO NOTHING`,
+		c.JTI, c.Expires.Add(time.Minute).Unix())
+	if err != nil {
+		return 0, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return 0, ErrLogoutReplayed
+	}
+	var del sql.Result
+	if c.Sid != "" {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO oidc_ended_sids(sid,expires_at) VALUES(?,?)
+			ON CONFLICT(sid) DO UPDATE SET expires_at=excluded.expires_at`, c.Sid, now.Add(endedSidTTL).Unix()); err != nil {
+			return 0, err
+		}
+		del, err = tx.ExecContext(ctx, `DELETE FROM sessions WHERE oidc_sid=?`, c.Sid)
+	} else {
+		del, err = tx.ExecContext(ctx, `DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE oidc_sub=?)`, c.Subject)
+	}
+	if err != nil {
+		return 0, err
+	}
+	n, _ := del.RowsAffected()
+	return n, tx.Commit()
 }

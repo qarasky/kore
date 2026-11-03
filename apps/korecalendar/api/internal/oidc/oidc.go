@@ -16,6 +16,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -45,7 +46,21 @@ type Claims struct {
 	Name          string
 	Nonce         string
 	Scope         string
+	Sid           string // Kore ID browser session id (ties tokens to a sign-in for logout)
+	ClientID      string // access tokens: the client the token was issued to
 }
+
+// LogoutClaims are the verified claims of a back-channel logout token. At least
+// one of Subject and Sid is set.
+type LogoutClaims struct {
+	Subject string
+	Sid     string
+	JTI     string
+	Expires time.Time
+}
+
+// BackchannelLogoutEvent is the member the events claim of a logout token must have.
+const BackchannelLogoutEvent = "http://schemas.openid.net/event/backchannel-logout"
 
 type metadata struct {
 	Issuer        string `json:"issuer"`
@@ -216,8 +231,15 @@ func (p *Provider) key(ctx context.Context, kid string) (ed25519.PublicKey, erro
 	return nil, fmt.Errorf("oidc: unknown signing key %q", kid)
 }
 
-// verify checks signature (EdDSA only), issuer, audience and expiry.
-func (p *Provider) verify(ctx context.Context, raw string, audiences []string) (jwt.MapClaims, error) {
+// typOf returns the JWT header typ, lower-cased, without an "application/" prefix (RFC 7515 4.1.9).
+func typOf(t *jwt.Token) string {
+	s, _ := t.Header["typ"].(string)
+	return strings.TrimPrefix(strings.ToLower(s), "application/")
+}
+
+// verify checks signature (EdDSA only), issuer, audience, expiry, a subject
+// (unless optionalSub) and that the header typ passes typOK.
+func (p *Provider) verify(ctx context.Context, raw string, audiences []string, typOK func(string) bool, optionalSub bool) (jwt.MapClaims, error) {
 	claims := jwt.MapClaims{}
 	parser := jwt.NewParser(
 		jwt.WithValidMethods([]string{"EdDSA"}),
@@ -227,12 +249,15 @@ func (p *Provider) verify(ctx context.Context, raw string, audiences []string) (
 		jwt.WithLeeway(leeway),
 		jwt.WithTimeFunc(p.cfg.Now),
 	)
-	_, err := parser.ParseWithClaims(raw, claims, func(t *jwt.Token) (any, error) {
+	tok, err := parser.ParseWithClaims(raw, claims, func(t *jwt.Token) (any, error) {
 		kid, _ := t.Header["kid"].(string)
 		return p.key(ctx, kid)
 	})
 	if err != nil {
 		return nil, err
+	}
+	if typ := typOf(tok); !typOK(typ) {
+		return nil, fmt.Errorf("unexpected token type %q", typ)
 	}
 	aud, err := claims.GetAudience()
 	if err != nil || len(aud) == 0 {
@@ -247,7 +272,7 @@ func (p *Provider) verify(ctx context.Context, raw string, audiences []string) (
 	if !ok {
 		return nil, errors.New("token audience is not this app")
 	}
-	if sub, _ := claims["sub"].(string); sub == "" {
+	if sub, _ := claims["sub"].(string); sub == "" && !optionalSub {
 		return nil, errors.New("token has no subject")
 	}
 	return claims, nil
@@ -256,13 +281,15 @@ func (p *Provider) verify(ctx context.Context, raw string, audiences []string) (
 func toClaims(m jwt.MapClaims) Claims {
 	str := func(k string) string { s, _ := m[k].(string); return s }
 	ev, _ := m["email_verified"].(bool)
-	return Claims{Subject: str("sub"), Email: str("email"), EmailVerified: ev, Name: str("name"), Nonce: str("nonce"), Scope: str("scope")}
+	return Claims{Subject: str("sub"), Email: str("email"), EmailVerified: ev, Name: str("name"), Nonce: str("nonce"), Scope: str("scope"),
+		Sid: str("sid"), ClientID: str("client_id")}
 }
 
 // VerifyIDToken verifies an id token for this client and, when wantNonce is
-// non-empty, that its nonce matches.
+// non-empty, that its nonce matches. Its header typ must be absent or "JWT", so
+// an access or logout token is never taken for an id token.
 func (p *Provider) VerifyIDToken(ctx context.Context, raw, wantNonce string) (Claims, error) {
-	m, err := p.verify(ctx, raw, []string{p.cfg.ClientID})
+	m, err := p.verify(ctx, raw, []string{p.cfg.ClientID}, func(t string) bool { return t == "" || t == "jwt" }, false)
 	if err != nil {
 		return Claims{}, err
 	}
@@ -274,11 +301,11 @@ func (p *Provider) VerifyIDToken(ctx context.Context, raw, wantNonce string) (Cl
 }
 
 // VerifyAccessToken verifies a Kore ID access token presented as an API bearer
-// token. Kore ID signs access and id tokens with the same key and issuer, so the
-// two are told apart by the access token's `scope` claim: an id token is
-// refused here (it is for the client, not for calling APIs).
+// token: header typ "at+jwt" (RFC 9068), so an id token (same key and issuer)
+// is refused; audience one of the configured client ids; and, as a second
+// guard, a scope claim (id tokens have none) and a client_id that matches.
 func (p *Provider) VerifyAccessToken(ctx context.Context, raw string) (Claims, error) {
-	m, err := p.verify(ctx, raw, p.cfg.Audiences)
+	m, err := p.verify(ctx, raw, p.cfg.Audiences, func(t string) bool { return t == "at+jwt" }, false)
 	if err != nil {
 		return Claims{}, err
 	}
@@ -286,7 +313,45 @@ func (p *Provider) VerifyAccessToken(ctx context.Context, raw string) (Claims, e
 	if c.Scope == "" {
 		return Claims{}, errors.New("not an access token")
 	}
+	if c.ClientID != "" && !slices.Contains(p.cfg.Audiences, c.ClientID) {
+		return Claims{}, errors.New("access token was issued to another client")
+	}
 	return c, nil
+}
+
+// VerifyLogoutToken verifies an OIDC Back-Channel Logout 1.0 logout token:
+// signature against the JWKS, issuer, audience = this client only, header typ
+// "logout+jwt", iat, exp and jti present, the back-channel logout event in
+// `events`, no nonce, and a sid or sub. Replay (jti) is the caller's job.
+func (p *Provider) VerifyLogoutToken(ctx context.Context, raw string) (LogoutClaims, error) {
+	m, err := p.verify(ctx, raw, []string{p.cfg.ClientID}, func(t string) bool { return t == "logout+jwt" }, true)
+	if err != nil {
+		return LogoutClaims{}, err
+	}
+	if _, ok := m["iat"]; !ok {
+		return LogoutClaims{}, errors.New("logout token has no iat")
+	}
+	exp, err := m.GetExpirationTime()
+	if err != nil || exp == nil {
+		return LogoutClaims{}, errors.New("logout token has no exp")
+	}
+	jti, _ := m["jti"].(string)
+	if jti == "" {
+		return LogoutClaims{}, errors.New("logout token has no jti")
+	}
+	events, _ := m["events"].(map[string]any)
+	if _, ok := events[BackchannelLogoutEvent].(map[string]any); !ok {
+		return LogoutClaims{}, errors.New("logout token has no back-channel logout event")
+	}
+	if _, ok := m["nonce"]; ok {
+		return LogoutClaims{}, errors.New("logout token must not have a nonce")
+	}
+	sub, _ := m["sub"].(string)
+	sid, _ := m["sid"].(string)
+	if sub == "" && sid == "" {
+		return LogoutClaims{}, errors.New("logout token has neither sid nor sub")
+	}
+	return LogoutClaims{Subject: sub, Sid: sid, JTI: jti, Expires: exp.Time}, nil
 }
 
 // IsJWT reports whether tok has the shape of a compact JWT.

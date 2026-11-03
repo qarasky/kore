@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -37,14 +38,25 @@ type OIDC struct {
 	// ExtraAudiences are further client ids (e.g. "korecalendar-android") whose
 	// access tokens the API accepts as bearer tokens.
 	ExtraAudiences []string `toml:"extra_audiences"`
-	// LinkByEmail: "off" (default) never links a Kore ID login to an existing
-	// local account; "verified" links when the token says email_verified=true;
-	// "trusted" links on any email match (only if Kore ID registration is closed).
-	LinkByEmail   string   `toml:"link_by_email"`
-	AutoProvision bool     `toml:"auto_provision"` // create a local user on first login (default true)
-	AdminSubs     []string `toml:"admin_subs"`     // Kore ID subs that become administrators
-	Name          string   `toml:"name"`           // button label (default "Kore ID")
+	// LinkByEmail: "verified" (default) links a Kore ID login to an existing
+	// local account with the same email when the token says
+	// email_verified=true (Kore ID accounts are admin-managed, so their emails
+	// are); "off" never links (use the `link` command); "trusted" links on any
+	// email match.
+	LinkByEmail   string `toml:"link_by_email"`
+	AutoProvision bool   `toml:"auto_provision"` // create a local user on first login (default true)
+	// AdminSubs are Kore ID subjects that become administrators here (and may
+	// sign in first on an empty install). Who may use KoreCalendar at all is
+	// decided by Kore ID (per-user access to the app "korecalendar").
+	AdminSubs []string `toml:"admin_subs"`
+	Name      string   `toml:"name"` // button label (default "Kore ID")
+	// Apps are the other Kore apps' addresses for the web app switcher, keyed
+	// kore, koremind, korecalendar, flatline. korecalendar defaults to public_url.
+	Apps map[string]string `toml:"apps"`
 }
+
+// KoreApps are the app keys the app switcher knows.
+var KoreApps = []string{"kore", "koremind", "korecalendar", "flatline"}
 
 // Enabled reports whether OIDC sign-in is configured.
 func (o OIDC) Enabled() bool { return o.Issuer != "" }
@@ -139,6 +151,16 @@ func (c *Config) loadOIDCEnv() error {
 			*dst = v
 		}
 	}
+	if v := os.Getenv("KORECAL_KORE_APPS"); v != "" {
+		c.OIDC.Apps = map[string]string{}
+		for _, kv := range splitList(v) {
+			k, val, ok := strings.Cut(kv, "=")
+			if !ok {
+				return fmt.Errorf("invalid KORECAL_KORE_APPS entry %q (use app=https://...)", kv)
+			}
+			c.OIDC.Apps[strings.TrimSpace(k)] = strings.TrimSpace(val)
+		}
+	}
 	for env, dst := range map[string]*[]string{
 		"KORECAL_OIDC_SCOPES":          &c.OIDC.Scopes,
 		"KORECAL_OIDC_EXTRA_AUDIENCES": &c.OIDC.ExtraAudiences,
@@ -166,7 +188,7 @@ func (c *Config) validateOIDC() error {
 		o.Name = "Kore ID"
 	}
 	if o.LinkByEmail == "" {
-		o.LinkByEmail = "off"
+		o.LinkByEmail = "verified"
 	}
 	switch o.LinkByEmail {
 	case "off", "verified", "trusted":
@@ -184,10 +206,30 @@ func (c *Config) validateOIDC() error {
 	if c.PublicURL == "" || err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || (u.Path != "" && u.Path != "/") {
 		return errors.New("public_url (KORECAL_PUBLIC_URL) must be the site's origin, e.g. https://calendar.example.com, when oidc is enabled: it builds the redirect URI")
 	}
+	for k, v := range o.Apps {
+		if !slices.Contains(KoreApps, k) {
+			return fmt.Errorf("invalid oidc apps key %q (use %s)", k, strings.Join(KoreApps, ", "))
+		}
+		if au, err := url.Parse(v); err != nil || (au.Scheme != "https" && au.Scheme != "http") || au.Host == "" {
+			return fmt.Errorf("oidc apps %s: %q is not an absolute http(s) URL", k, v)
+		}
+	}
+	if o.Apps == nil {
+		o.Apps = map[string]string{}
+	}
+	if o.Apps["korecalendar"] == "" {
+		o.Apps["korecalendar"] = strings.TrimRight(c.PublicURL, "/") + "/"
+	}
 	return nil
 }
 
 // OIDCRedirectURL is the callback to register with the provider.
 func (c Config) OIDCRedirectURL() string {
 	return strings.TrimRight(c.PublicURL, "/") + "/api/auth/oidc/callback"
+}
+
+// OIDCBackchannelLogoutURL is the back-channel logout URI to register with the
+// provider (backchannelLogoutUri in Kore ID's clients.json).
+func (c Config) OIDCBackchannelLogoutURL() string {
+	return strings.TrimRight(c.PublicURL, "/") + "/api/auth/oidc/backchannel-logout"
 }

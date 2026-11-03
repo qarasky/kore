@@ -38,7 +38,7 @@ info:
 
     **Authentication.** `Authorization: Bearer <token>`: a personal access token (`kcal_...`, created with
     `POST /api/tokens`), the session token returned by login, or, when Kore ID sign-in is configured, a Kore ID
-    access token (a JWT whose audience is this app's client id; treated like a session). The web app uses the `korecal_session` cookie.
+    access token (a JWT with header `typ: at+jwt` whose audience is this app's client id; treated like a session; id tokens are refused). The web app uses the `korecal_session` cookie.
   license:
     name: MIT
 servers:
@@ -64,6 +64,7 @@ x-error-codes:
   calendar_not_empty: The calendar still has events; repeat with `?force=1` to delete it with them, restorable for 30 days (HTTP 409).
   payload_too_large: The .ics file is over 5 MB (HTTP 413).
   busy: The server is hashing too many passwords right now; retry shortly (HTTP 503).
+  invalid_request: The back-channel logout token is missing, invalid or already used (HTTP 400).
   internal: Something failed on the server (HTTP 500).
 paths:
   /api/healthz:
@@ -113,7 +114,7 @@ paths:
   /api/auth/config:
     get:
       summary: Which sign-in methods this server offers
-      description: "`password_login` is false when the operator turned passwords off. `oidc` is null unless Kore ID sign-in is configured; then it has `name`, `issuer`, `client_id` and `login_url` (a browser path to open)."
+      description: "`password_login` is false when the operator turned passwords off. `oidc` is null unless Kore ID sign-in is configured; then it has `name`, `issuer`, `client_id`, `login_url` (a browser path to open), `account_url` (the Kore ID account page) and `apps` (Kore app key -> address, for an app switcher; always has `korecalendar`)."
       x-access: public
       security: []
       responses:
@@ -140,6 +141,17 @@ paths:
         - { name: state, in: query, schema: { type: string } }
       responses:
         "302": { description: Redirect to the app, or to the sign-in page with an error. }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/auth/oidc/backchannel-logout:
+    post:
+      summary: Kore ID back-channel logout (called by Kore ID, not by browsers)
+      description: "OIDC Back-Channel Logout 1.0. Register `<public_url>/api/auth/oidc/backchannel-logout` as the client's `backchannelLogoutUri` in Kore ID. The form field `logout_token` must be a JWT signed by the issuer's JWKS with header `typ: logout+jwt`, `aud` = this server's client id, `iat`, `exp`, `jti`, the back-channel logout event in `events`, no `nonce`, and a `sid` or `sub`; each `jti` works once. Ends every session started from that Kore ID session (`sid`), or every session of that user (`sub` only). Access tokens (`kcal_…`) are not sessions and keep working. 404 unless Kore ID is configured."
+      x-access: public
+      security: []
+      requestBody: { required: true, content: { application/x-www-form-urlencoded: { schema: { type: object, required: [logout_token], properties: { logout_token: { type: string } } } } } }
+      responses:
+        "200": { description: The sessions (if any) ended. }
+        "400": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
   /api/logout:
     post:

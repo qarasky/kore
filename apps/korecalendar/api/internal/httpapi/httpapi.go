@@ -21,6 +21,7 @@ type server struct {
 	sso           *sso.Service // nil when Kore ID sign-in is not configured
 	ssoName       string
 	publicURL     string
+	apps          map[string]string
 }
 
 // Options are the sign-in settings of a running server.
@@ -33,6 +34,8 @@ type Options struct {
 	ButtonName string
 	// PublicURL is the site's origin; RP-initiated logout returns to it.
 	PublicURL string
+	// Apps are the Kore apps' addresses (app key -> URL) for the web app switcher.
+	Apps map[string]string
 }
 
 // New returns the API handler with password sign-in only. dataDir is the
@@ -46,7 +49,7 @@ func NewWithOptions(db *sql.DB, dataDir string, o Options) http.Handler {
 	s := &server{db: db, dataDir: dataDir,
 		limiter:       auth.NewLimiter(5, 15*time.Minute),
 		ipLimit:       auth.NewLimiter(30, 15*time.Minute),
-		passwordLogin: o.PasswordLogin, sso: o.SSO, ssoName: o.ButtonName, publicURL: o.PublicURL}
+		passwordLogin: o.PasswordLogin, sso: o.SSO, ssoName: o.ButtonName, publicURL: o.PublicURL, apps: o.Apps}
 	return s.handler()
 }
 
@@ -84,6 +87,7 @@ func (s *server) routes() []route {
 		{"GET /api/auth/config", accessPublic, s.handleAuthConfig},
 		{"GET /api/auth/oidc/login", accessPublic, s.handleOIDCLogin},
 		{"GET /api/auth/oidc/callback", accessPublic, s.handleOIDCCallback},
+		{"POST /api/auth/oidc/backchannel-logout", accessPublic, s.handleBackchannelLogout},
 		{"POST /api/logout", accessUser, s.handleLogout},
 		{"GET /api/me", accessUser, s.handleMe},
 		{"PATCH /api/me", accessUser, s.handlePatchMe},

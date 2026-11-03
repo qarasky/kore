@@ -279,6 +279,9 @@ func signInOptions(db *sql.DB, cfg config.Config) (httpapi.Options, error) {
 	}
 	o.SSO = &sso.Service{DB: db, Provider: p, Cfg: cfg.OIDC}
 	o.ButtonName = cfg.OIDC.Name
+	o.Apps = cfg.OIDC.Apps
+	log.Printf("oidc: sign-in with %s enabled (client %s); register redirect URI %s and backchannelLogoutUri %s",
+		cfg.OIDC.Issuer, cfg.OIDC.ClientID, cfg.OIDCRedirectURL(), cfg.OIDCBackchannelLogoutURL())
 	return o, nil
 }
 
