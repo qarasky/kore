@@ -1,0 +1,47 @@
+# Run by hand (Actions -> "Android signing check" -> Run workflow) to check the
+# Android release keystore stored in the repository secrets: it must decode, hold
+# the configured alias and open with its passwords. It prints the certificate's
+# SHA-256 fingerprint (public, not a secret): that value belongs in
+# android/signing-fingerprint.txt, and every Android release is checked against it.
+# It builds and publishes nothing.
+name: Android signing check
+
+on: workflow_dispatch
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Check the keystore
+        env:
+          KS: ${{ secrets.KOREMIND_KEYSTORE_BASE64 }}
+          STOREPASS: ${{ secrets.KOREMIND_KEYSTORE_PASSWORD }}
+          ALIAS: ${{ secrets.KOREMIND_KEY_ALIAS }}
+          KEYPASS: ${{ secrets.KOREMIND_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for v in KS STOREPASS ALIAS KEYPASS; do
+            [ -n "${!v}" ] || { echo "::error::A signing secret is missing (see docs/releasing.md, Android signing key)."; exit 1; }
+          done
+          ks="$RUNNER_TEMP/release.jks"
+          printf '%s' "$KS" | base64 --decode > "$ks"
+          # The passwords are read from the environment by keytool; they never appear on the command line.
+          out="$(keytool -list -v -keystore "$ks" -alias "$ALIAS" -storepass:env STOREPASS 2>&1)" \
+            || { echo "::error::The keystore does not open with the stored password, or has no alias \"$ALIAS\"."; exit 1; }
+          fp="$(sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' <<<"$out" | head -n1)"
+          [ -n "$fp" ] || { echo "::error::No SHA256 fingerprint found in the keytool output."; exit 1; }
+          # The key password must open the key too: sign a throwaway jar with it.
+          mkdir "$RUNNER_TEMP/probe" && echo probe > "$RUNNER_TEMP/probe/probe.txt"
+          jar cf "$RUNNER_TEMP/probe.jar" -C "$RUNNER_TEMP/probe" probe.txt
+          jarsigner -keystore "$ks" -storepass:env STOREPASS -keypass:env KEYPASS "$RUNNER_TEMP/probe.jar" "$ALIAS" >/dev/null 2>&1 \
+            || { echo "::error::The key password does not open the key \"$ALIAS\"."; exit 1; }
+          echo "Certificate SHA-256: $fp"
+          { echo "### Android release certificate"; echo; echo "SHA-256: \`$fp\`"; echo; echo "Put this value in \`android/signing-fingerprint.txt\`."; } >> "$GITHUB_STEP_SUMMARY"
+          rm -f "$ks"
