@@ -229,11 +229,15 @@
     <string name="reminders_channel_description">Event reminders, set on this phone.</string>
     <string name="reminders">Reminders</string>
     <string name="reminders_ok">Next reminder: %1$s</string>
-    <string name="reminders_none">No reminders are set for the next 7 days.</string>
+    <string name="reminders_none">No upcoming reminders on this phone.</string>
+    <string name="reminders_problem_note">Reminders may not fire: see Settings.</string>
+    <string name="reminders_fix_description">Fix reminders: open the system settings</string>
+    <string name="update_download_description">Download version %1$s</string>
     <string name="reminders_notifications_off">Notifications are off, so reminders cannot show.</string>
     <string name="reminders_exact_off">The phone does not let this app set exact alarms, so reminders may come late.</string>
     <string name="reminders_battery">Battery use is restricted for this app, so reminders may not fire.</string>
     <string name="reminders_fix">Fix</string>
+    <string name="cannot_open">This phone has nothing to open that with.</string>
     <string name="reminders_hint">Reminders are set on the phone from the copy it keeps, so they work without a connection. An event added elsewhere a few minutes before it starts may remind late until the app syncs.</string>
     <string name="update_available">Version %1$s is available</string>
     <string name="update_download">Download</string>

@@ -33,7 +33,8 @@ class AppControllerTest {
         override fun cancelSync() { cancelled++ }
         override suspend fun refreshWidgets() { widgetRefreshes++ }
         override suspend fun syncReminders() { reminderSyncs++ }
-        override suspend fun reminderStatus(): dev.qarasky.korecalendar.reminders.ReminderStatus = dev.qarasky.korecalendar.reminders.ReminderStatus.NoneScheduled
+        var status: dev.qarasky.korecalendar.reminders.ReminderStatus = dev.qarasky.korecalendar.reminders.ReminderStatus.NoneScheduled
+        override suspend fun reminderStatus(): dev.qarasky.korecalendar.reminders.ReminderStatus = status
     }
 
     private val kv = MapKeyValue()
@@ -372,5 +373,16 @@ class AppControllerTest {
         c.setUpdateCheck(false)
         assertEquals(null, (c.state.value as AppState.Ready).update)
         assertEquals(false, (c.state.value as AppState.Ready).updateCheck)
+    }
+
+    @Test fun aReminderProblemIsKnownToTheAgendaNotJustSettings() = runTest {
+        signedIn()
+        assertEquals(false, ready().reminderProblem)
+        background.status = dev.qarasky.korecalendar.reminders.ReminderStatus.NotificationsOff
+        controller.refresh()
+        assertEquals(true, ready().reminderProblem)
+        background.status = dev.qarasky.korecalendar.reminders.ReminderStatus.Ok(Instant.parse("2026-11-05T10:00:00Z"))
+        controller.remindersChanged()
+        assertEquals(false, ready().reminderProblem)
     }
 }

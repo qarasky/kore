@@ -31,6 +31,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -108,7 +110,8 @@ fun SettingsScreen(
             Text(stringResource(R.string.update_check_hint), color = Palette.muted, style = MaterialTheme.typography.bodySmall)
             state.update?.let { u ->
                 Text(stringResource(R.string.update_available, u.version), color = Palette.accent)
-                TextButton(onClick = { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(u.url))) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                val downloadDescription = stringResource(R.string.update_download_description, u.version)
+                TextButton(onClick = { openSafely(context, android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(u.url))) }, modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = downloadDescription }) {
                     Text(stringResource(R.string.update_download))
                 }
             }
@@ -153,7 +156,13 @@ private fun RemindersSection(state: AppState.Ready, controller: AppController) {
         resumed++
         onPauseOrDispose {}
     }
-    val status by androidx.compose.runtime.produceState<dev.qarasky.korecalendar.reminders.ReminderStatus?>(null, resumed, state.revision) { value = controller.reminderStatus() }
+    val status by androidx.compose.runtime.produceState<dev.qarasky.korecalendar.reminders.ReminderStatus?>(null, resumed, state.revision) {
+        // Re-read while the screen is open: an alarm that fires meanwhile moves "next" on.
+        while (true) {
+            value = controller.reminderStatus()
+            kotlinx.coroutines.delay(20_000)
+        }
+    }
     val s = status
     val (text, fix) = when (s) {
         null -> "" to null
@@ -167,7 +176,17 @@ private fun RemindersSection(state: AppState.Ready, controller: AppController) {
         }
     }
     val problem = s is dev.qarasky.korecalendar.reminders.ReminderStatus.NotificationsOff || s is dev.qarasky.korecalendar.reminders.ReminderStatus.ExactAlarmsOff || s is dev.qarasky.korecalendar.reminders.ReminderStatus.BatteryRestricted
-    Text(text, color = if (problem) Palette.warning else Palette.text)
-    if (fix != null) TextButton(onClick = { context.startActivity(fix) }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.reminders_fix)) }
+    if (text.isNotEmpty()) Text(text, color = if (problem) Palette.warning else Palette.text)
+    val fixDescription = stringResource(R.string.reminders_fix_description)
+    if (fix != null) TextButton(onClick = { openSafely(context, fix) }, modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = fixDescription }) { Text(stringResource(R.string.reminders_fix)) }
     Text(stringResource(R.string.reminders_hint), color = Palette.muted, style = MaterialTheme.typography.bodySmall)
+}
+
+/** Opens a system screen or a browser; a phone without the target (no browser, a vendor that removed a settings page) must not crash the app. */
+private fun openSafely(context: android.content.Context, intent: android.content.Intent) {
+    try {
+        context.startActivity(intent)
+    } catch (_: android.content.ActivityNotFoundException) {
+        android.widget.Toast.makeText(context, context.getString(R.string.cannot_open), android.widget.Toast.LENGTH_SHORT).show()
+    }
 }

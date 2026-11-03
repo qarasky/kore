@@ -88,4 +88,20 @@ class UpdateCheckTest {
         assertEquals("0.3.0", checker.checkIfDue("0.2.0")?.version)
         assertEquals(2, calls)
     }
+
+    @Test fun aLastCheckTimeInTheFutureDoesNotBlockTheCheck() = runTest {
+        var calls = 0
+        val kv = Memory()
+        kv.put("update.last", "2026-12-01T10:00:00Z") // the clock was wrong when it was written
+        val checker = UpdateChecker({ calls++; list(rel("android-v0.3.0")) }, kv) { Instant.parse("2026-11-04T10:00:00Z") }
+        assertEquals("0.3.0", checker.checkIfDue("0.2.0")?.version)
+        assertEquals(1, calls)
+    }
+
+    @Test fun aCancelledCheckDoesNotCountAsDone() = runTest {
+        val kv = Memory()
+        val checker = UpdateChecker({ throw kotlinx.coroutines.CancellationException("stopped") }, kv) { Instant.parse("2026-11-04T10:00:00Z") }
+        try { checker.checkIfDue("0.2.0") } catch (_: kotlinx.coroutines.CancellationException) {}
+        assertNull(kv.get("update.last"))
+    }
 }

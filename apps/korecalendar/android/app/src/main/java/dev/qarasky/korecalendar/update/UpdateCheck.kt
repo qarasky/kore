@@ -80,10 +80,12 @@ class UpdateChecker(private val fetch: suspend () -> String, private val kv: Key
     suspend fun checkIfDue(installed: String): UpdateInfo? {
         val last = kv.get(LAST)?.let { runCatching { Instant.parse(it) }.getOrNull() }
         val wait = if (kv.get(FAILED) == "1") RETRY else DAY
-        if (last != null && Duration.between(last, now()) < wait) return known(installed)
-        kv.put(LAST, now().toString())
+        // A last-check time in the future (the clock was wrong when it was written) must not block checks.
+        val since = last?.let { Duration.between(it, now()) }
+        if (since != null && !since.isNegative && since < wait) return known(installed)
         return try {
             val found = newestAndroidRelease(fetch(), installed)
+            kv.put(LAST, now().toString())
             kv.put(FAILED, null)
             kv.put(VERSION, found?.version)
             kv.put(URL, found?.url)
@@ -91,6 +93,7 @@ class UpdateChecker(private val fetch: suspend () -> String, private val kv: Key
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
+            kv.put(LAST, now().toString())
             kv.put(FAILED, "1")
             known(installed)
         }

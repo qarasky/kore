@@ -25,7 +25,7 @@ data class ReminderTrigger(
  *
  * Hidden calendars are not muted: pass every occurrence, hidden or not.
  */
-class ReminderEngine(private val horizon: Duration = Duration.ofDays(7)) {
+class ReminderEngine(private val horizon: Duration = Duration.ofDays(90)) {
 
     private fun triggersOf(o: Occurrence): List<ReminderTrigger> {
         // An all-day event counts back from midnight of its first day in the event's own zone; a timed one from its start.
@@ -45,7 +45,7 @@ class ReminderEngine(private val horizon: Duration = Duration.ofDays(7)) {
 
     private fun all(occs: List<Occurrence>) = occs.flatMap { triggersOf(it) }.sortedWith(compareBy({ it.at }, { it.id }))
 
-    /** Reminders strictly after [now], within the horizon, in time order. */
+    /** Reminders strictly after [now], within the horizon (the whole local copy by default), in time order. */
     fun upcoming(occs: List<Occurrence>, now: Instant): List<ReminderTrigger> {
         val limit = now.plus(horizon)
         return all(occs).filter { it.at.isAfter(now) && !it.at.isAfter(limit) }

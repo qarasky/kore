@@ -75,6 +75,8 @@ sealed interface AppState {
         /** A newer app release on GitHub, when the daily update check is on and has found one. */
         val update: dev.qarasky.korecalendar.update.UpdateInfo? = null,
         val updateCheck: Boolean = true,
+        /** Reminders may not fire (notifications off, no exact alarms, battery restricted): the agenda says so, not just Settings. */
+        val reminderProblem: Boolean = false,
     ) : AppState
 }
 
@@ -109,6 +111,17 @@ class AppController(
 
     private var anchor: java.time.LocalDate? = null
     private var revision = 0
+    private var reminderProblem = false
+
+    private suspend fun syncRemindersAndLook() {
+        background.syncReminders()
+        val status = background.reminderStatus()
+        val problem = status is dev.qarasky.korecalendar.reminders.ReminderStatus.NotificationsOff || status is dev.qarasky.korecalendar.reminders.ReminderStatus.ExactAlarmsOff || status is dev.qarasky.korecalendar.reminders.ReminderStatus.BatteryRestricted
+        if (problem != reminderProblem) {
+            reminderProblem = problem
+            publish()
+        }
+    }
 
     private fun currentApi(): CalendarApi? {
         val account = accounts.load() ?: return null
@@ -127,7 +140,7 @@ class AppController(
         publish()
         // Idempotent: keeps the periodic sync running after an app update or a reboot.
         if (accounts.load() != null && !accounts.isRevoked()) background.scheduleSync()
-        background.syncReminders()
+        syncRemindersAndLook()
     }
 
     /** Once a day while the app is used: is there a newer app release? (Off with the switch in Settings.) */
@@ -153,7 +166,7 @@ class AppController(
     }
 
     /** The permission answer or a setting changed: set the alarms again. */
-    suspend fun remindersChanged() = background.syncReminders()
+    suspend fun remindersChanged() = syncRemindersAndLook()
 
     suspend fun signIn(rawUrl: String, email: String, password: String): SignInResult {
         val r = signInFlow.signIn(rawUrl, email, password)
@@ -183,7 +196,7 @@ class AppController(
         }
         publish()
         background.refreshWidgets()
-        background.syncReminders()
+        syncRemindersAndLook()
         result
     }
 
@@ -210,6 +223,7 @@ class AppController(
         store.clear()
         repo.refreshFromStore()
         syncState = SyncState.Idle
+        reminderProblem = false
         publish()
         background.refreshWidgets()
         background.syncReminders()
@@ -395,6 +409,7 @@ class AppController(
             revision = revision,
             update = if (prefs.updateCheck) updates?.known(installedVersion) else null,
             updateCheck = prefs.updateCheck,
+            reminderProblem = reminderProblem,
         )
     }
 }

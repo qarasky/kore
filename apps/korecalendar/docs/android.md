@@ -50,13 +50,13 @@ after an update of the app and after every sync. A reminder missed while the pho
 Hidden calendars are **not** muted: hiding only changes what you see.
 
 - The app asks for **notification permission** once, when you first sign in. If you said no, or turn notifications off later, **Settings, Reminders** says so in orange with a **Fix** button that opens the right system screen;
-  the same line says when the phone does not let the app set exact alarms or has restricted its battery use, and otherwise which reminder is next.
+  the same line says when the phone does not let the app set exact alarms or has restricted its battery use, and otherwise which reminder is next. When something stops reminders, the agenda also says "Reminders may not fire: see Settings", so you do not have to go looking.
 - A reminder on an all-day event counts back from midnight of the first day, in the event's own time zone (as on the web).
 - Known limit: an event added on another device a few minutes before it starts may remind late, because nothing is pushed to the phone. Opening the app syncs at once.
 
 ## New versions
 
-Once a day while you use the app it asks GitHub for the newest `android-v*` release of this repository and shows "Version X is available" in Settings (and a line on the agenda) with a **Download** button.
+Once a day while you use the app it asks GitHub for the newest `android-v*` release of this repository and shows "Version X is available" in Settings ((and a line on the agenda); Settings has a **Download** button.
 It is the app's only request to any host other than your server and carries no identifier. Switch it off in Settings (**Check for new versions once a day**). Installing is up to you: open the downloaded APK;
 Android replaces the old app because both are signed with the same key.
 

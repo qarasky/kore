@@ -111,12 +111,13 @@ fun StatusLine(state: AppState.Ready) {
         agenda.offline -> stringResource(R.string.offline_note)
         agenda.neverSynced -> stringResource(R.string.never_synced)
         agenda.staleHours != null -> stringResource(R.string.updated_hours_ago, agenda.staleHours.toInt())
+        state.reminderProblem -> stringResource(R.string.reminders_problem_note)
         state.update != null -> stringResource(R.string.update_available, state.update.version)
         else -> null
     }
     if (text != null) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(text, color = if (agenda.offline || state.syncState is SyncState.Failed) Palette.warning else Palette.muted, style = MaterialTheme.typography.bodySmall)
+            Text(text, color = if (agenda.offline || state.syncState is SyncState.Failed || state.reminderProblem) Palette.warning else Palette.muted, style = MaterialTheme.typography.bodySmall)
         }
     }
 }

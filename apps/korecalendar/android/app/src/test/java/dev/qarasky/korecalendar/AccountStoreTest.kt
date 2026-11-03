@@ -67,4 +67,18 @@ class AccountStoreTest {
         assertFalse(again.clock24)
         assertEquals(setOf("c1", "c2"), again.hiddenCalendars)
     }
+
+    @Test fun theZoneIsReadWithoutOpeningTheToken() {
+        val kv = MapKeyValue()
+        val box = object : SecretBox {
+            var opened = 0
+            override fun seal(plain: ByteArray) = plain
+            override fun open(sealed: ByteArray): ByteArray { opened++; return sealed }
+        }
+        val store = AccountStore(kv, box)
+        assertEquals(null, store.timezone())
+        store.save(Account("https://cal.example.com", "u1", "me@example.com", "Europe/Berlin", "kcal_x"))
+        assertEquals("Europe/Berlin", store.timezone())
+        assertEquals(0, box.opened)
+    }
 }

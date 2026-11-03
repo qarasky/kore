@@ -94,6 +94,9 @@ class AccountStore(private val kv: KeyValue, private val box: SecretBox) {
         return Account(server, kv.get(USER) ?: "", kv.get(EMAIL) ?: "", kv.get(TZ) ?: "UTC", token)
     }
 
+    /** The account's time zone when someone is signed in, read without opening the token (a Keystore hiccup must not look like a sign-out). */
+    fun timezone(): String? = if (kv.get(SERVER) != null && kv.get(TOKEN) != null) kv.get(TZ) ?: "UTC" else null
+
     fun clear() = listOf(SERVER, USER, EMAIL, TZ, TOKEN, REVOKED).forEach { kv.put(it, null) }
 
     private companion object {

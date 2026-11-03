@@ -23,6 +23,8 @@ import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 private const val CHANNEL = "reminders"
 private const val ALARM_REQUEST = 4711
@@ -41,35 +43,53 @@ class ReminderRunner(private val context: Context, private val graph: Graph) {
     private fun alarmIntent(): PendingIntent =
         PendingIntent.getBroadcast(context, ALARM_REQUEST, Intent(context, RemindersReceiver::class.java).setAction(ACTION_ALARM), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
-    fun notificationsAllowed(): Boolean =
-        context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED && notifications.areNotificationsEnabled()
+    /** The permission, the app-wide switch and the Reminders channel itself (long-press "turn off" on one reminder mutes only that) must all be on. */
+    fun notificationsAllowed(): Boolean {
+        ensureChannel()
+        return context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED &&
+            notifications.areNotificationsEnabled() &&
+            notifications.getNotificationChannel(CHANNEL)?.importance != NotificationManager.IMPORTANCE_NONE
+    }
 
     fun canExact(): Boolean = alarms.canScheduleExactAlarms()
 
     private fun batteryRestricted(): Boolean = context.getSystemService(ActivityManager::class.java).isBackgroundRestricted
 
-    /** Shows what came due since the last check, then sets the next alarm. Signed out: no alarms at all. */
-    suspend fun sync(now: Instant = Instant.now()) {
-        val account = graph.accounts.load()
-        if (account == null) {
+    private val lock = Mutex()
+
+    suspend fun sync(now: Instant) = sync { now }
+
+    /**
+     * Shows what came due since the last check, then sets the next alarm. Signed out: no alarms and no notifications at all.
+     * One at a time (the alarm, a sync and the app can all ask at once), and the next alarm is set even if showing one failed.
+     */
+    suspend fun sync(clock: () -> Instant = { Instant.now() }) = lock.withLock {
+        val now = clock()
+        val timezone = graph.accounts.timezone()
+        if (timezone == null) {
             alarms.cancel(alarmIntent())
+            notifications.cancelAll() // the previous account's titles must not stay in the shade
             graph.kv.put(LAST_CHECK, null)
-            return
+            return@withLock
         }
-        val occs = graph.store.snapshot().occurrences // every calendar: hidden is not muted
-        val last = lastCheck()
-        if (last != null) {
-            val zone = runCatching { ZoneId.of(account.timezone) }.getOrDefault(ZoneId.of("UTC"))
-            engine.due(occs, last, now).forEach { show(it, zone) }
-        }
-        graph.kv.put(LAST_CHECK, now.toString())
-        val next = engine.next(occs, now)
-        if (next == null) {
-            alarms.cancel(alarmIntent())
-        } else if (canExact()) {
-            alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.at.toEpochMilli(), alarmIntent())
-        } else {
-            alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.at.toEpochMilli(), alarmIntent()) // late, but not never; Settings says what to fix
+        var occs: List<dev.qarasky.korecalendar.data.Occurrence> = emptyList()
+        try {
+            occs = graph.store.snapshot().occurrences // every calendar: hidden is not muted
+            val last = lastCheck()
+            if (last != null) {
+                val zone = runCatching { ZoneId.of(timezone) }.getOrDefault(ZoneId.of("UTC"))
+                engine.due(occs, last, now).forEach { t -> runCatching { show(t, zone) } }
+            }
+            graph.kv.put(LAST_CHECK, now.toString())
+        } finally {
+            val next = runCatching { engine.next(occs, now) }.getOrNull()
+            if (next == null) {
+                alarms.cancel(alarmIntent())
+            } else if (canExact()) {
+                alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.at.toEpochMilli(), alarmIntent())
+            } else {
+                alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.at.toEpochMilli(), alarmIntent()) // late, but not never; Settings says what to fix
+            }
         }
     }
 
@@ -102,6 +122,7 @@ class ReminderRunner(private val context: Context, private val graph: Graph) {
             .setSubText(describeReminder(t.minutesBefore, t.allDay, msg))
             .setCategory(Notification.CATEGORY_EVENT)
             .setAutoCancel(true)
+            .setOnlyAlertOnce(true)
             .setContentIntent(open)
             .setWhen(t.startUtc.toEpochMilli())
             .setShowWhen(true)
@@ -122,6 +143,8 @@ class RemindersReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.Default).launch {
             try {
                 Graph.get(context).reminders.sync()
+            } catch (e: Exception) {
+                // never take the process down from a broadcast: the next sync, boot or alarm tries again
             } finally {
                 pending.finish()
             }
