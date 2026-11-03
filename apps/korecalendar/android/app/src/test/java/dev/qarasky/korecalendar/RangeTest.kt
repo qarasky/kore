@@ -1,6 +1,7 @@
 package dev.qarasky.korecalendar
 
 import dev.qarasky.korecalendar.data.Calendar
+import dev.qarasky.korecalendar.data.ApiException
 import dev.qarasky.korecalendar.data.NetworkException
 import dev.qarasky.korecalendar.data.Occurrence
 import dev.qarasky.korecalendar.views.RangeSource
@@ -143,5 +144,23 @@ class RangeTest {
         val r = SearchSource({ api }, storeWith(), zone) { Instant.EPOCH }.search("   ")
         assertEquals(emptyList<Occurrence>(), r.occurrences)
         assertTrue(api.calls.isEmpty())
+    }
+
+    @Test fun aServerErrorIsTreatedLikeBeingOfflineNotACrash() = runTest {
+        val api = FakeApi()
+        api.onOccurrences = { _, _ -> throw ApiException(502, "bad_response", "bad gateway") }
+        val store = storeWith(occ("in", "2026-10-22T10:00:00Z"))
+        val r = RangeSource({ api }, store).load(Instant.parse("2026-10-01T00:00:00Z"), Instant.parse("2026-11-01T00:00:00Z"))
+        assertEquals(listOf("in"), r.occurrences.map { it.eventId })
+        assertTrue(r.offline)
+    }
+
+    @Test fun aSearchTheServerRefusesFallsBackToThePhonesCopy() = runTest {
+        val api = FakeApi()
+        api.onOccurrences = { _, _ -> throw ApiException(400, "range_too_large", "too many") }
+        val store = storeWith(occ("a", "2026-11-05T10:00:00Z", "Dentist"))
+        val r = SearchSource({ api }, store, zone) { Instant.parse("2026-11-04T10:00:00Z") }.search("dent")
+        assertEquals(listOf("a"), r.occurrences.map { it.eventId })
+        assertTrue(r.offline)
     }
 }

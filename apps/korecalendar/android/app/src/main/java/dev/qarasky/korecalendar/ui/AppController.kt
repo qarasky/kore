@@ -65,6 +65,8 @@ sealed interface AppState {
         val weekStart: WeekStart = WeekStart.Mon,
         /** When the phone's copy was last brought up to date: views reload their data when it changes. */
         val lastSync: Instant? = null,
+        /** Counts finished refreshes (also failed ones): views reload their data when it changes. */
+        val revision: Int = 0,
     ) : AppState
 }
 
@@ -96,6 +98,7 @@ class AppController(
     val notice: StateFlow<Notice?> = _notice
 
     private var anchor: java.time.LocalDate? = null
+    private var revision = 0
 
     private fun currentApi(): CalendarApi? {
         val account = accounts.load() ?: return null
@@ -135,6 +138,7 @@ class AppController(
         val result = SyncEngine(apiFor(server, account.token), store, account.userId, now).sync()
         repo.refreshFromStore()
         ranges.forget()
+        revision++
         syncState = when (result) {
             is SyncResult.Ok -> SyncState.Idle
             SyncResult.Offline -> SyncState.Offline
@@ -230,6 +234,9 @@ class AppController(
         publish()
     }
 
+    /** The text in the search box, kept here so that opening a result and coming back does not empty it. */
+    var searchQuery: String = ""
+
     private val seen = HashMap<String, dev.qarasky.korecalendar.data.Occurrence>()
 
     /** An occurrence by event id and key: from the phone's copy, or one a view or a search has shown from the server. */
@@ -245,7 +252,7 @@ class AppController(
     suspend fun loadRange(from: Instant, to: Instant): RangeResult {
         val hidden = prefs.hiddenCalendars
         val r = ranges.load(from, to)
-        remember(r.occurrences)
+        if (r.fromServer) remember(r.occurrences)
         return r.copy(occurrences = r.occurrences.filter { it.calendarId !in hidden })
     }
 
@@ -254,7 +261,7 @@ class AppController(
         val zone = account?.let { zoneOf(it.timezone) } ?: ZoneId.of("UTC")
         val hidden = prefs.hiddenCalendars
         val r = SearchSource({ currentApi() }, store, zone, now).search(q)
-        remember(r.occurrences)
+        if (!r.offline) remember(r.occurrences)
         return r.copy(occurrences = r.occurrences.filter { it.calendarId !in hidden })
     }
 
@@ -347,6 +354,7 @@ class AppController(
             day = anchor ?: now().atZone(zone).toLocalDate(),
             weekStart = prefs.weekStart,
             lastSync = snapshot.lastSyncAt,
+            revision = revision,
         )
     }
 }

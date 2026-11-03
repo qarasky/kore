@@ -52,4 +52,10 @@ class ViewLabelsTest {
         assertEquals(listOf("a", "c", "b"), g.flatMap { it.items.map { o -> o.eventId } }) // a is 00:30 on the 5th in Berlin
         assertEquals(1, g.size)
     }
+
+    @Test fun anAllDayEventComesBeforeTimedOnesOfItsDay() {
+        val timed = dev.qarasky.korecalendar.data.Occurrence(eventId = "t", calendarId = "c", key = "k", title = "t", start = "2026-11-05T00:30:00", end = "2026-11-05T01:00:00", tz = "UTC", startUtc = Instant.parse("2026-11-05T00:30:00Z"), endUtc = Instant.parse("2026-11-05T01:00:00Z"))
+        val all = dev.qarasky.korecalendar.data.Occurrence(eventId = "a", calendarId = "c", key = "k2", title = "a", start = "2026-11-05", end = "2026-11-06", tz = "America/Los_Angeles", allDay = true, startUtc = Instant.parse("2026-11-05T08:00:00Z"), endUtc = Instant.parse("2026-11-06T08:00:00Z"))
+        assertEquals(listOf("a", "t"), groupByStartDay(listOf(timed, all), ZoneId.of("UTC")).single().items.map { it.eventId })
+    }
 }

@@ -36,6 +36,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -83,7 +84,6 @@ fun TimeGridView(state: AppState.Ready, controller: AppController, onOpen: (even
     val bars = remember(data, days) { placeAllDay(data?.occurrences ?: emptyList(), days) }
     val laneCount = (bars.maxOfOrNull { it.lane } ?: -1) + 1
     val shownLanes = minOf(laneCount, 3)
-    val hiddenBars = bars.count { it.lane >= 3 }
 
     val scope = rememberCoroutineScope()
     val hScroll = rememberScrollState()
@@ -106,7 +106,7 @@ fun TimeGridView(state: AppState.Ready, controller: AppController, onOpen: (even
                         val isToday = d == today
                         Column(
                             Modifier.width(colW).padding(vertical = 4.dp)
-                                .clickable { if (days.size > 1) scope.launch { controller.goTo(d, dev.qarasky.korecalendar.views.View.Day) } }
+                                .then(if (days.size > 1) Modifier.clickable { scope.launch { controller.goTo(d, dev.qarasky.korecalendar.views.View.Day) } } else Modifier)
                                 .semantics(mergeDescendants = true) { contentDescription = dateText(d) },
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
@@ -117,22 +117,22 @@ fun TimeGridView(state: AppState.Ready, controller: AppController, onOpen: (even
                 }
             }
 
-            // All-day strip
+            // All-day strip: three lanes show, more scroll, so every all-day event can be reached
             if (shownLanes > 0) {
                 Row {
-                    Box(Modifier.width(GUTTER), contentAlignment = Alignment.TopCenter) {
-                        if (hiddenBars > 0) Text("+$hiddenBars", color = Palette.muted, style = MaterialTheme.typography.labelSmall)
-                    }
-                    Box(Modifier.horizontalScroll(hScroll).width(colW * days.size).height(ALL_DAY_LANE * shownLanes)) {
-                        for (b in bars.filter { it.lane < 3 }) {
-                            val color = colors[b.occ.calendarId] ?: Palette.accent
-                            Box(
-                                Modifier.offset(colW * b.startIdx + 1.dp, ALL_DAY_LANE * b.lane).size(colW * b.span - 2.dp, ALL_DAY_LANE - 2.dp)
-                                    .background(color.copy(alpha = 0.35f), androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
-                                    .clickable { onOpen(b.occ.eventId, b.occ.key) }
-                                    .padding(horizontal = 4.dp),
-                                contentAlignment = Alignment.CenterStart,
-                            ) { Text(b.occ.title.ifBlank { stringResource(R.string.no_title) }, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp) }
+                    Box(Modifier.width(GUTTER))
+                    Box(Modifier.horizontalScroll(hScroll).verticalScroll(rememberScrollState()).width(colW * days.size).height(ALL_DAY_LANE * shownLanes)) {
+                        Box(Modifier.width(colW * days.size).height(ALL_DAY_LANE * laneCount)) {
+                            for (b in bars) {
+                                val color = colors[b.occ.calendarId] ?: Palette.accent
+                                Box(
+                                    Modifier.offset(colW * b.startIdx + 1.dp, ALL_DAY_LANE * b.lane).size(colW * b.span - 2.dp, ALL_DAY_LANE - 2.dp)
+                                        .background(color.copy(alpha = 0.35f), androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
+                                        .clickable { onOpen(b.occ.eventId, b.occ.key) }
+                                        .padding(horizontal = 4.dp),
+                                    contentAlignment = Alignment.CenterStart,
+                                ) { Text(b.occ.title.ifBlank { stringResource(R.string.no_title) }, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp) }
+                            }
                         }
                     }
                 }
@@ -149,6 +149,7 @@ fun TimeGridView(state: AppState.Ready, controller: AppController, onOpen: (even
                 }
                 Row(Modifier.horizontalScroll(hScroll)) {
                     for (d in days) {
+                        val newHere = stringResource(R.string.new_event_here)
                         val slotLabel = stringResource(R.string.grid_slot_description, dateText(d), state.zone.id)
                         Box(
                             Modifier.width(colW).height(HOUR_HEIGHT * 24)
@@ -162,7 +163,11 @@ fun TimeGridView(state: AppState.Ready, controller: AppController, onOpen: (even
                                         controller.beginNew(d, LocalTime.of(minutes / 60, minutes % 60))
                                     }
                                 }
-                                .semantics { contentDescription = slotLabel },
+                                .semantics {
+                                    contentDescription = slotLabel
+                                    // TalkBack and switch users cannot tap a position: offer the new event as an action.
+                                    onClick(label = newHere) { controller.beginNew(d, LocalTime.of(9, 0)); true }
+                                },
                         ) {
                             for (p in placed.filter { it.day == d }) {
                                 val color = colors[p.occ.calendarId] ?: Palette.accent
@@ -173,7 +178,7 @@ fun TimeGridView(state: AppState.Ready, controller: AppController, onOpen: (even
                                         .background(color.copy(alpha = 0.35f), androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
                                         .clickable { onOpen(p.occ.eventId, p.occ.key) }
                                         .padding(horizontal = 4.dp, vertical = 2.dp)
-                                        .semantics(mergeDescendants = true) { contentDescription = title },
+                                        .semantics(mergeDescendants = true) { contentDescription = "${timeLabel(p.occ.startUtc.atZone(state.zone).toLocalTime(), state.clock24)}, $title" },
                                 ) {
                                     Text(title, maxLines = if (p.height >= 45) 2 else 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp)
                                     if (p.height >= 45) {

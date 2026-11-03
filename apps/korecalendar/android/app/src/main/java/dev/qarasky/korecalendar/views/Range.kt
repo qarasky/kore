@@ -1,5 +1,6 @@
 package dev.qarasky.korecalendar.views
 
+import dev.qarasky.korecalendar.data.ApiException
 import dev.qarasky.korecalendar.data.CalendarApi
 import dev.qarasky.korecalendar.data.LocalStore
 import dev.qarasky.korecalendar.data.NetworkException
@@ -70,7 +71,14 @@ private fun overlapping(all: List<Occurrence>, from: Instant, to: Instant) = all
 class RangeSource(private val api: () -> CalendarApi?, private val store: LocalStore) {
     private val remembered = LinkedHashMap<Pair<Instant, Instant>, List<Occurrence>>()
 
-    fun forget() = remembered.clear()
+    @Synchronized fun forget() = remembered.clear()
+
+    @Synchronized private fun recall(k: Pair<Instant, Instant>) = remembered[k]
+
+    @Synchronized private fun keep(k: Pair<Instant, Instant>, v: List<Occurrence>) {
+        if (remembered.size >= 8) remembered.remove(remembered.keys.first())
+        remembered[k] = v
+    }
 
     suspend fun load(from: Instant, to: Instant): RangeResult {
         val windowFrom = store.windowFrom()
@@ -78,14 +86,16 @@ class RangeSource(private val api: () -> CalendarApi?, private val store: LocalS
         if (windowFrom != null && from >= windowFrom && to <= windowFrom.plus(KEPT_SPAN)) {
             return RangeResult(overlapping(local, from, to), fromServer = false, offline = false)
         }
-        remembered[from to to]?.let { return RangeResult(it, fromServer = true, offline = false) }
+        recall(from to to)?.let { return RangeResult(it, fromServer = true, offline = false) }
         val client = api() ?: return RangeResult(overlapping(local, from, to), fromServer = false, offline = true)
         return try {
             val got = client.occurrences(from, to)
-            if (remembered.size >= 8) remembered.remove(remembered.keys.first())
-            remembered[from to to] = got
+            keep(from to to, got)
             RangeResult(got, fromServer = true, offline = false)
         } catch (e: NetworkException) {
+            RangeResult(overlapping(local, from, to), fromServer = false, offline = true)
+        } catch (e: ApiException) {
+            // The server answered with an error (a gateway down, a token revoked): show what the phone has, never crash a view.
             RangeResult(overlapping(local, from, to), fromServer = false, offline = true)
         }
     }
@@ -109,6 +119,8 @@ class SearchSource(private val api: () -> CalendarApi?, private val store: Local
                 return SearchResult(client.occurrences(from, to, q), offline = false, first, last)
             } catch (e: NetworkException) {
                 // fall through to the local copy
+            } catch (e: ApiException) {
+                // an error answer (a gateway down, too many hits for the range): search the phone's copy instead
             }
         }
         val needle = q.lowercase()

@@ -27,7 +27,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,10 +50,10 @@ import kotlinx.coroutines.delay
 @Composable
 fun SearchScreen(state: AppState.Ready, controller: AppController, onBack: () -> Unit, onOpen: (eventId: String, key: String) -> Unit) {
     BackHandler(onBack = onBack)
-    var q by rememberSaveable { mutableStateOf("") }
+    var q by remember { mutableStateOf(controller.searchQuery) }
     var result by remember { mutableStateOf<SearchResult?>(null) }
     var forQuery by remember { mutableStateOf("") }
-    LaunchedEffect(q, state.lastSync) {
+    LaunchedEffect(q, state.revision) {
         if (q.isBlank()) {
             result = null
             forQuery = ""
@@ -80,7 +79,7 @@ fun SearchScreen(state: AppState.Ready, controller: AppController, onBack: () ->
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             OutlinedTextField(
-                value = q, onValueChange = { q = it.take(200) }, singleLine = true,
+                value = q, onValueChange = { q = it.take(200); controller.searchQuery = q }, singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 label = { Text(stringResource(R.string.search_hint)) },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = {}),
@@ -91,7 +90,8 @@ fun SearchScreen(state: AppState.Ready, controller: AppController, onBack: () ->
                 r == null -> Text(stringResource(R.string.range_loading), color = Palette.muted, modifier = Modifier.padding(16.dp))
                 else -> {
                     Text(
-                        stringResource(R.string.search_count, r.occurrences.size, dateText(r.from), dateText(r.to)),
+                        if (r.offline) stringResource(R.string.search_count_offline, r.occurrences.size)
+                        else stringResource(R.string.search_count, r.occurrences.size, dateText(r.from), dateText(r.to)),
                         color = Palette.muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp),
                     )
                     if (r.offline) Text(stringResource(R.string.search_offline_note), color = Palette.warning, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp))

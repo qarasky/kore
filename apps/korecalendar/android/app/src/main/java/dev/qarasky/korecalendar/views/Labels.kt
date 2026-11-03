@@ -37,5 +37,5 @@ fun <T> chipsForDay(items: List<T>, max: Int): Chips<T> = Chips(items.take(max),
 
 /** Search results grouped under the (account-zone) day they start, in time order. */
 fun groupByStartDay(occs: List<Occurrence>, zone: ZoneId): List<DayGroup> =
-    occs.sortedBy { it.startUtc }.groupBy { if (it.allDay) LocalDate.parse(it.start.take(10)) else it.startUtc.atZone(zone).toLocalDate() }
+    occs.sortedWith(compareBy<Occurrence>({ !it.allDay }, { it.startUtc })).groupBy { if (it.allDay) LocalDate.parse(it.start.take(10)) else it.startUtc.atZone(zone).toLocalDate() }
         .toSortedMap().map { (day, items) -> DayGroup(day, items) }
