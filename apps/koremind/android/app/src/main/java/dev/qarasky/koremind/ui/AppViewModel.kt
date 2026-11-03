@@ -2,6 +2,7 @@ package dev.qarasky.koremind.ui
 
 import android.app.Application
 import android.content.ContentResolver
+import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
@@ -9,8 +10,12 @@ import androidx.lifecycle.viewModelScope
 import dev.qarasky.koremind.data.ApiException
 import dev.qarasky.koremind.data.Health
 import dev.qarasky.koremind.data.Pkce
-import dev.qarasky.koremind.data.SsoLink
 import dev.qarasky.koremind.data.parseSsoLink
+import dev.qarasky.koremind.data.SsoAction
+import dev.qarasky.koremind.data.User
+import dev.qarasky.koremind.data.logoutBrowserUrl
+import dev.qarasky.koremind.data.ssoAction
+import dev.qarasky.koremind.data.ssoErrorMessage
 import dev.qarasky.koremind.data.PairResult
 import dev.qarasky.koremind.data.pair
 import dev.qarasky.koremind.data.parsePairLink
@@ -96,7 +101,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val h = KoreMindApi(url) { null }.health()
             prefs.baseUrl = url; prefs.signOut()
             api = KoreMindApi(url) { prefs.token }
-            _session.value = Session(url, false, null)
+            _session.value = Session(url, false, null); _me.value = null
             Result.success(h.setupRequired)
         } catch (e: Exception) { Result.failure(e) }
     }
@@ -107,7 +112,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun health(): Health? = try { api?.health() } catch (_: Exception) { null }
 
     // ---- Kore ID ------------------------------------------------------------
-    /** Starts a Kore ID sign-in. Returns the URL to open in the browser; the result arrives as a koremind://sso link. */
+    /** The signed-in user as /me reports it (ssoLinked drives Settings → Account). Null until loaded. */
+    private val _me = MutableStateFlow<User?>(null)
+    val me: StateFlow<User?> = _me.asStateFlow()
+
+    fun refreshMe() { viewModelScope.launch { try { api?.me()?.let { _me.value = it } } catch (_: Exception) { } } }
+
+    /**
+     * Starts Kore ID in the browser. Signed out it is a sign-in; signed in, the request carries the bearer token and the backend
+     * links Kore ID to this account instead. Returns the URL to open; the result arrives as a koremind://sso link.
+     */
     suspend fun ssoStart(): Result<String> = try {
         val a = api ?: error("Not connected")
         val verifier = Pkce.newVerifier()
@@ -116,23 +130,31 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         Result.success(url)
     } catch (e: Exception) { Result.failure(e) }
 
-    /** Finishes a Kore ID sign-in from the koremind://sso link the backend sent the browser to. */
+    /** Finishes a Kore ID sign-in or link from the koremind://sso link the backend sent the browser to. */
     fun handleSsoLink(text: String) {
         val link = parseSsoLink(text) ?: return
         val verifier = prefs.ssoVerifier
         prefs.ssoVerifier = null
-        val a = api
-        if (link !is SsoLink.Ticket) { if (link is SsoLink.Error) _pair.value = PairUi.Failed(dev.qarasky.koremind.R.string.sso_failed); return }
-        if (verifier == null || a == null) { _pair.value = PairUi.Failed(dev.qarasky.koremind.R.string.sso_failed); return }
-        _pair.value = PairUi.Working
-        viewModelScope.launch {
-            try {
-                val r = a.ssoExchange(link.ticket, verifier)
-                prefs.token = r.token; prefs.email = r.user.email
-                _session.value = Session(prefs.baseUrl, true, r.user.email)
-                refreshAll()
-                _pair.value = PairUi.Done
-            } catch (_: Exception) { _pair.value = PairUi.Failed(dev.qarasky.koremind.R.string.sso_failed) }
+        when (val action = ssoAction(link, _session.value.signedIn)) {
+            SsoAction.Ignore -> Unit
+            SsoAction.LinkDone -> refreshMe()
+            // Errors show in the login screen while signing in, and in a dialog (KoreMindApp) anywhere else.
+            is SsoAction.Fail -> _pair.value = PairUi.Failed(ssoErrorMessage(action.code))
+            is SsoAction.Exchange -> {
+                val a = api
+                if (verifier == null || a == null) { _pair.value = PairUi.Failed(dev.qarasky.koremind.R.string.sso_failed); return }
+                _pair.value = PairUi.Working
+                viewModelScope.launch {
+                    try {
+                        val r = a.ssoExchange(action.ticket, verifier)
+                        prefs.token = r.token; prefs.email = r.user.email
+                        _session.value = Session(prefs.baseUrl, true, r.user.email)
+                        _me.value = r.user
+                        refreshAll()
+                        _pair.value = PairUi.Done
+                    } catch (_: Exception) { _pair.value = PairUi.Failed(dev.qarasky.koremind.R.string.sso_failed) }
+                }
+            }
         }
     }
 
@@ -145,12 +167,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         Result.success(Unit)
     } catch (e: Exception) { Result.failure(e) }
 
+    /**
+     * Signs out here at once. The server call runs in the background with the token captured now (the local copy is cleared
+     * right away); if the session came from Kore ID, its sign-out page then opens in the browser. Failures never block this.
+     */
     fun signOut() {
-        viewModelScope.launch { try { api?.logout() } catch (_: Exception) { } }
-        prefs.signOut(); cache.clear()
+        val token = prefs.token
+        val base = prefs.baseUrl
+        if (token != null && base != null) viewModelScope.launch {
+            val url = try { logoutBrowserUrl(KoreMindApi(base) { token }.logout()) } catch (_: Exception) { null }
+            if (url != null) openInBrowser(url)
+        }
+        prefs.signOut(); cache.clear(); prefs.ssoVerifier = null
         streamJob?.cancel()
         _chat.value = ChatUiState(); _chatId.value = null; _chats.value = emptyList(); _busy.value = false
+        _me.value = null
         _session.value = Session(prefs.baseUrl, false, null)
+    }
+
+    private fun openInBrowser(url: String) {
+        try {
+            getApplication<Application>().startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (_: Exception) { }
     }
 
     // ---- pairing (scan a QR code shown on the web, or open a koremind://pair link) --------------------

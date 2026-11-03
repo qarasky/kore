@@ -1,5 +1,7 @@
 package dev.qarasky.koremind.data
 
+import androidx.annotation.StringRes
+import dev.qarasky.koremind.R
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
@@ -38,3 +40,39 @@ fun parseSsoLink(text: String): SsoLink? {
     q["error"]?.takeIf { it.isNotEmpty() }?.let { return SsoLink.Error(it) }
     return if (q["linked"] == "1") SsoLink.Linked else null
 }
+
+/** What to do with a koremind://sso link, given whether someone is signed in on this phone. */
+sealed interface SsoAction {
+    /** A sign-in finished in the browser: trade the ticket for a session. */
+    data class Exchange(val ticket: String) : SsoAction
+    /** "Link Kore ID" from Settings finished: reload /me so it shows Linked. */
+    data object LinkDone : SsoAction
+    data class Fail(val code: String, val linking: Boolean) : SsoAction
+    /** Stale or out of place (a ticket while signed in, linked=1 while signed out). */
+    data object Ignore : SsoAction
+}
+
+/** A signed-in phone only ever starts linking, so a ticket arriving then is never treated as a sign-in (and vice versa). */
+fun ssoAction(link: SsoLink, signedIn: Boolean): SsoAction = when (link) {
+    is SsoLink.Ticket -> if (signedIn) SsoAction.Ignore else SsoAction.Exchange(link.ticket)
+    SsoLink.Linked -> if (signedIn) SsoAction.LinkDone else SsoAction.Ignore
+    is SsoLink.Error -> SsoAction.Fail(link.code, linking = signedIn)
+}
+
+/** The human message for an `?error=` code from the backend (same wording as the web's ssoErrorMessage). */
+@StringRes fun ssoErrorMessage(code: String): Int = when (code) {
+    "denied" -> R.string.sso_error_denied
+    "not_allowed" -> R.string.sso_error_not_allowed
+    "owner_pending" -> R.string.sso_error_owner_pending
+    "account_exists" -> R.string.sso_error_account_exists
+    "sub_taken" -> R.string.sso_error_sub_taken
+    "already_linked" -> R.string.sso_error_already_linked
+    "no_email" -> R.string.sso_error_no_email
+    "unavailable" -> R.string.sso_error_unavailable
+    "invalid_state" -> R.string.sso_error_invalid_state
+    else -> R.string.sso_failed
+}
+
+/** Kore ID's sign-out page to open after POST /auth/logout, if the session came from a Kore ID sign-in. Only http(s) URLs. */
+fun logoutBrowserUrl(r: LogoutResponse?): String? =
+    r?.logoutUrl?.trim()?.takeIf { it.startsWith("https://", ignoreCase = true) || it.startsWith("http://", ignoreCase = true) }

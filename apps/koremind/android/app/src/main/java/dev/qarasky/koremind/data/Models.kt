@@ -15,6 +15,8 @@ val KoreMindJson = Json { ignoreUnknownKeys = true; explicitNulls = false; encod
 @Serializable data class SsoStartBody(val challenge: String, val platform: String)
 @Serializable data class SsoStartResponse(val url: String)
 @Serializable data class SsoExchangeBody(val ticket: String, val verifier: String)
+/** logoutUrl: Kore ID's RP-initiated logout page; only for sessions that came from a Kore ID sign-in. */
+@Serializable data class LogoutResponse(val ok: Boolean = true, val logoutUrl: String? = null)
 @Serializable data class ModelInfo(val id: String, val name: String, val vision: Boolean, val thinkingLevels: List<String>, val isDefault: Boolean, val free: Boolean = false)
 /** status: "ready", "needs_connection" (no key / not signed in) or "disabled" (turned off in Settings). Models are empty unless ready. */
 @Serializable data class ProviderInfo(val id: String, val name: String, val connected: Boolean, val models: List<ModelInfo>, val status: String = "ready", val recommended: Boolean = false)
