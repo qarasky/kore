@@ -34,6 +34,8 @@
   --color-status-up: #3fb950;
   --color-status-warn: #f0c54b;
   --color-status-down: #e5484d;
+  /* An acknowledged (muted) outage: still a down diamond, in a dim red. */
+  --color-status-down-muted: #8a3a3d;
   --color-status-maint: #a371f7;
   --color-status-off: #5b616d;
 
@@ -90,6 +92,12 @@
   --animate-kore-drawer-out: kore-drawer-out 180ms var(--ease-exit) forwards;
   --animate-kore-toast-in: kore-toast-in 220ms var(--ease-standard);
   --animate-kore-toast-out: kore-fade-out 120ms var(--ease-exit) forwards;
+  --animate-kore-sheet-right-in: kore-sheet-right-in 250ms var(--ease-standard);
+  --animate-kore-sheet-right-out: kore-sheet-right-out 180ms var(--ease-exit) forwards;
+  --animate-kore-sheet-left-in: kore-drawer-in 250ms var(--ease-standard);
+  --animate-kore-sheet-left-out: kore-drawer-out 180ms var(--ease-exit) forwards;
+  --animate-kore-sheet-bottom-in: kore-sheet-bottom-in 250ms var(--ease-standard);
+  --animate-kore-sheet-bottom-out: kore-sheet-bottom-out 180ms var(--ease-exit) forwards;
   --animate-kore-indeterminate: kore-indeterminate 1.2s var(--ease-standard) infinite;
 
   --font-sans:
@@ -139,6 +147,26 @@
   @keyframes kore-drawer-out {
     to {
       transform: translateX(-100%);
+    }
+  }
+  @keyframes kore-sheet-right-in {
+    from {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes kore-sheet-right-out {
+    to {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes kore-sheet-bottom-in {
+    from {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes kore-sheet-bottom-out {
+    to {
+      transform: translateY(100%);
     }
   }
   @keyframes kore-indeterminate {
