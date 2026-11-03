@@ -58,12 +58,22 @@ data class Occurrence(
     val reminders: List<Reminder> = emptyList(),
 )
 
-/** Only what the change feed is used for: that something changed. */
+/** An event or a whole series as the server keeps it (the change feed lists these too). */
 @Serializable
 data class Event(
     val id: String,
     @SerialName("calendar_id") val calendarId: String = "",
     val title: String = "",
+    val notes: String = "",
+    val location: String = "",
+    val start: String = "",
+    val end: String = "",
+    val tz: String = "UTC",
+    @SerialName("all_day") val allDay: Boolean = false,
+    val rrule: String = "",
+    val rdates: List<String> = emptyList(),
+    val exdates: List<String> = emptyList(),
+    val reminders: List<Reminder> = emptyList(),
     val version: Int = 0,
     @SerialName("deleted_at") val deletedAt: Long? = null,
 )

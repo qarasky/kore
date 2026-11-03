@@ -3,9 +3,13 @@ package dev.qarasky.korecalendar
 import dev.qarasky.korecalendar.data.ApiException
 import dev.qarasky.korecalendar.data.HttpApi
 import dev.qarasky.korecalendar.data.NetworkException
+import dev.qarasky.korecalendar.data.WriteRequest
 import dev.qarasky.korecalendar.data.normalizeServerUrl
 import java.time.Instant
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.SocketPolicy
@@ -97,5 +101,75 @@ class HttpApiTest {
         val e = assertThrows(ApiException::class.java) { kotlinx.coroutines.runBlocking { api("t").me() } }
         assertEquals(502, e.status)
         assertEquals("bad_response", e.code)
+    }
+
+    // --- writes ----------------------------------------------------------------------------------
+
+    private val eventJson = """{"id":"e1","calendar_id":"c1","title":"Gym","notes":"n","location":"Park","start":"2026-11-04T16:00:00","end":"2026-11-04T17:00:00","tz":"Europe/Berlin","all_day":false,"rrule":"FREQ=WEEKLY;BYDAY=WE","rdates":[],"exdates":["2026-11-11T16:00:00"],"reminders":[{"minutes_before":30}],"version":4}"""
+
+    @Test fun readsAWholeEvent() = runTest {
+        server.enqueue(json(200, eventJson))
+        val e = api("t").event("e1")
+        assertEquals("/api/events/e1", server.takeRequest().path)
+        assertEquals(4, e.version)
+        assertEquals("FREQ=WEEKLY;BYDAY=WE", e.rrule)
+        assertEquals(listOf("2026-11-11T16:00:00"), e.exdates)
+        assertEquals(30, e.reminders.single().minutesBefore)
+        assertEquals("Europe/Berlin", e.tz)
+    }
+
+    @Test fun aCreateSendsTheBodyAndTheIdempotencyKey() = runTest {
+        server.enqueue(json(201, eventJson))
+        val body = JsonObject(mapOf("title" to JsonPrimitive("Gym")))
+        val r = api("t").write(WriteRequest("POST", "/api/events", body, null, "key-1"))
+        val req = server.takeRequest()
+        assertEquals("POST", req.method)
+        assertEquals("/api/events", req.path)
+        assertEquals("key-1", req.getHeader("Idempotency-Key"))
+        assertNull(req.getHeader("If-Match"))
+        assertEquals("""{"title":"Gym"}""", req.body.readUtf8())
+        assertEquals("e1", r.event.id)
+    }
+
+    @Test fun anEditSendsIfMatchAndKeepsTheEncodedQuery() = runTest {
+        server.enqueue(json(200, eventJson))
+        api("t").write(WriteRequest("PATCH", "/api/events/e1?scope=this&occurrence=2026-11-11T16%3A00%3A00", JsonObject(mapOf("title" to JsonPrimitive("x"))), 4, null))
+        val req = server.takeRequest()
+        assertEquals("PATCH", req.method)
+        assertEquals("/api/events/e1?scope=this&occurrence=2026-11-11T16%3A00%3A00", req.path)
+        assertEquals("\"4\"", req.getHeader("If-Match"))
+        assertNull(req.getHeader("Idempotency-Key"))
+    }
+
+    @Test fun aDeleteHasNoBody() = runTest {
+        server.enqueue(json(200, eventJson.replace("\"version\":4", "\"version\":5,\"deleted_at\":99")))
+        val r = api("t").write(WriteRequest("DELETE", "/api/events/e1", null, 4, null))
+        val req = server.takeRequest()
+        assertEquals("DELETE", req.method)
+        assertEquals(0L, req.bodySize)
+        assertEquals(99L, r.event.deletedAt)
+    }
+
+    @Test fun anEditResultCarriesTheSplitAndTheDroppedOverrides() = runTest {
+        val created = eventJson.replace("\"id\":\"e1\"", "\"id\":\"e2\"")
+        server.enqueue(json(200, eventJson.dropLast(1) + ""","created":$created,"dropped_overrides":["2026-11-18T16:00:00","2026-11-25T16:00:00"]}"""))
+        val r = api("t").write(WriteRequest("PATCH", "/api/events/e1?scope=following&occurrence=x", JsonObject(emptyMap()), 4, null))
+        assertEquals("e2", r.created?.id)
+        assertEquals(2, r.dropped.size)
+    }
+
+    @Test fun restoreIsAPostToTheRestorePath() = runTest {
+        server.enqueue(json(200, eventJson))
+        api("t").restoreEvent("e1")
+        val req = server.takeRequest()
+        assertEquals("POST", req.method)
+        assertEquals("/api/events/e1/restore", req.path)
+    }
+
+    @Test fun aStaleVersionIsAVersionConflict() = runTest {
+        server.enqueue(json(412, """{"error":{"code":"version_conflict","message":"stale"}}"""))
+        val e = assertThrows(ApiException::class.java) { runBlocking { api("t").write(WriteRequest("PATCH", "/api/events/e1", JsonObject(emptyMap()), 3, null)) } }
+        assertEquals(412, e.status)
+        assertEquals("version_conflict", e.code)
     }
 }

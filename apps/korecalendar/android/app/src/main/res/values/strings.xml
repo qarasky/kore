@@ -84,4 +84,34 @@
     <string name="rrule_ordinal_3">third</string>
     <string name="rrule_ordinal_4">fourth</string>
     <string name="rrule_ordinal_last">last</string>
+
+    <!-- Reminders -->
+    <string name="reminder_at_start">At time of event</string>
+    <string name="reminder_at_midnight">At midnight on the day</string>
+    <string name="reminder_before">%1$s before</string>
+    <string name="reminder_before_midnight">%1$s before (at midnight)</string>
+    <string name="unit_minute_one">%1$d minute</string>
+    <string name="unit_minute_other">%1$d minutes</string>
+    <string name="unit_hour_one">%1$d hour</string>
+    <string name="unit_hour_other">%1$d hours</string>
+    <string name="unit_day_one">%1$d day</string>
+    <string name="unit_day_other">%1$d days</string>
+    <string name="unit_week_one">%1$d week</string>
+    <string name="unit_week_other">%1$d weeks</string>
+
+    <!-- Errors while editing -->
+    <string name="edit_err_unreachable">Can\'t reach the server. Check your connection and try again.</string>
+    <string name="edit_err_generic">Something went wrong. Try again.</string>
+    <string name="edit_err_validation">Some of the values aren\'t valid. Check the form and try again.</string>
+    <string name="edit_err_unsupported_rrule">That repeat rule isn\'t supported.</string>
+    <string name="edit_err_invalid_json">The request couldn\'t be read. Try again.</string>
+    <string name="edit_err_unauthorized">Your sign-in ended. Sign in again.</string>
+    <string name="edit_err_forbidden">That needs a signed-in session, not an access token.</string>
+    <string name="edit_err_not_found">That doesn\'t exist any more, or it isn\'t yours.</string>
+    <string name="edit_err_rate_limited">Too many attempts. Try again in a moment.</string>
+    <string name="edit_err_version_conflict">This event was changed somewhere else. Reload to see the latest.</string>
+    <string name="edit_err_idempotency">That request was already sent with different details.</string>
+    <string name="edit_err_range">That time range is too large.</string>
+    <string name="edit_err_busy">The server is busy. Try again in a moment.</string>
+    <string name="edit_err_internal">The server hit an error. Try again.</string>
 </resources>

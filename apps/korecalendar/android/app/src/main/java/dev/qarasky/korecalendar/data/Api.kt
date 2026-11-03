@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -26,6 +27,12 @@ class ApiException(val status: Int, val code: String, message: String) : Excepti
 /** The server could not be reached or the connection broke. */
 class NetworkException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
+/** One write the planner decided on: [path] already carries its (encoded) query. */
+data class WriteRequest(val method: String, val path: String, val body: JsonObject?, val ifMatch: Int?, val idempotencyKey: String?)
+
+/** The series after a write, the series a "this and following" edit split off, and the changed occurrences a schedule change reset. */
+data class WriteResult(val event: Event, val created: Event?, val dropped: List<String>)
+
 /** The public REST API, as far as the app uses it. */
 interface CalendarApi {
     suspend fun login(email: String, password: String): Session
@@ -35,6 +42,9 @@ interface CalendarApi {
     suspend fun calendars(): List<Calendar>
     suspend fun occurrences(from: Instant, to: Instant): List<Occurrence>
     suspend fun changes(since: Long): ChangeSet
+    suspend fun event(id: String): Event
+    suspend fun write(request: WriteRequest): WriteResult
+    suspend fun restoreEvent(id: String): Event
 }
 
 private val defaultClient: OkHttpClient by lazy {
@@ -79,6 +89,27 @@ class HttpApi(
     override suspend fun changes(since: Long): ChangeSet =
         send("GET", "/api/changes", null, ChangeSet.serializer(), query = listOf("since" to since.toString()))
 
+    override suspend fun event(id: String): Event = send("GET", "/api/events/$id", null, Event.serializer())
+
+    override suspend fun write(request: WriteRequest): WriteResult {
+        val headers = listOfNotNull(
+            request.ifMatch?.let { "If-Match" to "\"$it\"" },
+            request.idempotencyKey?.let { "Idempotency-Key" to it },
+        )
+        val answer = send(request.method, request.path, request.body?.let { body(it) }, JsonObject.serializer(), headers = headers)
+        return try {
+            WriteResult(
+                event = ApiJson.decodeFromJsonElement(Event.serializer(), answer),
+                created = (answer["created"] as? JsonObject)?.let { ApiJson.decodeFromJsonElement(Event.serializer(), it) },
+                dropped = (answer["dropped_overrides"] as? JsonArray)?.map { it.jsonPrimitive.content } ?: emptyList(),
+            )
+        } catch (e: Exception) {
+            throw ApiException(200, "bad_response", "The server sent an answer the app does not understand.")
+        }
+    }
+
+    override suspend fun restoreEvent(id: String): Event = send("POST", "/api/events/$id/restore", null, Event.serializer())
+
     private fun body(o: JsonObject) = ApiJson.encodeToString(JsonObject.serializer(), o).toRequestBody(JSON_TYPE)
 
     private suspend fun <T> send(
@@ -87,12 +118,14 @@ class HttpApi(
         body: okhttp3.RequestBody?,
         into: DeserializationStrategy<T>?,
         query: List<Pair<String, String>> = emptyList(),
+        headers: List<Pair<String, String>> = emptyList(),
     ): T = withContext(Dispatchers.IO) {
         val url = (server.base + path).toHttpUrl().newBuilder().apply { query.forEach { (k, v) -> addQueryParameter(k, v) } }.build()
         val request = Request.Builder().url(url).method(method, body ?: if (method == "POST") "".toRequestBody(JSON_TYPE) else null)
             .header("Accept", "application/json")
             .header("User-Agent", "KoreCalendar-Android/${BuildConfig.VERSION_NAME}")
             .apply { token?.let { header("Authorization", "Bearer $it") } }
+            .apply { headers.forEach { (k, v) -> header(k, v) } }
             .build()
         val response = try {
             client.newCall(request).execute()
