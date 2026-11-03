@@ -63,4 +63,25 @@
     <string name="widget_description">The next events from your calendar, as an agenda.</string>
     <string name="widget_empty">Nothing in the next 60 days</string>
     <string name="widget_sign_in">Open Calendar to sign in</string>
+    <!-- Repeat rules -->
+    <string name="rrule_none">Doesn\'t repeat</string>
+    <string name="rrule_daily">Every day</string>
+    <string name="rrule_daily_n">Every %1$d days</string>
+    <string name="rrule_weekly_on">Every week on %1$s</string>
+    <string name="rrule_weekly_n_on">Every %1$d weeks on %2$s</string>
+    <string name="rrule_monthly_day">Every month on day %1$d</string>
+    <string name="rrule_monthly_day_n">Every %1$d months on day %2$d</string>
+    <string name="rrule_monthly_nth">Every month on the %1$s %2$s</string>
+    <string name="rrule_monthly_nth_n">Every %1$d months on the %2$s %3$s</string>
+    <string name="rrule_yearly">Every year on %1$s</string>
+    <string name="rrule_yearly_n">Every %1$d years on %2$s</string>
+    <string name="rrule_weekdays">Every weekday (Mon–Fri)</string>
+    <string name="rrule_until">until %1$s</string>
+    <string name="rrule_times">%1$d times</string>
+    <string name="rrule_custom">Custom rule: %1$s</string>
+    <string name="rrule_ordinal_1">first</string>
+    <string name="rrule_ordinal_2">second</string>
+    <string name="rrule_ordinal_3">third</string>
+    <string name="rrule_ordinal_4">fourth</string>
+    <string name="rrule_ordinal_last">last</string>
 </resources>

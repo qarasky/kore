@@ -152,8 +152,8 @@ fun nextTick(firstEnds: Instant?, lastSyncAt: Instant?, now: Instant, zone: Zone
 
 data class Labels(val today: String, val tomorrow: String)
 
-private val DAY_NAMES = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-private val MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+val DAY_NAMES = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+val MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 private fun shortDate(d: LocalDate, withYear: Boolean = false): String =
     "${DAY_NAMES[d.dayOfWeek.value - 1]} ${d.dayOfMonth} ${MONTH_NAMES[d.monthValue - 1]}" + if (withYear) " ${d.year}" else ""
