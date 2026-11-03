@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { NavTabs } from "@qarasky/kore-ui";
 import { usePathname } from "next/navigation";
 import { t, type MessageKey } from "@/lib/i18n";
 
@@ -10,27 +10,17 @@ const LINKS: { href: string; label: MessageKey }[] = [
   { href: "/admin/settings", label: "admin.nav.settings" },
 ];
 
-/** Overview / Users / Settings tabs of the admin area. */
+/** Overview / Users / Settings tabs of the admin area (kore-ui NavTabs). */
 export function AdminNav() {
   const pathname = usePathname();
   return (
-    <nav aria-label={t("admin.nav")} className="flex items-center gap-1">
-      {LINKS.map((l) => {
-        const active = l.href === "/admin" ? pathname === "/admin" : pathname.startsWith(l.href);
-        return (
-          <Link
-            key={l.href}
-            href={l.href}
-            aria-current={active ? "page" : undefined}
-            className={
-              "flex min-h-control-sm items-center rounded-ui px-3 transition-colors " +
-              (active ? "bg-raised font-medium text-text" : "text-muted hover:bg-white/[0.04] hover:text-text")
-            }
-          >
-            {t(l.label)}
-          </Link>
-        );
-      })}
-    </nav>
+    <NavTabs
+      label={t("admin.nav")}
+      items={LINKS.map((l) => ({
+        href: l.href,
+        label: t(l.label),
+        active: l.href === "/admin" ? pathname === "/admin" : pathname.startsWith(l.href),
+      }))}
+    />
   );
 }

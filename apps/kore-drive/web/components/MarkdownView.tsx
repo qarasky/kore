@@ -1,5 +1,6 @@
 "use client";
 
+import { ImageOff } from "lucide-react";
 import { memo, type ComponentProps } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -25,10 +26,7 @@ function BlockedImage({ alt }: ComponentProps<"img"> & { node?: unknown }) {
   const label = alt ? t("preview.imageBlocked", { alt }) : t("preview.imageBlockedNoAlt");
   return (
     <span data-image-placeholder="" className="kore-md-image" title={label}>
-      <svg aria-hidden="true" viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth={1.4}>
-        <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
-        <path d="m2.5 11.5 3.5-3.5 3 3 1.5-1.5 3 3" />
-      </svg>
+      <ImageOff aria-hidden="true" className="size-3.5" />
       {label}
     </span>
   );

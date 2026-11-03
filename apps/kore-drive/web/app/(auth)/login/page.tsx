@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import { LoginArt } from "@/components/LoginArt";
-import { Wordmark } from "@/components/wordmark";
 import { api } from "@/lib/api";
 import { getAuthConfig } from "@/lib/authConfig";
 import { loginImageSrc, type Branding } from "@/lib/branding";
 import { t } from "@/lib/i18n";
 import { safeNext } from "@/lib/safe-next";
 import { loginSsoError } from "@/lib/ssoErrors";
-import { LoginForm } from "./login-form";
+import { LoginScreen } from "./login-form";
 
 export const metadata: Metadata = { title: t("login.title") };
 
@@ -31,56 +30,22 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const ssoHref = `/api/auth/oidc/login?next=${encodeURIComponent(next)}`;
 
   return (
-    <div className="flex min-h-dvh">
-      <main className="flex min-w-0 flex-1 items-center justify-center px-4 py-12">
-        <div className="w-full max-w-[380px]">
-          <div className="mb-6 flex justify-center text-display">
-            <Wordmark />
-          </div>
-          <section className="rounded-ui border border-border bg-surface p-6 shadow-[0_1px_0_rgba(255,255,255,0.03)_inset,0_12px_32px_-12px_rgba(0,0,0,0.6)]">
-            <h1 className="text-title font-semibold tracking-[-0.01em]">{t("login.title")}</h1>
-            <p className="mt-1 mb-5 text-muted">{t(auth.local_login ? "login.subtitle" : "login.sso.subtitle")}</p>
-            {auth.local_login ? <LoginForm next={next} expired={expired} /> : null}
-            {auth.oidc && ssoError ? (
-              <p role="alert" data-testid="login-sso-error" className="mb-3 text-meta text-danger">
-                {t(ssoError)}
-              </p>
-            ) : null}
-            {auth.oidc ? (
-              <>
-                {auth.local_login ? (
-                  <p className="my-4 text-center text-meta text-muted">{t("login.sso.or")}</p>
-                ) : null}
-                {/* A plain link: the API redirects the whole page to Kore ID. */}
-                <a
-                  href={ssoHref}
-                  data-testid="login-sso"
-                  className="flex min-h-control w-full items-center justify-center rounded-ui border border-border bg-raised px-3 py-2 font-medium text-text transition-colors hover:border-border-strong"
-                >
-                  {t("login.sso")}
-                </a>
-              </>
-            ) : null}
-          </section>
+    <LoginScreen
+      next={next}
+      expired={expired}
+      localLogin={auth.local_login}
+      ssoHref={auth.oidc ? ssoHref : undefined}
+      ssoError={auth.oidc ? ssoError : null}
+      aside={
+        <div data-testid="login-picture" className="absolute inset-0 bg-[#111522]">
+          {custom ? (
+            // eslint-disable-next-line @next/next/no-img-element -- served by the API, not next/image
+            <img src={custom} alt="" data-testid="login-picture-custom" className="absolute inset-0 size-full object-cover" />
+          ) : (
+            <LoginArt className="absolute inset-0 size-full" />
+          )}
         </div>
-      </main>
-      {/* Decorative: hidden below 900px, so small screens get just the form. */}
-      <div
-        data-testid="login-picture"
-        className="relative hidden w-1/2 shrink-0 overflow-hidden border-l border-border bg-[#111522] min-[900px]:block"
-      >
-        {custom ? (
-          // eslint-disable-next-line @next/next/no-img-element -- served by the API, not next/image
-          <img
-            src={custom}
-            alt=""
-            data-testid="login-picture-custom"
-            className="absolute inset-0 size-full object-cover"
-          />
-        ) : (
-          <LoginArt className="absolute inset-0 size-full" />
-        )}
-      </div>
-    </div>
+      }
+    />
   );
 }

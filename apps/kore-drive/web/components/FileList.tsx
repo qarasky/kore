@@ -12,28 +12,27 @@ import { activeMove, beginMove, endMove, isFileDrag, isNoopMove, type MoveDest, 
 import { otherSpace, spaceLabel } from "@/lib/moveTo";
 import { folderHref, type ApiNode, type Space } from "@/lib/nodes";
 import { isPreviewable } from "@/lib/preview";
-import { useRegisterBrowser } from "./BrowserContext";
-import { ContextMenu } from "./ContextMenu";
-import { DropZone } from "./DropZone";
-import { EmptyState } from "./EmptyState";
-import { FileRow, ROW_GRID, ROW_GRID_UPLOADER, type RowHandlers } from "./FileRow";
+import { Button, EmptyState, MenuItem, MenuSeparator, Spinner, useToast } from "@qarasky/kore-ui";
 import {
-  DownloadIcon,
-  DriveIcon,
-  FolderMoveIcon,
-  LinkIcon,
-  FolderPlusIcon,
-  NodeIcon,
-  OpenIcon,
-  PencilIcon,
-  TrashIcon,
-  UsersIcon,
-} from "./icons";
-import type { CloseReason, MenuAction } from "./Menu";
+  Download,
+  ExternalLink,
+  FolderInput,
+  FolderOpen,
+  FolderPlus,
+  HardDrive,
+  Link2,
+  Pencil,
+  Trash2,
+  Users,
+} from "lucide-react";
+import { useRegisterBrowser } from "./BrowserContext";
+import { DropZone } from "./DropZone";
+import { FileRow, ROW_GRID, ROW_GRID_UPLOADER, type RowHandlers } from "./FileRow";
+import { NodeIcon } from "./NodeIcon";
 import { MoveDialog } from "./MoveDialog";
+import { PointMenu, type PointMenuClose } from "./PointMenu";
 import { ShareDialog } from "./ShareDialog";
 import { NameEditor, type EditEnd } from "./NameEditor";
-import { useToast } from "./Toast";
 import { UploaderHeader } from "./UploaderCell";
 import { useUploads } from "./UploadContext";
 
@@ -213,7 +212,7 @@ export function FileList({
     setMenu({ x, y, target });
   }
 
-  function closeMenu(reason: CloseReason) {
+  function closeMenu(reason: PointMenuClose) {
     setMenu(null);
     // Back to the list so arrows keep working; an action that moves focus
     // itself (inline rename's input, navigation) runs after this and wins.
@@ -341,32 +340,38 @@ export function FileList({
 
   const count = sel.selectedIds.length;
   const target1 = count === 1 ? sel.selectedIds[0] : null;
-  const menuItems: MenuAction[] =
-    menu?.target === "rows"
-      ? [
-          { id: "open", label: t("action.open"), icon: <OpenIcon />, disabled: count !== 1, onSelect: () => target1 && open(target1) },
-          { id: "rename", label: t("action.rename"), icon: <PencilIcon />, disabled: count !== 1, onSelect: () => target1 && startRename(target1) },
-          { id: "download", label: t("action.download"), icon: <DownloadIcon />, onSelect: () => actions.download(sel.selectedIds) },
-          {
-            id: "move-space",
-            label: space === "personal" ? t("action.moveToShared") : t("action.moveToMine"),
-            icon: space === "personal" ? <UsersIcon /> : <DriveIcon />,
-            separated: true,
-            onSelect: moveToOtherSpace,
-          },
-          { id: "move-to", label: t("action.moveTo"), icon: <FolderMoveIcon />, onSelect: openMoveDialog },
-          {
-            id: "share",
-            label: t("action.shareLink"),
-            icon: <LinkIcon />,
-            disabled: count !== 1,
-            onSelect: () => target1 && openShare(target1),
-          },
-          { id: "trash", label: t("action.trash"), icon: <TrashIcon />, danger: true, separated: true, onSelect: trashSelected },
-        ]
-      : [
-          { id: "new-folder", label: t("new.folder"), icon: <FolderPlusIcon />, onSelect: () => setEditing({ kind: "new" }) },
-        ];
+  const menuItems =
+    menu?.target === "rows" ? (
+      <>
+        <MenuItem icon={<ExternalLink />} disabled={count !== 1} onSelect={() => target1 && open(target1)}>
+          {t("action.open")}
+        </MenuItem>
+        <MenuItem icon={<Pencil />} disabled={count !== 1} onSelect={() => target1 && startRename(target1)}>
+          {t("action.rename")}
+        </MenuItem>
+        <MenuItem icon={<Download />} onSelect={() => actions.download(sel.selectedIds)}>
+          {t("action.download")}
+        </MenuItem>
+        <MenuSeparator />
+        <MenuItem icon={space === "personal" ? <Users /> : <HardDrive />} onSelect={moveToOtherSpace}>
+          {space === "personal" ? t("action.moveToShared") : t("action.moveToMine")}
+        </MenuItem>
+        <MenuItem icon={<FolderInput />} onSelect={openMoveDialog}>
+          {t("action.moveTo")}
+        </MenuItem>
+        <MenuItem icon={<Link2 />} disabled={count !== 1} onSelect={() => target1 && openShare(target1)}>
+          {t("action.shareLink")}
+        </MenuItem>
+        <MenuSeparator />
+        <MenuItem danger icon={<Trash2 />} onSelect={trashSelected}>
+          {t("action.trash")}
+        </MenuItem>
+      </>
+    ) : (
+      <MenuItem icon={<FolderPlus />} onSelect={() => setEditing({ kind: "new" })}>
+        {t("new.folder")}
+      </MenuItem>
+    );
   const tabbable = sel.selection.focus ?? sel.selectedIds[0] ?? ids[0] ?? null;
   const sharedRoot = space === "shared" && parentId === null;
   const showUploader = space === "shared";
@@ -375,13 +380,13 @@ export function FileList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border px-4">
+      <div className="flex min-h-header shrink-0 items-center justify-between gap-4 border-b border-border px-4 py-1.5 md:px-5">
         {header}
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2">
           <div aria-live="polite" className="flex items-center gap-2 text-meta text-muted">
             {actions.working ? (
               <>
-                <span aria-hidden="true" className="size-3 animate-spin rounded-full border-[1.5px] border-muted border-t-transparent" />
+                <Spinner size={12} />
                 {t("list.working")}
               </>
             ) : count > 1 ? (
@@ -389,32 +394,16 @@ export function FileList({
             ) : null}
           </div>
           {count === 1 && (
-            <button
-              type="button"
-              onClick={() => openShare(sel.selectedIds[0])}
-              className={
-                "flex items-center gap-1.5 rounded-ui border border-border px-2 py-1 text-[12px] font-medium text-muted " +
-                "transition-colors hover:border-border-strong hover:text-text"
-              }
-            >
-              <LinkIcon className="size-3.5" />
-              {t("action.shareLink")}
-            </button>
+            <Button size="sm" variant="ghost" onClick={() => openShare(sel.selectedIds[0])}>
+              <Link2 />
+              <span className="max-sm:sr-only">{t("action.shareLink")}</span>
+            </Button>
           )}
           {count > 0 && (
-            <button
-              type="button"
-              onClick={openMoveDialog}
-              aria-keyshortcuts="M"
-              title={t("action.moveToShortcut")}
-              className={
-                "flex min-h-control items-center gap-1.5 rounded-ui border border-border px-3 font-medium text-muted " +
-                "transition-colors hover:border-border-strong hover:text-text"
-              }
-            >
-              <FolderMoveIcon className="size-3.5" />
-              {t("action.moveTo")}
-            </button>
+            <Button size="sm" onClick={openMoveDialog} aria-keyshortcuts="M" title={t("action.moveToShortcut")}>
+              <FolderInput />
+              <span className="max-sm:sr-only">{t("action.moveTo")}</span>
+            </Button>
           )}
         </div>
       </div>
@@ -431,7 +420,7 @@ export function FileList({
           >
             <span className="pl-[calc(var(--spacing-icon)+0.625rem)]">{t("list.name")}</span>
             {showUploader && <UploaderHeader label={t("list.uploadedBy")} />}
-            <span>{t("list.modified")}</span>
+            <span className="max-sm:hidden">{t("list.modified")}</span>
             <span className="text-right">{t("list.size")}</span>
           </div>
           <div
@@ -445,7 +434,7 @@ export function FileList({
             className="flex-1 pb-10 outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-inset"
           >
             {editing?.kind === "new" && (
-              <div role="option" aria-selected="true" aria-label={t("new.folder")} className={`${grid} h-row border-b border-border/60 bg-accent/15`}>
+              <div role="option" aria-selected="true" aria-label={t("new.folder")} className={`${grid} h-row border-b border-border/60 bg-accent/10`}>
                 <div className="flex min-w-0 items-center gap-2.5">
                   <NodeIcon kind="folder" />
                   <NameEditor initial={t("new.folderDefault")} onSubmit={submitNew} onCancel={cancelEdit} />
@@ -472,7 +461,14 @@ export function FileList({
               />
             ))}
           </div>
-          {empty && <EmptyState sharedRoot={sharedRoot} />}
+          {empty && (
+            <EmptyState
+              icon={<FolderOpen />}
+              title={sharedRoot ? t("empty.sharedTitle") : t("empty.folderTitle")}
+              description={sharedRoot ? t("empty.shared") : t("empty.folder")}
+              className="pointer-events-none absolute inset-x-0 top-10 bottom-0"
+            />
+          )}
         </div>
       </DropZone>
 
@@ -496,7 +492,9 @@ export function FileList({
         />
       )}
       {menu && (
-        <ContextMenu x={menu.x} y={menu.y} label={t("list.contextMenu")} items={menuItems} onClose={closeMenu} />
+        <PointMenu x={menu.x} y={menu.y} label={t("list.contextMenu")} onClose={closeMenu}>
+          {menuItems}
+        </PointMenu>
       )}
     </div>
   );

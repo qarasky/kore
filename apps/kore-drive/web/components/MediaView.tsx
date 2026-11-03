@@ -1,11 +1,12 @@
 "use client";
 
+import { Button, EmptyState, Spinner } from "@qarasky/kore-ui";
+import { Download } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { apiHead, isApiError } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import type { ApiNode } from "@/lib/nodes";
 import { nodeUrls, type PreviewUrls } from "@/lib/preview";
-import { DownloadIcon } from "./icons";
 
 type Check = "checking" | "ok" | "unavailable" | "notFound" | "error";
 
@@ -46,30 +47,32 @@ function useViewCheck(
 function Loading() {
   return (
     <div role="status" className="absolute inset-0 flex items-center justify-center gap-2 text-muted">
-      <span aria-hidden="true" className="size-3.5 animate-spin rounded-full border-[1.5px] border-muted border-t-transparent" />
+      <Spinner size={14} />
       {t("preview.loading")}
     </div>
   );
 }
 
 function Problem({ message, onRetry, onDownload }: { message: string; onRetry?: () => void; onDownload?: () => void }) {
-  const button = "inline-flex items-center gap-1.5 rounded-ui border border-border-strong px-3 py-1.5 font-medium hover:bg-white/5";
-  return (
-    <div role="alert" className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-      <p>{message}</p>
+  const actions =
+    onRetry || onDownload ? (
       <div className="flex gap-2">
         {onRetry && (
-          <button type="button" onClick={onRetry} className={button}>
+          <Button size="sm" onClick={onRetry}>
             {t("preview.retry")}
-          </button>
+          </Button>
         )}
         {onDownload && (
-          <button type="button" onClick={onDownload} className={button}>
-            <DownloadIcon />
+          <Button size="sm" onClick={onDownload}>
+            <Download aria-hidden="true" />
             {t("preview.download")}
-          </button>
+          </Button>
         )}
       </div>
+    ) : undefined;
+  return (
+    <div role="alert" className="flex h-full items-center justify-center">
+      <EmptyState title={message} action={actions} />
     </div>
   );
 }
@@ -176,9 +179,9 @@ export function PdfView({
         className="flex shrink-0 items-center justify-center gap-2 border-t border-border bg-raised px-4 py-1.5 text-meta text-muted"
       >
         <span>{t("preview.pdfFallback")}</span>
-        <button type="button" onClick={() => onDownload(node)} className="font-medium text-accent hover:underline">
+        <Button variant="link" className="text-meta" onClick={() => onDownload(node)}>
           {t("preview.pdfFallbackDownload")}
-        </button>
+        </Button>
       </div>
     </div>
   );

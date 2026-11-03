@@ -1,3 +1,4 @@
+import { PageHeader } from "@qarasky/kore-ui";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { t } from "@/lib/i18n";
 import { requireAdmin } from "@/lib/session";
@@ -8,10 +9,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   await requireAdmin();
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-14 shrink-0 items-center gap-4 border-b border-border px-4">
-        <h1 className="text-heading font-semibold">{t("admin.title")}</h1>
-        <AdminNav />
-      </div>
+      <PageHeader title={t("admin.title")} tabs={<AdminNav />} />
       <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
     </div>
   );

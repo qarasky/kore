@@ -7,7 +7,9 @@ import { t } from "@/lib/i18n";
 import { fileKind } from "@/lib/nodes";
 import { isPreviewable } from "@/lib/preview";
 import { shareUrls, sharePageHref, type PublicListing } from "@/lib/shares";
-import { ChevronRightIcon, DownloadIcon, NodeIcon, OpenIcon } from "../icons";
+import { iconButtonVariants } from "@qarasky/kore-ui";
+import { ChevronRight, Download, ExternalLink } from "lucide-react";
+import { NodeIcon } from "../NodeIcon";
 import { PreviewPane } from "../PreviewPane";
 import { RelativeTime } from "../RelativeTime";
 import { asPreviewNode, primaryLink } from "./ShareFileView";
@@ -59,7 +61,7 @@ export function ShareFolderView({
           </p>
         </div>
         <a href={urls.zip(atRoot ? "" : (current?.id ?? ""))} download className={primaryLink} data-testid="share-zip">
-          <DownloadIcon />
+          <Download aria-hidden />
           {atRoot ? t("publicShare.downloadAll") : t("publicShare.downloadFolder")}
         </a>
       </div>
@@ -69,7 +71,7 @@ export function ShareFolderView({
           const last = i === crumbs.length - 1;
           return (
             <span key={c.id} className="flex items-center gap-1">
-              {i > 0 && <ChevronRightIcon className="size-3.5 text-muted" />}
+              {i > 0 && <ChevronRight aria-hidden className="size-3.5 text-muted" />}
               {last ? (
                 <span aria-current="page" className="font-medium">
                   {c.name}
@@ -124,9 +126,9 @@ export function ShareFolderView({
                       }}
                       aria-label={t("publicShare.previewItem", { name: c.name })}
                       title={t("publicShare.preview")}
-                      className="rounded-ui p-1.5 text-muted hover:bg-white/5 hover:text-text"
+                      className={iconButtonVariants()}
                     >
-                      <OpenIcon />
+                      <ExternalLink aria-hidden />
                     </button>
                   )}
                   {c.is_dir ? (
@@ -135,9 +137,9 @@ export function ShareFolderView({
                       download
                       aria-label={t("publicShare.downloadItem", { name: c.name })}
                       title={t("publicShare.downloadZip")}
-                      className="rounded-ui p-1.5 text-muted hover:bg-white/5 hover:text-text"
+                      className={iconButtonVariants()}
                     >
-                      <DownloadIcon />
+                      <Download aria-hidden />
                     </a>
                   ) : (
                     <a
@@ -145,9 +147,9 @@ export function ShareFolderView({
                       download
                       aria-label={t("publicShare.downloadItem", { name: c.name })}
                       title={t("publicShare.download")}
-                      className="rounded-ui p-1.5 text-muted hover:bg-white/5 hover:text-text"
+                      className={iconButtonVariants()}
                     >
-                      <DownloadIcon />
+                      <Download aria-hidden />
                     </a>
                   )}
                 </span>

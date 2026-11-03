@@ -1,14 +1,14 @@
 "use client";
 
+import { Button, Dialog, DialogBody, DialogContent, DialogFooter, Field, Select, Spinner } from "@qarasky/kore-ui";
+import { ChevronRight } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { api, isApiError } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import type { MoveDest, MovePayload } from "@/lib/moveDrag";
 import { canOpenFolder, destinationProblem, locationDest, spaceLabel } from "@/lib/moveTo";
 import type { ApiNode, Space } from "@/lib/nodes";
-import { ChevronRightIcon, NodeIcon } from "./icons";
-import { Modal } from "./Modal";
-import { Select } from "./Select";
+import { NodeIcon } from "./NodeIcon";
 
 type Crumb = { id: string; name: string };
 type Folders =
@@ -23,19 +23,21 @@ const SPACES: Space[] = ["personal", "shared"];
  * loaded on demand from `GET /api/nodes?space=&parent=`, folders only), then
  * "Move here". Where the items already are, and the moved folders and
  * anything inside them, can't be chosen. A modal (focus trapped, Escape
- * closes, focus returns to the opener); `onMove` runs the move itself.
+ * closes, focus returns to the opener or `returnFocus()`); `onMove` runs the
+ * move itself.
  */
 export function MoveDialog({
   payload,
   onClose,
   onMove,
+  returnFocus,
 }: {
   payload: MovePayload;
   onClose: () => void;
   onMove: (dest: MoveDest, destLabel: string) => void;
+  /** Where focus goes on close, if not back to the opener. */
+  returnFocus?: () => HTMLElement | null | undefined;
 }) {
-  const titleId = useId();
-  const spaceId = useId();
   const statusId = useId();
   const listRef = useRef<HTMLDivElement>(null);
   const [space, setSpace] = useState<Space>(payload.space);
@@ -70,10 +72,12 @@ export function MoveDialog({
     const pending = focusList.current;
     if (pending && folders.state !== "loading") {
       focusList.current = null;
-      // The clicked folder/crumb usually unmounts (focus falls to <body>);
-      // anything else focused means the user went on: leave it there.
+      // The clicked folder/crumb usually unmounts (focus falls to <body>, or
+      // to the dialog itself, where its focus trap catches it); anything else
+      // focused means the user went on: leave it there.
       const active = document.activeElement;
-      if (active === null || active === document.body || active === pending.from) listRef.current?.focus();
+      const fell = active === null || active === document.body || active.getAttribute("role") === "dialog";
+      if (fell || active === pending.from) listRef.current?.focus();
     }
   }, [folders.state, key]);
 
@@ -99,142 +103,141 @@ export function MoveDialog({
       : t("move.dialog.titleMany", { count });
 
   return (
-    <Modal labelledBy={titleId} describedBy={statusId} onClose={onClose} className="w-[min(480px,calc(100vw-32px))]">
-      <div className="flex flex-col gap-3 p-5">
-        <h2 id={titleId} className="truncate text-title font-semibold tracking-[-0.01em]">
-          {title}
-        </h2>
+    <Dialog
+      open
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
+      <DialogContent
+        title={<span className="block truncate">{title}</span>}
+        aria-describedby={statusId}
+        closeLabel={t("dialog.close")}
+        onCloseAutoFocus={(e) => {
+          const el = returnFocus?.();
+          if (el?.isConnected) {
+            e.preventDefault();
+            el.focus();
+          }
+        }}
+      >
+        <DialogBody className="flex flex-col gap-3">
+          <Field label={t("move.dialog.space")} className="flex-row items-center gap-3">
+            <Select<Space>
+              value={space}
+              onValueChange={(s) => go([], s, false)}
+              options={SPACES.map((s) => ({ value: s, label: spaceLabel(s) }))}
+              className="w-auto min-w-[160px]"
+            />
+          </Field>
 
-        <div className="flex items-center gap-3">
-          <span id={spaceId} className="text-meta font-medium text-muted">
-            {t("move.dialog.space")}
-          </span>
-          <Select<Space>
-            aria-labelledby={spaceId}
-            value={space}
-            onChange={(s) => go([], s, false)}
-            options={SPACES.map((s) => ({ value: s, label: spaceLabel(s) }))}
-            className="min-w-[160px]"
-          />
-        </div>
-
-        <nav aria-label={t("move.dialog.path")} className="min-w-0">
-          <ol className="flex min-w-0 flex-wrap items-center gap-0.5">
-            {[{ id: "", name: spaceLabel(space) }, ...path].map((c, i, all) => {
-              const last = i === all.length - 1;
-              return (
-                <li key={c.id || "root"} className="flex min-w-0 items-center gap-0.5">
-                  {i > 0 && <ChevronRightIcon className="size-3 text-muted" />}
-                  {last ? (
-                    <span aria-current="location" className="truncate px-1.5 py-0.5 font-semibold">
-                      {c.name}
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => go(path.slice(0, i))}
-                      className="truncate rounded-ui px-1.5 py-0.5 text-muted hover:bg-white/5 hover:text-text"
-                    >
-                      {c.name}
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
-        </nav>
-
-        <div
-          ref={listRef}
-          role="group"
-          aria-label={t("move.dialog.folders")}
-          aria-busy={folders.state === "loading" || undefined}
-          tabIndex={-1}
-          data-testid="move-folders"
-          className="h-[232px] overflow-auto rounded-ui border border-border bg-bg/60 py-1 outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
-        >
-          {folders.state === "loading" && (
-            <p className="flex items-center gap-2 px-3 py-2 text-muted">
-              <span aria-hidden="true" className="size-3 animate-spin rounded-full border-[1.5px] border-muted border-t-transparent" />
-              {t("move.dialog.loading")}
-            </p>
-          )}
-          {folders.state === "error" && (
-            <div role="alert" className="flex items-center gap-3 px-3 py-2">
-              <span className="text-danger">{folders.gone ? t("move.dialog.notFound") : t("move.dialog.error")}</span>
-              <button
-                type="button"
-                onClick={() => (folders.gone ? go([]) : setAttempt((a) => a + 1))}
-                className="rounded-ui px-2 py-1 font-medium text-accent hover:bg-accent/10"
-              >
-                {t("move.dialog.retry")}
-              </button>
-            </div>
-          )}
-          {folders.state === "ready" && folders.folders.length === 0 && (
-            <p className="px-3 py-2 text-muted">{t("move.dialog.empty")}</p>
-          )}
-          {folders.state === "ready" && folders.folders.length > 0 && (
-            <ul>
-              {folders.folders.map((f) => {
-                const open = canOpenFolder(payload, f.id);
+          <nav aria-label={t("move.dialog.path")} className="min-w-0">
+            <ol className="flex min-w-0 flex-wrap items-center gap-0.5">
+              {[{ id: "", name: spaceLabel(space) }, ...path].map((c, i, all) => {
+                const last = i === all.length - 1;
                 return (
-                  <li key={f.id}>
-                    <button
-                      type="button"
-                      disabled={!open}
-                      aria-label={t("move.dialog.open", { name: f.name })}
-                      onClick={() => go([...path, { id: f.id, name: f.name }])}
-                      className={
-                        "flex min-h-control w-full items-center gap-3 px-3.5 text-left outline-none " +
-                        "hover:bg-white/[0.04] focus-visible:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
-                      }
-                    >
-                      <NodeIcon kind="folder" />
-                      <span className="min-w-0 flex-1 truncate" title={f.name}>
-                        {f.name}
+                  <li key={c.id || "root"} className="flex min-w-0 items-center gap-0.5">
+                    {i > 0 && <ChevronRight aria-hidden="true" className="size-3 shrink-0 text-muted" />}
+                    {last ? (
+                      <span aria-current="location" className="truncate px-1.5 py-0.5 font-semibold">
+                        {c.name}
                       </span>
-                      {open ? (
-                        <ChevronRightIcon className="size-3.5 text-muted" />
-                      ) : (
-                        <span className="text-meta text-muted">{t("move.dialog.moving")}</span>
-                      )}
-                    </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => go(path.slice(0, i))}
+                        className="truncate rounded-ui px-1.5 py-0.5 text-muted transition-colors hover:bg-white/5 hover:text-text"
+                      >
+                        {c.name}
+                      </button>
+                    )}
                   </li>
                 );
               })}
-            </ul>
-          )}
-        </div>
+            </ol>
+          </nav>
 
-        <p id={statusId} aria-live="polite" className={`min-h-[19px] text-meta ${problem === "inside" || gone ? "text-danger" : "text-muted"}`}>
-          {problem === "here"
-            ? t("move.dialog.alreadyHere")
-            : problem === "inside"
-              ? t("move.dialog.inside")
-              : gone
-                ? t("move.dialog.notFound")
-                : t("move.dialog.here", { location: here })}
-        </p>
+          <div
+            ref={listRef}
+            role="group"
+            aria-label={t("move.dialog.folders")}
+            aria-busy={folders.state === "loading" || undefined}
+            tabIndex={-1}
+            data-testid="move-folders"
+            className="h-[232px] shrink-0 overflow-auto rounded-ui border border-border bg-bg/60 py-1 outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+          >
+            {folders.state === "loading" && (
+              <p className="flex items-center gap-2 px-3 py-2 text-muted">
+                <Spinner size={12} />
+                {t("move.dialog.loading")}
+              </p>
+            )}
+            {folders.state === "error" && (
+              <div role="alert" className="flex items-center gap-3 px-3 py-2">
+                <span className="text-danger">{folders.gone ? t("move.dialog.notFound") : t("move.dialog.error")}</span>
+                <Button variant="ghost" size="sm" onClick={() => (folders.gone ? go([]) : setAttempt((a) => a + 1))}>
+                  {t("move.dialog.retry")}
+                </Button>
+              </div>
+            )}
+            {folders.state === "ready" && folders.folders.length === 0 && (
+              <p className="px-3 py-2 text-muted">{t("move.dialog.empty")}</p>
+            )}
+            {folders.state === "ready" && folders.folders.length > 0 && (
+              <ul>
+                {folders.folders.map((f) => {
+                  const open = canOpenFolder(payload, f.id);
+                  return (
+                    <li key={f.id}>
+                      <button
+                        type="button"
+                        disabled={!open}
+                        aria-label={t("move.dialog.open", { name: f.name })}
+                        onClick={() => go([...path, { id: f.id, name: f.name }])}
+                        className={
+                          "flex min-h-control w-full items-center gap-3 px-3.5 text-left outline-none " +
+                          "hover:bg-white/[0.04] focus-visible:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
+                        }
+                      >
+                        <NodeIcon kind="folder" />
+                        <span className="min-w-0 flex-1 truncate" title={f.name}>
+                          {f.name}
+                        </span>
+                        {open ? (
+                          <ChevronRight aria-hidden="true" className="size-3.5 text-muted" />
+                        ) : (
+                          <span className="text-meta text-muted">{t("move.dialog.moving")}</span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
 
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="min-h-control rounded-ui border border-border-strong px-4 py-1.5 font-medium hover:bg-white/5"
+          <p
+            id={statusId}
+            aria-live="polite"
+            className={`min-h-[19px] text-meta ${problem === "inside" || gone ? "text-danger" : "text-muted"}`}
           >
-            {t("dialog.cancel")}
-          </button>
-          <button
-            type="button"
-            disabled={!canMove}
-            onClick={() => onMove(locationDest(loc), here)}
-            className="min-h-control rounded-ui bg-accent px-4 py-1.5 font-medium text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
-          >
+            {problem === "here"
+              ? t("move.dialog.alreadyHere")
+              : problem === "inside"
+                ? t("move.dialog.inside")
+                : gone
+                  ? t("move.dialog.notFound")
+                  : t("move.dialog.here", { location: here })}
+          </p>
+        </DialogBody>
+
+        <DialogFooter>
+          <Button onClick={onClose}>{t("dialog.cancel")}</Button>
+          <Button variant="primary" disabled={!canMove} onClick={() => onMove(locationDest(loc), here)}>
             {t("move.dialog.submit")}
-          </button>
-        </div>
-      </div>
-    </Modal>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

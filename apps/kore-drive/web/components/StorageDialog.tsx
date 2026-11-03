@@ -1,15 +1,15 @@
 "use client";
 
+import { Button, Dialog, DialogBody, DialogContent, Spinner } from "@qarasky/kore-ui";
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { fileKind } from "@/lib/nodes";
 import { categoryColor, categoryLabelKey, largestHref, sharePercent, type Breakdown } from "@/lib/storage";
 import { trashHref } from "@/lib/trash";
-import { CloseIcon, NodeIcon } from "./icons";
-import { Modal } from "./Modal";
+import { NodeIcon } from "./NodeIcon";
 
 type State = { status: "loading" } | { status: "ok"; data: Breakdown } | { status: "error" };
 
@@ -21,8 +21,6 @@ type State = { status: "loading" } | { status: "ok"; data: Breakdown } | { statu
  * to its folder with the file selected.
  */
 export function StorageDialog({ onClose }: { onClose: () => void }) {
-  const titleId = useId();
-  const closeRef = useRef<HTMLButtonElement>(null);
   const [state, setState] = useState<State>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
 
@@ -38,49 +36,42 @@ export function StorageDialog({ onClose }: { onClose: () => void }) {
   }, [attempt]);
 
   return (
-    <Modal labelledBy={titleId} onClose={onClose} initialFocus={closeRef} className="w-[min(560px,calc(100vw-32px))]">
-      <div className="flex max-h-[min(80vh,720px)] flex-col">
-        <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border pr-2 pl-4">
-          <h2 id={titleId} className="flex-1 text-heading font-semibold">
-            {t("storage.title")}
-          </h2>
-          <button
-            ref={closeRef}
-            type="button"
-            onClick={onClose}
-            aria-label={t("storage.close")}
-            title={t("storage.close")}
-            className="rounded-ui p-1.5 text-muted hover:bg-white/5 hover:text-text"
-          >
-            <CloseIcon />
-          </button>
-        </header>
-        <div className="min-h-0 flex-1 overflow-auto px-4 py-4">
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent
+        title={t("storage.title")}
+        closeLabel={t("storage.close")}
+        className="max-h-[min(80vh,720px)] w-[min(560px,calc(100vw-32px))]"
+      >
+        <DialogBody className="pb-5">
           {state.status === "loading" ? (
             <p role="status" className="flex items-center gap-2 text-muted">
-              <span aria-hidden="true" className="size-3.5 animate-spin rounded-full border-[1.5px] border-muted border-t-transparent" />
+              <Spinner size={14} />
               {t("storage.loading")}
             </p>
           ) : state.status === "error" ? (
             <div role="alert" className="flex flex-col items-start gap-3">
               <p>{t("storage.error")}</p>
-              <button
-                type="button"
+              <Button
+                size="sm"
                 onClick={() => {
                   setState({ status: "loading" });
                   setAttempt((a) => a + 1);
                 }}
-                className="rounded-ui border border-border-strong px-3 py-1.5 font-medium hover:bg-white/5"
               >
                 {t("storage.retry")}
-              </button>
+              </Button>
             </div>
           ) : (
             <BreakdownView data={state.data} onNavigate={onClose} />
           )}
-        </div>
-      </div>
-    </Modal>
+        </DialogBody>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -215,9 +206,11 @@ function TrashLine({
   return (
     <p data-testid={testId} className="flex items-baseline gap-3 text-muted">
       <span>{text}</span>
-      <Link href={href} onClick={onNavigate} className="font-medium text-accent hover:underline">
-        {link}
-      </Link>
+      <Button asChild variant="link" className="text-meta">
+        <Link href={href} onClick={onNavigate}>
+          {link}
+        </Link>
+      </Button>
     </p>
   );
 }

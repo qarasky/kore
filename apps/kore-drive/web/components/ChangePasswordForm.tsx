@@ -1,12 +1,13 @@
 "use client";
 
+import { Button, Field } from "@qarasky/kore-ui";
 import { useRouter } from "next/navigation";
-import { useId, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { adminErrorKey } from "@/lib/admin";
 import { api, isApiError } from "@/lib/api";
 import { t, type MessageKey } from "@/lib/i18n";
 import { passwordProblem } from "@/lib/password";
-import { Field, fieldIds, PasswordInput, primaryButton } from "./admin/fields";
+import { PasswordInput } from "./admin/controls";
 
 type Errors = Partial<Record<"current" | "next" | "confirm" | "form", MessageKey>>;
 
@@ -16,7 +17,6 @@ type Errors = Partial<Record<"current" | "next" | "confirm" | "form", MessageKey
  */
 export function ChangePasswordForm() {
   const router = useRouter();
-  const id = useId();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -55,44 +55,16 @@ export function ChangePasswordForm() {
     }
   }
 
-  const f = (name: "current" | "next" | "confirm") => {
-    const fid = `${id}-${name}`;
-    return { fid, ids: fieldIds(fid, false, !!errors[name]) };
-  };
-  const cur = f("current");
-  const nw = f("next");
-  const cf = f("confirm");
-
   return (
-    <form onSubmit={submit} noValidate className="space-y-4">
-      <Field id={cur.fid} label={t("account.currentPassword")} error={errors.current && t(errors.current)}>
-        <PasswordInput
-          id={cur.fid}
-          current
-          value={current}
-          onChange={setCurrent}
-          invalid={!!errors.current}
-          describedBy={cur.ids.describedBy}
-        />
+    <form onSubmit={submit} noValidate className="flex flex-col gap-4">
+      <Field label={t("account.currentPassword")} error={errors.current && t(errors.current)}>
+        <PasswordInput current value={current} onChange={setCurrent} />
       </Field>
-      <Field id={nw.fid} label={t("account.newPassword")} error={errors.next && t(errors.next)}>
-        <PasswordInput
-          id={nw.fid}
-          value={next}
-          onChange={setNext}
-          hints
-          invalid={!!errors.next}
-          describedBy={nw.ids.describedBy}
-        />
+      <Field label={t("account.newPassword")} error={errors.next && t(errors.next)}>
+        <PasswordInput value={next} onChange={setNext} hints />
       </Field>
-      <Field id={cf.fid} label={t("account.confirmPassword")} error={errors.confirm && t(errors.confirm)}>
-        <PasswordInput
-          id={cf.fid}
-          value={confirm}
-          onChange={setConfirm}
-          invalid={!!errors.confirm}
-          describedBy={cf.ids.describedBy}
-        />
+      <Field label={t("account.confirmPassword")} error={errors.confirm && t(errors.confirm)}>
+        <PasswordInput value={confirm} onChange={setConfirm} />
       </Field>
       {errors.form && (
         <p role="alert" className="text-meta text-danger">
@@ -100,11 +72,11 @@ export function ChangePasswordForm() {
         </p>
       )}
       <div className="flex items-center gap-3">
-        <button type="submit" disabled={pending} aria-busy={pending || undefined} className={primaryButton}>
+        <Button type="submit" variant="primary" loading={pending}>
           {pending ? t("account.submitting") : t("account.submit")}
-        </button>
+        </Button>
       </div>
-      <p role="status" data-testid="password-changed" className="text-meta text-accent">
+      <p role="status" data-testid="password-changed" className="text-meta text-status-up">
         {done ? t("account.changed") : ""}
       </p>
     </form>

@@ -1,5 +1,6 @@
 "use client";
 
+import { Input } from "@qarasky/kore-ui";
 import { useId, useRef, useState } from "react";
 import { t, type MessageKey } from "@/lib/i18n";
 
@@ -61,7 +62,8 @@ export function NameEditor({
 
   return (
     <div className="relative min-w-0 flex-1">
-      <input
+      <Input
+        size="sm"
         aria-label={t("rename.label")}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
@@ -97,17 +99,13 @@ export function NameEditor({
         onClick={(e) => e.stopPropagation()}
         onDoubleClick={(e) => e.stopPropagation()}
         onContextMenu={(e) => e.stopPropagation()}
-        className={
-          "block h-6 w-full max-w-[420px] rounded-[4px] border bg-bg px-1.5 text-text outline-none " +
-          "focus:ring-2 focus:ring-accent/25 read-only:opacity-70 " +
-          (error ? "border-danger/70" : "border-accent")
-        }
+        className="max-w-[420px] px-2 read-only:opacity-70"
       />
       {error && (
         <p
           id={errorId}
           role="alert"
-          className="absolute top-full left-0 z-10 mt-1 rounded-[4px] border border-danger/40 bg-raised px-2 py-1 text-meta whitespace-nowrap text-danger shadow-lg"
+          className="absolute top-full left-0 z-10 mt-1 rounded-ui border border-danger/40 bg-raised px-2 py-1 text-meta whitespace-nowrap text-danger shadow-overlay"
         >
           {t(error)}
         </p>

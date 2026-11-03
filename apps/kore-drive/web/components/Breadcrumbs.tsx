@@ -1,12 +1,12 @@
 "use client";
 
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useDropTarget } from "@/hooks/useDropTarget";
 import { useMoveNodes } from "@/hooks/useMoveNodes";
 import { t } from "@/lib/i18n";
 import { activeMove, endMove, isNoopMove } from "@/lib/moveDrag";
 import { folderHref, type ApiNode, type Space } from "@/lib/nodes";
-import { ChevronRightIcon } from "./icons";
 
 type Crumb = { id: string | null; name: string };
 
@@ -26,7 +26,7 @@ export function Breadcrumbs({ space, path }: { space: Space; path: ApiNode[] }) 
           const last = i === crumbs.length - 1;
           return (
             <li key={c.id ?? "root"} className={`flex min-w-0 items-center gap-0.5 ${last ? "" : "shrink"}`}>
-              {i > 0 && <ChevronRightIcon className="size-3.5 text-muted" />}
+              {i > 0 && <ChevronRight aria-hidden="true" className="size-3.5 shrink-0 text-muted" />}
               {last ? (
                 <span
                   aria-current="page"

@@ -1,20 +1,20 @@
 "use client";
 
+import { Link2 } from "lucide-react";
 import { type DragEvent, type MouseEvent, type ReactNode, type Ref } from "react";
 import { useDropTarget } from "@/hooks/useDropTarget";
 import { formatBytes } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { fileKind, type ApiNode } from "@/lib/nodes";
-import { LinkIcon } from "./icons";
 import { NodeThumb } from "./NodeThumb";
 import { RelativeTime } from "./RelativeTime";
 import { UploaderCell } from "./UploaderCell";
 
 /** Shared column layout for the header row and the file rows. */
-export const ROW_GRID = "grid grid-cols-[minmax(0,1fr)_150px_90px] items-center gap-4 px-4";
+export const ROW_GRID = "grid grid-cols-[minmax(0,1fr)_80px] sm:grid-cols-[minmax(0,1fr)_150px_90px] items-center gap-4 px-4";
 /** The same with an "Uploaded by" column (shared space), shown from `lg` up. */
 export const ROW_GRID_UPLOADER =
-  "grid grid-cols-[minmax(0,1fr)_150px_90px] lg:grid-cols-[minmax(0,1fr)_minmax(0,220px)_150px_90px] items-center gap-4 px-4";
+  "grid grid-cols-[minmax(0,1fr)_80px] sm:grid-cols-[minmax(0,1fr)_150px_90px] lg:grid-cols-[minmax(0,1fr)_minmax(0,220px)_150px_90px] items-center gap-4 px-4";
 
 export type RowHandlers = {
   onClick: (id: string, e: MouseEvent) => void;
@@ -74,12 +74,12 @@ export function FileRow({
       onDoubleClick={() => handlers.onDoubleClick(node.id)}
       onContextMenu={(e) => handlers.onContextMenu(node.id, e)}
       className={
-        `${showUploader ? ROW_GRID_UPLOADER : ROW_GRID} h-row cursor-default border-b border-border/60 select-none outline-none ` +
+        `${showUploader ? ROW_GRID_UPLOADER : ROW_GRID} h-row cursor-default border-b border-border select-none outline-none ` +
         "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset " +
         (drop.active
           ? "bg-accent/25 text-text ring-2 ring-accent ring-inset"
           : selected
-            ? "bg-accent/15 text-text"
+            ? "bg-accent/10 text-text hover:bg-accent/15"
             : "hover:bg-white/[0.03]")
       }
     >
@@ -92,7 +92,7 @@ export function FileRow({
         )}
         {node.shared && !editor && (
           <span data-testid="shared-badge" title={t("list.sharedBadge")} className="shrink-0 text-accent">
-            <LinkIcon className="size-3.5" />
+            <Link2 aria-hidden="true" className="size-3.5" />
             <span className="sr-only">{t("list.sharedBadge")}</span>
           </span>
         )}
@@ -103,7 +103,7 @@ export function FileRow({
         )}
       </div>
       {showUploader && <UploaderCell email={node.uploader_email} />}
-      <div className="truncate text-muted">
+      <div className="truncate text-muted max-sm:hidden">
         <RelativeTime unixSeconds={node.updated_at} />
       </div>
       {/* A folder's size is the API's total of the live files inside it. */}

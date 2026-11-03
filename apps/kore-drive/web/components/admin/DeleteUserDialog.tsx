@@ -1,11 +1,10 @@
 "use client";
 
+import { Button, Dialog, DialogBody, DialogContent, DialogFooter, Field, Input } from "@qarasky/kore-ui";
 import { useId, useRef, useState } from "react";
 import { adminErrorKey, type AdminUser, type UserHasFiles } from "@/lib/admin";
 import { api, isApiError } from "@/lib/api";
 import { t, type MessageKey } from "@/lib/i18n";
-import { Modal } from "../Modal";
-import { dangerButton, fieldIds, inputClass, secondaryButton } from "./fields";
 
 function count(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : 0;
@@ -18,7 +17,7 @@ function count(v: unknown): number {
  * delete the account together with its personal files (`?files=purge`),
  * keeping their shared-space uploads (transferred to the acting admin).
  * That step requires typing the user's email. Server refusals (last admin,
- * own account) are shown in the dialog.
+ * own account) are shown in the dialog. Mounted while open.
  */
 export function DeleteUserDialog({
   user,
@@ -29,15 +28,14 @@ export function DeleteUserDialog({
   onClose: () => void;
   onDeleted: (message: string) => void;
 }) {
-  const titleId = useId();
   const messageId = useId();
-  const inputId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
   const [files, setFiles] = useState<UserHasFiles | null>(null);
   const [typed, setTyped] = useState("");
   const [error, setError] = useState<MessageKey | null>(null);
   const [pending, setPending] = useState(false);
   const matches = typed.trim().toLowerCase() === user.email.toLowerCase();
+  const mismatch = typed !== "" && !matches;
 
   async function remove(purge: boolean) {
     if (pending || (purge && !matches)) return;
@@ -66,113 +64,103 @@ export function DeleteUserDialog({
     </p>
   );
 
-  const buttons = (confirm: React.ReactNode) => (
-    <div className="flex justify-end gap-2 pt-1">
-      <button ref={cancelRef} type="button" onClick={onClose} disabled={pending} className={secondaryButton}>
-        {t("dialog.cancel")}
-      </button>
-      {confirm}
-    </div>
+  const cancel = (
+    <Button ref={cancelRef} onClick={onClose} disabled={pending}>
+      {t("dialog.cancel")}
+    </Button>
   );
 
+  let content: React.ReactNode;
   if (!files) {
-    return (
-      <Modal
+    content = (
+      <DialogContent
         role="alertdialog"
-        labelledBy={titleId}
-        describedBy={messageId}
-        onClose={() => !pending && onClose()}
-        initialFocus={cancelRef}
-        className="w-[min(440px,calc(100vw-32px))]"
+        size="sm"
+        title={t("admin.delete.title", { email: user.email })}
+        description={t("admin.delete.message", { email: user.email })}
+        closeLabel={t("dialog.close")}
+        // Cancel first, so Enter never deletes by accident.
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          cancelRef.current?.focus();
+        }}
       >
-        <div className="space-y-4 p-5">
-          <h2 id={titleId} className="truncate text-title font-semibold tracking-[-0.01em]">
-            {t("admin.delete.title", { email: user.email })}
-          </h2>
-          <p id={messageId} className="text-muted">
-            {t("admin.delete.message", { email: user.email })}
-          </p>
-          {errorBox}
-          {buttons(
-            <button
-              type="button"
-              onClick={() => remove(false)}
-              disabled={pending}
-              aria-busy={pending || undefined}
-              className={dangerButton}
+        {errorBox && <DialogBody>{errorBox}</DialogBody>}
+        <DialogFooter className={errorBox ? undefined : "pt-4"}>
+          {cancel}
+          <Button variant="danger" onClick={() => remove(false)} loading={pending}>
+            {pending ? t("list.working") : t("admin.delete.confirm")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    );
+  } else {
+    const { personal_count: personal, shared_count: shared, other_count: other } = files;
+    const plural = (n: number, one: MessageKey, many: MessageKey) => (n === 1 ? t(one) : t(many, { count: n }));
+    content = (
+      <DialogContent
+        role="alertdialog"
+        title={t("admin.delete.hasFilesTitle", { email: user.email })}
+        aria-describedby={messageId}
+        closeLabel={t("dialog.close")}
+      >
+        <form
+          className="flex min-h-0 flex-1 flex-col"
+          data-testid="user-has-files"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void remove(true);
+          }}
+        >
+          <DialogBody className="flex flex-col gap-4">
+            <div id={messageId} className="flex flex-col gap-2 text-muted">
+              <p>{t("admin.delete.refused")}</p>
+              <ul data-testid="has-files-counts" className="list-disc space-y-0.5 pl-5">
+                {personal > 0 && <li>{plural(personal, "admin.delete.personalOne", "admin.delete.personalMany")}</li>}
+                {shared > 0 && <li>{plural(shared, "admin.delete.sharedOne", "admin.delete.sharedMany")}</li>}
+                {other > 0 && <li>{plural(other, "admin.delete.otherOne", "admin.delete.otherMany")}</li>}
+              </ul>
+              <p>{t("admin.delete.privacy")}</p>
+              <p className="rounded-ui border border-danger/40 bg-danger/10 px-3 py-2 text-text">
+                {personal === 0 ? t("admin.delete.transferOnly") : plural(personal, "admin.delete.purgeOne", "admin.delete.purgeMany")}
+                {shared > 0 && <> {plural(shared, "admin.delete.toYouOne", "admin.delete.toYouMany")}</>}
+                {other > 0 && <> {plural(other, "admin.delete.toHoldersOne", "admin.delete.toHoldersMany")}</>}
+              </p>
+            </div>
+            <Field
+              label={t("admin.delete.typeEmail", { email: user.email })}
+              hint={mismatch ? t("admin.delete.emailMismatch") : undefined}
             >
-              {pending ? t("list.working") : t("admin.delete.confirm")}
-            </button>,
-          )}
-        </div>
-      </Modal>
+              <Input
+                autoFocus
+                autoComplete="off"
+                spellCheck={false}
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                aria-invalid={mismatch || undefined}
+              />
+            </Field>
+            {errorBox}
+          </DialogBody>
+          <DialogFooter>
+            {cancel}
+            <Button type="submit" variant="danger" disabled={!matches} loading={pending}>
+              {pending ? t("list.working") : t("admin.delete.purgeConfirm")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
     );
   }
 
-  const { personal_count: personal, shared_count: shared, other_count: other } = files;
-  const plural = (n: number, one: MessageKey, many: MessageKey) => (n === 1 ? t(one) : t(many, { count: n }));
-  const ids = fieldIds(inputId, false, typed !== "" && !matches);
   return (
-    <Modal
-      role="alertdialog"
-      labelledBy={titleId}
-      describedBy={messageId}
-      onClose={() => !pending && onClose()}
-      className="w-[min(500px,calc(100vw-32px))]"
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !pending) onClose();
+      }}
     >
-      <form
-        className="space-y-3 p-5"
-        data-testid="user-has-files"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void remove(true);
-        }}
-      >
-        <h2 id={titleId} className="truncate text-title font-semibold tracking-[-0.01em]">
-          {t("admin.delete.hasFilesTitle", { email: user.email })}
-        </h2>
-        <div id={messageId} className="space-y-2 text-muted">
-          <p>{t("admin.delete.refused")}</p>
-          <ul data-testid="has-files-counts" className="list-disc space-y-0.5 pl-5">
-            {personal > 0 && <li>{plural(personal, "admin.delete.personalOne", "admin.delete.personalMany")}</li>}
-            {shared > 0 && <li>{plural(shared, "admin.delete.sharedOne", "admin.delete.sharedMany")}</li>}
-            {other > 0 && <li>{plural(other, "admin.delete.otherOne", "admin.delete.otherMany")}</li>}
-          </ul>
-          <p>{t("admin.delete.privacy")}</p>
-          <p className="rounded-ui border border-danger/40 bg-danger/[0.06] px-3 py-2 text-text">
-            {personal === 0 ? t("admin.delete.transferOnly") : plural(personal, "admin.delete.purgeOne", "admin.delete.purgeMany")}
-            {shared > 0 && <> {plural(shared, "admin.delete.toYouOne", "admin.delete.toYouMany")}</>}
-            {other > 0 && <> {plural(other, "admin.delete.toHoldersOne", "admin.delete.toHoldersMany")}</>}
-          </p>
-        </div>
-        <div className="space-y-1.5 pt-1">
-          <label htmlFor={inputId} className="block text-meta font-medium text-muted">
-            {t("admin.delete.typeEmail", { email: user.email })}
-          </label>
-          <input
-            id={inputId}
-            autoFocus
-            autoComplete="off"
-            spellCheck={false}
-            value={typed}
-            onChange={(e) => setTyped(e.target.value)}
-            aria-invalid={(typed !== "" && !matches) || undefined}
-            aria-describedby={ids.describedBy}
-            className={inputClass}
-          />
-          {typed !== "" && !matches && (
-            <p id={ids.errorId} className="text-meta text-muted">
-              {t("admin.delete.emailMismatch")}
-            </p>
-          )}
-        </div>
-        {errorBox}
-        {buttons(
-          <button type="submit" disabled={pending || !matches} aria-busy={pending || undefined} className={dangerButton}>
-            {pending ? t("list.working") : t("admin.delete.purgeConfirm")}
-          </button>,
-        )}
-      </form>
-    </Modal>
+      {content}
+    </Dialog>
   );
 }

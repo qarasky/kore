@@ -1,7 +1,9 @@
 "use client";
 
+import { Button, ConfirmDialog, EmptyState, IconButton, useToast } from "@qarasky/kore-ui";
+import { ArchiveRestore, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState, useTransition, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent, type MouseEvent } from "react";
 import { useSelection } from "@/hooks/useSelection";
 import { api, isApiError } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
@@ -9,11 +11,8 @@ import { settleLimited } from "@/lib/settle";
 import { t } from "@/lib/i18n";
 import { fileKind, folderHref, type ApiNode, type Space } from "@/lib/nodes";
 import type { TrashedNode } from "@/lib/trash";
-import { ConfirmDialog } from "./ConfirmDialog";
-import { NodeIcon, RestoreIcon, TrashIcon } from "./icons";
-import { PageMessage } from "./PageMessage";
+import { NodeIcon } from "./NodeIcon";
 import { RelativeTime } from "./RelativeTime";
-import { useToast } from "./Toast";
 import { UploaderCell, UploaderHeader } from "./UploaderCell";
 
 const GRID = "grid grid-cols-[minmax(0,1fr)_150px_90px_72px] items-center gap-3 px-3";
@@ -97,7 +96,7 @@ export function TrashList({ space, items }: { space: Space; items: TrashedNode[]
       action: target
         ? {
             label: t("trash.openFolder"),
-            run: () => router.push(`${folderHref(target.space, target.parent_id)}?select=${encodeURIComponent(target.id)}`),
+            onClick: () => router.push(`${folderHref(target.space, target.parent_id)}?select=${encodeURIComponent(target.id)}`),
           }
         : undefined,
     });
@@ -149,13 +148,20 @@ export function TrashList({ space, items }: { space: Space; items: TrashedNode[]
     setConfirm(null);
   }
 
-  function confirmReturnFocus(): HTMLElement | null | undefined {
+  // After a confirmed purge the dialog unmounts and kore-ui returns focus to
+  // its opener (often gone or disabled by now); then move it to the list (rows
+  // remain) or the section. Radix restores focus in a timeout scheduled while
+  // the dialog unmounts, so this one, scheduled after it, runs last.
+  useEffect(() => {
+    if (confirm !== null || !focusAfter.current) return;
     const where = focusAfter.current;
     focusAfter.current = null;
-    if (where === "list") return listRef.current ?? rootRef.current;
-    if (where === "root") return rootRef.current;
-    return undefined; // cancelled: back to the opener
-  }
+    const id = window.setTimeout(() => {
+      const target = where === "list" ? (listRef.current ?? rootRef.current) : rootRef.current;
+      target?.focus();
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [confirm]);
 
   const askDelete = (targets: string[]) => {
     if (targets.length > 0 && !working) setConfirm({ kind: "delete", ids: targets });
@@ -200,42 +206,37 @@ export function TrashList({ space, items }: { space: Space; items: TrashedNode[]
     sel.click(id, { shift: e.shiftKey, toggle: e.metaKey || e.ctrlKey });
   };
 
-  const toolbarButton =
-    "inline-flex items-center gap-1.5 rounded-ui border border-border-strong min-h-control px-3 font-medium " +
-    "hover:bg-white/5 disabled:pointer-events-none disabled:opacity-40";
-  const rowButton = "flex size-control-sm items-center justify-center rounded-ui text-muted hover:bg-white/10 hover:text-text disabled:opacity-40";
   const tabbable = sel.selection.focus ?? ids[0] ?? null;
   const showUploader = space === "shared";
   const grid = showUploader ? GRID_UPLOADER : GRID;
 
   return (
     <div ref={rootRef} tabIndex={-1} data-testid="trash-section" className="flex min-h-0 flex-1 flex-col outline-none">
-      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-4">
-        <button type="button" className={toolbarButton} disabled={count === 0 || working} onClick={() => restore(sel.selectedIds)}>
-          <RestoreIcon />
+      <div className="flex h-header shrink-0 items-center gap-2 border-b border-border px-4 md:px-5">
+        <Button size="sm" disabled={count === 0 || working} onClick={() => restore(sel.selectedIds)}>
+          <ArchiveRestore aria-hidden="true" />
           {t("trash.restore")}
-        </button>
-        <button type="button" className={toolbarButton} disabled={count === 0 || working} onClick={() => askDelete(sel.selectedIds)}>
-          <TrashIcon />
+        </Button>
+        <Button size="sm" disabled={count === 0 || working} onClick={() => askDelete(sel.selectedIds)}>
+          <Trash2 aria-hidden="true" />
           {t("trash.deleteForever")}
-        </button>
+        </Button>
         <span aria-live="polite" className="text-meta text-muted">
           {working ? t("list.working") : count > 0 ? t("list.selectedCount", { count }) : null}
         </span>
-        <button
-          type="button"
-          className={`${toolbarButton} ml-auto text-danger`}
-          disabled={items.length === 0 || working}
-          onClick={openEmpty}
-        >
+        <Button variant="danger-outline" size="sm" className="ml-auto" disabled={items.length === 0 || working} onClick={openEmpty}>
           {t("trash.empty")}
-        </button>
+        </Button>
       </div>
 
       {items.length === 0 ? (
-        <PageMessage title={t("trash.emptyStateTitle")} testId="trash-empty">
-          {space === "shared" ? t("trash.emptyStateShared") : t("trash.emptyState")}
-        </PageMessage>
+        <div data-testid="trash-empty" className="flex flex-1 flex-col justify-center">
+          <EmptyState
+            icon={<Trash2 />}
+            title={t("trash.emptyStateTitle")}
+            description={space === "shared" ? t("trash.emptyStateShared") : t("trash.emptyState")}
+          />
+        </div>
       ) : (
         <div className="relative flex min-h-0 flex-1 flex-col overflow-auto" onClick={(e) => e.target === e.currentTarget && sel.clear()}>
           <div className={`${grid} sticky top-0 z-10 h-10 shrink-0 border-b border-border bg-surface text-meta font-medium text-muted`}>
@@ -274,7 +275,7 @@ export function TrashList({ space, items }: { space: Space; items: TrashedNode[]
                   className={
                     `${grid} group h-row cursor-default border-b border-border/60 select-none outline-none ` +
                     "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset " +
-                    (selected ? "bg-accent/15 text-text" : "hover:bg-white/[0.03]")
+                    (selected ? "bg-accent/10 text-text" : "hover:bg-white/[0.03]")
                   }
                 >
                   <div className="flex min-w-0 items-center gap-2.5">
@@ -291,28 +292,21 @@ export function TrashList({ space, items }: { space: Space; items: TrashedNode[]
                     {node.is_dir ? <span aria-hidden="true">—</span> : formatBytes(node.size)}
                   </div>
                   <div className="flex justify-end gap-0.5 opacity-0 group-hover:opacity-100 group-aria-selected:opacity-100 focus-within:opacity-100">
-                    <button
-                      type="button"
+                    <IconButton
                       tabIndex={-1}
-                      className={rowButton}
                       disabled={working}
-                      aria-label={t("trash.restoreItem", { name: node.name })}
-                      title={t("trash.restore")}
+                      label={t("trash.restoreItem", { name: node.name })}
+                      icon={<ArchiveRestore />}
                       onClick={() => restore([node.id])}
-                    >
-                      <RestoreIcon />
-                    </button>
-                    <button
-                      type="button"
+                    />
+                    <IconButton
+                      variant="danger"
                       tabIndex={-1}
-                      className={rowButton}
                       disabled={working}
-                      aria-label={t("trash.deleteForeverItem", { name: node.name })}
-                      title={t("trash.deleteForever")}
+                      label={t("trash.deleteForeverItem", { name: node.name })}
+                      icon={<Trash2 />}
                       onClick={() => askDelete([node.id])}
-                    >
-                      <TrashIcon />
-                    </button>
+                    />
                   </div>
                 </div>
               );
@@ -323,29 +317,37 @@ export function TrashList({ space, items }: { space: Space; items: TrashedNode[]
 
       {confirm?.kind === "delete" && (
         <ConfirmDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) cancelConfirm();
+          }}
           danger
           title={t("trash.deleteTitle")}
-          message={
+          description={
             confirm.ids.length === 1
               ? t("trash.deleteMessageOne", { name: byId.get(confirm.ids[0])?.name ?? "" })
               : t("trash.deleteMessageMany", { count: confirm.ids.length })
           }
           confirmLabel={t("trash.deleteForever")}
+          cancelLabel={t("dialog.cancel")}
+          pendingLabel={t("list.working")}
           onConfirm={() => purge(confirm.ids, "delete")}
-          onCancel={cancelConfirm}
-          returnFocus={confirmReturnFocus}
         />
       )}
       {confirm?.kind === "empty" && (
         <ConfirmDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) cancelConfirm();
+          }}
           danger
           title={t("trash.emptyTitle")}
-          message={emptyMessage(confirm.ids, space)}
+          description={emptyMessage(confirm.ids, space)}
           confirmLabel={t("trash.empty")}
+          cancelLabel={t("dialog.cancel")}
+          pendingLabel={t("list.working")}
           confirmDisabled={!confirm.ids || confirm.ids.length === 0}
           onConfirm={() => (confirm.ids ? purge(confirm.ids, "empty") : undefined)}
-          onCancel={cancelConfirm}
-          returnFocus={confirmReturnFocus}
         />
       )}
     </div>

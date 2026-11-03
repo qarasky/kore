@@ -1,11 +1,13 @@
 "use client";
 
+import { IconButton, Progress } from "@qarasky/kore-ui";
+import { ChevronDown, RotateCw, X } from "lucide-react";
 import { useState, useSyncExternalStore } from "react";
 import { formatBytes } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { fileKind } from "@/lib/nodes";
 import type { UploadItem, UploadQueue } from "@/lib/uploadQueue";
-import { ChevronDownIcon, NodeIcon } from "./icons";
+import { NodeIcon } from "./NodeIcon";
 
 const NONE: readonly UploadItem[] = [];
 
@@ -19,20 +21,6 @@ function summary(items: readonly UploadItem[]): string {
   return done === 1 ? t("upload.summary.doneOne") : t("upload.summary.doneMany", { count: done });
 }
 
-const XIcon = () => (
-  <svg aria-hidden="true" viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth={1.6}>
-    <path d="m4 4 8 8M12 4l-8 8" />
-  </svg>
-);
-
-const RetryIcon = () => (
-  <svg aria-hidden="true" viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
-    <path d="M13 8a5 5 0 1 1-1.5-3.55M13 2.5v2.5h-2.5" />
-  </svg>
-);
-
-const iconButton = "flex size-control-sm shrink-0 items-center justify-center rounded-ui text-muted hover:bg-white/5 hover:text-text";
-
 /** Bottom-right panel listing uploads with progress, cancel and retry. Hidden while empty. */
 export function UploadTray({ queue }: { queue: UploadQueue }) {
   const items = useSyncExternalStore(queue.subscribe, queue.getSnapshot, () => NONE);
@@ -45,28 +33,21 @@ export function UploadTray({ queue }: { queue: UploadQueue }) {
       aria-label={t("upload.tray")}
       data-testid="upload-tray"
       className={
-        "fixed right-4 bottom-4 z-50 w-[min(400px,calc(100vw-32px))] overflow-hidden rounded-ui border border-border-strong bg-raised " +
-        "shadow-[0_12px_32px_-8px_rgba(0,0,0,0.7)]"
+        "fixed right-4 bottom-4 z-50 w-[min(400px,calc(100vw-32px))] overflow-hidden rounded-overlay border border-border-strong bg-raised " +
+        "shadow-overlay"
       }
     >
-      <header className="flex h-12 items-center gap-1 border-b border-border pr-2 pl-4">
+      <header className="flex h-row items-center gap-1 border-b border-border pr-2 pl-4">
         <h2 aria-live="polite" data-testid="upload-summary" className="min-w-0 flex-1 truncate font-medium">
           {summary(items)}
         </h2>
-        <button
-          type="button"
-          aria-label={collapsed ? t("upload.expand") : t("upload.collapse")}
+        <IconButton
+          label={collapsed ? t("upload.expand") : t("upload.collapse")}
           aria-expanded={!collapsed}
           onClick={() => setCollapsed((c) => !c)}
-          className={iconButton}
-        >
-          <ChevronDownIcon className={`size-3.5 transition-transform ${collapsed ? "rotate-180" : ""}`} />
-        </button>
-        {!active && (
-          <button type="button" aria-label={t("upload.close")} onClick={() => queue.clearFinished()} className={iconButton}>
-            <XIcon />
-          </button>
-        )}
+          icon={<ChevronDown className={`transition-transform ${collapsed ? "rotate-180" : ""}`} />}
+        />
+        {!active && <IconButton label={t("upload.close")} onClick={() => queue.clearFinished()} icon={<X />} />}
       </header>
       {!collapsed && (
         <ul className="max-h-[280px] overflow-y-auto py-1">
@@ -101,34 +82,13 @@ function UploadRow({ item, queue }: { item: UploadItem; queue: UploadQueue }) {
           {file.name}
         </div>
         <div className={`truncate text-meta ${state === "error" ? "text-danger" : "text-muted"}`}>{status}</div>
-        {(state === "uploading" || state === "queued") && (
-          <div
-            role="progressbar"
-            aria-label={file.name}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={pct}
-            className="mt-1 h-1 overflow-hidden rounded-full bg-border"
-          >
-            <div className="h-full rounded-full bg-accent transition-[width] duration-300" style={{ width: `${pct}%` }} />
-          </div>
-        )}
+        {(state === "uploading" || state === "queued") && <Progress label={file.name} value={pct} className="mt-1" />}
       </div>
       {(state === "queued" || state === "uploading") && (
-        <button type="button" aria-label={t("upload.cancel", { name: file.name })} onClick={() => queue.cancel(item.id)} className={iconButton}>
-          <XIcon />
-        </button>
+        <IconButton label={t("upload.cancel", { name: file.name })} onClick={() => queue.cancel(item.id)} icon={<X />} />
       )}
       {state === "error" && (
-        <button
-          type="button"
-          aria-label={t("upload.retry", { name: file.name })}
-          title={t("upload.retryShort")}
-          onClick={() => queue.retry(item.id)}
-          className={iconButton}
-        >
-          <RetryIcon />
-        </button>
+        <IconButton label={t("upload.retry", { name: file.name })} onClick={() => queue.retry(item.id)} icon={<RotateCw />} />
       )}
     </li>
   );
