@@ -44,8 +44,9 @@ export function AccountMenu({
     window.location.assign("/login");
   }
 
-  // Without Kore ID the account entry is this app's own account page.
-  const accountUrl = koreId.accountUrl ?? "/account";
+  // Kore ID's account page only when SSO is on; this app's /account is a child
+  // item either way (it holds storage, password and SSO linking).
+  const accountUrl = koreId.accountUrl;
   return (
     <KoreAccountMenu
       user={{ email }}
@@ -54,16 +55,14 @@ export function AccountMenu({
       onSignOut={signOut}
       labels={{
         menu: t("account.menu"),
-        account: koreId.accountUrl ? t("account.koreId") : t("account.title"),
+        account: t("account.koreId"),
         switchApp: t("account.switchApp"),
         signOut: t("account.signOut"),
       }}
     >
-      {koreId.accountUrl ? (
-        <MenuItem icon={<UserRound />} onSelect={() => router.push("/account")}>
-          {t("account.storageAndSettings")}
-        </MenuItem>
-      ) : null}
+      <MenuItem icon={<UserRound />} onSelect={() => router.push("/account")}>
+        {accountUrl ? t("account.storageAndSettings") : t("account.title")}
+      </MenuItem>
       {passwordLogin ? (
         <MenuItem icon={<KeyRound />} onSelect={() => router.push("/account")}>
           {t("account.changePassword")}

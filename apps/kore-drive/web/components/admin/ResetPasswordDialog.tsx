@@ -6,7 +6,7 @@ import { adminErrorKey, type AdminUser } from "@/lib/admin";
 import { api } from "@/lib/api";
 import { t, type MessageKey } from "@/lib/i18n";
 import { passwordProblem } from "@/lib/password";
-import { OneTimePassword, PasswordInput } from "./controls";
+import { GeneratedPasswordInput, OneTimePassword } from "./controls";
 
 /**
  * Sets a new password for `user` (the API also signs them out everywhere).
@@ -92,14 +92,12 @@ export function ResetPasswordDialog({
           <form onSubmit={submit} noValidate className="flex min-h-0 flex-1 flex-col">
             <DialogBody>
               <Field id={fieldId} label={t("admin.reset.newPassword")} error={error && t(error)}>
-                <PasswordInput
+                <GeneratedPasswordInput
                   value={password}
                   onChange={(v, gen) => {
                     setPassword(v);
                     setGenerated(gen);
                   }}
-                  generate
-                  hints
                 />
               </Field>
             </DialogBody>

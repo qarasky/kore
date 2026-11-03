@@ -6,16 +6,6 @@
 
 /* App-specific CSS only below. */
 
-/* kore-ui 0.1.1 workaround: the toast viewport is a full-width fixed strip at
-   the bottom and swallows clicks on what is under it (the sidebar's storage
-   meter) while a toast shows. Let clicks through everywhere but the toasts. */
-[role="region"][tabindex="-1"] > ol.fixed {
-  pointer-events: none;
-}
-[role="region"][tabindex="-1"] > ol.fixed > li {
-  pointer-events: auto;
-}
-
 /* Rendered markdown in the preview pane (react-markdown output). */
 @layer components {
   .kore-md {

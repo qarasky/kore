@@ -23,7 +23,7 @@ describe("kore-ui primitives only", () => {
   });
 
   it("the local copies replaced by kore-ui stay deleted", () => {
-    const gone = ["Modal", "ConfirmDialog", "Menu", "ContextMenu", "Select", "Toast", "EmptyState", "icons", "wordmark"];
+    const gone = ["Modal", "ConfirmDialog", "Menu", "ContextMenu", "Select", "Toast", "EmptyState", "icons", "wordmark", "PointMenu", "PasswordInput"];
     const present = gone.filter((name) => files().some((p) => relative(root, p) === join("components", `${name}.tsx`)));
     expect(present).toEqual([]);
   });
