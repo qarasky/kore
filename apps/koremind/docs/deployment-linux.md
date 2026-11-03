@@ -1,5 +1,7 @@
 # Deploying KoreMind on Linux
 
+> Prefer containers? [docs/deployment-docker.md](deployment-docker.md) runs the same thing from prebuilt images, with no Bun or OpenCode to install.
+
 How to run KoreMind as a service on a Linux server (a home server, a mini PC, a VPS). Written for Debian/Ubuntu-style systems with systemd; other distributions need only the package names changed.
 
 > **Status.** These steps were written from how KoreMind runs on the author's Mac and from the project's own start script and tests. They have **not** been run on a real Linux host yet. Expect to fix a small thing or two on the first try, and please correct this document when you do.
