@@ -13,8 +13,9 @@ export type AccountUser = { email: string; name?: string | null; avatarUrl?: str
 
 export type AccountMenuProps = {
   user: AccountUser;
-  /** The Kore ID account page (profile, password, sessions). */
-  accountUrl: string;
+  /** The Kore ID account page (profile, password, sessions). Omit when the app doesn't use Kore ID:
+   *  then there is no "Kore ID account" item and no Kore ID mark, only what the app passes. */
+  accountUrl?: string;
   /** Called by "Sign out". Do the app's logout (and Kore ID's), then navigate. */
   onSignOut: () => void | Promise<void>;
   /** App switcher section: where each app lives (apps without a URL are hidden) and which one this is. */
@@ -52,7 +53,7 @@ export function AccountMenu({
   const l = { menu: "Account", account: "Kore ID account", switchApp: "Switch app", signOut: "Sign out", ...labels };
   const display = user.name?.trim() || user.email;
   const appIds = apps ? KORE_APP_IDS.filter((id) => apps.urls[id] && id !== apps.current) : [];
-  const accountExternal = isExternalHref(accountUrl);
+  const accountExternal = accountUrl ? isExternalHref(accountUrl) : false;
 
   return (
     <Menu>
@@ -83,18 +84,20 @@ export function AccountMenu({
             </span>
           </span>
         </MenuLabel>
-        <MenuSeparator />
-        <MenuItem asChild>
-          {accountExternal ? (
-            <a href={accountUrl}>
-              <AccountItemInner label={l.account} />
-            </a>
-          ) : (
-            <Link href={accountUrl}>
-              <AccountItemInner label={l.account} />
-            </Link>
-          )}
-        </MenuItem>
+        {accountUrl || children ? <MenuSeparator /> : null}
+        {accountUrl ? (
+          <MenuItem asChild>
+            {accountExternal ? (
+              <a href={accountUrl}>
+                <AccountItemInner label={l.account} />
+              </a>
+            ) : (
+              <Link href={accountUrl}>
+                <AccountItemInner label={l.account} />
+              </Link>
+            )}
+          </MenuItem>
+        ) : null}
         {children}
         {appIds.length > 0 ? (
           <>

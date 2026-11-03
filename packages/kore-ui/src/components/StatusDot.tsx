@@ -30,26 +30,40 @@ export type StatusDotProps = Omit<ComponentProps<"span">, "children"> & {
   tintLabel?: boolean;
   /** A slow pulse for live/active states. */
   pulse?: boolean;
+  /** sm 6px, md 8px (default), lg 10px. */
+  size?: "sm" | "md" | "lg";
+  /** An acknowledged (muted) problem: the same shape in a dim colour. Mainly for `down`. */
+  muted?: boolean;
 };
+
+const SIZE = { sm: "size-1.5", md: "size-2", lg: "size-2.5" } as const;
 
 /**
  * A status indicator: up (green), warn (yellow), down (red diamond), maint (violet ring),
  * off (grey ring), accent (connected). Always pair it with words.
  */
-export function StatusDot({ status, label, tintLabel = true, pulse = false, className, ...props }: StatusDotProps) {
+export function StatusDot({
+  status,
+  label,
+  tintLabel = true,
+  pulse = false,
+  size = "md",
+  muted = false,
+  className,
+  ...props
+}: StatusDotProps) {
+  const dim = muted && (status === "down" ? "bg-status-down-muted" : "opacity-50");
   const dot = (
-    <span aria-hidden="true" className="relative inline-flex size-2 shrink-0">
-      {pulse ? (
-        <span className={cn("absolute inset-0 animate-ping opacity-50", DOT[status])} />
-      ) : null}
-      <span className={cn("relative size-2", DOT[status])} />
+    <span aria-hidden="true" data-muted={muted || undefined} className={cn("relative inline-flex shrink-0", SIZE[size])}>
+      {pulse && !muted ? <span className={cn("absolute inset-0 animate-ping opacity-50", DOT[status])} /> : null}
+      <span className={cn("relative", SIZE[size], DOT[status], dim)} />
     </span>
   );
   if (!label) return <span className={cn("inline-flex items-center", className)} {...props}>{dot}</span>;
   return (
     <span className={cn("inline-flex items-center gap-2", className)} {...props}>
       {dot}
-      <span className={cn("text-sub", tintLabel ? TEXT[status] : "text-text")}>{label}</span>
+      <span className={cn("text-sub", muted ? "text-muted" : tintLabel ? TEXT[status] : "text-text")}>{label}</span>
     </span>
   );
 }
