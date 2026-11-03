@@ -197,4 +197,30 @@
     <string name="discard">Discard</string>
     <string name="keep_editing">Keep editing</string>
     <string name="notice_undo_hint">Deleted</string>
+
+    <!-- Views -->
+    <string name="app_bar_title">Calendar</string>
+    <string name="view_agenda">Agenda</string>
+    <string name="view_day">Day</string>
+    <string name="view_week">Week</string>
+    <string name="view_month">Month</string>
+    <string name="previous">Previous</string>
+    <string name="next">Next</string>
+    <string name="search">Search</string>
+    <string name="search_hint">Search events</string>
+    <string name="search_prompt">Type to search titles, notes and places.</string>
+    <string name="search_none">Nothing found for \"%1$s\".</string>
+    <string name="search_count">%1$d results, %2$s to %3$s</string>
+    <string name="search_offline_note">Offline: searching the copy on this phone only.</string>
+    <string name="range_offline_note">Offline: this part is not on the phone, so it may be incomplete.</string>
+    <string name="range_loading">Loading…</string>
+    <string name="more_events">+%1$d more</string>
+    <string name="all_day_more">+%1$d more all-day</string>
+    <string name="week_starts_on">The week starts on</string>
+    <string name="week_start_mon">Monday</string>
+    <string name="week_start_sun">Sunday</string>
+    <string name="week_start_sat">Saturday</string>
+    <string name="day_cell_description">%1$s, %2$d events</string>
+    <string name="grid_slot_description">%1$s, time zone %2$s: tap an empty slot for a new event</string>
+    <string name="now_line">Now</string>
 </resources>

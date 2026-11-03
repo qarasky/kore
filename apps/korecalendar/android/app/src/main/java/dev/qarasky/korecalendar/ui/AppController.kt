@@ -63,6 +63,8 @@ sealed interface AppState {
         /** The day the Day, Week and Month views are showing (today unless the person moved). */
         val day: java.time.LocalDate = java.time.LocalDate.MIN,
         val weekStart: WeekStart = WeekStart.Mon,
+        /** When the phone's copy was last brought up to date: views reload their data when it changes. */
+        val lastSync: Instant? = null,
     ) : AppState
 }
 
@@ -344,6 +346,7 @@ class AppController(
             view = prefs.view,
             day = anchor ?: now().atZone(zone).toLocalDate(),
             weekStart = prefs.weekStart,
+            lastSync = snapshot.lastSyncAt,
         )
     }
 }

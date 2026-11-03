@@ -44,6 +44,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onClock24: (Boolean) -> Unit,
     onToggleCalendar: (String) -> Unit,
+    onWeekStart: (dev.qarasky.korecalendar.views.WeekStart) -> Unit,
     onSignOut: () -> Unit,
 ) {
     BackHandler(onBack = onBack)
@@ -70,6 +71,11 @@ fun SettingsScreen(
             Heading(stringResource(R.string.clock))
             ClockChoice(stringResource(R.string.clock_24), state.clock24) { onClock24(true) }
             ClockChoice(stringResource(R.string.clock_12), !state.clock24) { onClock24(false) }
+
+            Heading(stringResource(R.string.week_starts_on))
+            ClockChoice(stringResource(R.string.week_start_mon), state.weekStart == dev.qarasky.korecalendar.views.WeekStart.Mon) { onWeekStart(dev.qarasky.korecalendar.views.WeekStart.Mon) }
+            ClockChoice(stringResource(R.string.week_start_sun), state.weekStart == dev.qarasky.korecalendar.views.WeekStart.Sun) { onWeekStart(dev.qarasky.korecalendar.views.WeekStart.Sun) }
+            ClockChoice(stringResource(R.string.week_start_sat), state.weekStart == dev.qarasky.korecalendar.views.WeekStart.Sat) { onWeekStart(dev.qarasky.korecalendar.views.WeekStart.Sat) }
 
             Heading(stringResource(R.string.calendars))
             Text(stringResource(R.string.calendars_hint), color = Palette.muted, style = MaterialTheme.typography.bodySmall)

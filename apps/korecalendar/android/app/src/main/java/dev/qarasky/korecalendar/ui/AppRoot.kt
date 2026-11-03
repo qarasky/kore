@@ -27,6 +27,7 @@ private sealed interface Screen {
     data object Agenda : Screen
     data class Details(val eventId: String, val key: String) : Screen
     data object Settings : Screen
+    data object Search : Screen
 }
 
 /** The app: sign-in when there is no usable account, otherwise the agenda with its two sub-screens. */
@@ -92,15 +93,16 @@ fun AppRoot(controller: AppController, pendingOpen: StateFlow<Pair<String, Strin
         is AppState.Ready -> if (editor != null) {
             EditorScreen(controller, editor!!, s, msg, onClose = { controller.endEdit() })
         } else when (current) {
-            Screen.Agenda -> AgendaScreen(
+            Screen.Agenda -> HomeScreen(
                 state = s,
-                onRefresh = { controller.refresh() },
+                controller = controller,
                 onOpen = { id, key -> openEventId = id; openEventKey = key },
                 onSettings = { screen = Screen.Settings },
-                onNew = { controller.beginNew() },
+                onSearch = { screen = Screen.Search },
             )
+            Screen.Search -> SearchScreen(s, controller, onBack = { screen = Screen.Agenda }, onOpen = { id, key -> openEventId = id; openEventKey = key })
             is Screen.Details -> EventDetailsScreen(
-                s, (current as Screen.Details).eventId, current.key,
+                s, controller.findOccurrence((current as Screen.Details).eventId, current.key),
                 onBack = { openEventId = null; openEventKey = null },
                 onEdit = { occ -> scope.launch { controller.beginEdit(occ) } },
                 onDelete = { occ -> deleting = occ },
@@ -110,6 +112,7 @@ fun AppRoot(controller: AppController, pendingOpen: StateFlow<Pair<String, Strin
                 onBack = { screen = Screen.Agenda },
                 onClock24 = { scope.launch { controller.setClock24(it) } },
                 onToggleCalendar = { scope.launch { controller.toggleCalendar(it) } },
+                onWeekStart = { scope.launch { controller.setWeekStart(it) } },
                 onSignOut = { screen = Screen.Agenda; scope.launch { controller.signOut() } },
             )
         }

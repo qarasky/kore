@@ -32,9 +32,11 @@ import dev.qarasky.korecalendar.ui.theme.Palette
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EventDetailsScreen(state: AppState.Ready, eventId: String, key: String, onBack: () -> Unit, onEdit: (dev.qarasky.korecalendar.data.Occurrence) -> Unit, onDelete: (dev.qarasky.korecalendar.data.Occurrence) -> Unit) {
+fun EventDetailsScreen(state: AppState.Ready, occurrence: dev.qarasky.korecalendar.data.Occurrence?, onBack: () -> Unit, onEdit: (dev.qarasky.korecalendar.data.Occurrence) -> Unit, onDelete: (dev.qarasky.korecalendar.data.Occurrence) -> Unit) {
     BackHandler(onBack = onBack)
-    val row = state.agenda.days.flatMap { d -> d.rows.map { d.date to it } }.firstOrNull { (_, r) -> r.item.occ.eventId == eventId && r.item.occ.key == key }
+    val calendar0 = state.calendars.firstOrNull { it.calendar.id == occurrence?.calendarId }
+    val item = occurrence?.let { dev.qarasky.korecalendar.agenda.agendaItemOf(it, calendar0?.calendar?.color, state.zone) }
+    val row = item?.let { it.startLocal.toLocalDate() to AgendaRowUi(it, ended = false) }
     val labels = Labels(stringResource(R.string.today), stringResource(R.string.tomorrow))
     val calendar = state.calendars.firstOrNull { it.calendar.id == row?.second?.item?.occ?.calendarId }
 
