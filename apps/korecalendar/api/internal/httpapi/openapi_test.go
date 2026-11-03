@@ -88,12 +88,12 @@ func TestEveryOperationHasSummaryAndSuccessResponse(t *testing.T) {
 		for method, op := range ops {
 			ok := false
 			for code := range op.Responses {
-				if strings.HasPrefix(code, "2") {
+				if strings.HasPrefix(code, "2") || strings.HasPrefix(code, "3") { // 3xx: the browser redirects of sign-in
 					ok = true
 				}
 			}
 			if op.Summary == "" || !ok {
-				t.Errorf("%s %s: needs a summary and a 2xx response", strings.ToUpper(method), path)
+				t.Errorf("%s %s: needs a summary and a 2xx or 3xx response", strings.ToUpper(method), path)
 			}
 		}
 	}

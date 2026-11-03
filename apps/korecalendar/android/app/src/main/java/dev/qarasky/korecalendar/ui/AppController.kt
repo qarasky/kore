@@ -102,6 +102,16 @@ class AppController(
         return r
     }
 
+    suspend fun signInWithKoreId(rawUrl: String, browse: suspend (String) -> String): SignInResult {
+        val r = signInFlow.signInWithKoreId(rawUrl, browse)
+        if (r is SignInResult.Ok) {
+            background.scheduleSync()
+            syncState = SyncState.Idle
+            refresh()
+        }
+        return r
+    }
+
     suspend fun refresh(): SyncResult? = mutex.withLock {
         val account = accounts.load() ?: return null
         if (accounts.isRevoked()) return null

@@ -37,7 +37,8 @@ info:
     Another user's data is `404 not_found`, never 403.
 
     **Authentication.** `Authorization: Bearer <token>`: a personal access token (`kcal_...`, created with
-    `POST /api/tokens`) or the session token returned by login. The web app uses the `korecal_session` cookie.
+    `POST /api/tokens`), the session token returned by login, or, when Kore ID sign-in is configured, a Kore ID
+    access token (a JWT whose audience is this app's client id; treated like a session). The web app uses the `korecal_session` cookie.
   license:
     name: MIT
 servers:
@@ -52,6 +53,7 @@ x-error-codes:
   unauthorized: Missing, expired or revoked credentials (HTTP 401).
   forbidden: The credentials are valid but this action needs a signed-in session, not an access token (HTTP 403).
   not_found: No such item, or it belongs to someone else (HTTP 404).
+  password_login_disabled: Password sign-in and first-run setup are turned off; sign in with Kore ID (HTTP 403).
   bad_credentials: Wrong email or password (HTTP 401).
   rate_limited: Too many attempts; wait `retryAfterSec` (HTTP 429).
   setup_closed: The first account already exists (HTTP 409).
@@ -106,12 +108,46 @@ paths:
       responses:
         "200": { description: Signed in., content: { application/json: { schema: { $ref: "#/components/schemas/Session" } } } }
         "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
         "429": { $ref: "#/components/responses/Error" }
+  /api/auth/config:
+    get:
+      summary: Which sign-in methods this server offers
+      description: "`password_login` is false when the operator turned passwords off. `oidc` is null unless Kore ID sign-in is configured; then it has `name`, `issuer`, `client_id` and `login_url` (a browser path to open)."
+      x-access: public
+      security: []
+      responses:
+        "200": { description: The sign-in methods., content: { application/json: { schema: { type: object, properties: { password_login: { type: boolean }, oidc: { type: [object, "null"] } } } } } }
+  /api/auth/oidc/login:
+    get:
+      summary: Start sign-in with Kore ID (browser redirect)
+      description: Redirects (302) to Kore ID with PKCE, state and nonce. `next` is a same-site path to return to. 404 unless Kore ID is configured.
+      x-access: public
+      security: []
+      parameters:
+        - { name: next, in: query, required: false, schema: { type: string, example: /calendar/week } }
+      responses:
+        "302": { description: Redirect to the Kore ID authorization endpoint. }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/auth/oidc/callback:
+    get:
+      summary: Kore ID redirect target (browser redirect)
+      description: Validates state, exchanges the code, verifies the id token, maps `sub` to a local user (creating or linking one as configured), sets the session cookie and redirects (302) to `next`. On failure it redirects to `/login?error=<reason>`.
+      x-access: public
+      security: []
+      parameters:
+        - { name: code, in: query, schema: { type: string } }
+        - { name: state, in: query, schema: { type: string } }
+      responses:
+        "302": { description: Redirect to the app, or to the sign-in page with an error. }
+        "404": { $ref: "#/components/responses/Error" }
   /api/logout:
     post:
       summary: Sign out (ends this session)
+      description: For a session that came from Kore ID the response is 200 with `end_session_url`; send the browser there to end the single sign-on session too (it returns to `/login`).
       x-access: user
       responses:
+        "200": { description: Signed out; also end the Kore ID session at this URL., content: { application/json: { schema: { type: object, properties: { end_session_url: { type: string } } } } } }
         "204": { description: Signed out. }
   /api/me:
     get:

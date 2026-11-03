@@ -36,6 +36,7 @@ data class WriteResult(val event: Event, val created: Event?, val dropped: List<
 /** The public REST API, as far as the app uses it. */
 interface CalendarApi {
     suspend fun login(email: String, password: String): Session
+    suspend fun authConfig(): AuthConfig
     suspend fun createToken(name: String): TokenCreated
     suspend fun logout()
     suspend fun me(): User
@@ -65,6 +66,8 @@ class HttpApi(
 
     override suspend fun login(email: String, password: String): Session =
         send("POST", "/api/login", body(JsonObject(mapOf("email" to JsonPrimitive(email), "password" to JsonPrimitive(password)))), Session.serializer())
+
+    override suspend fun authConfig(): AuthConfig = send("GET", "/api/auth/config", null, AuthConfig.serializer())
 
     override suspend fun createToken(name: String): TokenCreated =
         send("POST", "/api/tokens", body(JsonObject(mapOf("name" to JsonPrimitive(name)))), TokenCreated.serializer())

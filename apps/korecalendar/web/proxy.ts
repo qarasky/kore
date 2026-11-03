@@ -16,7 +16,7 @@ export function proxy(req: NextRequest) {
 
   if (pathname === "/login" || pathname === "/setup") {
     // `expired` means the API rejected the cookie; let the user sign in again.
-    if (hasSession && !searchParams.has("expired")) {
+    if (hasSession && !searchParams.has("expired") && !searchParams.has("error")) {
       return redirectTo(req, safeNext(searchParams.get("next")));
     }
     return NextResponse.next();

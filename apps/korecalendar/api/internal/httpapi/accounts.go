@@ -75,7 +75,20 @@ func (s *server) handleSetupStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"setup_required": n == 0})
 }
 
+// passwordsOff answers 403 password_login_disabled when the operator turned
+// password sign-in off (Kore ID only).
+func (s *server) passwordsOff(w http.ResponseWriter) bool {
+	if s.passwordLogin {
+		return false
+	}
+	errJSON(w, http.StatusForbidden, "password_login_disabled", "password sign-in is turned off; sign in with Kore ID")
+	return true
+}
+
 func (s *server) handleSetup(w http.ResponseWriter, r *http.Request) {
+	if s.passwordsOff(w) {
+		return
+	}
 	var c credentials
 	if !decode(w, r, &c) || !validCreds(w, c) {
 		return
@@ -105,6 +118,9 @@ func (s *server) handleSetup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	if s.passwordsOff(w) {
+		return
+	}
 	var c credentials
 	if !decode(w, r, &c) {
 		return
@@ -140,9 +156,20 @@ func rateLimited(w http.ResponseWriter, retry time.Duration) {
 }
 
 func (s *server) handleLogout(w http.ResponseWriter, r *http.Request) {
-	auth.DeleteSession(r.Context(), s.db, auth.RawToken(r))
+	tok := auth.RawToken(r)
+	endSession := ""
+	if s.sso != nil {
+		// A Kore ID session also ends the single sign-on session (RP-initiated
+		// logout): the client is told where to send the browser.
+		endSession = s.sso.Provider.EndSessionURL(r.Context(), auth.SessionIDToken(r.Context(), s.db, tok), s.publicURL+"/login")
+	}
+	auth.DeleteSession(r.Context(), s.db, tok)
 	http.SetCookie(w, &http.Cookie{Name: auth.CookieName, Value: "", Path: "/", MaxAge: -1, HttpOnly: true,
 		SameSite: http.SameSiteLaxMode, Secure: auth.IsHTTPS(r)})
+	if endSession != "" {
+		writeJSON(w, http.StatusOK, map[string]string{"end_session_url": endSession})
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

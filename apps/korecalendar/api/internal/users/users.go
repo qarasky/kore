@@ -108,3 +108,70 @@ func Count(ctx context.Context, db *sql.DB) (int, error) {
 	err := db.QueryRowContext(ctx, `SELECT count(*) FROM users`).Scan(&n)
 	return n, err
 }
+
+// NoPassword is the pw_hash of accounts created by Kore ID sign-in. It is not a
+// valid encoded hash, so no password ever verifies against it.
+const NoPassword = "!"
+
+// ErrSubTaken is returned when linking a subject already linked to another user.
+var ErrSubTaken = errors.New("subject already linked to another user")
+
+// GetBySub returns the user linked to an OpenID subject.
+func GetBySub(ctx context.Context, db *sql.DB, sub string) (User, error) {
+	var u User
+	err := db.QueryRowContext(ctx, `SELECT id,email,role,timezone FROM users WHERE oidc_sub=?`, sub).
+		Scan(&u.ID, &u.Email, &u.Role, &u.Timezone)
+	if errors.Is(err, sql.ErrNoRows) {
+		return User{}, ErrNotFound
+	}
+	return u, err
+}
+
+// GetLinkByEmail returns the user with that email and the subject linked to
+// them ("" if none).
+func GetLinkByEmail(ctx context.Context, db *sql.DB, email string) (User, string, error) {
+	var u User
+	var sub sql.NullString
+	err := db.QueryRowContext(ctx, `SELECT id,email,role,timezone,oidc_sub FROM users WHERE email=?`, email).
+		Scan(&u.ID, &u.Email, &u.Role, &u.Timezone, &sub)
+	if errors.Is(err, sql.ErrNoRows) {
+		return User{}, "", ErrNotFound
+	}
+	return u, sub.String, err
+}
+
+// CreateOIDC inserts a password-less user for an OpenID subject. A duplicate
+// email is ErrEmailTaken, a duplicate subject ErrSubTaken.
+func CreateOIDC(ctx context.Context, db *sql.DB, email, sub, role string) (User, error) {
+	u := User{ID: NewID(), Email: email, Role: role, Timezone: "UTC"}
+	_, err := db.ExecContext(ctx, `INSERT INTO users(id,email,pw_hash,role,created_at,oidc_sub) VALUES(?,?,?,?,?,?)`,
+		u.ID, u.Email, NoPassword, u.Role, time.Now().Unix(), sub)
+	if isUnique(err) {
+		if strings.Contains(err.Error(), "oidc_sub") {
+			return User{}, ErrSubTaken
+		}
+		return User{}, ErrEmailTaken
+	}
+	return u, err
+}
+
+// LinkSub links an OpenID subject to an existing user who has none yet.
+func LinkSub(ctx context.Context, db *sql.DB, userID, sub string) error {
+	res, err := db.ExecContext(ctx, `UPDATE users SET oidc_sub=? WHERE id=? AND oidc_sub IS NULL`, sub, userID)
+	if isUnique(err) {
+		return ErrSubTaken
+	}
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// SetRole changes a user's role.
+func SetRole(ctx context.Context, db *sql.DB, id, role string) error {
+	_, err := db.ExecContext(ctx, `UPDATE users SET role=? WHERE id=?`, role, id)
+	return err
+}

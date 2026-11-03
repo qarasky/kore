@@ -1,7 +1,8 @@
 # KoreCalendar configuration for running the binary directly
 # (`korecalendar -config korecal.toml`). Copy to korecal.toml and edit.
 # Every setting can also come from a KORECAL_* environment variable
-# (KORECAL_PORT, KORECAL_BIND, KORECAL_DATA_DIR, KORECAL_PUBLIC_URL).
+# (KORECAL_PORT, KORECAL_BIND, KORECAL_DATA_DIR, KORECAL_PUBLIC_URL, KORECAL_PASSWORD_LOGIN,
+# KORECAL_OIDC_*; see the [oidc] section).
 
 # Port to listen on (default 8080).
 # port = 8080
@@ -14,3 +15,22 @@ data_dir = "./data"
 
 # Optional: the public https address, sent to push services as the operator contact.
 # public_url = "https://calendar.example.com"
+
+# Email + password sign-in and first-run setup (default true). Set false to allow only
+# Kore ID; this needs the [oidc] section below. Access tokens (kcal_...) and CalDAV are
+# not affected either way.
+# password_login = true
+
+# Sign in with Kore ID, a standard OpenID Connect provider (authorization code + PKCE).
+# Enabled by setting issuer; public_url (above) is then required, because the redirect URI
+# registered with Kore ID is <public_url>/api/auth/oidc/callback.
+# [oidc]
+# issuer = "https://id.kore.example"        # https (http only for localhost)
+# client_id = "korecalendar"                # default
+# client_secret_file = "/run/secrets/kore_id_secret"   # or KORECAL_OIDC_CLIENT_SECRET; avoid putting it here
+# name = "Kore ID"                          # sign-in button label
+# scopes = ["openid", "profile", "email"]
+# extra_audiences = ["korecalendar-android"]  # more client ids whose access tokens the API accepts
+# admin_subs = ["00000000-0000-4000-8000-000000000000"]  # Kore ID subjects that are administrators
+# auto_provision = true                     # create a local account on first sign-in
+# link_by_email = "off"                     # off | verified | trusted (see docs/deploy.md)

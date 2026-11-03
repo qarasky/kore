@@ -8,6 +8,7 @@ import (
 
 	"github.com/qarasky/korecalendar/api/internal/auth"
 	"github.com/qarasky/korecalendar/api/internal/dav"
+	"github.com/qarasky/korecalendar/api/internal/sso"
 )
 
 type server struct {
@@ -15,13 +16,37 @@ type server struct {
 	dataDir string
 	limiter *auth.Limiter // login attempts per email|IP
 	ipLimit *auth.Limiter // login attempts per client IP across all emails
+
+	passwordLogin bool
+	sso           *sso.Service // nil when Kore ID sign-in is not configured
+	ssoName       string
+	publicURL     string
 }
 
-// New returns the API handler. dataDir is the (already checked) volume.
+// Options are the sign-in settings of a running server.
+type Options struct {
+	// PasswordLogin allows email + password sign-in and first-run setup.
+	PasswordLogin bool
+	// SSO enables Kore ID sign-in and Kore ID access tokens as bearer tokens.
+	SSO *sso.Service
+	// ButtonName labels the sign-in button ("Kore ID").
+	ButtonName string
+	// PublicURL is the site's origin; RP-initiated logout returns to it.
+	PublicURL string
+}
+
+// New returns the API handler with password sign-in only. dataDir is the
+// (already checked) volume.
 func New(db *sql.DB, dataDir string) http.Handler {
+	return NewWithOptions(db, dataDir, Options{PasswordLogin: true})
+}
+
+// NewWithOptions is New with explicit sign-in options.
+func NewWithOptions(db *sql.DB, dataDir string, o Options) http.Handler {
 	s := &server{db: db, dataDir: dataDir,
-		limiter: auth.NewLimiter(5, 15*time.Minute),
-		ipLimit: auth.NewLimiter(30, 15*time.Minute)}
+		limiter:       auth.NewLimiter(5, 15*time.Minute),
+		ipLimit:       auth.NewLimiter(30, 15*time.Minute),
+		passwordLogin: o.PasswordLogin, sso: o.SSO, ssoName: o.ButtonName, publicURL: o.PublicURL}
 	return s.handler()
 }
 
@@ -56,6 +81,9 @@ func (s *server) routes() []route {
 		{"GET /api/setup", accessPublic, s.handleSetupStatus},
 		{"POST /api/setup", accessPublic, s.handleSetup},
 		{"POST /api/login", accessPublic, s.handleLogin},
+		{"GET /api/auth/config", accessPublic, s.handleAuthConfig},
+		{"GET /api/auth/oidc/login", accessPublic, s.handleOIDCLogin},
+		{"GET /api/auth/oidc/callback", accessPublic, s.handleOIDCCallback},
 		{"POST /api/logout", accessUser, s.handleLogout},
 		{"GET /api/me", accessUser, s.handleMe},
 		{"PATCH /api/me", accessUser, s.handlePatchMe},
@@ -94,7 +122,11 @@ func Routes() []string {
 
 func (s *server) handler() http.Handler {
 	mux := http.NewServeMux()
-	require := auth.Require(s.db)
+	var extra auth.BearerVerifier
+	if s.sso != nil {
+		extra = s.sso.Bearer
+	}
+	require := auth.RequireWith(s.db, extra)
 	for _, r := range s.routes() {
 		var h http.Handler = r.h
 		switch r.access {

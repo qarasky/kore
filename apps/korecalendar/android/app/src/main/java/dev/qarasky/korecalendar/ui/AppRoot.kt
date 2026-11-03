@@ -88,7 +88,11 @@ fun AppRoot(controller: AppController, pendingOpen: StateFlow<Pair<String, Strin
         AppState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = Palette.accent)
         }
-        is AppState.SignedOut -> SignInScreen(s) { url, email, password -> controller.signIn(url, email, password) }
+        is AppState.SignedOut -> SignInScreen(
+            s,
+            onSignIn = { url, email, password -> controller.signIn(url, email, password) },
+            onKoreId = { url, browse -> controller.signInWithKoreId(url, browse) },
+        )
         is AppState.Ready -> if (editor != null) {
             EditorScreen(controller, editor!!, s, msg, onClose = { controller.endEdit() })
         } else when (current) {

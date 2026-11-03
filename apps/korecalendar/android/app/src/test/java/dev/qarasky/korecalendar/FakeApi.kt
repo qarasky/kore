@@ -35,6 +35,8 @@ class FakeApi : CalendarApi {
     val changeRequests = mutableListOf<Long>()
 
     override suspend fun login(email: String, password: String): Session { calls += "login"; return onLogin(email, password) }
+    var onAuthConfig: () -> dev.qarasky.korecalendar.data.AuthConfig = { dev.qarasky.korecalendar.data.AuthConfig() }
+    override suspend fun authConfig(): dev.qarasky.korecalendar.data.AuthConfig { calls += "authConfig"; return onAuthConfig() }
     override suspend fun createToken(name: String): TokenCreated { calls += "createToken:$name"; return onCreateToken(name) }
     override suspend fun logout() { calls += "logout"; onLogout() }
     override suspend fun me(): User { calls += "me"; return onMe() }

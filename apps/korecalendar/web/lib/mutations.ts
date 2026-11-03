@@ -3,8 +3,12 @@
 import { api } from "./api";
 import { writePref, PREF_COOKIES } from "./prefs";
 
-export function signOut(): Promise<void> {
-  return api<void>("/api/logout", { method: "POST" });
+/** Ends the session. For a Kore ID session the API also returns where to send
+ *  the browser to end the single sign-on session (it returns to /login). */
+export async function signOut(): Promise<string | null> {
+  const res = await api<{ end_session_url?: string } | undefined>("/api/logout", { method: "POST" });
+  const url = res?.end_session_url;
+  return url && /^https?:\/\//.test(url) ? url : null;
 }
 
 /** Stores which calendars are hidden (a cookie, so the server can leave them out). */

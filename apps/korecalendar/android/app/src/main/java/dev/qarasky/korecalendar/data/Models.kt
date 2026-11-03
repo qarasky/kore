@@ -30,6 +30,16 @@ data class User(val id: String, val email: String, val role: String = "user", va
 @Serializable
 data class Session(val token: String, val user: User)
 
+/** `GET /api/auth/config`: the sign-in methods the server offers. */
+@Serializable
+data class AuthConfig(
+    @kotlinx.serialization.SerialName("password_login") val passwordLogin: Boolean = true,
+    val oidc: OidcInfo? = null,
+)
+
+@Serializable
+data class OidcInfo(val name: String, val issuer: String)
+
 @Serializable
 data class TokenCreated(val id: String, val name: String, val token: String)
 

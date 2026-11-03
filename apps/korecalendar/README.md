@@ -27,7 +27,7 @@ Status: **phase 1 (API and core), phase 2 (web app) and CalDAV are done;** the *
   a record of who last changed each event (you, or the token's name).
 - **Reminders** to browsers over Web Push, de-duplicated and restart-safe.
 - **Several calendars** with colours, text search, a change feed for sync, `.ics` import/export, and **CalDAV** for apps and libraries that speak it ([docs/caldav.md](docs/caldav.md)).
-- **Accounts like Kore**: the first account is the admin and can add others. Everyone's data is private (another person's item is a 404).
+- **Accounts like Kore**: the first account is the admin and can add others. Everyone's data is private (another person's item is a 404). Optional **Sign in with Kore ID** (OpenID Connect) next to, or instead of, passwords: [docs/deploy.md](docs/deploy.md#sign-in-with-kore-id).
 
 ## Install
 

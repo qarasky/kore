@@ -22,6 +22,10 @@ Enter the **server address** (the same one you use in the browser, for example `
   your sign-in and your calendar then travel unencrypted. That is fine at home or over Tailscale, not on public Wi-Fi.
 - The password is used **once**. The app signs in, asks the server for its own access token named `Android, <your phone>`, ends that session, and keeps only the token, encrypted with a key
   held by the phone's hardware-backed keystore. To cut the phone off, delete that token in the web app (Settings, Access tokens): the app then asks you to sign in again.
+- **Sign in with Kore ID** (when the server has it on, see [deploy.md](deploy.md#sign-in-with-kore-id)): the button opens the system browser (not a WebView) on Kore ID with PKCE and
+  returns through `dev.qarasky.korecalendar:/oauth2redirect`. The app trades the code for a Kore ID access token, uses it once to create the same `Android, <your phone>` access token, and drops it:
+  no Kore ID token is stored. Needs a public client `korecalendar-android` in Kore ID with that redirect URI, and `KORECAL_OIDC_EXTRA_AUDIENCES=korecalendar-android` on the server.
+  Status: the flow and its logic are unit-tested (`KoreIdTest`) but have **not been run on a device or against a real Kore ID** yet.
 - Times are shown in the time zone of your **account** (Settings on the web), not the phone's current zone.
 
 ## The agenda

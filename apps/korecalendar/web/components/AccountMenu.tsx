@@ -33,11 +33,16 @@ export function AccountMenu() {
           label: t("account.signOut"),
           icon: <LogOutIcon size={16} />,
           onSelect: async () => {
+            let endSession: string | null = null;
             try {
-              await signOut();
+              endSession = await signOut();
             } finally {
-              router.replace("/login");
-              router.refresh();
+              if (endSession) {
+                window.location.assign(endSession);
+              } else {
+                router.replace("/login");
+                router.refresh();
+              }
             }
           },
         },

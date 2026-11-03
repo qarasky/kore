@@ -63,13 +63,19 @@ func hashToken(tok string) string {
 
 // NewSession creates a session and returns the raw token; only its SHA-256 is stored.
 func NewSession(ctx context.Context, db *sql.DB, userID string, ttl time.Duration) (string, error) {
+	return NewSessionWithIDToken(ctx, db, userID, ttl, "")
+}
+
+// NewSessionWithIDToken is NewSession for a Kore ID login: it keeps the id
+// token, which RP-initiated logout needs as id_token_hint.
+func NewSessionWithIDToken(ctx context.Context, db *sql.DB, userID string, ttl time.Duration, idToken string) (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
 	tok := base64.RawURLEncoding.EncodeToString(b)
-	_, err := db.ExecContext(ctx, `INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)`,
-		hashToken(tok), userID, time.Now().Add(ttl).Unix())
+	_, err := db.ExecContext(ctx, `INSERT INTO sessions(token_hash,user_id,expires_at,id_token) VALUES(?,?,?,?)`,
+		hashToken(tok), userID, time.Now().Add(ttl).Unix(), idToken)
 	if err != nil {
 		return "", err
 	}
@@ -93,4 +99,11 @@ func UserForToken(ctx context.Context, db *sql.DB, tok string) (users.User, erro
 func DeleteSession(ctx context.Context, db *sql.DB, tok string) error {
 	_, err := db.ExecContext(ctx, `DELETE FROM sessions WHERE token_hash=?`, hashToken(tok))
 	return err
+}
+
+// SessionIDToken returns the Kore ID token stored with a session ("" if none).
+func SessionIDToken(ctx context.Context, db *sql.DB, tok string) string {
+	var t string
+	db.QueryRowContext(ctx, `SELECT id_token FROM sessions WHERE token_hash=?`, hashToken(tok)).Scan(&t)
+	return t
 }

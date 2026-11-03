@@ -60,10 +60,17 @@ func RawToken(r *http.Request) string {
 
 // Require authenticates the request (session bearer token or cookie) and
 // puts the Principal in the context; otherwise it answers 401 unauthorized.
-func Require(db *sql.DB) func(http.Handler) http.Handler {
+func Require(db *sql.DB) func(http.Handler) http.Handler { return RequireWith(db, nil) }
+
+// BearerVerifier authenticates a bearer token that is neither a kcal_ access
+// token nor a session token (for example a Kore ID access token).
+type BearerVerifier func(ctx context.Context, token string) (Principal, bool)
+
+// RequireWith is Require with an extra bearer type, tried last.
+func RequireWith(db *sql.DB, extra BearerVerifier) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			p, ok := authenticate(r, db)
+			p, ok := authenticate(r, db, extra)
 			if !ok {
 				writeErr(w, http.StatusUnauthorized, "unauthorized", "authentication required")
 				return
@@ -73,7 +80,7 @@ func Require(db *sql.DB) func(http.Handler) http.Handler {
 	}
 }
 
-func authenticate(r *http.Request, db *sql.DB) (Principal, bool) {
+func authenticate(r *http.Request, db *sql.DB, extra BearerVerifier) (Principal, bool) {
 	tok := RawToken(r)
 	if tok == "" {
 		return Principal{}, false
@@ -83,6 +90,9 @@ func authenticate(r *http.Request, db *sql.DB) (Principal, bool) {
 	}
 	u, err := UserForToken(r.Context(), db, tok)
 	if err != nil {
+		if extra != nil && r.Header.Get("Authorization") != "" {
+			return extra(r.Context(), tok)
+		}
 		return Principal{}, false
 	}
 	return Principal{UserID: u.ID, Role: u.Role, Via: "session"}, true

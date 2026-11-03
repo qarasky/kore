@@ -13,12 +13,12 @@ const inputClass =
 /** Email + password form for sign-in (`POST /api/login`) and first-run
  *  account creation (`POST /api/setup`). On success the API has set the
  *  session cookie; we go to `next`. */
-export function AuthForm({ mode, next, expired = false }: { mode: "login" | "setup"; next: string; expired?: boolean }) {
+export function AuthForm({ mode, next, expired = false, error: initialError = null }: { mode: "login" | "setup"; next: string; expired?: boolean; error?: string | null }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError);
 
   async function submit(e: FormEvent) {
     e.preventDefault();

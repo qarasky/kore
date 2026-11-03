@@ -125,8 +125,59 @@ unless you pass `--build-arg VERSION=...`.
 | `KORECAL_PUBLIC_URL` | empty | your public `https://` address; sent to push services as the operator contact for browser notifications |
 | `KORECAL_SUBNET` | `172.31.255.0/24` | subnet of Caddy's network, also the range whose forwarded headers are trusted (see below); change it only if it collides with a network you already use |
 
+| `KORECAL_OIDC_ISSUER` | empty | turns on [Sign in with Kore ID](#sign-in-with-kore-id): the provider's public address, e.g. `https://id.kore.example` |
+| `KORECAL_OIDC_CLIENT_ID` | `korecalendar` | the client id registered in Kore ID |
+| `KORECAL_OIDC_CLIENT_SECRET` | empty | the client secret Kore ID printed for it (keep `.env` private) |
+| `KORECAL_OIDC_EXTRA_AUDIENCES` | empty | more client ids (comma separated) whose Kore ID access tokens the API accepts, e.g. `korecalendar-android` |
+| `KORECAL_OIDC_ADMIN_SUBS` | empty | Kore ID subjects (comma separated) that are administrators |
+| `KORECAL_OIDC_AUTO_PROVISION` | `true` | create a local account on a first Kore ID sign-in |
+| `KORECAL_OIDC_LINK_BY_EMAIL` | `off` | `off`, `verified` or `trusted`: link a Kore ID login to a local account with the same email |
+| `KORECAL_OIDC_NAME`, `KORECAL_OIDC_SCOPES` | `Kore ID`, `openid profile email` | button label and requested scopes |
+| `KORECAL_PASSWORD_LOGIN` | `true` | `false` turns off email + password sign-in and first-run setup (needs Kore ID) |
+
 The API itself also reads `KORECAL_PORT`, `KORECAL_BIND`, `KORECAL_DATA_DIR`, `KORECAL_PUBLIC_URL` and a TOML file (`korecalendar.example.toml`); inside the containers
 compose sets those for you and you do not touch them.
+
+## Sign in with Kore ID
+
+KoreCalendar can use [Kore ID](https://github.com/qarasky/kore-auth), the shared OpenID Connect sign-in of the Kore apps, next to (or instead of) its own passwords.
+It is optional; with nothing set, nothing changes.
+
+1. In Kore ID's `clients.json` register the client `korecalendar` with `redirectUris` `["https://calendar.example.com/api/auth/oidc/callback"]` and
+   `postLogoutRedirectUris` `["https://calendar.example.com/login"]` (your `KORECAL_PUBLIC_URL`, no path).
+2. In `.env` set `KORECAL_PUBLIC_URL`, `KORECAL_OIDC_ISSUER` and `KORECAL_OIDC_CLIENT_SECRET`, then `docker compose up -d`.
+   The api container must reach the issuer (it is on the `egress` network); the browser must reach it too, at the same address.
+3. The sign-in page now shows "Sign in with Kore ID". The browser goes to Kore ID with PKCE, a `state` and a `nonce`; the API checks the state against a cookie
+   and a one-time server-side record, exchanges the code, verifies the id token's EdDSA signature against Kore ID's JWKS (issuer, audience, expiry, nonce)
+   and starts the usual session cookie. Logging out also ends the Kore ID session.
+
+**Who is who.** An account is keyed on the token's `sub` (the same UUID in every Kore app). The first sign-in creates an account (`KORECAL_OIDC_AUTO_PROVISION`)
+with its default calendar. The email is copied once and is not kept in sync.
+
+**Administrators.** Auto-created accounts are normal users, except subjects in `KORECAL_OIDC_ADMIN_SUBS`. On a fresh install with no account yet, a Kore ID sign-in
+is refused unless the subject is listed there (otherwise whoever signed in first on a public Kore ID would take over); or create the first account with a password as usual.
+
+**Existing accounts (migration).** Kore ID does not verify email addresses (and may allow open registration), so by default a Kore ID login is **never** merged into a
+local account just because the emails match; someone could register your address there. To move an existing account over, sign in once to Kore ID, read your `sub`
+at the Kore ID account page (or `GET /userinfo`), and run, on the server:
+
+```sh
+docker compose run --rm --no-deps api korecalendar link you@example.com 00000000-0000-4000-8000-000000000000
+```
+
+The next Kore ID sign-in lands on the old account with all its calendars and tokens. (If you stop here, the Kore ID sign-in that already created an empty account keeps
+failing with "email in use", which is the safe outcome.) `KORECAL_OIDC_LINK_BY_EMAIL=verified` links automatically only when the provider sends `email_verified: true`
+(Kore ID does not yet); `trusted` links on any email match and is only safe if Kore ID registration is closed and you trust its operator.
+
+**Without passwords.** `KORECAL_PASSWORD_LOGIN=false` removes `POST /api/login` and `POST /api/setup` (they answer `403 password_login_disabled`) and hides the form. Access tokens
+(`kcal_…`) and CalDAV (which only ever took access tokens) keep working. KoreCalendar refuses to start with passwords off and no Kore ID, and only set it after you have an administrator.
+
+**Agents and scripts** keep using access tokens; nothing about them changes. The API also accepts a Kore ID *access token* (a JWT for audience `korecalendar`, or an
+`KORECAL_OIDC_EXTRA_AUDIENCES` client) as `Authorization: Bearer`: it counts as a signed-in session (it can create `kcal_` tokens, which is how the Android app finishes sign-in).
+ID tokens and tokens for other Kore apps are refused. A Kore ID access token lasts about 10 minutes.
+
+**Limits.** A KoreCalendar session (30 days) is independent of the Kore ID session: disabling someone in Kore ID stops new sign-ins and their Kore ID bearer tokens within
+minutes, but not a session or `kcal_` token they already hold (KoreCalendar has no way to disable a user yet; revoke their tokens from Settings as the owner of the account, or remove the sessions in the database).
 
 ## HTTPS and how to reach it
 

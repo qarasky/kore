@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io/fs"
 	"net"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -18,6 +20,41 @@ type Config struct {
 	Bind      string `toml:"bind"`
 	DataDir   string `toml:"data_dir"`
 	PublicURL string `toml:"public_url"`
+	// PasswordLogin allows email + password sign-in and first-run setup (default
+	// true). Set false to require Kore ID; needs [oidc].
+	PasswordLogin bool `toml:"password_login"`
+	OIDC          OIDC `toml:"oidc"`
+}
+
+// OIDC configures sign-in with Kore ID (or any OpenID Connect provider with
+// EdDSA-signed tokens). It is enabled by setting Issuer.
+type OIDC struct {
+	Issuer           string   `toml:"issuer"`
+	ClientID         string   `toml:"client_id"`
+	ClientSecret     string   `toml:"client_secret"`      // prefer client_secret_file / the env var
+	ClientSecretFile string   `toml:"client_secret_file"` // e.g. a Docker secret
+	Scopes           []string `toml:"scopes"`
+	// ExtraAudiences are further client ids (e.g. "korecalendar-android") whose
+	// access tokens the API accepts as bearer tokens.
+	ExtraAudiences []string `toml:"extra_audiences"`
+	// LinkByEmail: "off" (default) never links a Kore ID login to an existing
+	// local account; "verified" links when the token says email_verified=true;
+	// "trusted" links on any email match (only if Kore ID registration is closed).
+	LinkByEmail   string   `toml:"link_by_email"`
+	AutoProvision bool     `toml:"auto_provision"` // create a local user on first login (default true)
+	AdminSubs     []string `toml:"admin_subs"`     // Kore ID subs that become administrators
+	Name          string   `toml:"name"`           // button label (default "Kore ID")
+}
+
+// Enabled reports whether OIDC sign-in is configured.
+func (o OIDC) Enabled() bool { return o.Issuer != "" }
+
+func splitList(v string) []string {
+	var out []string
+	for _, f := range strings.FieldsFunc(v, func(r rune) bool { return r == ',' || r == ' ' }) {
+		out = append(out, f)
+	}
+	return out
 }
 
 // Load reads and validates the config. The file at path is optional;
@@ -25,7 +62,7 @@ type Config struct {
 // set and non-empty, override the file (this is how the Docker image is
 // configured from .env).
 func Load(path string) (Config, error) {
-	c := Config{Port: 8080, Bind: "127.0.0.1"}
+	c := Config{Port: 8080, Bind: "127.0.0.1", PasswordLogin: true, OIDC: OIDC{AutoProvision: true}}
 	b, err := os.ReadFile(path)
 	switch {
 	case err == nil:
@@ -51,6 +88,9 @@ func Load(path string) (Config, error) {
 			*dst = v
 		}
 	}
+	if err := c.loadOIDCEnv(); err != nil {
+		return Config{}, err
+	}
 	if net.ParseIP(c.Bind) == nil {
 		return Config{}, fmt.Errorf("invalid bind address %q", c.Bind)
 	}
@@ -60,5 +100,94 @@ func Load(path string) (Config, error) {
 	if c.DataDir == "" {
 		return Config{}, errors.New("data_dir is required (config file or KORECAL_DATA_DIR)")
 	}
+	if err := c.validateOIDC(); err != nil {
+		return Config{}, err
+	}
 	return c, nil
+}
+
+func envBool(name string, dst *bool) error {
+	v := os.Getenv(name)
+	if v == "" {
+		return nil
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return fmt.Errorf("invalid %s %q (use true or false)", name, v)
+	}
+	*dst = b
+	return nil
+}
+
+// loadOIDCEnv applies the KORECAL_PASSWORD_LOGIN and KORECAL_OIDC_* overrides.
+func (c *Config) loadOIDCEnv() error {
+	if err := envBool("KORECAL_PASSWORD_LOGIN", &c.PasswordLogin); err != nil {
+		return err
+	}
+	if err := envBool("KORECAL_OIDC_AUTO_PROVISION", &c.OIDC.AutoProvision); err != nil {
+		return err
+	}
+	for env, dst := range map[string]*string{
+		"KORECAL_OIDC_ISSUER":             &c.OIDC.Issuer,
+		"KORECAL_OIDC_CLIENT_ID":          &c.OIDC.ClientID,
+		"KORECAL_OIDC_CLIENT_SECRET":      &c.OIDC.ClientSecret,
+		"KORECAL_OIDC_CLIENT_SECRET_FILE": &c.OIDC.ClientSecretFile,
+		"KORECAL_OIDC_LINK_BY_EMAIL":      &c.OIDC.LinkByEmail,
+		"KORECAL_OIDC_NAME":               &c.OIDC.Name,
+	} {
+		if v := os.Getenv(env); v != "" {
+			*dst = v
+		}
+	}
+	for env, dst := range map[string]*[]string{
+		"KORECAL_OIDC_SCOPES":          &c.OIDC.Scopes,
+		"KORECAL_OIDC_EXTRA_AUDIENCES": &c.OIDC.ExtraAudiences,
+		"KORECAL_OIDC_ADMIN_SUBS":      &c.OIDC.AdminSubs,
+	} {
+		if v := os.Getenv(env); v != "" {
+			*dst = splitList(v)
+		}
+	}
+	return nil
+}
+
+func (c *Config) validateOIDC() error {
+	o := &c.OIDC
+	if !o.Enabled() {
+		if !c.PasswordLogin {
+			return errors.New("password_login is off but no [oidc] issuer is set: nobody could sign in")
+		}
+		return nil
+	}
+	if o.ClientID == "" {
+		o.ClientID = "korecalendar"
+	}
+	if o.Name == "" {
+		o.Name = "Kore ID"
+	}
+	if o.LinkByEmail == "" {
+		o.LinkByEmail = "off"
+	}
+	switch o.LinkByEmail {
+	case "off", "verified", "trusted":
+	default:
+		return fmt.Errorf("invalid oidc link_by_email %q (use off, verified or trusted)", o.LinkByEmail)
+	}
+	if o.ClientSecretFile != "" && o.ClientSecret == "" {
+		b, err := os.ReadFile(o.ClientSecretFile)
+		if err != nil {
+			return fmt.Errorf("read oidc client_secret_file: %w", err)
+		}
+		o.ClientSecret = strings.TrimSpace(string(b))
+	}
+	u, err := url.Parse(c.PublicURL)
+	if c.PublicURL == "" || err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || (u.Path != "" && u.Path != "/") {
+		return errors.New("public_url (KORECAL_PUBLIC_URL) must be the site's origin, e.g. https://calendar.example.com, when oidc is enabled: it builds the redirect URI")
+	}
+	return nil
+}
+
+// OIDCRedirectURL is the callback to register with the provider.
+func (c Config) OIDCRedirectURL() string {
+	return strings.TrimRight(c.PublicURL, "/") + "/api/auth/oidc/callback"
 }

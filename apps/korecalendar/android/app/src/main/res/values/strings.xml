@@ -10,6 +10,9 @@
     <string name="email">Email</string>
     <string name="password">Password</string>
     <string name="sign_in">Sign in</string>
+    <string name="sign_in_koreid">Sign in with Kore ID</string>
+    <string name="err_no_koreid">This server does not offer Kore ID sign-in.</string>
+    <string name="err_koreid_cancelled">Sign-in with Kore ID was cancelled.</string>
     <string name="signing_in">Signing in…</string>
     <string name="cleartext_warning">This address is not encrypted (http). Your sign-in and your calendar travel unprotected. That is fine at home or over Tailscale; avoid it on public Wi-Fi.</string>
     <string name="session_ended">Your sign-in ended. Sign in again to keep the calendar up to date.</string>

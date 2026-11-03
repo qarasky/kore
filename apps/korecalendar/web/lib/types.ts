@@ -1,6 +1,12 @@
 /** Shapes of the KoreCalendar API (docs/openapi.yaml). Times are wall-clock
  *  strings in the event's own zone; `*_utc` fields are RFC 3339 instants. */
 
+/** `GET /api/auth/config`: which sign-in methods the server offers. */
+export type AuthConfig = {
+  password_login: boolean;
+  oidc: { name: string; issuer: string; client_id: string; login_url: string } | null;
+};
+
 export type Role = "admin" | "user";
 
 export type User = { id: string; email: string; role: Role; timezone: string };

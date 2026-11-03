@@ -58,5 +58,6 @@ base="http://127.0.0.1:$PORT"
 [ "$(status_of "$base/api/healthz")" = 200 ] || fail "GET /api/healthz did not answer 200"
 # A fresh install redirects /login to the first-run page; follow it.
 [ "$(status_of -L "$base/login")" = 200 ] || fail "GET /login did not end in 200"
+[ "$(status_of "$base/api/auth/config")" = 200 ] || fail "GET /api/auth/config did not answer 200"
 [ "$(status_of "$base/dav/")" = 401 ] || fail "GET /dav/ without credentials did not answer 401"
 echo "smoke: ok ($VERSION)"
