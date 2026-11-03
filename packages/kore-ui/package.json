@@ -1,0 +1,69 @@
+{
+  "name": "@qarasky/kore-ui",
+  "version": "0.1.0",
+  "description": "Kore design system: tokens, theme and React components shared by every Kore web UI.",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/qarasky/kore-ui.git"
+  },
+  "sideEffects": [
+    "*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./theme.css": {
+      "style": "./theme.css",
+      "default": "./theme.css"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "!src/**/*.test.tsx",
+    "!src/test",
+    "theme.css",
+    "DESIGN.md",
+    "README.md"
+  ],
+  "scripts": {
+    "dev": "npm --prefix showcase run dev",
+    "build": "npm --prefix showcase run build",
+    "showcase:install": "npm --prefix showcase install",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p showcase",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "screenshots": "node scripts/screenshots.mjs"
+  },
+  "peerDependencies": {
+    "react": "^19",
+    "react-dom": "^19",
+    "tailwindcss": "^4"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.67.0",
+    "radix-ui": "^1.8.1",
+    "tailwind-merge": "^3.7.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.8",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "jsdom": "^30.1.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tailwindcss": "^4.3.4",
+    "typescript": "^5",
+    "vitest": "^5.1.0"
+  }
+}
