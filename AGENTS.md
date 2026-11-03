@@ -96,13 +96,14 @@ restrictive CSP (`sandbox`). Nothing user-controlled becomes a filesystem path
 ## UI conventions
 
 - Every UI string lives in `web/lib/i18n/en.ts`, read with `t(key, vars)`.
-- Use the custom `components/Select.tsx`; native `<select>` is banned (a unit
-  test enforces it). No `dangerouslySetInnerHTML`.
-- Design tokens in `web/app/globals.css` `@theme` (dark only): bg `#16181d`,
-  surface `#1d2026`, raised `#23262d`, border `#2c3038`, text `#e6e8ee`,
-  muted `#8a8f9a`, accent `#5b8def`, radius 6px. Sizes are tokens too:
-  `text-meta/sub/heading/title`, `h-row` (48px rows), `min-h-control`
-  (40px controls), `size-icon`. Use them instead of pixel literals.
+- UI is built from `@qarasky/kore-ui` (pinned tarball tag in `web/package.json`;
+  `kore-ui/DESIGN.md` is the design source of truth): AppShell, Button, Field,
+  Input, Select, Dialog, ConfirmDialog, Menu, Toast (`useToast`), Table, Meter,
+  EmptyState, AuthScreen, AccountMenu. Icons are lucide. Don't re-create a
+  primitive locally (a unit test guards the old ones and native
+  `<select>`/`<dialog>`); compose app views from kore-ui parts and its tokens
+  (`bg-surface`, `text-muted`, `h-row`, `min-h-control`, `size-icon`…), no
+  pixel literals or local colour tokens. No `dangerouslySetInnerHTML`.
 - Data pages are Server Components fetching via `api()` with the session
   cookie; mutations call the API from the client, then `router.refresh()`.
 - Error boundaries: use `retry()` (re-fetches the server payload, Next 16.3+),
