@@ -19,12 +19,13 @@ import (
 )
 
 const (
-	callbackPath   = "/api/auth/oidc/callback"
-	flowCookie     = "kore_oidc"
-	flowTTL        = 10 * time.Minute
-	refreshEvery   = 10 * time.Minute // how often an SSO session proves itself to the provider
-	refreshBackoff = time.Minute      // retry delay after a transient provider failure
-	defaultNext    = "/files"
+	callbackPath    = "/api/auth/oidc/callback"
+	backchannelPath = "/api/auth/oidc/backchannel-logout"
+	flowCookie      = "kore_oidc"
+	flowTTL         = 10 * time.Minute
+	refreshEvery    = 10 * time.Minute // how often an SSO session proves itself to the provider
+	refreshBackoff  = time.Minute      // retry delay after a transient provider failure
+	defaultNext     = "/files"
 )
 
 type ssoState struct {
@@ -52,7 +53,7 @@ func WithConfig(cfg config.Config) Option {
 				Issuer: cfg.OIDC.Issuer, ClientID: cfg.OIDC.ClientID, ClientSecret: cfg.OIDC.ClientSecret,
 				RedirectURL: cfg.PublicURL + callbackPath,
 			}),
-			publicURL: cfg.PublicURL, linkByEmail: cfg.OIDC.LinkByEmail, autoProvision: cfg.OIDC.AutoProvisionEnabled(),
+			publicURL: cfg.PublicURL, linkByEmail: cfg.OIDC.LinkByEmailEnabled(), autoProvision: cfg.OIDC.AutoProvisionEnabled(),
 			limit: auth.NewLimiter(30, 15*time.Minute),
 		}
 	}
@@ -72,6 +73,7 @@ func (s *server) registerSSO(mux *http.ServeMux) {
 	if s.sso != nil {
 		mux.HandleFunc("GET /api/auth/oidc/login", s.oidcLogin)
 		mux.HandleFunc("GET "+callbackPath, s.oidcCallback)
+		mux.HandleFunc("POST "+backchannelPath, s.backchannelLogout)
 	}
 }
 
@@ -209,7 +211,7 @@ func (s *server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, s.sso.publicURL+"/account?sso=linked", http.StatusFound)
 		return
 	}
-	sess, err := auth.NewSSOSession(r.Context(), s.db, u.ID, sessionTTL, tok.IDToken, tok.RefreshToken)
+	sess, err := auth.NewSSOSession(r.Context(), s.db, u.ID, sessionTTL, tok.IDToken, tok.RefreshToken, claims.Sid)
 	if err != nil {
 		fail("sso_failed")
 		return
@@ -223,8 +225,8 @@ func (s *server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 // resolveSSOUser maps verified claims to a local user: by sub; else (link
-// flow) bind to the signed-in user; else by email only if link_by_email;
-// else provision. The second result is an error code for the login page.
+// flow) bind to the signed-in user; else by email when link_by_email is on
+// and the provider says email_verified; else provision. The second result is an error code for the login page.
 func (s *server) resolveSSOUser(ctx context.Context, c oidc.Claims, linkUserID string) (users.User, string) {
 	if linkUserID != "" {
 		switch err := auth.LinkSub(ctx, s.db, linkUserID, c.Sub); {
@@ -254,7 +256,7 @@ func (s *server) resolveSSOUser(ctx context.Context, c oidc.Claims, linkUserID s
 	switch {
 	case err == nil:
 		// The email belongs to a local account that is not (yet) linked to this subject.
-		if sub != "" || !s.sso.linkByEmail {
+		if sub != "" || !s.sso.linkByEmail || !c.EmailVerified {
 			return users.User{}, "sso_email_in_use"
 		}
 		if err := auth.LinkSub(ctx, s.db, existing.ID, c.Sub); err != nil {
@@ -302,15 +304,15 @@ func (s *server) sessionMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// bearerUser authenticates a Kore ID access token (audience = our client id).
-// ID tokens are refused: access tokens carry a scope claim, ID tokens do not.
+// bearerUser authenticates a Kore ID access token (audience = our client id,
+// header typ at+jwt). ID tokens (typ JWT) are refused.
 func (s *server) bearerUser(r *http.Request) (users.User, bool) {
 	h := r.Header.Get("Authorization")
 	if len(h) < 8 || !strings.EqualFold(h[:7], "bearer ") {
 		return users.User{}, false
 	}
-	c, err := s.sso.p.Verify(r.Context(), strings.TrimSpace(h[7:]))
-	if err != nil || c.Scope == "" {
+	c, err := s.sso.p.VerifyAccessToken(r.Context(), strings.TrimSpace(h[7:]))
+	if err != nil {
 		return users.User{}, false
 	}
 	u, code := s.resolveSSOUser(r.Context(), c, "")
@@ -368,4 +370,40 @@ func (s *server) ssoLogoutURL(ctx context.Context, tok string) string {
 		return ""
 	}
 	return s.sso.p.EndSessionURL(ctx, ss.IDToken, s.sso.publicURL+"/login", "")
+}
+
+// backchannelLogout implements OIDC Back-Channel Logout 1.0: Kore ID POSTs a
+// signed logout_token when a Kore ID session ends, and every local session
+// created from it (same sid) is deleted; a token without sid ends all sessions
+// of the user linked to its sub. It is server-to-server: no cookies, no
+// session middleware (see handler).
+func (s *server) backchannelLogout(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+	if err := r.ParseForm(); err != nil {
+		errJSON(w, 400, "invalid_request")
+		return
+	}
+	lc, err := s.sso.p.VerifyLogoutToken(r.Context(), r.PostForm.Get("logout_token"))
+	if err != nil {
+		log.Printf("sso: back-channel logout: %v", err)
+		errJSON(w, 400, "invalid_request")
+		return
+	}
+	var n int64
+	if lc.Sid != "" {
+		n, err = auth.DeleteSessionsBySID(r.Context(), s.db, lc.Sid)
+	} else {
+		n, err = auth.DeleteSessionsBySub(r.Context(), s.db, lc.Sub)
+	}
+	if err != nil {
+		log.Printf("sso: back-channel logout: %v", err)
+		s.sso.p.ForgetLogoutJTI(lc.Jti) // let the provider's retry through
+		errJSON(w, 500, "internal")
+		return
+	}
+	if n > 0 {
+		log.Printf("sso: back-channel logout ended %d session(s)", n)
+	}
+	w.WriteHeader(200)
 }

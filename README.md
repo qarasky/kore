@@ -261,13 +261,18 @@ Kore can sign people in with Kore ID, the
 OpenID Connect provider shared by the Kore apps. It is off until
 `KORE_OIDC_ISSUER` is set; nothing changes for existing installs.
 
-**Set up.** In Kore ID's `clients.json`, give client `kore` this redirect URI
-and post-logout redirect URI (use your real address):
+**Set up.** In Kore ID's `clients.json`, give client `kore` this redirect URI,
+post-logout redirect URI and back-channel logout URI (use your real address):
 
 ```
 redirectUris:           https://kore.example.com/api/auth/oidc/callback
 postLogoutRedirectUris: https://kore.example.com/login
+backchannelLogoutUri:   https://kore.example.com/api/auth/oidc/backchannel-logout
 ```
+
+Caddy sends every `/api/*` request straight to the Go API, so these public
+URLs reach it (Kore ID must be able to reach Kore's public address for the
+back-channel call).
 
 Then in `.env` (or `kore.toml`, see `kore.example.toml`):
 
@@ -278,7 +283,7 @@ Then in `.env` (or `kore.toml`, see `kore.example.toml`):
 | `KORE_OIDC_CLIENT_ID` | `kore` | |
 | `KORE_OIDC_CLIENT_SECRET` | empty | the client secret (basic/post; `post` is used) |
 | `KORE_OIDC_AUTO_PROVISION` | `true` | create an account on a person's first login (role `user`, default quota) |
-| `KORE_OIDC_LINK_BY_EMAIL` | `false` | on first login, adopt the local account with the same email (see below) |
+| `KORE_OIDC_LINK_BY_EMAIL` | `true` | on first login, adopt the unlinked local account with the same email when Kore ID says `email_verified` (see below) |
 | `KORE_LOCAL_LOGIN` | `true` | `false` turns email + password login off (login and change-password answer 403 `local_login_disabled`) |
 
 The API container needs outbound access to Kore ID: `docker-compose.yml`
@@ -294,20 +299,35 @@ else (quotas, roles, share links, uploads) is unchanged. Sessions created this
 way redeem their refresh token every ten minutes: if the person signed out
 everywhere at Kore ID or the account is gone there, the Kore session ends too
 (a Kore ID outage does not log anyone out). Signing out of Kore also ends the
-Kore ID session (RP-initiated logout). The API also accepts
-`Authorization: Bearer <Kore ID access token>` (audience `kore`) alongside the
-cookie, mapped to the same users; Kore has no other API tokens.
+Kore ID session (RP-initiated logout). The other direction uses OIDC
+Back-Channel Logout: when a Kore ID session ends (sign-out, admin disable,
+"sign out everywhere", password reset), Kore ID POSTs a signed `logout_token`
+to `/api/auth/oidc/backchannel-logout`, and Kore deletes every session created
+from that Kore ID session (the id token's `sid`, stored on the session), or,
+for a token without `sid`, every session of the user linked to its `sub`. The
+token is verified against the JWKS (issuer, audience `kore`, `typ: logout+jwt`,
+`iat`/`exp`/`jti`, the back-channel `events` claim, no `nonce`); used `jti`s
+are remembered in memory until they expire, which assumes a single API
+instance (the default). The API also accepts
+`Authorization: Bearer <Kore ID access token>` (audience `kore`, header
+`typ: at+jwt`; id tokens are refused) alongside the cookie, mapped to the same
+users; Kore has no other API tokens.
 
-**Existing accounts.** Kore ID does not verify email addresses and anyone can
-register there, so by default an SSO login whose email matches an unlinked
-local account is **refused** (`sso_email_in_use`) rather than merged. Link them
-one of these ways:
+**Who may sign in** is decided by Kore ID (its per-app access rules); Kore has
+no SSO allowlist of its own. `KORE_OIDC_AUTO_PROVISION=false` is the only
+extra local filter: then only people who already have a (linked or
+email-matching) Kore account get in.
+
+**Existing accounts.** On a first Kore ID login whose email matches a local
+account that is not linked yet, Kore links the two **only if the token says
+`email_verified: true`** (the default, `KORE_OIDC_LINK_BY_EMAIL=true`). An
+unverified email, or any match with the flag set to `false`, is **refused**
+(`sso_email_in_use`) rather than merged; a local account already linked to a
+different Kore ID account is never taken over. To link by hand:
 
 - the person signs in with their password, opens **Account**, and clicks **Link Kore ID**
   (they must authenticate at Kore ID again);
-- an operator runs `docker compose exec api kore link -email jane@example.com -sub <Kore ID uuid>`;
-- only if Kore ID's registration is closed and you control who has accounts there:
-  `KORE_OIDC_LINK_BY_EMAIL=true`.
+- an operator runs `docker compose exec api kore link -email jane@example.com -sub <Kore ID uuid>`.
 
 Migration path to SSO-only: link every account (above), check that the admin
 can sign in with Kore ID, then set `KORE_LOCAL_LOGIN=false`. Setting it back to

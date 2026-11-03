@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/qarasky/kore/api/internal/auth"
+	"github.com/qarasky/kore/api/internal/config"
 	"github.com/qarasky/kore/api/internal/oidc"
 	"github.com/qarasky/kore/api/internal/store"
 	"github.com/qarasky/kore/api/internal/users"
@@ -33,17 +34,19 @@ type fakeID struct {
 	priv ed25519.PrivateKey
 	mu   sync.Mutex
 	// tokenFn answers /token; default returns an id token for sub/email with the request's nonce.
-	nonce      string
-	sub, email string
-	refreshErr string // "invalid_grant" or "boom": make refresh fail
-	refreshes  int
-	tokenReqs  []url.Values
+	nonce         string
+	sub, email    string
+	sid           string // "sid" claim of id tokens ("" = none)
+	emailVerified bool
+	refreshErr    string // "invalid_grant" or "boom": make refresh fail
+	refreshes     int
+	tokenReqs     []url.Values
 }
 
 func newFakeID(t *testing.T) *fakeID {
 	t.Helper()
 	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
-	f := &fakeID{priv: priv, sub: "11111111-1111-4111-8111-111111111111", email: "new@kore.test"}
+	f := &fakeID{priv: priv, sub: "11111111-1111-4111-8111-111111111111", email: "new@kore.test", sid: "sid-1"}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]any{"issuer": f.srv.URL, "authorization_endpoint": f.srv.URL + "/authorize",
@@ -73,19 +76,48 @@ func newFakeID(t *testing.T) *fakeID {
 			json.NewEncoder(w).Encode(map[string]any{"refresh_token": "rt-next", "id_token": f.token(map[string]any{})})
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]any{"id_token": f.token(map[string]any{"nonce": f.nonce}), "refresh_token": "rt-1", "access_token": f.token(map[string]any{"scope": "openid"})})
+		json.NewEncoder(w).Encode(map[string]any{"id_token": f.token(map[string]any{"nonce": f.nonce}), "refresh_token": "rt-1", "access_token": f.access(map[string]any{})})
 	})
 	f.srv = httptest.NewServer(mux)
 	t.Cleanup(f.srv.Close)
 	return f
 }
 
+// token is an id token (typ JWT) with the given claims overridden.
 func (f *fakeID) token(over map[string]any) string {
-	c := map[string]any{"iss": f.srv.URL, "aud": "kore", "sub": f.sub, "email": f.email, "exp": time.Now().Add(10 * time.Minute).Unix()}
+	c := map[string]any{"iss": f.srv.URL, "aud": "kore", "sub": f.sub, "email": f.email, "email_verified": f.emailVerified,
+		"iat": time.Now().Unix(), "exp": time.Now().Add(10 * time.Minute).Unix()}
+	if f.sid != "" {
+		c["sid"] = f.sid
+	}
+	return f.signTyp("JWT", c, over)
+}
+
+// access is an access token (typ at+jwt).
+func (f *fakeID) access(over map[string]any) string {
+	c := map[string]any{"iss": f.srv.URL, "aud": "kore", "client_id": "kore", "sub": f.sub, "email": f.email, "email_verified": f.emailVerified,
+		"scope": "openid profile email", "iat": time.Now().Unix(), "exp": time.Now().Add(10 * time.Minute).Unix(), "jti": "at-" + b64.EncodeToString([]byte(time.Now().String()))}
+	return f.signTyp("at+jwt", c, over)
+}
+
+// logout is a back-channel logout token (typ logout+jwt) for f.sub / f.sid.
+func (f *fakeID) logout(jti string, over map[string]any) string {
+	c := map[string]any{"iss": f.srv.URL, "aud": "kore", "sub": f.sub, "sid": f.sid, "jti": jti,
+		"iat": time.Now().Unix(), "exp": time.Now().Add(2 * time.Minute).Unix(),
+		"events": map[string]any{"http://schemas.openid.net/event/backchannel-logout": map[string]any{}}}
+	return f.signTyp("logout+jwt", c, over)
+}
+
+// signTyp signs base claims with over applied (a nil value deletes the claim).
+func (f *fakeID) signTyp(typ string, c, over map[string]any) string {
 	for k, v := range over {
+		if v == nil {
+			delete(c, k)
+			continue
+		}
 		c[k] = v
 	}
-	h, _ := json.Marshal(map[string]string{"alg": "EdDSA", "kid": "k"})
+	h, _ := json.Marshal(map[string]string{"alg": "EdDSA", "kid": "k", "typ": typ})
 	cb, _ := json.Marshal(c)
 	in := b64.EncodeToString(h) + "." + b64.EncodeToString(cb)
 	return in + "." + b64.EncodeToString(ed25519.Sign(f.priv, []byte(in)))
@@ -245,20 +277,58 @@ func TestSSOCallbackRejects(t *testing.T) {
 }
 
 func TestSSOEmailCollision(t *testing.T) {
-	// An unverified email at the provider must not take over a local account.
-	e := setupSSO(t, false, true, true)
-	e.idp.email = "local@kore.test"
+	// With link_by_email on, an unverified email must not take over a local
+	// account; with it off, not even a verified one.
+	for _, tc := range []struct {
+		name             string
+		linkByEmail, ver bool
+	}{{"unverified", true, false}, {"flag off", false, true}} {
+		e := setupSSO(t, tc.linkByEmail, true, true)
+		e.idp.email, e.idp.emailVerified = "local@kore.test", tc.ver
+		q, fc := e.startLogin(t, "/api/auth/oidc/login")
+		e.idp.nonce = q.Get("nonce")
+		rec := e.callback(q, "c", fc)
+		if rec.Header().Get("Location") != pubURL+"/login?error=sso_email_in_use" || cookie(rec, auth.CookieName) != nil {
+			t.Fatalf("%s: %d %s", tc.name, rec.Code, rec.Header().Get("Location"))
+		}
+		if _, err := auth.UserBySub(context.Background(), e.db, e.idp.sub); err == nil {
+			t.Fatalf("%s: subject got linked", tc.name)
+		}
+	}
+}
+
+func TestSSOLinkByVerifiedEmailIsDefault(t *testing.T) {
+	db, err := store.Open(filepath.Join(t.TempDir(), "k.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	if _, err := users.Create(context.Background(), db, "local@kore.test", "x", "admin", 7); err != nil {
+		t.Fatal(err)
+	}
+	idp := newFakeID(t)
+	var cfg config.Config // link_by_email left unset: the default applies
+	cfg.PublicURL, cfg.OIDC.Issuer, cfg.OIDC.ClientID = pubURL, idp.srv.URL, "kore"
+	if !cfg.OIDC.LinkByEmailEnabled() {
+		t.Fatal("link_by_email must default to on")
+	}
+	e := &ssoEnv{h: New(db, t.TempDir(), WithConfig(cfg)), db: db, idp: idp}
+	idp.email, idp.emailVerified = "LOCAL@kore.test", true
 	q, fc := e.startLogin(t, "/api/auth/oidc/login")
-	e.idp.nonce = q.Get("nonce")
-	rec := e.callback(q, "c", fc)
-	if rec.Header().Get("Location") != pubURL+"/login?error=sso_email_in_use" || cookie(rec, auth.CookieName) != nil {
-		t.Fatalf("%d %s", rec.Code, rec.Header().Get("Location"))
+	idp.nonce = q.Get("nonce")
+	sess := cookie(e.callback(q, "c", fc), auth.CookieName)
+	if sess == nil {
+		t.Fatal("verified email did not link by default")
+	}
+	u, _ := auth.UserForToken(context.Background(), db, sess.Value)
+	if u.Role != "admin" || u.QuotaBytes != 7 {
+		t.Fatalf("expected the existing admin account, got %+v", u)
 	}
 }
 
 func TestSSOLinkByEmailWhenEnabled(t *testing.T) {
 	e := setupSSO(t, true, true, true)
-	e.idp.email = "local@kore.test"
+	e.idp.email, e.idp.emailVerified = "local@kore.test", true
 	q, fc := e.startLogin(t, "/api/auth/oidc/login")
 	e.idp.nonce = q.Get("nonce")
 	rec := e.callback(q, "c", fc)
@@ -352,17 +422,31 @@ func TestSSOBearerToken(t *testing.T) {
 	bearer := func(tok string) int {
 		return e.do("GET", "/api/me/usage", map[string]string{"Authorization": "Bearer " + tok}).Code
 	}
-	access := e.idp.token(map[string]any{"scope": "openid profile email"})
+	access := e.idp.access(map[string]any{})
 	if c := bearer(access); c != 200 {
 		t.Fatalf("access token: %d", c)
 	}
-	if c := bearer(e.idp.token(map[string]any{"scope": "openid", "aud": "koremind"})); c != 401 {
+	if c := bearer(e.idp.signTyp("application/at+jwt", map[string]any{"iss": e.idp.srv.URL, "aud": "kore", "sub": e.idp.sub,
+		"exp": time.Now().Add(time.Minute).Unix()}, nil)); c != 200 {
+		t.Fatalf("application/at+jwt: %d", c)
+	}
+	if c := bearer(e.idp.access(map[string]any{"aud": "koremind"})); c != 401 {
 		t.Fatalf("other app's token: %d", c)
 	}
 	if c := bearer(e.idp.token(map[string]any{})); c != 401 {
-		t.Fatalf("id token (no scope) accepted as bearer: %d", c)
+		t.Fatalf("id token (typ JWT) accepted as bearer: %d", c)
 	}
-	if c := bearer(e.idp.token(map[string]any{"scope": "openid", "exp": time.Now().Add(-time.Hour).Unix()})); c != 401 {
+	if c := bearer(e.idp.token(map[string]any{"scope": "openid"})); c != 401 {
+		t.Fatalf("typ JWT with a scope claim accepted as bearer: %d", c)
+	}
+	if c := bearer(e.idp.signTyp("", map[string]any{"iss": e.idp.srv.URL, "aud": "kore", "sub": e.idp.sub, "scope": "openid",
+		"exp": time.Now().Add(time.Minute).Unix()}, nil)); c != 401 {
+		t.Fatalf("token without typ accepted as bearer: %d", c)
+	}
+	if c := bearer(e.idp.logout("j-bearer", nil)); c != 401 {
+		t.Fatalf("logout token accepted as bearer: %d", c)
+	}
+	if c := bearer(e.idp.access(map[string]any{"exp": time.Now().Add(-time.Hour).Unix()})); c != 401 {
 		t.Fatalf("expired: %d", c)
 	}
 	if c := bearer("junk"); c != 401 {
