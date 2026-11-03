@@ -42,7 +42,7 @@ class AppControllerTest {
     private val background = FakeBackground()
     private var now = Instant.parse("2026-11-04T10:00:00Z")
     private val signIn = SignIn({ _, _ -> api }, accounts, "Pixel")
-    private val controller = AppController(accounts, prefs, store, repo, signIn, { _, _ -> api }, background) { now }
+    private val controller = AppController(accounts, prefs, store, repo, signIn, { _, _ -> api }, background, TestMessages) { now }
 
     private val cal = Calendar("c1", "Work", "#7b6cf0")
     private fun occ(id: String, cal: String = "c1") = Occurrence(
@@ -149,5 +149,107 @@ class AppControllerTest {
         assertTrue(store.snapshot().occurrences.isEmpty())
         assertEquals(1, background.cancelled)
         assertTrue(kv.map.values.none { it.contains("kcal_app") })
+    }
+
+    // --- editing
+
+    @Test fun aNewEventStartsInTheNextFullHourInTheAccountsZoneWithTheFirstVisibleCalendar() = runTest {
+        serverWith("u1", occ("gym"))
+        controller.start()
+        controller.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+        val f = controller.newEventForm()!!
+        // 10:00 UTC is 11:00 in Berlin: the next full hour is 12:00.
+        assertEquals(java.time.LocalDate.parse("2026-11-04"), f.startDay)
+        assertEquals(java.time.LocalTime.of(12, 0), f.startTime)
+        assertEquals(java.time.LocalTime.of(13, 0), f.endTime)
+        assertEquals("Europe/Berlin", f.tz)
+        assertEquals("c1", f.calendarId)
+        controller.toggleCalendar("c1")
+        assertEquals("c2", controller.newEventForm()!!.calendarId)
+        // Another day starts at nine.
+        assertEquals(java.time.LocalTime.of(9, 0), controller.newEventForm(java.time.LocalDate.parse("2026-11-09"))!!.startTime)
+    }
+
+    @Test fun savingThroughTheEditorSyncsSoTheScreensAndTheWidgetAgree() = runTest {
+        serverWith("u1", occ("gym"))
+        controller.start()
+        controller.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+        val refreshesBefore = background.widgetRefreshes
+        val editor = controller.newEditor()!!
+        editor.openNew(controller.newEventForm()!!.copy(title = "Dentist"))
+        api.onWrite = { dev.qarasky.korecalendar.data.WriteResult(dev.qarasky.korecalendar.data.Event(id = "d1", title = "Dentist"), null, emptyList()) }
+        api.calls.clear()
+        assertEquals(dev.qarasky.korecalendar.edit.SaveResult.Saved("Event created"), editor.save(dev.qarasky.korecalendar.edit.Scope.All))
+        assertTrue(api.calls.contains("changes"))
+        assertTrue(background.widgetRefreshes > refreshesBefore)
+    }
+
+    @Test fun withoutAnAccountThereIsNoEditor() = runTest {
+        controller.start()
+        assertNull(controller.newEditor())
+        assertNull(controller.newEventForm())
+    }
+
+    private suspend fun signedIn() {
+        serverWith("u1", occ("gym"))
+        controller.start()
+        controller.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+    }
+
+    @Test fun beginningANewEventOpensTheEditorAndSavingPostsANotice() = runTest {
+        signedIn()
+        controller.beginNew()
+        val editor = controller.editor.value!!
+        editor.edit { it.copy(title = "Dentist") }
+        api.onWrite = { dev.qarasky.korecalendar.data.WriteResult(dev.qarasky.korecalendar.data.Event(id = "d1", title = "Dentist"), null, emptyList()) }
+        assertEquals(dev.qarasky.korecalendar.edit.SaveResult.Saved("Event created"), controller.save(dev.qarasky.korecalendar.edit.Scope.All))
+        assertNull(controller.editor.value)
+        assertEquals(dev.qarasky.korecalendar.ui.Notice("Event created", null), controller.notice.value)
+        controller.dismissNotice()
+        assertNull(controller.notice.value)
+    }
+
+    @Test fun aFailedSaveKeepsTheEditorOpen() = runTest {
+        signedIn()
+        controller.beginNew()
+        controller.editor.value!!.edit { it.copy(title = "Dentist") }
+        api.onWrite = { throw NetworkException("down") }
+        assertEquals(dev.qarasky.korecalendar.edit.SaveResult.Failed, controller.save(dev.qarasky.korecalendar.edit.Scope.All))
+        assertTrue(controller.editor.value != null)
+        assertNull(controller.notice.value)
+    }
+
+    @Test fun cancellingTheEditorDiscardsIt() = runTest {
+        signedIn()
+        controller.beginNew()
+        controller.endEdit()
+        assertNull(controller.editor.value)
+    }
+
+    @Test fun deletingPostsANoticeThatCanBeUndone() = runTest {
+        signedIn()
+        val o = occ("gym")
+        api.onEvent = { dev.qarasky.korecalendar.data.Event(id = "gym", title = "gym", version = 2) }
+        api.onWrite = { dev.qarasky.korecalendar.data.WriteResult(dev.qarasky.korecalendar.data.Event(id = "gym", deletedAt = 1), null, emptyList()) }
+        controller.delete(o, dev.qarasky.korecalendar.edit.Scope.All)
+        assertEquals(dev.qarasky.korecalendar.ui.Notice("Event deleted", "gym"), controller.notice.value)
+        api.onRestore = { dev.qarasky.korecalendar.data.Event(id = "gym") }
+        controller.undoDelete("gym")
+        assertEquals(dev.qarasky.korecalendar.ui.Notice("Event restored", null), controller.notice.value)
+    }
+
+    @Test fun aFailedDeletePostsTheReason() = runTest {
+        signedIn()
+        api.onEvent = { throw NetworkException("down") }
+        controller.delete(occ("gym"), dev.qarasky.korecalendar.edit.Scope.All)
+        assertEquals(dev.qarasky.korecalendar.ui.Notice("Can't reach the server. Check your connection and try again.", null), controller.notice.value)
+    }
+
+    @Test fun signingOutClosesTheEditorAndClearsTheNotice() = runTest {
+        signedIn()
+        controller.beginNew()
+        controller.signOut()
+        assertNull(controller.editor.value)
+        assertNull(controller.notice.value)
     }
 }
