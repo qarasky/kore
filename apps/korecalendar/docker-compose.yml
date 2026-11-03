@@ -95,6 +95,7 @@ services:
       KORECAL_OIDC_AUTO_PROVISION: ${KORECAL_OIDC_AUTO_PROVISION:-}
       KORECAL_OIDC_ADMIN_SUBS: ${KORECAL_OIDC_ADMIN_SUBS:-}
       KORECAL_OIDC_NAME: ${KORECAL_OIDC_NAME:-}
+      KORECAL_KORE_APPS: ${KORECAL_KORE_APPS:-}
     volumes:
       # Never auto-created: if the volume is not mounted, compose fails
       # instead of writing into an empty directory on the root disk.

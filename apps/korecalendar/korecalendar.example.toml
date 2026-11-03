@@ -23,7 +23,9 @@ data_dir = "./data"
 
 # Sign in with Kore ID, a standard OpenID Connect provider (authorization code + PKCE).
 # Enabled by setting issuer; public_url (above) is then required, because the redirect URI
-# registered with Kore ID is <public_url>/api/auth/oidc/callback.
+# registered with Kore ID is <public_url>/api/auth/oidc/callback and the back-channel logout
+# URI (backchannelLogoutUri) is <public_url>/api/auth/oidc/backchannel-logout. Who may use
+# KoreCalendar at all is decided by Kore ID (per-user access to the app "korecalendar").
 # [oidc]
 # issuer = "https://id.kore.example"        # https (http only for localhost)
 # client_id = "korecalendar"                # default
@@ -31,6 +33,8 @@ data_dir = "./data"
 # name = "Kore ID"                          # sign-in button label
 # scopes = ["openid", "profile", "email"]
 # extra_audiences = ["korecalendar-android"]  # more client ids whose access tokens the API accepts
-# admin_subs = ["00000000-0000-4000-8000-000000000000"]  # Kore ID subjects that are administrators
+# admin_subs = ["00000000-0000-4000-8000-000000000000"]  # Kore ID subjects that are administrators here
 # auto_provision = true                     # create a local account on first sign-in
-# link_by_email = "off"                     # off | verified | trusted (see docs/deploy.md)
+# link_by_email = "verified"                # verified (default) | off | trusted (see docs/deploy.md)
+# apps = { kore = "https://kore.example", koremind = "https://mind.example", flatline = "https://mon.example" }
+#                                           # app switcher; korecalendar defaults to public_url (env KORECAL_KORE_APPS)

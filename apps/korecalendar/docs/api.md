@@ -20,7 +20,7 @@ curl -s $B/api/setup -H 'Content-Type: application/json' \
 {"token":"joRbrg…","user":{"id":"061bd42ae508723f4e92095815dedf4b","email":"me@example.com","role":"admin","timezone":"UTC"}}
 ```
 
-(With Kore ID sign-in configured, a script can also send a Kore ID access token for audience `korecalendar` as the bearer instead of logging in; it counts as a session.
+(With Kore ID sign-in configured, a script can also send a Kore ID access token (header `typ: at+jwt`, audience `korecalendar`) as the bearer instead of logging in; it counts as a session. Kore ID id tokens are refused.
 `GET /api/auth/config` says which sign-in methods the server offers; when `password_login` is false `POST /api/login` answers `403 password_login_disabled`.)
 
 That `token` is a session. For an agent, create a long-lived, revocable access token with it (an access token cannot create or
