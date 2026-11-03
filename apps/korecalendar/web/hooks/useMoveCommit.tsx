@@ -1,10 +1,9 @@
 "use client";
 
-import { AnimatePresence } from "motion/react";
+import { useToast } from "@qarasky/kore-ui";
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useTransition, type ReactNode } from "react";
 import { ScopeDialog } from "@/components/ScopeDialog";
-import { useToast } from "@/components/Toast";
 import { droppedMessage, planMove, type Scope } from "@/lib/editPlan";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
@@ -27,7 +26,9 @@ export function useMoveCommit(): { commit: (occ: Occurrence, move: Move) => Prom
   const toast = useToast();
   const [working, setWorking] = useState(false);
   const [refreshing, startTransition] = useTransition();
+  // `pending` outlives `open` so the dialog keeps its text while it animates out.
   const [pending, setPending] = useState<Pending | null>(null);
+  const [open, setOpen] = useState(false);
 
   const apply = useCallback(
     async (master: Event, occ: Occurrence, move: Move, scope: Scope) => {
@@ -40,14 +41,15 @@ export function useMoveCommit(): { commit: (occ: Occurrence, move: Move) => Prom
       try {
         results = await runPlan(plan);
       } catch (e) {
-        toast(errorMessage(e), { kind: "error" });
+        toast.show({ message: errorMessage(e), tone: "error" });
         setWorking(false);
         return;
       }
       const dropped = droppedMessage(results);
-      if (dropped) toast(dropped);
       const single = !occ.is_recurring;
-      toast(t("toast.moved"), {
+      // One toast at a time (kore-ui): the reset-occurrences note rides along with "Event moved".
+      toast.show({
+        message: dropped ? `${t("toast.moved")}. ${dropped}` : t("toast.moved"),
         action: single
           ? {
               label: t("common.undo"),
@@ -56,7 +58,7 @@ export function useMoveCommit(): { commit: (occ: Occurrence, move: Move) => Prom
                   await api(`/api/events/${master.id}`, { method: "PATCH", body: JSON.stringify({ start: master.start, end: master.end }) });
                   router.refresh();
                 } catch (e) {
-                  toast(errorMessage(e), { kind: "error" });
+                  toast.show({ message: errorMessage(e), tone: "error" });
                 }
               },
             }
@@ -75,7 +77,7 @@ export function useMoveCommit(): { commit: (occ: Occurrence, move: Move) => Prom
       try {
         master = await fetchEvent(occ.event_id);
       } catch (e) {
-        toast(errorMessage(e), { kind: "error" });
+        toast.show({ message: errorMessage(e), tone: "error" });
         setWorking(false);
         return;
       }
@@ -86,6 +88,7 @@ export function useMoveCommit(): { commit: (occ: Occurrence, move: Move) => Prom
       }
       if (occ.is_recurring && plan.allowedScopes.length > 1) {
         setPending({ master, occ, move, allowed: plan.allowedScopes, warning: plan.warnings[0] ? t(plan.warnings[0]) : undefined });
+        setOpen(true);
         return;
       }
       await apply(master, occ, move, occ.is_recurring ? plan.allowedScopes[0] : "all");
@@ -93,27 +96,24 @@ export function useMoveCommit(): { commit: (occ: Occurrence, move: Move) => Prom
     [apply, toast],
   );
 
-  const dialog = (
-    <AnimatePresence>
-    {pending ? (
+  const dialog = pending ? (
     <ScopeDialog
+      key={pending.occ.key}
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setWorking(false);
+      }}
       title={t("scope.moveTitle")}
       confirmLabel={t("scope.confirmMove")}
       allowed={pending.allowed}
       hint={pending.warning}
       onChoose={async (scope) => {
-        const p = pending;
-        setPending(null);
-        await apply(p.master, p.occ, p.move, scope);
-      }}
-      onCancel={() => {
-        setPending(null);
-        setWorking(false);
+        setOpen(false);
+        await apply(pending.master, pending.occ, pending.move, scope);
       }}
     />
-    ) : null}
-    </AnimatePresence>
-  );
+  ) : null;
 
   return { commit, dialog, busy: working || refreshing };
 }

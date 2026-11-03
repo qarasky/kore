@@ -14,6 +14,9 @@ const en = {
   "common.retry": "Try again",
   "common.undo": "Undo",
   "common.loading": "Loading…",
+  "common.working": "Working…",
+  "tz.search": "Search time zones",
+  "tz.none": "No matching time zone",
 
   "auth.signIn": "Sign in",
   "auth.signingIn": "Signing in…",
@@ -25,7 +28,7 @@ const en = {
   "auth.creating": "Creating…",
   "auth.setupIntro": "This is a new calendar. The first account becomes the administrator.",
   "auth.signOut": "Sign out",
-  "auth.ssoSignIn": "Sign in with {name}",
+  "auth.ssoSignIn": "Continue with {name}",
   "auth.or": "or",
   "auth.passwordsOff": "Password sign-in is turned off on this server.",
   "auth.error.invalid_state": "That sign-in link expired or was not started here. Try again.",
@@ -41,6 +44,7 @@ const en = {
 
   "error.unreachable": "Can't reach the server. Check your connection and try again.",
   "error.generic": "Something went wrong. Try again.",
+  "error.invalid_request": "That request isn't valid. Reload the page and try again.",
   "error.validation_error": "Some of the values aren't valid. Check the form and try again.",
   "error.unsupported_rrule": "That repeat rule isn't supported.",
   "error.invalid_json": "The request couldn't be read. Reload the page and try again.",
@@ -326,6 +330,7 @@ const en = {
   "tokens.revealBody": "This is the only time it is shown. Store it somewhere safe.",
   "tokens.copy": "Copy",
   "tokens.copied": "Copied",
+  "tokens.copyFailed": "Couldn't copy",
   "tokens.done": "I've saved it",
   "tokens.usage": "Send it as  Authorization: Bearer <token>  to the API (see the API guide).",
   "tokens.sessionOnly": "Tokens can only be managed from a signed-in session.",
@@ -400,9 +405,11 @@ const en = {
   "calendars.nextMonth": "Next month",
 
   "account.menu": "Account",
-  "account.signedInAs": "Signed in as {email}",
   "account.shortcuts": "Keyboard shortcuts",
   "account.signOut": "Sign out",
+  "account.koreId": "Kore ID account",
+  "account.switchApp": "Switch app",
+  "account.apps": "Apps",
 
   "toast.dismiss": "Dismiss",
 

@@ -1,7 +1,5 @@
 import { redirect } from "next/navigation";
-import { AuthCard } from "@/components/AuthCard";
-import { AuthForm } from "@/components/AuthForm";
-import { SsoButton } from "@/components/SsoButton";
+import { SignIn } from "@/components/SignIn";
 import { api } from "@/lib/api";
 import { t, type MessageKey } from "@/lib/i18n";
 import { safeNext } from "@/lib/safe-next";
@@ -39,25 +37,5 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       redirect(`/setup?next=${encodeURIComponent(next)}`);
     }
   }
-  const sso = config.oidc;
-  return (
-    <AuthCard title={t("auth.signIn")}>
-      <div className="flex flex-col gap-4">
-        {sso ? <SsoButton name={sso.name} loginUrl={sso.login_url} next={next} /> : null}
-        {sso && config.password_login ? <p className="text-center text-sub text-muted">{t("auth.or")}</p> : null}
-        {config.password_login ? (
-          <AuthForm mode="login" next={next} expired={"expired" in sp} error={ssoError(sp.error)} />
-        ) : (
-          <>
-            {ssoError(sp.error) ? (
-              <p role="alert" className="text-sub text-danger">
-                {ssoError(sp.error)}
-              </p>
-            ) : null}
-            {!sso ? <p className="text-sub text-muted">{t("auth.passwordsOff")}</p> : null}
-          </>
-        )}
-      </div>
-    </AuthCard>
-  );
+  return <SignIn config={config} next={next} expired={"expired" in sp} initialError={ssoError(sp.error)} />;
 }

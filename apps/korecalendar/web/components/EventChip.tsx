@@ -7,7 +7,7 @@ import { t } from "@/lib/i18n";
 import { duration, ease, layoutKey, spring } from "@/lib/motion";
 import { utcToLocal } from "@/lib/tz";
 import type { Clock, Occurrence } from "@/lib/types";
-import { RepeatIcon } from "./icons";
+import { RepeatIcon } from "lucide-react";
 
 /** A one-line event for month cells: all-day events are filled bars, timed
  *  ones a coloured dot, the start time and the title. */
@@ -61,7 +61,7 @@ export function EventChip({
       onPointerDown={onPointerDown}
       className={
         "flex min-h-5 w-full min-w-0 items-center gap-1 rounded-[4px] px-1 text-left text-2xs hover:brightness-125 " +
-        (occ.all_day ? "font-medium text-text" : "hover:bg-raised")
+        (occ.all_day ? "font-medium text-text" : "hover:bg-white/5")
       }
       style={occ.all_day ? { backgroundColor: tint.bg, boxShadow: `inset 3px 0 0 ${tint.edge}`, paddingLeft: "0.5rem" } : undefined}
     >

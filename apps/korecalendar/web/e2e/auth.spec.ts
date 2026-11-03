@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { resetApi } from "./harness/api-server";
 import { login, OWNER, setup } from "./helpers";
 
@@ -21,7 +21,7 @@ test.describe.serial("authentication", () => {
     await expect(page).toHaveURL(/\/calendar\//);
 
     await page.goto("/");
-    await page.getByRole("button", { name: "Account" }).click();
+    await page.getByRole("button", { name: /^Account/ }).click();
     await page.getByRole("menuitem", { name: "Sign out" }).click();
     await expect(page).toHaveURL(/\/login/);
     await page.goto("/calendar/week");
@@ -39,7 +39,7 @@ test.describe.serial("authentication", () => {
     await page.getByLabel("Email").fill(OWNER.email);
     await page.getByLabel("Password").fill("not-the-password");
     await page.getByRole("button", { name: "Sign in" }).click();
-    await expect(page.locator("form").getByRole("alert")).toContainText(/wrong email or password/i);
+    await expect(page.getByRole("main").getByRole("alert")).toContainText(/wrong email or password/i);
     await expect(page).toHaveURL(/\/login/);
   });
 
@@ -61,8 +61,8 @@ test.describe.serial("authentication", () => {
       await page.getByLabel("Email").fill("nobody@korecal.test");
       await page.getByLabel("Password").fill("wrong-password-" + i);
       await page.getByRole("button", { name: "Sign in" }).click();
-      await expect(page.locator("form").getByRole("alert")).toBeVisible();
+      await expect(page.getByRole("main").getByRole("alert")).toBeVisible();
     }
-    await expect(page.locator("form").getByRole("alert")).toContainText(/try again in \d+ min/i);
+    await expect(page.getByRole("main").getByRole("alert")).toContainText(/try again in \d+ min/i);
   });
 });

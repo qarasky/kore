@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { NoCalendars } from "@/components/EmptyState";
+import { NoCalendars } from "@/components/NoCalendars";
 import { CalendarView } from "@/components/CalendarView";
 import { api } from "@/lib/api";
 import { isValidDay } from "@/lib/dates";

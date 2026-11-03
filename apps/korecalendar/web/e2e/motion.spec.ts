@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { addDays, chooseOption, createEventViaApi, editor, eventBlocks, fillEditor, freshOwner, login, openEditor, openWeek, saveEditor, toast, today, weekOf } from "./helpers";
 
 const [, , wed] = weekOf(today("UTC"));
@@ -185,7 +186,7 @@ test.describe.serial("motion", () => {
     await openWeek(page, wed);
     await eventBlocks(page, "Stand-up").click();
     await page.getByTestId("event-popover").getByRole("button", { name: "Delete" }).click();
-    await page.locator("dialog[open]").getByRole("button", { name: "Delete" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
     await expect(eventBlocks(page, "Stand-up")).toHaveCount(0, { timeout: 2000 });
   });
 });

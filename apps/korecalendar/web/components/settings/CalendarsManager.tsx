@@ -9,14 +9,10 @@ import { CALENDAR_COLORS } from "@/lib/colors";
 import { t } from "@/lib/i18n";
 import { createCalendar, deleteCalendar, restoreCalendar, updateCalendar } from "@/lib/mutations";
 import type { Calendar } from "@/lib/types";
-import { Button } from "../Button";
+import { Button, ConfirmDialog, Field, IconButton, Input, SettingsSection, useToast } from "@qarasky/kore-ui";
+import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { ColorPicker } from "../ColorPicker";
-import { ConfirmDialog } from "../ConfirmDialog";
-import { Field, inputClass } from "../Field";
-import { PencilIcon, PlusIcon, Trash2Icon } from "../icons";
 import { useShell } from "../ShellContext";
-import { useToast } from "../Toast";
-import { SettingsSection } from "./Section";
 
 function Swatch({ color }: { color: string }) {
   return <span aria-hidden="true" className="size-4 shrink-0 rounded-[4px]" style={{ backgroundColor: color }} />;
@@ -32,7 +28,9 @@ export function CalendarsManager() {
   const [color, setColor] = useState<string>(CALENDAR_COLORS[0]);
   const [adding, setAdding] = useState(false);
   const [nameError, setNameError] = useState(false);
+  // `confirm` outlives `confirmOpen` so the dialog keeps its text while it animates out.
   const [confirm, setConfirm] = useState<Calendar | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const startEdit = (c: Calendar) => {
     setAdding(false);
@@ -68,52 +66,52 @@ export function CalendarsManager() {
     try {
       await deleteCalendar(c.id, force);
     } catch (e) {
-      if (!force && isApiError(e, 409)) return setConfirm(c);
+      if (!force && isApiError(e, 409)) {
+        setConfirm(c);
+        setConfirmOpen(true);
+        return;
+      }
       await run(() => Promise.reject(e));
       return;
     }
-    setConfirm(null);
-    toast(t("cal.deleted"), { action: undo(c) });
+    setConfirmOpen(false);
+    toast.show({ message: t("cal.deleted"), action: undo(c) });
     await run(async () => undefined);
   }
 
   return (
     <SettingsSection title={t("cal.heading")} description={t("cal.intro")}>
-      <ul className="flex flex-col gap-2" data-testid="calendar-list">
+      <ul className="flex flex-col divide-y divide-border rounded-overlay border border-border empty:hidden" data-testid="calendar-list">
         <AnimatePresence initial={false}>
         {calendars.map((c) => (
           <m.li key={c.id} layout="position"
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0, transition: { duration: duration.enter, ease: ease.standard } }}
             exit={{ opacity: 0, transition: { duration: duration.exit, ease: ease.exit } }}
-            className="rounded-ui border border-border" data-testid="calendar-row">
+            data-testid="calendar-row">
             {editing === c.id ? (
-              <div className="flex flex-col gap-4 p-3">
-                <Field label={t("cal.name")} htmlFor={`name-${c.id}`} error={nameError ? t("cal.nameRequired") : null}>
-                  <input id={`name-${c.id}`} value={name} onChange={(e) => setName(e.target.value)} maxLength={100} className={`${inputClass} w-full`} autoFocus />
+              <div className="flex flex-col gap-4 p-4">
+                <Field label={t("cal.name")} id={`name-${c.id}`} error={nameError ? t("cal.nameRequired") : null}>
+                  <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={100} autoFocus />
                 </Field>
                 <Field label={t("cal.color")}>
                   <ColorPicker value={color} onChange={setColor} />
                 </Field>
                 <div className="flex gap-2">
-                  <Button variant="primary" small onClick={() => save(c)} disabled={pending}>
+                  <Button variant="primary" size="sm" onClick={() => save(c)} disabled={pending}>
                     {t("common.save")}
                   </Button>
-                  <Button small onClick={() => setEditing(null)}>
+                  <Button size="sm" onClick={() => setEditing(null)}>
                     {t("common.cancel")}
                   </Button>
                 </div>
               </div>
             ) : (
-              <div className="flex min-h-control items-center gap-3 px-3">
+              <div className="flex min-h-row items-center gap-3 px-4">
                 <Swatch color={c.color} />
                 <span className="min-w-0 flex-1 truncate">{c.name}</span>
-                <button type="button" aria-label={t("cal.rename", { name: c.name })} onClick={() => startEdit(c)} className="grid size-control-sm place-items-center rounded-ui text-muted hover:bg-raised hover:text-text">
-                  <PencilIcon size={16} />
-                </button>
-                <button type="button" aria-label={t("cal.delete", { name: c.name })} onClick={() => remove(c, false)} className="grid size-control-sm place-items-center rounded-ui text-muted hover:bg-danger/10 hover:text-danger">
-                  <Trash2Icon size={16} />
-                </button>
+                <IconButton label={t("cal.rename", { name: c.name })} icon={<PencilIcon />} onClick={() => startEdit(c)} />
+                <IconButton variant="danger" label={t("cal.delete", { name: c.name })} icon={<Trash2Icon />} onClick={() => remove(c, false)} />
               </div>
             )}
           </m.li>
@@ -122,26 +120,26 @@ export function CalendarsManager() {
       </ul>
 
       {adding ? (
-        <div className="mt-3 flex flex-col gap-4 rounded-ui border border-border p-3">
-          <Field label={t("cal.name")} htmlFor="new-cal-name" error={nameError ? t("cal.nameRequired") : null}>
-            <input id="new-cal-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} className={`${inputClass} w-full`} autoFocus />
+        <div className="flex flex-col gap-4 rounded-overlay border border-border p-4">
+          <Field label={t("cal.name")} id="new-cal-name" error={nameError ? t("cal.nameRequired") : null}>
+            <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={100} autoFocus />
           </Field>
           <Field label={t("cal.color")}>
             <ColorPicker value={color} onChange={setColor} />
           </Field>
           <div className="flex gap-2">
-            <Button variant="primary" small onClick={add} disabled={pending}>
+            <Button variant="primary" size="sm" onClick={add} disabled={pending}>
               {t("cal.create")}
             </Button>
-            <Button small onClick={() => setAdding(false)}>
+            <Button size="sm" onClick={() => setAdding(false)}>
               {t("common.cancel")}
             </Button>
           </div>
         </div>
       ) : (
         <Button
-          className="mt-3"
-          small
+          className="self-start"
+          size="sm"
           onClick={() => {
             setEditing(null);
             setAdding(true);
@@ -150,23 +148,22 @@ export function CalendarsManager() {
             setNameError(false);
           }}
         >
-          <PlusIcon size={16} />
+          <PlusIcon />
           {t("cal.add")}
         </Button>
       )}
 
-      <AnimatePresence>
-      {confirm ? (
-        <ConfirmDialog
-          danger
-          title={t("cal.confirmTitle")}
-          message={t("cal.confirmBody", { name: confirm.name })}
-          confirmLabel={t("cal.confirmDelete")}
-          onConfirm={() => remove(confirm, true)}
-          onCancel={() => setConfirm(null)}
-        />
-      ) : null}
-      </AnimatePresence>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        danger
+        title={t("cal.confirmTitle")}
+        description={confirm ? t("cal.confirmBody", { name: confirm.name }) : undefined}
+        confirmLabel={t("cal.confirmDelete")}
+        cancelLabel={t("common.cancel")}
+        pendingLabel={t("common.working")}
+        onConfirm={() => (confirm ? remove(confirm, true) : undefined)}
+      />
     </SettingsSection>
   );
 }

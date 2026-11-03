@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { addDays, editor, freshOwner, login, openWeek, today, weekOf } from "./helpers";
 
 const [, , wed] = weekOf(today("UTC"));
@@ -44,7 +44,7 @@ test.describe.serial("keyboard shortcuts", () => {
     await page.keyboard.type("Walk the dog, meet a mate");
     await expect(dialog.getByRole("textbox", { name: "Title" })).toHaveValue("Walk the dog, meet a mate");
     await expect(page).toHaveURL(new RegExp(`/calendar/week\\?date=${wed}`));
-    await expect(page.locator("dialog[open]")).toHaveCount(1);
+    await expect(page.getByRole("dialog")).toHaveCount(1);
     await page.keyboard.press("Escape");
     await expect(editor(page)).toHaveCount(0);
   });
@@ -70,7 +70,7 @@ test.describe.serial("keyboard shortcuts", () => {
 
   test("g asks for a date and goes there", async ({ page }) => {
     await page.keyboard.press("g");
-    const dialog = page.locator("dialog[open]");
+    const dialog = page.getByRole("dialog");
     await expect(dialog).toContainText("Go to date");
     await dialog.getByLabel("Date").fill("2027-03-15");
     await dialog.getByRole("button", { name: "Go" }).click();

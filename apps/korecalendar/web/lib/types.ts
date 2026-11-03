@@ -4,7 +4,16 @@
 /** `GET /api/auth/config`: which sign-in methods the server offers. */
 export type AuthConfig = {
   password_login: boolean;
-  oidc: { name: string; issuer: string; client_id: string; login_url: string } | null;
+  oidc: {
+    name: string;
+    issuer: string;
+    client_id: string;
+    login_url: string;
+    /** The Kore ID account page (`<issuer>/account`). */
+    account_url?: string;
+    /** Where the other Kore apps live, for the app switcher (`kore`, `koremind`, `korecalendar`, `flatline`). */
+    apps?: Partial<Record<"kore" | "koremind" | "korecalendar" | "flatline", string>>;
+  } | null;
 };
 
 export type Role = "admin" | "user";

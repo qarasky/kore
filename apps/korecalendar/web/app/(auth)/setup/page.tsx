@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
-import { AuthCard } from "@/components/AuthCard";
-import { AuthForm } from "@/components/AuthForm";
+import { SetupAccount } from "@/components/SignIn";
 import { api } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import { safeNext } from "@/lib/safe-next";
@@ -20,9 +19,5 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   if (!status.setup_required) {
     redirect(`/login?next=${encodeURIComponent(next)}`);
   }
-  return (
-    <AuthCard title={t("auth.createAccount")} intro={t("auth.setupIntro")}>
-      <AuthForm mode="setup" next={next} />
-    </AuthCard>
-  );
+  return <SetupAccount next={next} />;
 }

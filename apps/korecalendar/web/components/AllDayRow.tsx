@@ -5,7 +5,7 @@ import { AnimatePresence, m } from "motion/react";
 import { t } from "@/lib/i18n";
 import { duration, ease, layoutKey } from "@/lib/motion";
 import type { AllDayPlaced } from "@/lib/layout";
-import { RepeatIcon } from "./icons";
+import { RepeatIcon } from "lucide-react";
 
 /** The strip above the grid for all-day events: bars spanning their days. */
 export function AllDayRow({

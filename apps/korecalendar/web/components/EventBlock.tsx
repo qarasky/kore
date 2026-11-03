@@ -8,7 +8,7 @@ import { formatTime } from "@/lib/format";
 import type { Placed } from "@/lib/layout";
 import { utcToLocal } from "@/lib/tz";
 import type { Clock } from "@/lib/types";
-import { RepeatIcon } from "./icons";
+import { RepeatIcon } from "lucide-react";
 
 /** A timed event on the grid: tinted fill, coloured left edge, the title and
  *  the time in the calendar's colour. A real button, so it takes focus and Enter. */

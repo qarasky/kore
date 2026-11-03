@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import {
   OWNER,
   api,
@@ -37,7 +37,7 @@ test.describe.serial("settings", () => {
     await expect(column(page, wed).locator('[data-testid=event][data-title="Standup"]')).toHaveAttribute("aria-label", /, 09:00$/);
 
     await page.goto("/settings");
-    await page.getByRole("combobox", { name: "Your time zone" }).click();
+    await page.getByRole("button", { name: "Your time zone" }).click();
     await page.keyboard.type("America/New_Y");
     await page.keyboard.press("Enter");
     await expect.poll(async () => (await api<{ timezone: string }>(token, "GET", "/api/me")).timezone).toBe("America/New_York");

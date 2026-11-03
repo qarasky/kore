@@ -13,11 +13,18 @@ npm run e2e                 # Playwright against the real Go API; see below
 - `lib/` is pure logic with unit tests (dates and time zones, layout, recurrence editing, drag geometry, shortcuts).
 - `components/` are the pieces; every string comes from `lib/i18n/en.ts` through `t()`.
 - Server Components fetch with `lib/api.ts` (forwarding the session cookie); mutations are made in the browser and followed by `router.refresh()`.
-- Do not use a native `<select>`; use `components/Select`. Do not use `dangerouslySetInnerHTML`.
+- The UI is built on [kore-ui](https://github.com/qarasky/kore-ui) (`@qarasky/kore-ui`, pinned to a release tag in `package.json`): tokens and
+  base styles come from its `theme.css` (`app/globals.css` keeps only the time grid's `--hour`/`--gutter`), and the shell (AppShell, TopBar,
+  Sidebar, SettingsLayout), AccountMenu, AppSwitcher, AuthScreen and every primitive (Button, Field, Input, Select, Combobox, Dialog,
+  ConfirmDialog, Menu, Popover, Toast, CopyButton, EmptyState…) are kore-ui's. Its `DESIGN.md` is the design source of truth; don't add local
+  copies of anything it provides. Calendar-specific views (grid, month, agenda, editor, mini month) are composed from its parts and tokens.
+- Do not use a native `<select>`; use kore-ui's `Select` (or `Combobox` for long lists). Do not use `dangerouslySetInnerHTML`.
 - Motion: `lib/motion.ts` holds the tokens (durations, easing, stagger, push direction) with unit tests; components use `m` from `motion/react` under `LazyMotion strict`. See [the motion design](../docs/superpowers/specs/2026-11-02-web-motion-design.md).
 
 ## End-to-end tests
 
 `npm run e2e` builds the Go API into `$TMPDIR/korecal-e2e`, builds the production web app, starts both (API on 18180, web on 13100) and
 runs every spec in `e2e/` against them, resetting the API's data per file. `E2E_SKIP_BUILD=1` reuses an existing web build. Chromium must be
-installed once: `npx playwright install chromium`. To test a stack that is already running (for example the Docker install behind Caddy) set `E2E_BASE_URL` and `E2E_RESET_CMD` (a shell command that leaves the API empty); specs that must stop the API process skip themselves then.
+installed once: `npx playwright install chromium`. Specs import `test` from `e2e/fixtures.ts` (its `page.goto` waits for streamed
+segments). `E2E_OIDC=1` turns on "Continue with Kore ID" (and the app switcher) in the test API; `E2E_OIDC=1 SCREENSHOTS=after npx playwright
+test screenshots` writes the main screens to `docs/screenshots/kore-ui-migration/`. To test a stack that is already running (for example the Docker install behind Caddy) set `E2E_BASE_URL` and `E2E_RESET_CMD` (a shell command that leaves the API empty); specs that must stop the API process skip themselves then.

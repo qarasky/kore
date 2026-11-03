@@ -5,11 +5,7 @@ import { useMutate } from "@/hooks/useMutate";
 import { t } from "@/lib/i18n";
 import { createUser } from "@/lib/mutations";
 import { generatePassword } from "@/lib/password";
-import { Button } from "../Button";
-import { CopyButton } from "../CopyButton";
-import { Field, inputClass } from "../Field";
-import { Select } from "../Select";
-import { SettingsSection } from "./Section";
+import { Button, CopyButton, Field, Input, Select, SettingsSection } from "@qarasky/kore-ui";
 
 /** Admin only: add a person with a generated password, shown once. */
 export function UsersManager() {
@@ -31,7 +27,7 @@ export function UsersManager() {
   return (
     <SettingsSection title={t("users.heading")} description={t("users.intro")}>
       {made ? (
-        <div role="status" data-testid="user-reveal" className="mb-5 rounded-ui border border-accent/50 bg-accent/10 p-4">
+        <div role="status" data-testid="user-reveal" className="rounded-ui border border-accent/50 bg-accent/10 p-4">
           <h3 className="text-sub font-semibold">{t("users.revealTitle")}</h3>
           <p className="mt-1 text-sub text-muted">{t("users.revealBody")}</p>
           <dl className="mt-3 grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-2 text-sub">
@@ -39,21 +35,21 @@ export function UsersManager() {
             <dd className="font-mono break-all" data-testid="user-email">
               {made.email}
             </dd>
-            <CopyButton value={made.email} />
+            <CopyButton value={made.email} iconOnly label={t("tokens.copy")} copiedLabel={t("tokens.copied")} failedLabel={t("tokens.copyFailed")} />
             <dt className="text-muted">{t("users.password")}</dt>
             <dd className="font-mono break-all select-all" data-testid="user-password">
               {made.password}
             </dd>
-            <CopyButton value={made.password} />
+            <CopyButton value={made.password} iconOnly label={t("tokens.copy")} copiedLabel={t("tokens.copied")} failedLabel={t("tokens.copyFailed")} />
           </dl>
-          <Button small className="mt-3" onClick={() => setMade(null)}>
+          <Button size="sm" className="mt-3" onClick={() => setMade(null)}>
             {t("tokens.done")}
           </Button>
         </div>
       ) : null}
       <form onSubmit={submit} className="flex flex-col gap-4">
-        <Field label={t("users.email")} htmlFor="user-email">
-          <input id="user-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={`${inputClass} w-full`} />
+        <Field label={t("users.email")} id="user-email">
+          <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>
         <Field label={t("users.role")}>
           <Select
@@ -63,7 +59,7 @@ export function UsersManager() {
               { value: "user", label: t("users.user") },
               { value: "admin", label: t("users.admin") },
             ]}
-            onChange={setRole}
+            onValueChange={setRole}
           />
         </Field>
         <div>

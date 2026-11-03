@@ -1,14 +1,16 @@
 "use client";
 
-import { useId, useState } from "react";
+import { Input } from "@qarasky/kore-ui";
+import { Check } from "lucide-react";
+import { useState } from "react";
 import { CALENDAR_COLORS, isHexColor } from "@/lib/colors";
 import { t } from "@/lib/i18n";
-import { CheckIcon } from "./icons";
-import { inputClass } from "./Field";
 
-/** The four calendar colours as a radio group, plus a hex field for any other. */
+/**
+ * The calendar colours as swatches, plus a hex field for any other. Calendar-specific: the
+ * swatches are the colours themselves, so this composes kore-ui's Input with local swatches.
+ */
 export function ColorPicker({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
-  const group = useId();
   const [text, setText] = useState(value);
   const [invalid, setInvalid] = useState(false);
 
@@ -29,16 +31,15 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (hex
                 setInvalid(false);
                 onChange(c);
               }}
-              className="grid size-control-sm place-items-center rounded-full text-white outline-offset-2"
+              className="grid size-control-sm place-items-center rounded-full text-white"
               style={{ backgroundColor: c }}
             >
-              {selected ? <CheckIcon size={16} strokeWidth={3} /> : null}
+              {selected ? <Check size={16} strokeWidth={3} /> : null}
             </button>
           );
         })}
       </div>
-      <input
-        id={`${group}-hex`}
+      <Input
         aria-label={t("color.custom")}
         placeholder={t("color.customHint")}
         value={text}
@@ -52,7 +53,7 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (hex
           setInvalid(v !== "" && !ok);
           if (ok) onChange(v.toLowerCase());
         }}
-        className={`${inputClass} w-28 font-mono`}
+        className="w-28 font-mono"
       />
     </div>
   );

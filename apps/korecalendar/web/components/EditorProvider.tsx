@@ -1,13 +1,13 @@
 "use client";
 
-import { AnimatePresence } from "motion/react";
 import { useMemo, useState, type ReactNode } from "react";
 import { EditorContext, type EditorActions } from "./EditorContext";
 import { EventEditor, type EditorMode } from "./EventEditor";
 import { EventPopover } from "./EventPopover";
 import type { Occurrence } from "@/lib/types";
 
-type Open = { mode: EditorMode; id: number };
+/** Kept after closing (`open: false`) so the dialog can animate out. */
+type Open = { mode: EditorMode; id: number; open: boolean };
 
 /** Owns the event editor and the quick-look popover, and lets any view open them. */
 export function EditorProvider({ children }: { children: ReactNode }) {
@@ -19,11 +19,11 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     return {
       openNew: (at) => {
         setPopover(null);
-        setEditor({ mode: { kind: "new", at }, id: ++n });
+        setEditor({ mode: { kind: "new", at }, id: ++n, open: true });
       },
       openOccurrence: (occ, anchor) => {
         if (anchor) setPopover({ occ, anchor });
-        else setEditor({ mode: { kind: "edit", occ }, id: ++n });
+        else setEditor({ mode: { kind: "edit", occ }, id: ++n, open: true });
       },
     };
   }, []);
@@ -31,7 +31,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   return (
     <EditorContext.Provider value={actions}>
       {children}
-      <AnimatePresence>
       {popover ? (
         <EventPopover
           key={popover.occ.event_id + popover.occ.key}
@@ -41,12 +40,13 @@ export function EditorProvider({ children }: { children: ReactNode }) {
           onEdit={() => {
             const occ = popover.occ;
             setPopover(null);
-            setEditor({ mode: { kind: "edit", occ }, id: Date.now() });
+            setEditor({ mode: { kind: "edit", occ }, id: Date.now(), open: true });
           }}
         />
       ) : null}
-      </AnimatePresence>
-      <AnimatePresence>{editor ? <EventEditor key={editor.id} mode={editor.mode} onClose={() => setEditor(null)} /> : null}</AnimatePresence>
+      {editor ? (
+        <EventEditor key={editor.id} mode={editor.mode} open={editor.open} onClose={() => setEditor((e) => (e ? { ...e, open: false } : e))} />
+      ) : null}
     </EditorContext.Provider>
   );
 }

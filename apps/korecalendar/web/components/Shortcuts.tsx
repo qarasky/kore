@@ -1,8 +1,8 @@
 "use client";
 
-import { AnimatePresence } from "motion/react";
+import { Button, Dialog, DialogBody, DialogContent, DialogFooter, Input, Kbd } from "@qarasky/kore-ui";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isValidDay } from "@/lib/dates";
 import { t, type MessageKey } from "@/lib/i18n";
 import { PREF_COOKIES, writePref } from "@/lib/prefs";
@@ -10,16 +10,20 @@ import { calendarHref, navigate } from "@/lib/range";
 import { matchShortcut, SHORTCUTS, type ShortcutId } from "@/lib/shortcuts";
 import type { View } from "@/lib/types";
 import { OPEN_SHORTCUTS_EVENT } from "./AccountMenu";
-import { Button } from "./Button";
 import { useEditor } from "./EditorContext";
-import { inputClass } from "./Field";
-import { Modal } from "./Modal";
 import { useShell } from "./ShellContext";
 
 const VIEW_OF: Partial<Record<ShortcutId, View>> = { viewDay: "day", viewWeek: "week", viewMonth: "month", viewAgenda: "agenda" };
 
 /** How long a key press counts as "still on its way" if the page never confirms it. */
 const PENDING_MS = 1500;
+
+/** A modal (dialog, confirmation, the phone drawer) is open. Popovers and menus don't count. */
+function modalOpen(): boolean {
+  return Array.from(document.querySelectorAll('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')).some(
+    (el) => !el.closest("[data-radix-popper-content-wrapper]"),
+  );
+}
 
 const keyLabel = (k: string) => (k === "ArrowLeft" ? "←" : k === "ArrowRight" ? "→" : k);
 
@@ -57,7 +61,7 @@ export function Shortcuts() {
       });
       if (!id || e.defaultPrevented) return;
       // Dialogs (editor, scope prompt, this help) own the keyboard while open.
-      if (document.querySelector("dialog[open]")) return;
+      if (modalOpen()) return;
       const s = latest.current;
       const p = pending.current && Date.now() - pending.current.at < PENDING_MS ? pending.current : null;
       const shownView = p?.view ?? s.view;
@@ -102,88 +106,77 @@ export function Shortcuts() {
 
   return (
     <>
-      <AnimatePresence>
-      {help ? <ShortcutsDialog onClose={() => setHelp(false)} /> : null}
-      </AnimatePresence>
-      <AnimatePresence>
-      {goTo ? (
-        <GoToDateDialog
-          initial={day}
-          onClose={() => setGoTo(false)}
-          onGo={(d) => {
-            setGoTo(false);
-            router.push(calendarHref(view ?? prefs.view, d));
-          }}
-        />
-      ) : null}
-      </AnimatePresence>
+      <ShortcutsDialog open={help} onOpenChange={setHelp} />
+      <GoToDateDialog
+        key={goTo ? day : "closed"}
+        open={goTo}
+        onOpenChange={setGoTo}
+        initial={day}
+        onGo={(d) => {
+          setGoTo(false);
+          router.push(calendarHref(view ?? prefs.view, d));
+        }}
+      />
     </>
   );
 }
 
-function ShortcutsDialog({ onClose }: { onClose: () => void }) {
-  const titleId = useId();
+function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
-    <Modal labelledBy={titleId} onClose={onClose} className="w-[min(480px,calc(100vw-24px))]">
-      <div className="p-5">
-        <h2 id={titleId} className="text-title font-semibold tracking-[-0.01em]">
-          {t("shortcuts.title")}
-        </h2>
-        <p className="mt-1 text-sub text-muted">{t("shortcuts.intro")}</p>
-        <dl className="mt-4 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5 text-sub" data-testid="shortcuts-list">
-          {SHORTCUTS.map((s) => (
-            <div key={s.id} className="contents">
-              <dt>{t(`shortcuts.${s.id}` as MessageKey)}</dt>
-              <dd className="flex justify-end gap-1">
-                {s.keys.map((k) => (
-                  <kbd key={k} className="min-w-6 rounded-[4px] border border-border-strong bg-bg/60 px-1.5 text-center font-mono text-meta">
-                    {keyLabel(k)}
-                  </kbd>
-                ))}
-              </dd>
-            </div>
-          ))}
-        </dl>
-        <h3 className="mt-5 text-sub font-semibold">{t("shortcuts.moveHeading")}</h3>
-        <ul className="mt-1 list-disc pl-5 text-sub text-muted">
-          <li>{t("shortcuts.moveEvent")}</li>
-          <li>{t("shortcuts.resizeEvent")}</li>
-          <li>{t("shortcuts.dragHint")}</li>
-        </ul>
-        <div className="mt-5 flex justify-end">
-          <Button onClick={onClose} variant="primary">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent title={t("shortcuts.title")} description={t("shortcuts.intro")} closeLabel={t("common.close")}>
+        <DialogBody>
+          <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5 text-sub" data-testid="shortcuts-list">
+            {SHORTCUTS.map((s) => (
+              <div key={s.id} className="contents">
+                <dt>{t(`shortcuts.${s.id}` as MessageKey)}</dt>
+                <dd className="flex justify-end gap-1">
+                  {s.keys.map((k) => (
+                    <Kbd key={k}>{keyLabel(k)}</Kbd>
+                  ))}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <h3 className="mt-5 text-sub font-semibold">{t("shortcuts.moveHeading")}</h3>
+          <ul className="mt-1 list-disc pl-5 text-sub text-muted">
+            <li>{t("shortcuts.moveEvent")}</li>
+            <li>{t("shortcuts.resizeEvent")}</li>
+            <li>{t("shortcuts.dragHint")}</li>
+          </ul>
+        </DialogBody>
+        <DialogFooter>
+          <Button onClick={() => onOpenChange(false)} variant="primary">
             {t("common.close")}
           </Button>
-        </div>
-      </div>
-    </Modal>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-function GoToDateDialog({ initial, onClose, onGo }: { initial: string; onClose: () => void; onGo: (day: string) => void }) {
-  const titleId = useId();
-  const input = useRef<HTMLInputElement>(null);
+function GoToDateDialog({ open, onOpenChange, initial, onGo }: { open: boolean; onOpenChange: (open: boolean) => void; initial: string; onGo: (day: string) => void }) {
   const [value, setValue] = useState(initial);
   return (
-    <Modal labelledBy={titleId} onClose={onClose} initialFocus={input} className="w-[min(360px,calc(100vw-24px))]">
-      <form
-        className="p-5"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (isValidDay(value)) onGo(value);
-        }}
-      >
-        <h2 id={titleId} className="text-title font-semibold tracking-[-0.01em]">
-          {t("goto.title")}
-        </h2>
-        <input ref={input} type="date" aria-label={t("goto.date")} value={value} onChange={(e) => setValue(e.target.value)} className={`${inputClass} mt-4 w-full`} />
-        <div className="mt-5 flex justify-end gap-2">
-          <Button onClick={onClose}>{t("common.cancel")}</Button>
-          <Button type="submit" variant="primary" disabled={!isValidDay(value)}>
-            {t("goto.go")}
-          </Button>
-        </div>
-      </form>
-    </Modal>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent title={t("goto.title")} size="sm" closeLabel={t("common.close")}>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (isValidDay(value)) onGo(value);
+          }}
+        >
+          <DialogBody>
+            <Input type="date" aria-label={t("goto.date")} value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
+          </DialogBody>
+          <DialogFooter>
+            <Button onClick={() => onOpenChange(false)}>{t("common.cancel")}</Button>
+            <Button type="submit" variant="primary" disabled={!isValidDay(value)}>
+              {t("goto.go")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

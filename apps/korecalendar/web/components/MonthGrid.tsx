@@ -70,7 +70,7 @@ export function MonthGrid({ day, days, occurrences }: { day: string; days: strin
                 onClick={(e) => e.stopPropagation()}
                 className={
                   "mb-0.5 inline-flex h-6 min-w-6 items-center justify-center self-start rounded-full px-1.5 text-meta " +
-                  (isToday ? "bg-accent font-semibold text-white" : isSameMonth(d, day) ? "text-text hover:bg-raised" : "text-muted hover:bg-raised")
+                  (isToday ? "bg-accent font-semibold text-white" : isSameMonth(d, day) ? "text-text hover:bg-white/5" : "text-muted hover:bg-white/5")
                 }
               >
                 {dom === 1 ? `${dom} ${monthShortName(month - 1)}` : dom}

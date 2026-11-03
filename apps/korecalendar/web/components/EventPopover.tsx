@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useEventDelete } from "@/hooks/useEventDelete";
 import { calendarTint } from "@/lib/colors";
 import { formatRange } from "@/lib/format";
@@ -10,9 +10,8 @@ import { describeRule } from "@/lib/rrule";
 import { fetchEvent } from "@/lib/mutations";
 import { parseWall } from "@/lib/wall";
 import type { Event, Occurrence } from "@/lib/types";
-import { Button } from "./Button";
-import { AlignLeftIcon, BellIcon, CalendarDaysIcon, ClockIcon, MapPinIcon, RepeatIcon, XIcon } from "./icons";
-import { Popover } from "./Popover";
+import { Button, IconButton, Popover, PopoverAnchor, PopoverContent } from "@qarasky/kore-ui";
+import { AlignLeftIcon, BellIcon, CalendarDaysIcon, ClockIcon, MapPinIcon, RepeatIcon, XIcon } from "lucide-react";
 import { useShell } from "./ShellContext";
 
 function Row({ icon, children, testId }: { icon: React.ReactNode; children: React.ReactNode; testId?: string }) {
@@ -24,11 +23,15 @@ function Row({ icon, children, testId }: { icon: React.ReactNode; children: Reac
   );
 }
 
-/** The quick look at an event: when, where, repeat, reminders, notes, with Edit and Delete. */
+/**
+ * The quick look at an event (kore-ui Popover anchored to the clicked block): when, where,
+ * repeat, reminders, notes, with Edit and Delete. Focus goes back to the block on close.
+ */
 export function EventPopover({ occ, anchor, onClose, onEdit }: { occ: Occurrence; anchor: HTMLElement; onClose: () => void; onEdit: () => void }) {
   const { me, prefs, calendars } = useShell();
   const [master, setMaster] = useState<Event | null>(null);
   const del = useEventDelete();
+  const anchorRef = useRef(anchor);
   const calendar = calendars.find((c) => c.id === occ.calendar_id);
   const tint = calendarTint(calendar?.color ?? "#5b8def");
 
@@ -46,13 +49,29 @@ export function EventPopover({ occ, anchor, onClose, onEdit }: { occ: Occurrence
 
   return (
     <>
-      <Popover anchor={anchor} label={occ.title} onClose={onClose}>
+      <Popover open onOpenChange={(open) => !open && onClose()}>
+        <PopoverAnchor virtualRef={anchorRef} />
+        <PopoverContent
+          flush
+          side="right"
+          align="start"
+          sideOffset={8}
+          aria-label={occ.title || t("grid.untitled")}
+          className="w-[340px] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto"
+          // The delete confirmation sits above the popover; using it must not close the popover.
+          onInteractOutside={(e) => del.open && e.preventDefault()}
+          // Only a press outside or Escape closes it: focus moving away on its own (another overlay
+          // returning focus to its trigger as it closes) must not.
+          onFocusOutside={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => {
+            e.preventDefault();
+            if (anchor.isConnected) anchor.focus();
+          }}
+        >
         <div data-testid="event-popover">
           <div className="flex items-start gap-3 border-b border-border p-4 pb-3" style={{ boxShadow: `inset 4px 0 0 ${tint.edge}` }}>
-            <h2 className="min-w-0 flex-1 pl-2 text-title font-semibold break-words">{occ.title || t("grid.untitled")}</h2>
-            <button type="button" aria-label={t("popover.close")} onClick={onClose} className="grid size-control-sm shrink-0 place-items-center rounded-ui text-muted hover:bg-bg/50 hover:text-text">
-              <XIcon />
-            </button>
+            <h2 className="min-w-0 flex-1 pl-2 text-title font-semibold tracking-[-0.01em] break-words">{occ.title || t("grid.untitled")}</h2>
+            <IconButton label={t("popover.close")} tooltip={false} icon={<XIcon />} onClick={onClose} className="-mt-1 -mr-2" />
           </div>
           <div className="flex flex-col gap-2.5 p-4">
             <Row icon={<ClockIcon size={16} />} testId="popover-when">
@@ -85,14 +104,15 @@ export function EventPopover({ occ, anchor, onClose, onEdit }: { occ: Occurrence
             </Row>
           </div>
           <div className="flex justify-end gap-2 border-t border-border p-3">
-            <Button small variant="danger" disabled={!master} onClick={() => master && del.request(master, occ, onClose)}>
+            <Button size="sm" variant="danger-outline" disabled={!master} onClick={() => master && del.request(master, occ, onClose)}>
               {t("popover.delete")}
             </Button>
-            <Button small variant="primary" onClick={onEdit}>
+            <Button size="sm" variant="primary" onClick={onEdit}>
               {t("popover.edit")}
             </Button>
           </div>
         </div>
+        </PopoverContent>
       </Popover>
       {del.dialog}
     </>

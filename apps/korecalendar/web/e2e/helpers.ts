@@ -160,6 +160,14 @@ export async function chooseOption(scope: Page | Locator, label: string | RegExp
   await page.getByRole("option", { name: option }).click();
 }
 
+/** Pick a time zone in the searchable time zone picker (a kore-ui Combobox) by typing its name. */
+export async function chooseZone(scope: Page | Locator, label: string, zone: string): Promise<void> {
+  const page = "page" in scope && typeof scope.page === "function" ? scope.page() : (scope as Page);
+  await scope.getByRole("button", { name: label }).click();
+  await page.getByRole("combobox").last().fill(zone);
+  await page.getByRole("option", { name: new RegExp(`^${zone}`) }).click();
+}
+
 export function column(page: Page, day: string): Locator {
   return page.locator(`[data-testid=day-column][data-day="${day}"]`);
 }
@@ -196,7 +204,7 @@ export interface EditorFields {
 }
 
 export function editor(page: Page): Locator {
-  return page.locator("dialog[open]").filter({ has: page.locator("input[name=title]") });
+  return page.getByRole("dialog").filter({ has: page.locator("input[name=title]") });
 }
 
 /** Click "New event" and wait for the editor. */
@@ -237,14 +245,14 @@ export async function saveEditor(dialog: Locator): Promise<void> {
   await dialog.getByRole("button", { name: "Save" }).click();
 }
 
-/** The toast with `text`. */
+/** The toast with `text` (kore-ui's toasts are list items in the "Notifications" region). */
 export function toast(page: Page, text: string | RegExp): Locator {
-  return page.getByRole("status").filter({ hasText: text });
+  return page.getByRole("region", { name: /^Notifications/ }).getByRole("listitem").filter({ hasText: text });
 }
 
 /** Answer a "which events?" dialog. */
 export async function chooseScope(page: Page, scope: "This event" | "This and following events" | "All events", confirm: string): Promise<void> {
-  const dialog = page.locator("dialog[open]").filter({ has: page.locator("fieldset") });
+  const dialog = page.getByRole("alertdialog").filter({ has: page.getByRole("radiogroup") });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel(scope, { exact: true }).check();
   await dialog.getByRole("button", { name: confirm, exact: true }).click();
