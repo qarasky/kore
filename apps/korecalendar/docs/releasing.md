@@ -50,9 +50,42 @@ GitHub decides a package's visibility when it is first published. For this repos
 `docker logout ghcr.io && docker manifest inspect ghcr.io/qarasky/korecalendar-api:latest`. If a fork's packages come out private, make each public under the owner's Packages →
 the package → Package settings → Change visibility (this cannot be done through the API).
 
-## Android (planned)
+## Android
 
-The Android app is released from the same repository with its own tags, so the server and the app can move independently:
+The Android app is released from the same repository with its own tags, so the server and the app move independently.
 
-- `android-v1.4.0` is the app. The server workflow above ignores it (its tag filter is `v[0-9]*`), and the Android workflow will ignore server tags.
-- The app is not tied to a server version: it talks to the public REST API, whose contract is versioned separately (above).
+| What | Where | Example |
+| --- | --- | --- |
+| git tag | the repository | `android-v0.2.0`, `android-v1.0.0-rc.1` |
+| version | `android/version.properties`, written by `scripts/release-android.sh` | `versionName=0.2.0`, `versionCode=20099` |
+| release | GitHub Releases, tag `android-v…` | `KoreCalendar for Android 0.2.0` |
+| files | on the release | `korecalendar-0.2.0.apk`, `korecalendar-0.2.0.apk.sha256` |
+
+Server tags (`vX.Y.Z`) do not trigger the Android workflow and Android tags do not trigger the server's `images` workflow. The app is not tied to a server version: it talks to the public REST API, whose
+contract is versioned separately (above).
+
+### `versionCode`
+
+Android only installs an update whose `versionCode` is higher, so it is derived from the version and only ever increases: `major*1000000 + minor*10000 + patch*100 + slot`, where `slot` is `99` for a
+final release and `N` for `-rc.N`. So `0.1.0` is `10099`, `1.0.0-rc.1` is `1000001` and `1.0.0` is `1000099`: a release candidate sorts below its final release. (Limits: major below 2000, minor and patch below 100,
+rc 1 to 98.) `bash scripts/test-android-version.sh` checks the scheme.
+
+### Cutting an Android release
+
+1. Be on an up-to-date, clean `main` whose last [android-ci](../.github/workflows/android-ci.yml) run is green.
+2. `scripts/release-android.sh 0.2.0` writes `android/version.properties`, commits `android release: v0.2.0` and creates the annotated tag `android-v0.2.0`. It refuses a dirty tree, a branch other than `main`,
+   a `main` that differs from `origin/main`, a malformed version or an existing tag.
+3. `git push origin main android-v0.2.0`.
+4. [android-release.yml](../.github/workflows/android-release.yml) then runs and stops at the first failure: it checks that the tag matches `version.properties` and is on `main`; runs the checks (version-code
+   tests, Android lint, unit and contract tests, debug build); decodes the keystore from the repository secrets; builds the **release APK signed with the release key**; runs `apksigner verify`; compares the
+   certificate's SHA-256 with [android/signing-fingerprint.txt](../android/signing-fingerprint.txt) (an APK signed by any other key fails the release); writes the checksum; and creates the GitHub release
+   (a pre-release when the version has `-rc.N`) with the APK and checksum attached. There is no unsigned fallback.
+
+### Android signing key
+
+The release key lives only in four repository **secrets**: `KORECAL_KEYSTORE_BASE64` (the keystore file, base64), `KORECAL_KEYSTORE_PASSWORD`, `KORECAL_KEY_ALIAS` and `KORECAL_KEY_PASSWORD`.
+`android/signing-fingerprint.txt` holds the certificate's SHA-256 (public, not a secret). To check the secrets after changing them, run the **Android signing check** workflow by hand: it opens the keystore,
+confirms the alias and the key password and prints the fingerprint. It publishes nothing.
+
+**Keep a copy of the keystore file and its passwords outside GitHub.** GitHub never shows a secret again. If the key is lost you can never publish an update that installs over the existing app: every phone
+would have to uninstall it (losing the local copy) and install a new one signed with a new key.

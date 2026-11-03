@@ -1,0 +1,129 @@
+# Publishes the Android app. Pushing a tag android-vX.Y.Z (or android-vX.Y.Z-rc.N), made by
+# scripts/release-android.sh, verifies it, runs the checks, builds the APK signed with the
+# release key, checks the signature against android/signing-fingerprint.txt, and creates the
+# GitHub release with the APK and its SHA-256. There is no unsigned fallback. docs/releasing.md.
+name: android-release
+
+on:
+  push:
+    tags:
+      - "android-v[0-9]+.[0-9]+.[0-9]+"
+      - "android-v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: The tag matches the version files, is on main, and the fingerprint is recorded
+        run: |
+          set -euo pipefail
+          v="${GITHUB_REF_NAME#android-v}"
+          name="$(sed -n 's/^versionName=//p' android/version.properties)"
+          code="$(sed -n 's/^versionCode=//p' android/version.properties)"
+          [ "$name" = "$v" ] || { echo "::error::The tag says $v but android/version.properties says $name. Release with scripts/release-android.sh."; exit 1; }
+          [ "$code" = "$(scripts/release-android.sh --print-code "$v")" ] || { echo "::error::versionCode $code does not belong to $v."; exit 1; }
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::$GITHUB_REF_NAME is not on main. Merge first, then tag."; exit 1; }
+          grep -Eq '^([0-9A-Fa-f]{2}:){31}[0-9A-Fa-f]{2}$' android/signing-fingerprint.txt || { echo "::error::android/signing-fingerprint.txt does not hold a SHA-256 fingerprint."; exit 1; }
+
+  checks:
+    needs: verify
+    uses: ./.github/workflows/android-ci.yml
+
+  build:
+    needs: checks
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v4
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Decode the keystore
+        env:
+          KS: ${{ secrets.KORECAL_KEYSTORE_BASE64 }}
+          STOREPASS: ${{ secrets.KORECAL_KEYSTORE_PASSWORD }}
+          ALIAS: ${{ secrets.KORECAL_KEY_ALIAS }}
+          KEYPASS: ${{ secrets.KORECAL_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for v in KS STOREPASS ALIAS KEYPASS; do
+            [ -n "${!v}" ] || { echo "::error::An Android signing secret is missing (see docs/releasing.md, Android signing key)."; exit 1; }
+          done
+          printf '%s' "$KS" | base64 --decode > "$RUNNER_TEMP/release.jks"
+          echo "KORECAL_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+      - name: Build the signed release APK
+        working-directory: android
+        env:
+          KORECAL_KEYSTORE_PASSWORD: ${{ secrets.KORECAL_KEYSTORE_PASSWORD }}
+          KORECAL_KEY_ALIAS: ${{ secrets.KORECAL_KEY_ALIAS }}
+          KORECAL_KEY_PASSWORD: ${{ secrets.KORECAL_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon assembleRelease
+      - name: Verify the signature, name the files
+        run: |
+          set -euo pipefail
+          v="${GITHUB_REF_NAME#android-v}"
+          src=android/app/build/outputs/apk/release/app-release.apk
+          [ -f "$src" ] || { echo "::error::No signed APK was produced (is the keystore wired in?)."; exit 1; }
+          apksigner="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)"
+          "$apksigner" verify --verbose "$src"
+          got="$("$apksigner" verify --print-certs "$src" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n1 | tr -d ':' | tr 'A-F' 'a-f')"
+          want="$(tr -d ':\n' < android/signing-fingerprint.txt | tr 'A-F' 'a-f')"
+          [ -n "$got" ] && [ "$got" = "$want" ] || { echo "::error::The APK is signed by a different certificate than android/signing-fingerprint.txt (got $got)."; exit 1; }
+          mkdir -p dist
+          cp "$src" "dist/korecalendar-$v.apk"
+          (cd dist && sha256sum "korecalendar-$v.apk" > "korecalendar-$v.apk.sha256")
+          cat "dist/korecalendar-$v.apk.sha256"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android-apk
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v8
+        with:
+          name: android-apk
+          path: dist
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          v="${GITHUB_REF_NAME#android-v}"
+          pre=""; case "$v" in *-*) pre="--prerelease" ;; esac
+          prev="$(git tag --list 'android-v*' --sort=-v:refname | grep -vx "$GITHUB_REF_NAME" | head -n1 || true)"
+          args=(-f tag_name="$GITHUB_REF_NAME")
+          [ -z "$prev" ] || args+=(-f previous_tag_name="$prev")
+          gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" "${args[@]}" --jq .body > generated.md
+          {
+            echo "## Install"
+            echo
+            echo "Download \`korecalendar-$v.apk\` below and open it on the phone (allow installing from this source when Android asks). It installs over a previous version of the app, because every release is signed with the same key."
+            echo
+            echo "Check the download before installing: \`sha256sum -c korecalendar-$v.apk.sha256\` (SHA-256 below)."
+            echo
+            echo '```'
+            cat "dist/korecalendar-$v.apk.sha256"
+            echo '```'
+            echo
+            cat generated.md
+          } > notes.md
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "KoreCalendar for Android $v" --notes-file notes.md $pre \
+            "dist/korecalendar-$v.apk" "dist/korecalendar-$v.apk.sha256"

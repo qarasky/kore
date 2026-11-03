@@ -1,6 +1,6 @@
 # KoreCalendar: Android app
 
-> Status: draft for the owner's approval (2026-11-03). Nothing is built yet. Overall design: [2026-11-02-korecalendar-design.md](2026-11-02-korecalendar-design.md) (its "Android" section is superseded by this document). Release mechanics so far: [../../releasing.md](../../releasing.md).
+> Status: approved (2026-11-03). Stage 1 (foundation, agenda, widget, first signed release) is implemented by [../plans/2026-11-03-android-stage1.md](../plans/2026-11-03-android-stage1.md); stages 2 to 4 are not started. User docs: [../../android.md](../../android.md). Overall design: [2026-11-02-korecalendar-design.md](2026-11-02-korecalendar-design.md) (its "Android" section is superseded by this document). Release mechanics so far: [../../releasing.md](../../releasing.md).
 
 Calls marked **(my call)** were made by the designer, not the owner. The owner's decisions are listed first.
 

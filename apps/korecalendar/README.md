@@ -5,14 +5,15 @@
 A small self-hosted personal calendar whose **API is the product**. An AI agent or a script can do everything the UI can: create
 and manage events, recurring series with single exclusions and single-occurrence changes, reminders, and `.ics` import and export.
 Go API + SQLite and a Next.js web app behind Caddy, in the same shape as [Kore](https://github.com/qarasky/kore). The web app
-(and the Android app, in a later phase) uses exactly the same public API.
+(and the Android app) uses exactly the same public API.
 
-Status: **phase 1 (API and core), phase 2 (web app) and CalDAV are done;** the Android app is next. See [`docs/`](docs/README.md) for everything below in detail.
+Status: **phase 1 (API and core), phase 2 (web app) and CalDAV are done;** the **Android app** is in progress (stage 1 of 4: agenda and home-screen widget, read-only; see [docs/android.md](docs/android.md)). See [`docs/`](docs/README.md) for everything below in detail.
 
 - **[Deploying on Linux](docs/deploy.md)**: install, HTTPS, updates, backups, troubleshooting.
 - **[Web app](docs/web.md)**: what the UI does, shortcuts, drag behaviour, motion, notifications.
 - **[API guide](docs/api.md)**: real requests and responses for the common jobs.
 - **[OpenAPI contract](docs/openapi.yaml)**: also served at `GET /api/openapi.json`, no login needed.
+- **[Android app](docs/android.md)**: the agenda and home-screen widget on your phone (install, first run, how it syncs).
 - **[CalDAV](docs/caldav.md)**: the same calendars for CalDAV clients and libraries, at `/dav/`.
 
 ## Features
