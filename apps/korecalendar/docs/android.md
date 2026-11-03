@@ -3,7 +3,7 @@
 A native Android app (Kotlin, Jetpack Compose, dark) for **glancing at your calendar**: an Agenda widget for the home screen, and an Agenda screen that opens instantly and works offline.
 Design: [specs/2026-11-03-android-design.md](superpowers/specs/2026-11-03-android-design.md). Release process: [releasing.md](releasing.md#android).
 
-> **Status: stage 1 of 4.** Read-only. You can sign in, see the agenda, add the widget, hide calendars and sign out. Editing events (stage 2), day, week and month views (stage 3), and
+> **Status: stage 2 of 4.** You can sign in, see the agenda, add the widget, hide calendars, sign out, and **create, edit and delete events**. Day, week and month views (stage 3) and
 > reminders as phone alarms (stage 4) are not in the app yet: use the web app for those.
 
 ## Install
@@ -31,6 +31,18 @@ Tap a row for the details. Pull down to refresh. **Today** jumps back to the top
 
 **Settings** has the server and account, a 12/24-hour clock, **show/hide for each calendar** (hidden calendars disappear from the agenda and the widget, their events stay on the server) and
 **Sign out** (which also deletes the copy on the phone).
+
+## Editing events
+
+**New event** (the button on the agenda) opens the editor; tap an event, then **Edit** or **Delete**. The editor has every field the web editor has: title, calendar, all-day, start and end (date and time), time zone,
+**repeat** (the same choices as the web, or **Custom…**), up to 20 **reminders**, location and notes. Events are edited in their **own** time zone (shown in the editor); the agenda shows them in your account's zone.
+
+- **Repeating events** ask **This event / This and following events / All events**, with the same rules as the web: changing the time zone, the repeat rule or the calendar is not offered for "this event only", and a repeat rule the app cannot show
+  as a choice (for example "last weekday of the month") is shown as it is and **kept untouched** unless you replace it. When a change to the schedule resets changed occurrences, the message says how many.
+- **Delete** asks first (repeating events ask which ones) and then offers **Undo** for a few seconds, and the web app can bring it back for 30 days.
+- **Needs the server.** Editing is online only. If the server cannot be reached the editor **stays open with everything you typed** and says why; tap Save again to retry (a retry never creates twice).
+  If someone changed the event somewhere else in the meantime, Save is refused with "This event was changed somewhere else": **Reload** shows the latest version (and discards your changes), nothing is overwritten silently.
+- After a save the app updates its copy, so the agenda and the widget agree at once.
 
 ## The widget
 
@@ -67,6 +79,8 @@ Run this after installing a new release; it is what the automated tests cannot s
 4. Revoke the token in the web app, then open the app: it asks you to sign in again.
 5. Tap a widget row: the app opens on that event.
 6. Rotate the phone and change the font size: nothing is clipped.
+7. Create an event with a reminder and a repeat; it shows on the agenda and in the widget. Edit one occurrence ("This event"), then delete the series and Undo.
+8. Start an edit, switch on airplane mode and press Save: the editor stays open with your text and says it cannot reach the server; switch it off and Save again.
 
 ## Building it yourself
 
@@ -74,5 +88,8 @@ Run this after installing a new release; it is what the automated tests cannot s
 cd android
 ./gradlew testDebugUnitTest lintDebug assembleDebug     # needs JDK 21 and the Android SDK; the contract tests also need Go
 ```
+
+The **device tests** (Room, the keystore, the widget's data, and the UI flows: sign in, create, edit one occurrence of a series, delete and undo) run on an emulator or a phone with
+`bash scripts/android-ui-test.sh`, which starts a real server on the computer and gives the app its address (`10.0.2.2` from an emulator). CI runs them on every pull request.
 
 The unit tests include contract tests that build and start the real server from `api/` and drive the app's networking and sync against it. Without Go they are skipped locally and fail under `CI`.

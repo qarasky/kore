@@ -1,5 +1,7 @@
 # KoreCalendar Android, Stage 2 Implementation Plan (editing, release `android-v0.2.0`)
 
+> **Status:** executed (released as `android-v0.2.0`).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:executing-plans (inline, with a ledger). Steps use checkbox syntax.
 
 **Goal:** Everything the web editor does to an event, the phone does: create, edit (one occurrence / this and following / all), delete with undo, repeat rules, reminders, with the web app's safety (`If-Match`, `Idempotency-Key`, no lost typing), proven against the real API.

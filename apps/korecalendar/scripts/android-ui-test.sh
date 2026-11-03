@@ -4,7 +4,7 @@
 # Builds the server, starts it on a free port with a fresh data directory (reachable from the
 # emulator as 10.0.2.2), creates the owner, then runs `connectedDebugAndroidTest` on the attached
 # emulator or phone with the server's address and the owner's login as instrumentation arguments.
-# Needs `go`, a running emulator/device (adb), and the Android SDK.
+# Set KORECAL_UI_TEST_CLASS to run one test class. Needs `go`, a running emulator/device (adb), and the Android SDK.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -39,7 +39,8 @@ cd "$root/android"
 ./gradlew --no-daemon connectedDebugAndroidTest \
   "-Pandroid.testInstrumentationRunnerArguments.server=http://10.0.2.2:$port" \
   "-Pandroid.testInstrumentationRunnerArguments.email=$email" \
-  "-Pandroid.testInstrumentationRunnerArguments.password=$password"
+  "-Pandroid.testInstrumentationRunnerArguments.password=$password" \
+  ${KORECAL_UI_TEST_CLASS:+"-Pandroid.testInstrumentationRunnerArguments.class=$KORECAL_UI_TEST_CLASS"}
 
 # Gradle can report success when the tests never ran (for example when the app could not be installed
 # over a differently signed one), so count the results.
