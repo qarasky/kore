@@ -1,5 +1,6 @@
 package dev.qarasky.korecalendar
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -8,6 +9,8 @@ import androidx.activity.viewModels
 import dev.qarasky.korecalendar.ui.AppHolder
 import dev.qarasky.korecalendar.ui.AppRoot
 import dev.qarasky.korecalendar.ui.theme.KoreTheme
+import dev.qarasky.korecalendar.widget.EXTRA_EVENT_ID
+import dev.qarasky.korecalendar.widget.EXTRA_OCC_KEY
 
 class MainActivity : ComponentActivity() {
     private val holder: AppHolder by viewModels()
@@ -15,7 +18,20 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { KoreTheme { AppRoot(holder.controller) } }
+        setContent { KoreTheme { AppRoot(holder.controller, holder.pendingOpen, holder::opened) } }
+        openFrom(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        openFrom(intent)
+    }
+
+    /** A tap on a widget row starts the app with the event it showed. */
+    private fun openFrom(intent: Intent?) {
+        val id = intent?.getStringExtra(EXTRA_EVENT_ID) ?: return
+        holder.open(id, intent.getStringExtra(EXTRA_OCC_KEY) ?: "")
     }
 
     override fun onStart() {

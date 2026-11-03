@@ -58,8 +58,12 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun dao(): StoreDao
 
     companion object {
-        fun open(context: Context): AppDatabase =
-            Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "korecalendar.db").build()
+        @Volatile private var instance: AppDatabase? = null
+
+        /** One database per process: the activity, the sync worker and the widget share it. */
+        fun open(context: Context): AppDatabase = instance ?: synchronized(this) {
+            instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "korecalendar.db").build().also { instance = it }
+        }
     }
 }
 

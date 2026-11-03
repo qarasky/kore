@@ -72,6 +72,8 @@ class AppController(
     suspend fun start() {
         repo.refreshFromStore()
         publish()
+        // Idempotent: keeps the periodic sync running after an app update or a reboot.
+        if (accounts.load() != null && !accounts.isRevoked()) background.scheduleSync()
     }
 
     suspend fun signIn(rawUrl: String, email: String, password: String): SignInResult {

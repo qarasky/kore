@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import dev.qarasky.korecalendar.ui.theme.Palette
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 private sealed interface Screen {
@@ -26,8 +27,9 @@ private sealed interface Screen {
 
 /** The app: sign-in when there is no usable account, otherwise the agenda with its two sub-screens. */
 @Composable
-fun AppRoot(controller: AppController) {
+fun AppRoot(controller: AppController, pendingOpen: StateFlow<Pair<String, String>?>, onOpened: () -> Unit) {
     val state by controller.state.collectAsState()
+    val pending by pendingOpen.collectAsState()
     val scope = rememberCoroutineScope()
     var screen by remember { mutableStateOf<Screen>(Screen.Agenda) }
     var openEventId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -35,6 +37,15 @@ fun AppRoot(controller: AppController) {
     val current: Screen = when {
         openEventId != null && openEventKey != null -> Screen.Details(openEventId!!, openEventKey!!)
         else -> screen
+    }
+
+    // A tap on the widget asks for one event.
+    LaunchedEffect(pending) {
+        pending?.let { (id, key) ->
+            openEventId = id
+            openEventKey = key
+            onOpened()
+        }
     }
 
     // "Now" moves: ended events dim and "Today" rolls over.
