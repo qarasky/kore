@@ -396,10 +396,17 @@ func TestSSODisablesLocalLogin(t *testing.T) {
 	if rec := login(e.h, "local@kore.test", "right-pw", nil); rec.Code != 403 || !strings.Contains(rec.Body.String(), "local_login_disabled") {
 		t.Fatalf("login: %d %s", rec.Code, rec.Body)
 	}
-	var cfg map[string]bool
-	json.Unmarshal(e.do("GET", "/api/auth/config", nil).Body.Bytes(), &cfg)
-	if cfg["local_login"] || !cfg["oidc"] {
-		t.Fatalf("%v", cfg)
+	var cfg struct {
+		LocalLogin bool              `json:"local_login"`
+		OIDC       bool              `json:"oidc"`
+		Issuer     string            `json:"issuer"`
+		Apps       map[string]string `json:"apps"`
+	}
+	if err := json.Unmarshal(e.do("GET", "/api/auth/config", nil).Body.Bytes(), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.LocalLogin || !cfg.OIDC || cfg.Issuer == "" || cfg.Apps["kore"] == "" {
+		t.Fatalf("%+v", cfg)
 	}
 }
 

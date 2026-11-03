@@ -157,3 +157,27 @@ func TestSSOMisconfigurationFails(t *testing.T) {
 		t.Error("bad KORE_LOCAL_LOGIN accepted")
 	}
 }
+
+func TestSSOAppURLs(t *testing.T) {
+	sso := "public_url = \"https://files.example.com\"\n" + required + "[oidc]\nissuer = \"https://id.example.com\"\n"
+	c, err := Load(write(t, sso+"apps = { koremind = \"https://mind.example.com/\" }\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.OIDC.Apps["koremind"] != "https://mind.example.com" {
+		t.Fatalf("got %v", c.OIDC.Apps)
+	}
+	t.Setenv("KORE_APP_URLS", "korecalendar=https://cal.example.com, flatline=https://up.example.com")
+	if c, err = Load(write(t, sso)); err != nil {
+		t.Fatal(err)
+	}
+	if len(c.OIDC.Apps) != 2 || c.OIDC.Apps["flatline"] != "https://up.example.com" {
+		t.Fatalf("got %v", c.OIDC.Apps)
+	}
+	for _, bad := range []string{"nope=https://x.example.com", "koremind=ftp://x", "koremind"} {
+		t.Setenv("KORE_APP_URLS", bad)
+		if _, err := Load(write(t, sso)); err == nil {
+			t.Fatalf("%q: want error", bad)
+		}
+	}
+}

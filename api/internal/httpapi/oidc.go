@@ -33,6 +33,7 @@ type ssoState struct {
 	publicURL     string
 	linkByEmail   bool
 	autoProvision bool
+	apps          map[string]string // app switcher: app key -> base URL (this app included)
 	limit         *auth.Limiter
 	refreshMu     sync.Mutex // serialises refresh-token rotation (parallel redemptions look like theft)
 }
@@ -54,6 +55,7 @@ func WithConfig(cfg config.Config) Option {
 				RedirectURL: cfg.PublicURL + callbackPath,
 			}),
 			publicURL: cfg.PublicURL, linkByEmail: cfg.OIDC.LinkByEmailEnabled(), autoProvision: cfg.OIDC.AutoProvisionEnabled(),
+			apps:  appURLs(cfg.PublicURL, cfg.OIDC.Apps),
 			limit: auth.NewLimiter(30, 15*time.Minute),
 		}
 	}
@@ -77,8 +79,34 @@ func (s *server) registerSSO(mux *http.ServeMux) {
 	}
 }
 
+// appURLs is the app switcher map: the configured apps plus Kore itself.
+func appURLs(publicURL string, apps map[string]string) map[string]string {
+	out := map[string]string{"kore": publicURL}
+	for k, v := range apps {
+		out[k] = v
+	}
+	return out
+}
+
+type authConfigJSON struct {
+	LocalLogin bool `json:"local_login"`
+	OIDC       bool `json:"oidc"`
+	// Issuer is Kore ID's base URL (its account page is Issuer + "/account").
+	Issuer string `json:"issuer,omitempty"`
+	// Apps are the Kore apps' base URLs for the app switcher.
+	Apps map[string]string `json:"apps,omitempty"`
+}
+
 func (s *server) authConfig(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, 200, map[string]bool{"local_login": s.passwordLogin, "oidc": s.sso != nil})
+	out := authConfigJSON{LocalLogin: s.passwordLogin, OIDC: s.sso != nil}
+	if s.sso != nil {
+		out.Issuer = s.sso.p.Issuer()
+		out.Apps = s.sso.apps
+		if out.Apps == nil {
+			out.Apps = appURLs(s.sso.publicURL, nil)
+		}
+	}
+	writeJSON(w, 200, out)
 }
 
 // safeNext keeps only same-origin relative paths (mirrors web/lib/safe-next.ts).

@@ -94,6 +94,7 @@ services:
       KORE_OIDC_CLIENT_SECRET: ${KORE_OIDC_CLIENT_SECRET:-}
       KORE_OIDC_LINK_BY_EMAIL: ${KORE_OIDC_LINK_BY_EMAIL:-true}
       KORE_OIDC_AUTO_PROVISION: ${KORE_OIDC_AUTO_PROVISION:-true}
+      KORE_APP_URLS: ${KORE_APP_URLS:-}
       KORE_LOCAL_LOGIN: ${KORE_LOCAL_LOGIN:-true}
     volumes:
       # Never auto-created: if the volume is not mounted, compose fails

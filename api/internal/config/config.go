@@ -46,7 +46,15 @@ type OIDC struct {
 	LinkByEmail *bool `toml:"link_by_email"`
 	// AutoProvision creates a local account on first login (default true).
 	AutoProvision *bool `toml:"auto_provision"`
+	// Apps maps the other Kore apps (koremind, korecalendar, flatline) to
+	// their base URLs for the app switcher in the top bar and account menu.
+	// Optional; apps left out are not shown. KORE_APP_URLS overrides it as
+	// "koremind=https://mind.example.com,korecalendar=https://cal.example.com".
+	Apps map[string]string `toml:"apps"`
 }
+
+// AppIDs are the app keys Apps accepts (Kore ID's app keys).
+var AppIDs = []string{"kore", "koremind", "korecalendar", "flatline"}
 
 // Enabled reports whether Kore ID login is configured.
 func (o OIDC) Enabled() bool { return o.Issuer != "" }
@@ -119,6 +127,16 @@ func Load(path string) (Config, error) {
 	if err := envBool("KORE_OIDC_AUTO_PROVISION", &c.OIDC.AutoProvision); err != nil {
 		return Config{}, err
 	}
+	if v := os.Getenv("KORE_APP_URLS"); v != "" {
+		c.OIDC.Apps = map[string]string{}
+		for _, pair := range strings.Split(v, ",") {
+			k, u, ok := strings.Cut(strings.TrimSpace(pair), "=")
+			if !ok {
+				return Config{}, fmt.Errorf("invalid KORE_APP_URLS entry %q (use app=url)", pair)
+			}
+			c.OIDC.Apps[strings.TrimSpace(k)] = strings.TrimSpace(u)
+		}
+	}
 	if err := c.validateSSO(); err != nil {
 		return Config{}, err
 	}
@@ -156,10 +174,28 @@ func (c *Config) validateSSO() error {
 		return errors.New("public_url (KORE_PUBLIC_URL) is required when Kore ID is enabled")
 	}
 	for name, v := range map[string]string{"oidc.issuer": c.OIDC.Issuer, "public_url": c.PublicURL} {
-		u, err := url.Parse(v)
-		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.RawQuery != "" || u.Fragment != "" {
+		if !absHTTP(v) {
 			return fmt.Errorf("%s must be an absolute http(s) URL, got %q", name, v)
 		}
 	}
+	for k, v := range c.OIDC.Apps {
+		known := false
+		for _, id := range AppIDs {
+			known = known || id == k
+		}
+		if !known {
+			return fmt.Errorf("oidc.apps: unknown app %q (use %s)", k, strings.Join(AppIDs, ", "))
+		}
+		v = strings.TrimRight(v, "/")
+		if !absHTTP(v) {
+			return fmt.Errorf("oidc.apps.%s must be an absolute http(s) URL, got %q", k, v)
+		}
+		c.OIDC.Apps[k] = v
+	}
 	return nil
+}
+
+func absHTTP(v string) bool {
+	u, err := url.Parse(v)
+	return err == nil && (u.Scheme == "https" || u.Scheme == "http") && u.Host != "" && u.RawQuery == "" && u.Fragment == ""
 }

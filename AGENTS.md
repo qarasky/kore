@@ -73,8 +73,14 @@ add code that trusts client-supplied headers elsewhere.
 **Kore ID (OIDC).** `internal/oidc` is a stdlib-only RP client (discovery, PKCE
 S256, EdDSA JWT verification via JWKS); `httpapi/oidc.go` has the flow, the
 `sub` -> user mapping and the session/bearer middleware. Users are keyed on
-`users.sub` (local ids stay random hex). Never match accounts by email unless
-`oidc.link_by_email` is set: Kore ID does not verify emails. SSO sessions keep
+`users.sub` (local ids stay random hex). Accounts are matched by email only
+when the token says `email_verified: true` and `oidc.link_by_email` is on (the
+default; Kore ID accounts are admin-managed, so their emails are verified).
+Bearer tokens must have JWT header `typ: at+jwt`. SSO sessions store the Kore
+ID `sid`; `POST /api/auth/oidc/backchannel-logout` (register it as the client's
+`backchannelLogoutUri`) deletes sessions by `sid`, or by `sub` without one; its
+jti replay cache is in memory (one API instance). Kore ID enforces per-user app
+access. SSO sessions keep
 `id_token`/`refresh_token` in `sessions` and redeem the refresh token every 10
 minutes under one mutex (parallel redemption looks like token theft to Kore
 ID). Password login is gated by `local_login`. The API needs outbound access to
