@@ -86,6 +86,7 @@ Spacing follows Tailwind's 4-step scale (in 15px rems). Fixed sizes are tokens:
 | `topbar` | 60px | Top bar height |
 | `header` | 52px | Page header height |
 | `sidebar` | 256px | Sidebar width |
+| `sidebar-collapsed` | 64px | Collapsed (icon-only) sidebar width |
 | `settings-nav` | 200px | Settings section nav width |
 
 Minimum hit target is 32px; primary controls are 40px.
@@ -108,6 +109,8 @@ Minimum hit target is 32px; primary controls are 40px.
 | dialog | 220ms in / 140ms out | Dialogs: fade + 8px rise; overlay fades 160/120ms |
 | drawer | 250ms in / 180ms out | Mobile navigation drawer slides from the left |
 | toast | 220ms in / 120ms out | Rise 8px + fade |
+| sidebar | 200ms | Width change when the sidebar collapses/expands |
+| indeterminate | 1.2s loop | Progress without a value (static 40% bar under reduced motion) |
 
 Enter on `--ease-standard` `cubic-bezier(0.2, 0, 0, 1)`, leave on `--ease-exit` `cubic-bezier(0.3, 0, 0.8, 0.15)`.
 Exits are shorter than entrances. Motion explains a change and never delays content. `prefers-reduced-motion`
@@ -143,6 +146,13 @@ from 900px.
 - **Sidebar.** Optional header action (Kore's "New"), nav groups (`SidebarNav`, 2px gap, 20px between groups),
   footer pinned to the bottom (storage meter, settings link). Nav items are 40px, icon 16px; the current item is a
   `raised` pill with medium weight and an accent icon.
+- **Collapsible sidebar.** With `collapsible`, a toggle sits at the start of the top bar (desktop only) and the
+  sidebar collapses to a 64px icon rail: labels, section titles and counts hide (titled groups get a hairline
+  instead), each item keeps its accessible name and shows it as a tooltip on the right. `Sidebar` shows
+  `collapsedHeader`/`collapsedFooter` instead of its header/footer (e.g. an IconButton "New", a label-less
+  Meter). The app owns the state: pass `sidebarCollapsed`, store what `onSidebarCollapsedChange` reports (cookie,
+  localStorage, user settings). The drawer is always expanded. Use it for apps people keep open all day with a
+  wide content area (KoreMonitor); leave it off when the sidebar holds content, not just navigation.
 - **Mobile.** Below 768px the sidebar is a drawer (modal, slides from the left, `min(88vw, 300px)`), opened from
   the top bar's menu button; following a link closes it. The wordmark hides on phones when the top bar has middle
   content. Tables scroll sideways inside their frame; secondary columns may hide (`max-sm:hidden`).
@@ -197,8 +207,20 @@ counter or a link on the label row. Do: validate on submit, then live once a fie
 
 ### Select
 Radix Select, styled as an input with a chevron. Options as `options` or `SelectItem` children
-(`SelectGroup` for labelled groups). The selected option shows an accent check. For more than ~15 options use a
-searchable combobox (not in v0.1). `name` adds a hidden input for plain forms.
+(`SelectGroup` for labelled groups). The selected option shows an accent check. For more than ~15 options, or remote data, use
+`Combobox`. `name` adds a hidden input for plain forms.
+
+### Combobox
+A searchable single select for long or remote lists (time zones, people, folders). Looks like a Select; opens a
+popup (at least 280px, max 400px tall) with a search field on top and the options below; each option has a
+label, an optional muted right-hand hint (`description`: "UTC+05:00", an email) and hidden `keywords` that also
+match. Filtering is local by default (every typed word must match, accent-insensitive; pass `filter` to change
+it); pass `loadOptions(query, signal)` to search on the server (debounced 200ms, stale requests aborted, a
+spinner in the field, "Searching…", and "Couldn't load results. Try again." on failure). "No matches" when empty.
+Keyboard: Enter/Space/ArrowDown open; typing filters; arrows, PageUp/PageDown and Home/End move (disabled options
+skipped); Enter selects; Escape closes without changing anything and returns focus to the trigger. ARIA: the
+search field is `role="combobox"` with `aria-activedescendant` into a `listbox`. Use Select for ≤ ~15 fixed
+options, Combobox beyond that or for remote data.
 
 ### Checkbox, Switch, RadioGroup
 - **Checkbox**: 16px box, accent when checked, `checked="indeterminate"` for "some". For choices submitted later.
@@ -268,6 +290,16 @@ is decorative; then the state must be written next to it.
 ### Avatar
 Round, 24/32/40px. Image if given, else initials (first + last word of the name, else the email's first letter)
 in white on the accent. Decorative: the name is always written next to it.
+
+### Meter, Progress
+- **Meter** (`role="meter"`): a measurement in a known range: storage used, quota. Label (13px muted) above, a 6px
+  bar, the amount in words below ("12 MB of 64 MB used"), which is also the `aria-valuetext`. The bar is accent,
+  turns `warning` from 80% and `danger` from 90% (`thresholds` changes or disables that); in danger the words turn
+  red too, so say what to do ("Free up space to keep uploading."). In a collapsed sidebar use `hideLabel` and
+  put the words in `aria-label`.
+- **Progress** (`role="progressbar"`): a running task (upload, import). With `value` it fills; without it is
+  indeterminate (a sliding segment, `aria-busy`). `showLabel` puts the label and "2 of 3 files" above the bar.
+- Don't use either for things that aren't a fraction of something (a count, a score).
 
 ### EmptyState
 Optional icon in a soft circle, title as a statement ("No shared links yet"), one or two sentences on what to do,
@@ -371,6 +403,9 @@ One line each, so migrations know what changes.
 - **Dialogs: 8px radius, raised, strong hairline, title 17px** (Kore), on Radix instead of native `<dialog>`.
 - **Menus: Kore's panel** (40px items, 16px muted icons) on Radix; Flatline's shadcn 32px items grow.
 - **Switch 36×20** (KoreCalendar, denser) over KoreMind's 44×24.
+- **Collapsible sidebar: opt-in icon rail with tooltips, state owned by the app** (Flatline's shadcn sidebar
+  persisted itself in a cookie and had a ⌘B shortcut; kore-ui has neither, so apps decide).
+- **Meter thresholds 80% / 90%** (Kore turned its storage bar red only above 90%; warning is new).
 - **Toasts: one at a time, bottom centre** (Kore, KoreCalendar), on Radix Toast.
 - **Settings: 200px section nav + one 576px column, pill row on phones** (KoreMind's proportions,
   KoreCalendar's bordered nav inside the panel).
@@ -391,7 +426,7 @@ One line each, so migrations know what changes.
 ```jsonc
 // package.json
 "dependencies": {
-  "@qarasky/kore-ui": "https://codeload.github.com/qarasky/kore-ui/tar.gz/refs/tags/v0.1.0",
+  "@qarasky/kore-ui": "https://codeload.github.com/qarasky/kore-ui/tar.gz/refs/tags/v0.1.1",
   "lucide-react": "^1.67.0" // if the app imports icons itself
 }
 ```
@@ -446,7 +481,9 @@ interactive parts are client components), but event handlers can only be passed 
   the drop-target props by wrapping, or pass them through `className`/a custom link); `AccountMenu.tsx` → kore-ui
   `AccountMenu` (Kore ID account link, apps, sign out; "Change password" only while local login exists, as a
   child item); `admin/AdminNav.tsx` → `NavTabs` in a `PageHeader`; `UsersTable.tsx` → `Table` parts; the login
-  page → `AuthScreen app="kore"` with `sso.href` = the OIDC start route and `aside={<LoginArt/>}`.
+  page → `AuthScreen app="kore"` with `sso.href` = the OIDC start route and `aside={<LoginArt/>}`;
+  `StorageMeter.tsx` and `admin/UsageBar.tsx` → `Meter` (`valueText` = "12 MB of 64 MB used"); upload tray bars
+  → `Progress`.
 - Visual changes: login inputs go from `raised` to `bg/60`; Kore ID button moves above the password form and
   becomes primary; row action buttons become `Button size="sm"`.
 
@@ -470,7 +507,8 @@ interactive parts are client components), but event handlers can only be passed 
 - Delete: `Button.tsx` (`buttonClass(v, small)` → `buttonVariants({ variant, size })` or `Button`), `Field.tsx`
   (→ `Field` + `Input`), `Modal.tsx` (→ `Dialog`; the drawer variant → AppShell's drawer), `Menu.tsx`,
   `Popover.tsx` (→ `Popover`; anchor event popovers with `PopoverAnchor`), `Select.tsx` (→ `Select`; keep
-  `TimezoneSelect` as an app component on top of it, or a future combobox), `Switch.tsx`, `Toast.tsx`,
+  `TimezoneSelect.tsx` → `Combobox` with the zone list as `options`, offsets as `description`, regions as
+  `keywords`), `Switch.tsx`, `Toast.tsx`,
   `ConfirmDialog.tsx`, `CopyButton.tsx`, `EmptyState.tsx` (→ `EmptyState` with `action`), `AuthCard.tsx`,
   `AuthForm.tsx`, `SsoButton.tsx` (→ `AuthScreen app="korecalendar"`), `Logo.tsx`/`wordmark.tsx` (→ `AppMark` /
   `Wordmark`), `icons.tsx` (→ lucide), the token block of `globals.css` (keep `--hour`, `--gutter` and grid CSS).
@@ -493,7 +531,9 @@ interactive parts are client components), but event handlers can only be passed 
   `@fontsource-variable/inter` import in `app/layout.tsx`. Keep `cmdk` for the command palette, restyled with
   kore-ui tokens (`raised`, `border-strong`, `shadow-overlay`).
 - Replace: `app-sidebar.tsx` → `AppShell` + `Sidebar` (sections as `SidebarItem`s, the attention count as
-  `trailing`, search as a TopBar button with `<Kbd>⌘K</Kbd>`); its footer user dropdown → `AccountMenu` in the top
+  `trailing`, search as a TopBar button with `<Kbd>⌘K</Kbd>`; `collapsible` replaces `collapsible="icon"`, with
+  the app reading/writing its `sidebar_state` cookie through `sidebarCollapsed`/`onSidebarCollapsedChange`, and
+  ⌘B, if kept, calling the same setter); its footer user dropdown → `AccountMenu` in the top
   bar; `page-header.tsx` → `PageHeader` with `breadcrumbs`; `sign-in-form.tsx` → `AuthScreen app="flatline"`
   (token sign-in and first-account setup go in `children`); status dots → `StatusDot`.
 - Class renames across the app: `bg-background` → `bg-bg`, `bg-card`/`bg-sidebar`/`bg-muted` → `bg-surface`,
@@ -502,7 +542,7 @@ interactive parts are client components), but event handlers can only be passed 
   `text-destructive` → `text-danger`, `ok`/`warn`/`bad`/`maint` → `status-up`/`status-warn`/`status-down`/
   `status-maint`, `rounded-md` → `rounded-ui`. The board CSS keeps its own variables but reads kore-ui's.
 - Visual changes: base text 14 → 15px, controls 32 → 40px (shadcn `h-9` at a 14px root), menu items ~28 →
-  40px, no collapsible icon-only sidebar in v0.1 (open issue).
+  40px.
 
 ### Kore ID (`qarasky/kore-id`, web/)
 

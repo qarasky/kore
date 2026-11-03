@@ -113,3 +113,21 @@ export { AppMark, Wordmark, KoreLogo, type AppMarkProps, type WordmarkProps } fr
 export { AppSwitcher, AppGrid, type AppSwitcherProps, type AppGridProps } from "./identity/AppSwitcher";
 export { AccountMenu, type AccountMenuProps, type AccountUser } from "./identity/AccountMenu";
 export { AuthScreen, type AuthScreenProps, type PasswordSignIn, type KoreIdSignIn } from "./identity/AuthScreen";
+
+// 0.1.1
+export {
+  Combobox,
+  defaultComboboxFilter,
+  type ComboboxProps,
+  type ComboboxOption,
+} from "./components/Combobox";
+export {
+  Meter,
+  Progress,
+  meterTone,
+  type MeterProps,
+  type MeterTone,
+  type MeterThresholds,
+  type ProgressProps,
+} from "./components/Meter";
+export { SidebarToggle, type SidebarToggleProps } from "./layout/AppShell";

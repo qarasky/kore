@@ -15,7 +15,7 @@ Pin a release tag:
 ```jsonc
 // package.json
 "dependencies": {
-  "@qarasky/kore-ui": "https://codeload.github.com/qarasky/kore-ui/tar.gz/refs/tags/v0.1.0"
+  "@qarasky/kore-ui": "https://codeload.github.com/qarasky/kore-ui/tar.gz/refs/tags/v0.1.1"
 }
 ```
 
@@ -137,10 +137,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
 ## Components
 
-Primitives: Button, IconButton, Input, Textarea, Field, Select, Checkbox, Switch, RadioGroup, Dialog,
+Primitives: Button, IconButton, Input, Textarea, Field, Select, Combobox, Checkbox, Switch, RadioGroup, Dialog,
 ConfirmDialog, Menu, ContextMenu, Popover, Tooltip, Tabs, NavTabs, Toast (`useToast`), Table, Badge, StatusDot,
-Avatar, EmptyState, Spinner, Skeleton, Kbd, CopyButton, Card. Layout: AppShell, TopBar, Sidebar, SidebarNav,
-SidebarItem, PageHeader, PageBody, SectionHeader, SettingsLayout, SettingsSection. Identity: AccountMenu,
+Avatar, Meter, Progress, EmptyState, Spinner, Skeleton, Kbd, CopyButton, Card. Layout: AppShell (optionally
+`collapsible`), SidebarToggle, TopBar, Sidebar, SidebarNav, SidebarItem, PageHeader, PageBody, SectionHeader, SettingsLayout, SettingsSection. Identity: AccountMenu,
 AppSwitcher, AppGrid, AuthScreen, AppMark, Wordmark, KoreLogo. Utilities: `cn`, `KoreProvider`.
 
 ## Develop

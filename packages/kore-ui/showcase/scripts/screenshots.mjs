@@ -42,6 +42,19 @@ try {
   await go("components");
   await shot(desk, "components", { fullPage: true });
 
+  await desk.locator("#combobox").screenshot({ path: `${out}/combobox-states.png` });
+  await desk.locator("#meter").screenshot({ path: `${out}/meter.png` });
+  console.log("wrote combobox-states, meter");
+  await desk.getByRole("button", { name: "Time zone" }).click();
+  await desk.getByRole("combobox", { name: "Search time zones" }).fill("america new");
+  await desk.keyboard.press("ArrowDown");
+  await shot(desk, "combobox");
+  await desk.keyboard.press("Escape");
+  await desk.getByRole("button", { name: "Owner" }).click();
+  await desk.getByRole("option").first().waitFor();
+  await shot(desk, "combobox-async");
+  await desk.keyboard.press("Escape");
+
   await desk.getByTestId("open-dialog").click();
   await shot(desk, "dialog");
   await desk.keyboard.press("Escape");
@@ -75,6 +88,11 @@ try {
   await desk.getByRole("row", { name: /Q3 budget/ }).click({ button: "right" });
   await shot(desk, "context-menu");
   await desk.keyboard.press("Escape");
+  await desk.getByRole("button", { name: "Collapse sidebar" }).click();
+  await desk.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Shared links" }).hover();
+  await desk.getByRole("tooltip").first().waitFor();
+  await shot(desk, "app-shell-collapsed");
+  await desk.getByRole("button", { name: "Expand sidebar" }).click();
 
   await go("users");
   await shot(desk, "table");

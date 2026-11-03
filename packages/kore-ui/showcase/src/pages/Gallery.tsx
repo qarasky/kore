@@ -7,6 +7,7 @@ import {
   Button,
   Card,
   Checkbox,
+  Combobox,
   ConfirmDialog,
   ContextMenu,
   ContextMenuContent,
@@ -27,6 +28,7 @@ import {
   Input,
   Kbd,
   Menu,
+  Meter,
   MenuCheckboxItem,
   MenuContent,
   MenuItem,
@@ -41,6 +43,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  Progress,
   RadioGroup,
   RadioGroupItem,
   SectionHeader,
@@ -72,6 +75,7 @@ import {
 import { Copy, Download, FolderOpen, Inbox, Link2, MoreHorizontal, Pencil, Plus, Search, Settings, Share2, Trash2, Upload } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { ACCOUNT_URL, APP_URLS, ME, PAGES } from "../demo";
+import { TIME_ZONES, searchPeople } from "../timezones";
 
 function Section({ id, title, children, note }: { id: string; title: string; note?: string; children: ReactNode }) {
   return (
@@ -105,7 +109,7 @@ export function Gallery() {
         <div className="text-brand">
           <Wordmark app="kore" />
         </div>
-        <span className="text-muted">kore-ui 0.1.0</span>
+        <span className="text-muted">kore-ui 0.1.1</span>
         <nav aria-label="Showcase pages" className="ml-auto flex flex-wrap gap-1">
           {PAGES.map((p) => (
             <a key={p.href} href={p.href} className="rounded-ui px-3 py-1.5 text-sub text-muted hover:bg-white/5 hover:text-text">
@@ -270,6 +274,44 @@ export function Gallery() {
               <RadioGroupItem value="off" label="Disabled option" disabled />
             </RadioGroup>
           </Field>
+        </div>
+      </Section>
+
+      <Section id="combobox" title="Combobox" note="Searchable single select for long or remote lists. Type to filter; arrows, Enter, Escape.">
+        <div className="grid gap-6 md:grid-cols-3">
+          <Field label="Time zone" hint={`${TIME_ZONES.length} zones, filtered locally (city, region, offset).`}>
+            <Combobox options={TIME_ZONES} defaultValue="Asia/Almaty" searchPlaceholder="Search time zones"/>
+          </Field>
+          <Field label="Owner" hint="Async: searched on the server as you type.">
+            <Combobox loadOptions={searchPeople} placeholder="Choose a person" searchPlaceholder="Search people" />
+          </Field>
+          <Field label="Calendar" error="Pick a calendar.">
+            <Combobox
+              placeholder="Choose a calendar"
+              options={[
+                { value: "work", label: "Work" },
+                { value: "home", label: "Home" },
+                { value: "shared", label: "Team (read-only)", disabled: true },
+              ]}
+            />
+          </Field>
+          <Field label="Disabled">
+            <Combobox options={TIME_ZONES} defaultValue="Europe/Berlin" disabled />
+          </Field>
+          <Field label="Small" hint="32px, for toolbars.">
+            <Combobox size="sm" options={TIME_ZONES} defaultValue="UTC" />
+          </Field>
+        </div>
+      </Section>
+
+      <Section id="meter" title="Meter and Progress" note="Meter: a measurement in a known range, warning at 80% and danger at 90% by default. Progress: a running task.">
+        <div className="grid gap-8 md:grid-cols-3">
+          <Meter label="Storage" value={12} max={64} valueText="12 MB of 64 MB used" />
+          <Meter label="Storage" value={42} max={50} valueText="42 GB of 50 GB used" />
+          <Meter label="Storage" value={49.5} max={50} valueText="49.5 GB of 50 GB used. Free up space to keep uploading." />
+          <Meter label="Free-tier requests" value={70} thresholds={{ warning: 0.5, danger: 0.75 }} valueText="70 of 100 today" />
+          <Progress label="Uploading 3 files" value={2} max={3} valueText="2 of 3 files" showLabel />
+          <Progress label="Importing calendar" valueText="Importing…" showLabel />
         </div>
       </Section>
 

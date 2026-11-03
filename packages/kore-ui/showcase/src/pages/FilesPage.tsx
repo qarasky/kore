@@ -15,6 +15,7 @@ import {
   Field,
   IconButton,
   Input,
+  Meter,
   Menu,
   MenuContent,
   MenuItem,
@@ -74,8 +75,12 @@ const ICON = {
   zip: <FileArchive className="size-icon text-warning" strokeWidth={1.5} />,
 };
 
+const COLLAPSED_KEY = "kore-showcase:sidebar-collapsed";
+
 export function FilesPage() {
   const toast = useToast();
+  // The app owns persistence: read it once, write what AppShell reports.
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === "1");
   const [deleting, setDeleting] = useState<Row | null>(null);
   const [folderOpen, setFolderOpen] = useState(false);
 
@@ -89,6 +94,12 @@ export function FilesPage() {
     <AppShell
       brand={<Wordmark app="kore" />}
       brandHref="#/app"
+      collapsible
+      sidebarCollapsed={collapsed}
+      onSidebarCollapsedChange={(next) => {
+        setCollapsed(next);
+        localStorage.setItem(COLLAPSED_KEY, next ? "1" : "0");
+      }}
       topBar={
         <TopBar actions={<TopBarActions current="kore" />}>
           <Input variant="filled" leadingIcon={<Search />} placeholder="Search files" aria-label="Search files" className="max-w-[720px]" />
@@ -112,23 +123,22 @@ export function FilesPage() {
               </MenuContent>
             </Menu>
           }
-          footer={
-            <div className="px-3">
-              <p className="text-meta font-medium text-muted">Storage</p>
-              <div
-                role="meter"
-                aria-label="Storage"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={19}
-                aria-valuetext="12 MB of 64 MB used"
-                className="mt-2 h-1.5 overflow-hidden rounded-full bg-border"
-              >
-                <div className="h-full w-[19%] rounded-full bg-accent" />
-              </div>
-              <p className="mt-2 text-meta text-muted">12 MB of 64 MB used</p>
-            </div>
+          collapsedHeader={
+            <Menu>
+              <MenuTrigger asChild>
+                <IconButton label="New" variant="primary" size="md" icon={<Plus />} />
+              </MenuTrigger>
+              <MenuContent side="right" align="start">
+                <MenuItem icon={<FolderPlus />} onSelect={() => setFolderOpen(true)}>
+                  New folder
+                </MenuItem>
+                <MenuSeparator />
+                <MenuItem icon={<Upload />}>Upload files</MenuItem>
+              </MenuContent>
+            </Menu>
           }
+          footer={<Meter label="Storage" value={12} max={64} valueText="12 MB of 64 MB used" className="px-3" />}
+          collapsedFooter={<Meter label="Storage" hideLabel value={12} max={64} aria-label="Storage: 12 MB of 64 MB used" className="px-1" />}
         >
           <SidebarNav label="Sections">
             <SidebarItem href="#/app" icon={<HardDrive />} active>

@@ -4,6 +4,7 @@ import {
   Avatar,
   Badge,
   Button,
+  Combobox,
   Field,
   Input,
   PageHeader,
@@ -22,6 +23,7 @@ import {
 import { AppWindow, Bell, KeyRound, Monitor, Smartphone, UserRound } from "lucide-react";
 import { useState } from "react";
 import { APP_URLS, ME, TopBarActions } from "../demo";
+import { TIME_ZONES } from "../timezones";
 
 const SECTIONS = [
   { id: "profile", label: "Profile", icon: <UserRound /> },
@@ -86,6 +88,9 @@ export function SettingsPage() {
               >
                 <Field label="Name" error={nameError} hint="Shown to admins and in shared items.">
                   <Input name="name" defaultValue={ME.name} />
+                </Field>
+                <Field label="Time zone" hint="Used for reminders and event times in every app.">
+                  <Combobox name="tz" options={TIME_ZONES} defaultValue="Asia/Almaty" searchPlaceholder="Search time zones" />
                 </Field>
                 <Field label="Email" hint="Only an admin can change your email.">
                   <Input value={ME.email} readOnly disabled />
