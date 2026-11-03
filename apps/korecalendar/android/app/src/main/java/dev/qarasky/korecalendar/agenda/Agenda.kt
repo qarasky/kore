@@ -99,6 +99,12 @@ data class WidgetModel(
 
 private val STALE_AFTER: Duration = Duration.ofHours(3)
 
+/** Whole hours since the last sync when that is more than three hours ago; null when fresh or never synced. */
+fun staleHours(lastSyncAt: Instant?, now: Instant): Long? {
+    val age = lastSyncAt?.let { Duration.between(it, now) } ?: return null
+    return if (age > STALE_AFTER) age.toHours() else null
+}
+
 fun widgetModel(
     occurrences: List<Occurrence>,
     calendars: List<Calendar>,
@@ -117,12 +123,11 @@ fun widgetModel(
         left -= items.size
         days += AgendaDay(d.date, items)
     }
-    val age = lastSyncAt?.let { Duration.between(it, now) }
     return WidgetModel(
         days = days,
         rowCount = days.sumOf { it.items.size },
         empty = all.isEmpty(),
-        staleHours = if (age != null && age > STALE_AFTER) age.toHours() else null,
+        staleHours = staleHours(lastSyncAt, now),
         neverSynced = lastSyncAt == null,
         nextTick = days.firstOrNull()?.items?.firstOrNull()?.endInstant,
     )

@@ -73,7 +73,13 @@ class AccountStore(private val kv: KeyValue, private val box: SecretBox) {
         kv.put(EMAIL, a.email)
         kv.put(TZ, a.timezone)
         kv.put(TOKEN, Base64.getEncoder().encodeToString(box.seal(a.token.toByteArray())))
+        kv.put(REVOKED, null)
     }
+
+    /** The server refused the token (revoked): the person must sign in again. The account's details stay for the form. */
+    fun markRevoked() = kv.put(REVOKED, "1")
+
+    fun isRevoked(): Boolean = kv.get(REVOKED) == "1"
 
     /** The account, or null when none is saved or its token can no longer be opened (then it is forgotten). */
     fun load(): Account? {
@@ -88,7 +94,7 @@ class AccountStore(private val kv: KeyValue, private val box: SecretBox) {
         return Account(server, kv.get(USER) ?: "", kv.get(EMAIL) ?: "", kv.get(TZ) ?: "UTC", token)
     }
 
-    fun clear() = listOf(SERVER, USER, EMAIL, TZ, TOKEN).forEach { kv.put(it, null) }
+    fun clear() = listOf(SERVER, USER, EMAIL, TZ, TOKEN, REVOKED).forEach { kv.put(it, null) }
 
     private companion object {
         const val SERVER = "account.server"
@@ -96,6 +102,7 @@ class AccountStore(private val kv: KeyValue, private val box: SecretBox) {
         const val EMAIL = "account.email"
         const val TZ = "account.timezone"
         const val TOKEN = "account.token"
+        const val REVOKED = "account.revoked"
     }
 }
 
