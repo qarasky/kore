@@ -1,7 +1,7 @@
 # AGENTS.md
 
-Notes for coding agents working on Kore. Read this first; `README.md` covers
-install/operations, `web/README.md` the web app's file map.
+Notes for coding agents working on KoreDrive. Read this first; `README.md`
+covers install/operations, `web/README.md` the web app's file map.
 
 ## What this is
 

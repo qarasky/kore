@@ -1,7 +1,7 @@
-# Kore web
+# KoreDrive web
 
-Next.js (App Router, SSR) UI for Kore. Every data page is a Server Component
-that fetches from the Go API with the user's `kore_session` cookie.
+Next.js (App Router, SSR) UI for KoreDrive. Every data page is a Server
+Component that fetches from the Go API with the user's `kore_session` cookie.
 
 ## Layout
 

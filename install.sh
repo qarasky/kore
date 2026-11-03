@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Kore installer: sets up Kore with Docker Compose in one go.
+# KoreDrive installer: sets up KoreDrive with Docker Compose in one go.
 #
 #   curl -fsSL https://raw.githubusercontent.com/qarasky/kore/main/install.sh | bash
 #
 # It asks a few questions (or takes the defaults), writes .env, creates and
-# initializes the data directory, pulls the images and starts Kore. Safe to
+# initializes the data directory, pulls the images and starts KoreDrive. Safe to
 # re-run: an existing install is left alone. Read it before you run it; it
 # is short.
 #
@@ -76,18 +76,18 @@ docker info >/dev/null 2>&1 || die "Cannot talk to the Docker daemon. Is it runn
 # --- Already installed? ---------------------------------------------------
 KORE_DIR="${KORE_DIR:-$HOME/kore}"
 if [ -f "$KORE_DIR/.env" ]; then
-  say "Kore is already installed in $KORE_DIR (found .env); leaving it alone."
+  say "KoreDrive is already installed in $KORE_DIR (found .env); leaving it alone."
   say "To update:  cd $KORE_DIR && docker compose pull && docker compose up -d"
   exit 0
 fi
 
 # --- Questions ------------------------------------------------------------
-step "Configuring Kore"
+step "Configuring KoreDrive"
 ask KORE_DIR "Install directory (compose files and .env)" "$KORE_DIR"
 ask KORE_DATA_DIR "Data directory (files and database)" "$KORE_DIR/data"
 ask KORE_BIND "Listen on (127.0.0.1 = this machine only, 0.0.0.0 = LAN/Tailscale too)" "127.0.0.1"
 ask KORE_PORT "Port" "8080"
-ask KORE_PUBLIC_URL "Public URL of Kore (where people open it)" "http://127.0.0.1:${KORE_PORT}"
+ask KORE_PUBLIC_URL "Public URL of KoreDrive (where people open it)" "http://127.0.0.1:${KORE_PORT}"
 ask KORE_OIDC_ISSUER "Kore ID issuer URL (Kore ID is the only sign-in)" "https://id.example.com"
 ask KORE_OIDC_CLIENT_ID "Kore ID client id" "kore"
 if [ -z "${KORE_OIDC_CLIENT_SECRET:-}" ] && [ "$INTERACTIVE" = 1 ]; then
@@ -126,9 +126,9 @@ fi
 HAVE_VOLUME=0
 if [ -f "$KORE_DATA_DIR/.kore-volume" ]; then
   HAVE_VOLUME=1
-  say "Found an existing Kore data volume there; reusing it."
+  say "Found an existing KoreDrive data volume there; reusing it."
 elif [ -n "$(ls -A "$KORE_DATA_DIR" 2>/dev/null)" ]; then
-  die "$KORE_DATA_DIR is not empty and is not a Kore data volume; refusing to use it. Pick an empty directory."
+  die "$KORE_DATA_DIR is not empty and is not a KoreDrive data volume; refusing to use it. Pick an empty directory."
 fi
 [ -w "$KORE_DATA_DIR" ] || die "$KORE_DATA_DIR is not writable by you ($(id -un)). Fix its owner (chown $KORE_UID:$KORE_GID) and run again."
 
@@ -166,10 +166,10 @@ if [ "$HAVE_VOLUME" = 0 ]; then
   # -T and </dev/null: when the script comes from a pipe, docker must not read it from stdin.
   docker compose run --rm -T api kore init </dev/null
 fi
-step "Starting Kore"
+step "Starting KoreDrive"
 docker compose up -d </dev/null
 
-printf 'Waiting for Kore to come up'
+printf 'Waiting for KoreDrive to come up'
 UP=0
 for _ in $(seq 1 60); do
   if (command -v curl >/dev/null 2>&1 && curl -fsS -o /dev/null "http://127.0.0.1:${KORE_PORT}/api/healthz" 2>/dev/null) ||
@@ -177,7 +177,7 @@ for _ in $(seq 1 60); do
   printf '.'; sleep 2
 done
 printf '\n'
-[ "$UP" = 1 ] || die "Kore did not become healthy. See: cd $KORE_DIR && docker compose ps && docker compose logs"
+[ "$UP" = 1 ] || die "KoreDrive did not become healthy. See: cd $KORE_DIR && docker compose ps && docker compose logs"
 
 # --- Reboot safety: make Docker wait for the data disk ---------------------
 if command -v findmnt >/dev/null 2>&1 && command -v systemctl >/dev/null 2>&1 && [ -d /etc/systemd/system ]; then
@@ -185,7 +185,7 @@ if command -v findmnt >/dev/null 2>&1 && command -v systemctl >/dev/null 2>&1 &&
   if [ -n "$MNT" ] && [ "$MNT" != "/" ] && [ ! -f /etc/systemd/system/docker.service.d/wait-for-kore-data.conf ]; then
     say
     say "The data directory is on its own mount ($MNT). If Docker starts before that disk"
-    say "is mounted after a reboot, Kore stays down until you restart it."
+    say "is mounted after a reboot, KoreDrive stays down until you restart it."
     if command -v sudo >/dev/null 2>&1 && confirm "Make Docker wait for $MNT at boot?"; then
       sudo mkdir -p /etc/systemd/system/docker.service.d
       printf '[Unit]\nRequiresMountsFor=%s\n' "$MNT" | sudo tee /etc/systemd/system/docker.service.d/wait-for-kore-data.conf >/dev/null
