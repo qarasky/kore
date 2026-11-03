@@ -1,7 +1,7 @@
 import { expect, request, test, type APIRequestContext, type Page } from "@playwright/test";
 import en from "../lib/i18n/en";
 import { E2E } from "./harness/env";
-import { ADMIN, apiAs, chooseOption, createFolder, createUser, loginAs, uploadFile } from "./helpers";
+import { ADMIN, apiAs, chooseOption, createFolder, createUser, loginAs, uploadFile, toasts } from "./helpers";
 
 const GiB = 1024 ** 3;
 
@@ -209,7 +209,7 @@ test("deleting a user with files explains why; the purge keeps their shared uplo
     await purge.click();
 
     await expect(explain).toBeHidden();
-    await expect(page.getByText(tt("admin.delete.doneWithFiles", { email: user.email }))).toBeVisible();
+    await expect(toasts(page).getByText(tt("admin.delete.doneWithFiles", { email: user.email })).first()).toBeVisible();
     await expect(row(page, user.email)).toHaveCount(0);
 
     // The account is gone (its session too); the shared file stays and counts against the admin.

@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import en from "../lib/i18n/en";
-import { apiAs, createFolder, createUser, loginAs, uploadFile, type CreatedUser } from "./helpers";
+import { apiAs, createFolder, createUser, loginAs, uploadFile, type CreatedUser, toasts } from "./helpers";
 
 type Key = keyof typeof en;
 function tt(key: Key, vars: Record<string, string | number> = {}): string {
@@ -9,7 +9,7 @@ function tt(key: Key, vars: Record<string, string | number> = {}): string {
 
 const list = (page: Page) => page.getByRole("listbox", { name: en["list.label"] });
 const row = (page: Page, name: string) => list(page).getByRole("option", { name, exact: true });
-const toast = (page: Page) => page.getByRole("status");
+const toast = (page: Page) => toasts(page);
 
 async function contextAction(page: Page, name: string, action: string) {
   await row(page, name).click({ button: "right" });
@@ -152,9 +152,13 @@ test("keyboard: M opens Move to… for the selection; Escape closes it, focus re
   // Keyboard-only: choose the shared root and move.
   await dialog.getByRole("combobox", { name: en["move.dialog.space"] }).focus();
   await page.keyboard.press("ArrowDown");
+  // Radix focuses the selected option once the list is positioned.
+  await expect(page.getByRole("listbox").getByRole("option", { name: en["nav.myFiles"] })).toBeFocused();
   await page.keyboard.press("End");
+  await expect(page.getByRole("listbox").getByRole("option", { name: en["nav.shared"] })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(dialog.getByText(tt("move.dialog.here", { location: en["nav.shared"] }))).toBeVisible();
+  await expect(page.getByRole("listbox")).toHaveCount(0); // the select's exit animation is over
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(r).toBeFocused();
@@ -164,7 +168,10 @@ test("keyboard: M opens Move to… for the selection; Escape closes it, focus re
   const spaceSelect = dialog.getByRole("combobox", { name: en["move.dialog.space"] });
   await spaceSelect.focus();
   await page.keyboard.press("ArrowDown");
+  // Radix focuses the selected option once the list is positioned.
+  await expect(page.getByRole("listbox").getByRole("option", { name: en["nav.myFiles"] })).toBeFocused();
   await page.keyboard.press("End");
+  await expect(page.getByRole("listbox").getByRole("option", { name: en["nav.shared"] })).toBeFocused();
   await page.keyboard.press("Enter");
   // Wait for the choice to render: focusing a still-disabled button is a no-op.
   await expect(dialog.getByText(tt("move.dialog.here", { location: en["nav.shared"] }))).toBeVisible();

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import en from "../lib/i18n/en";
 import { E2E } from "./harness/env";
-import { apiAs, createFolder, createUser, loginAs, uploadFile, type CreatedUser } from "./helpers";
+import { apiAs, createFolder, createUser, loginAs, uploadFile, type CreatedUser, toasts } from "./helpers";
 
 type TrashItem = { id: string; name: string };
 
@@ -156,7 +156,7 @@ test("delete moves to trash", async ({ page }) => {
 
   await expect(row(page, "Doomed")).toHaveCount(0);
   await expect(row(page, "Keeper")).toBeVisible();
-  await expect(page.getByRole("status")).toContainText(en["toast.trashedOne"].replace("{name}", "Doomed"));
+  await expect(toasts(page)).toContainText(en["toast.trashedOne"].replace("{name}", "Doomed"));
   expect(await trashNames(page)).toEqual(["Doomed"]);
 });
 
@@ -182,7 +182,7 @@ test("undo restores a trashed item", async ({ page }) => {
   await row(page, "Comeback").click();
   await page.keyboard.press("Delete");
   await expect(row(page, "Comeback")).toHaveCount(0);
-  await page.getByRole("status").getByRole("button", { name: en["toast.undo"] }).click();
+  await toasts(page).getByRole("button", { name: en["toast.undo"] }).click();
 
   await expect(row(page, "Comeback")).toBeVisible();
   expect(await trashNames(page)).toEqual([]);
@@ -200,7 +200,7 @@ test("shift-select two rows then Delete trashes both", async ({ page }) => {
   await expect(row(page, "A one")).toHaveCount(0);
   await expect(row(page, "B two")).toHaveCount(0);
   await expect(row(page, "C three")).toBeVisible();
-  await expect(page.getByRole("status")).toContainText(en["toast.trashedMany"].replace("{count}", "2"));
+  await expect(toasts(page)).toContainText(en["toast.trashedMany"].replace("{count}", "2"));
   expect((await trashNames(page)).sort()).toEqual(["A one", "B two"]);
 });
 
@@ -383,7 +383,7 @@ test("a failed download shows an error toast and keeps the page", async ({ page 
 
   await row(page, "vanishing.bin").click();
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("status")).toContainText(en["toast.downloadFailed"]);
+  await expect(toasts(page)).toContainText(en["toast.downloadFailed"]);
   await expect(page).toHaveURL("/files");
 });
 
@@ -408,7 +408,7 @@ test("a rename that fails on blur is abandoned with a toast; the list stays usab
   await input.fill("Beta");
   await row(page, "Gamma").click(); // blur -> submit -> 409
 
-  await expect(page.getByRole("status")).toContainText(en["rename.error.nameTaken"]);
+  await expect(toasts(page)).toContainText(en["rename.error.nameTaken"]);
   await expect(input).toHaveCount(0);
   await expect(row(page, "Alpha")).toBeVisible();
   await expect(row(page, "Gamma")).toHaveAttribute("aria-selected", "true");
@@ -434,7 +434,7 @@ test("pressing Delete twice quickly trashes once with a single Undo toast", asyn
   await page.keyboard.press("Delete");
 
   await expect(row(page, "Twice")).toHaveCount(0);
-  const toast = page.getByRole("status");
+  const toast = toasts(page);
   await expect(toast).toContainText(en["toast.trashedOne"].replace("{name}", "Twice"));
   await expect(toast.getByRole("button", { name: en["toast.undo"] })).toBeVisible();
   await page.waitForTimeout(500); // give a stray second request time to fail

@@ -64,7 +64,7 @@ test("owner creates a link in the dialog; an anonymous visitor previews and down
   const url = await urlInput.inputValue();
   expect(url.startsWith(new URL(page.url()).origin)).toBe(true);
   await dialog.getByRole("button", { name: en["share.copy"], exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: en["share.copied"] })).toBeVisible();
+  await expect(dialog.getByTestId("share-notice")).toHaveText(en["share.copied"]);
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(url);
   await expect(dialog.getByTestId("share-status")).toContainText("Expires in 30 days");
   await page.keyboard.press("Escape");

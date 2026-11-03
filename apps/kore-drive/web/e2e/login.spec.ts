@@ -27,7 +27,7 @@ test("correct login lands on /files", async ({ page }) => {
   await fillLogin(page, ADMIN.email, ADMIN.password);
 
   await expect(page).toHaveURL("/files");
-  await expect(page.getByTestId("current-user")).toContainText(ADMIN.email);
+  await expect(page.getByRole("button", { name: en["account.menu"] })).toContainText(ADMIN.email);
 });
 
 test("deep link while logged out returns to it after login", async ({ page }) => {
@@ -43,7 +43,7 @@ test("deep link while logged out returns to it after login", async ({ page }) =>
 
   await expect(page).toHaveURL(`/files/${id}`);
   await expect(page.getByTestId("current-folder")).toContainText("Deep link folder");
-  await expect(page.getByTestId("current-user")).toContainText(user.email);
+  await expect(page.getByRole("button", { name: en["account.menu"] })).toContainText(user.email);
 });
 
 test("open-redirect attempt in next lands on /files", async ({ page }) => {

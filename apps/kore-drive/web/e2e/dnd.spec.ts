@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import en from "../lib/i18n/en";
-import { ADMIN, apiAs, createFolder, createUser, loginAs, uploadFile, type CreatedUser } from "./helpers";
+import { ADMIN, apiAs, createFolder, createUser, loginAs, uploadFile, type CreatedUser, toasts } from "./helpers";
 
 /**
  * Drag and drop upload and move against the real stack.
@@ -137,7 +137,7 @@ test("dragging a file row onto a folder row moves it", async ({ page }) => {
 
   await row(page, "report.txt").dragTo(row(page, "Archive"));
   await expect(row(page, "report.txt")).toHaveCount(0);
-  await expect(page.getByRole("status")).toContainText(fill("move.doneOne", { name: "report.txt" }));
+  await expect(toasts(page)).toContainText(fill("move.doneOne", { name: "report.txt" }));
   expect(names(await children(api, "personal", folder))).toEqual(["report.txt"]);
   await api.dispose();
 });
@@ -153,7 +153,7 @@ test("dragging a multi-selection moves all of it; name collisions are reported",
   await row(page, "one.txt").click();
   await row(page, "two.txt").click({ modifiers: ["ControlOrMeta"] });
   await row(page, "two.txt").dragTo(row(page, "Dest"));
-  await expect(page.getByRole("status")).toContainText(
+  await expect(toasts(page)).toContainText(
     fill("move.partial", { done: 1, count: 2, reason: en["move.error.nameTaken"] }),
   );
   await expect(row(page, "one.txt")).toHaveCount(0);
@@ -181,7 +181,7 @@ test("dropping a folder onto itself or onto another dragged item is a no-op", as
 
   await page.waitForTimeout(300);
   expect(patches).toEqual([]);
-  await expect(page.getByRole("status")).toBeEmpty();
+  await expect(toasts(page)).toBeEmpty();
   expect(names(await children(api, "personal"))).toEqual(["Alpha", "Beta"]);
 
   // Control: the same drag with only Alpha selected does move it.
@@ -202,7 +202,7 @@ test("dropping a folder onto its own child (stale page) changes nothing and show
   expect((await api.patch(`/api/nodes/${inner}`, { data: { parent_id: outer } })).status()).toBe(200);
 
   await row(page, "Outer").dragTo(row(page, "Inner"));
-  await expect(page.getByRole("status")).toContainText(en["move.error.intoItself"]);
+  await expect(toasts(page)).toContainText(en["move.error.intoItself"]);
   expect(names(await children(api, "personal"))).toEqual(["Outer"]);
   expect(names(await children(api, "personal", outer))).toEqual(["Inner"]);
   await expect(row(page, "Inner")).toHaveCount(0); // refreshed to the real state

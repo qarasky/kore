@@ -9,19 +9,24 @@
  * need the extra API-down web instance are skipped in that mode.
  */
 const baseUrl = process.env.E2E_BASE_URL?.replace(/\/+$/, "") || undefined;
+// E2E_PORT_BASE (e.g. 28000) moves the local stack off the default ports when
+// something else already listens there: API base+80, web base+5000/+5001.
+const portBase = Number(process.env.E2E_PORT_BASE) || 0;
+const apiPort = portBase ? portBase + 80 : 18080;
+const webPort = portBase ? portBase + 5000 : 13000;
 
 export const E2E = {
   /** True when targeting an external deployment (E2E_BASE_URL). */
   external: baseUrl !== undefined,
-  apiPort: 18080,
-  webPort: 13000,
-  apiUrl: baseUrl ?? "http://127.0.0.1:18080",
-  webUrl: baseUrl ?? "http://127.0.0.1:13000",
+  apiPort,
+  webPort,
+  apiUrl: baseUrl ?? `http://127.0.0.1:${apiPort}`,
+  webUrl: baseUrl ?? `http://127.0.0.1:${webPort}`,
   /** A second web instance whose API_URL points at a closed port, to test
    *  how SSR behaves when the API is down. Same host, so cookies carry over.
    *  Not available with E2E_BASE_URL. */
-  webDownPort: 13001,
-  webDownUrl: "http://127.0.0.1:13001",
+  webDownPort: webPort + 1,
+  webDownUrl: `http://127.0.0.1:${webPort + 1}`,
   deadApiUrl: "http://127.0.0.1:1",
   admin: {
     email: process.env.E2E_ADMIN_EMAIL || "admin@kore.test",

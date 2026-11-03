@@ -2,6 +2,9 @@ import { expect, request, type APIRequestContext, type Locator, type Page } from
 import { E2E } from "./harness/env";
 
 export const ADMIN = E2E.admin;
+
+/** kore-ui's toast region (Radix): the toasts on screen. */
+export const toasts = (page: Page): Locator => page.getByRole("region", { name: /^Notifications/ });
 export const DEFAULT_PASSWORD = "user-password-123";
 
 /** Logs `page`'s browser context in through the API (sets kore_session). */
