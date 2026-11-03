@@ -193,3 +193,56 @@ func TestRefreshInvalidGrant(t *testing.T) {
 		t.Fatalf("500 must be transient, got %v", err)
 	}
 }
+
+func (f *fakeIDP) signTyp(typ string, claims map[string]any) string {
+	h, _ := json.Marshal(map[string]string{"alg": "EdDSA", "kid": f.kid, "typ": typ})
+	c, _ := json.Marshal(claims)
+	in := b64.EncodeToString(h) + "." + b64.EncodeToString(c)
+	return in + "." + b64.EncodeToString(ed25519.Sign(f.priv, []byte(in)))
+}
+
+func TestTokenTypes(t *testing.T) {
+	f := newIDP(t)
+	p := f.provider()
+	ctx := context.Background()
+	for typ, want := range map[string]bool{"at+jwt": true, "AT+JWT": true, "application/at+jwt": true, "JWT": false, "": false, "logout+jwt": false} {
+		_, err := p.VerifyAccessToken(ctx, f.signTyp(typ, f.claims(map[string]any{"scope": "openid"})))
+		if (err == nil) != want {
+			t.Errorf("access token typ %q: err %v", typ, err)
+		}
+	}
+	for typ, want := range map[string]bool{"JWT": true, "": true, "at+jwt": false, "logout+jwt": false} {
+		_, err := p.Verify(ctx, f.signTyp(typ, f.claims(nil)))
+		if (err == nil) != want {
+			t.Errorf("id token typ %q: err %v", typ, err)
+		}
+	}
+	c, err := p.VerifyAccessToken(ctx, f.signTyp("at+jwt", f.claims(map[string]any{"sid": "s1", "email_verified": true})))
+	if err != nil || c.Sid != "s1" || !c.EmailVerified {
+		t.Fatalf("%+v %v", c, err)
+	}
+	lt := func(over map[string]any) string {
+		c := f.claims(map[string]any{"jti": "j", "iat": time.Now().Unix(), "sid": "s1",
+			"events": map[string]any{BackchannelLogoutEvent: map[string]any{}}})
+		for k, v := range over {
+			c[k] = v
+		}
+		return f.signTyp("application/logout+jwt", c)
+	}
+	if l, err := p.VerifyLogoutToken(ctx, lt(nil)); err != nil || l.Sid != "s1" || l.Sub != "u-1" || l.Jti != "j" {
+		t.Fatalf("%+v %v", l, err)
+	}
+	if _, err := p.VerifyLogoutToken(ctx, lt(nil)); !errors.Is(err, ErrToken) {
+		t.Fatalf("replay accepted: %v", err)
+	}
+	p.ForgetLogoutJTI("j")
+	if _, err := p.VerifyLogoutToken(ctx, lt(nil)); err != nil {
+		t.Fatalf("after ForgetLogoutJTI: %v", err)
+	}
+	// Expired entries are pruned from the replay cache.
+	p.now = func() time.Time { return time.Now().Add(time.Hour) }
+	p.seenJTI("other", time.Now().Add(2*time.Hour))
+	if _, ok := p.jtis["j"]; ok {
+		t.Fatal("expired jti not pruned")
+	}
+}

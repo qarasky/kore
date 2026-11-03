@@ -39,10 +39,11 @@ type OIDC struct {
 	Issuer       string `toml:"issuer"`
 	ClientID     string `toml:"client_id"`
 	ClientSecret string `toml:"client_secret"`
-	// LinkByEmail lets a first Kore ID login take over an existing local
-	// account with the same email. Off by default: only safe when the
-	// provider verifies email ownership.
-	LinkByEmail bool `toml:"link_by_email"`
+	// LinkByEmail lets a first Kore ID login adopt the existing, not yet
+	// linked local account with the same email, but only when the token says
+	// email_verified = true (default true). Set false to require linking by
+	// hand (Account page or "kore link").
+	LinkByEmail *bool `toml:"link_by_email"`
 	// AutoProvision creates a local account on first login (default true).
 	AutoProvision *bool `toml:"auto_provision"`
 }
@@ -52,6 +53,9 @@ func (o OIDC) Enabled() bool { return o.Issuer != "" }
 
 // LocalLoginEnabled reports whether password login is allowed.
 func (c Config) LocalLoginEnabled() bool { return c.LocalLogin == nil || *c.LocalLogin }
+
+// LinkByEmailEnabled reports whether a verified email may link an existing account.
+func (o OIDC) LinkByEmailEnabled() bool { return o.LinkByEmail == nil || *o.LinkByEmail }
 
 // AutoProvisionEnabled reports whether unknown Kore ID users get an account.
 func (o OIDC) AutoProvisionEnabled() bool { return o.AutoProvision == nil || *o.AutoProvision }
@@ -109,12 +113,8 @@ func Load(path string) (Config, error) {
 	if err := envBool("KORE_LOCAL_LOGIN", &c.LocalLogin); err != nil {
 		return Config{}, err
 	}
-	if v := os.Getenv("KORE_OIDC_LINK_BY_EMAIL"); v != "" {
-		b, err := strconv.ParseBool(v)
-		if err != nil {
-			return Config{}, fmt.Errorf("invalid KORE_OIDC_LINK_BY_EMAIL %q (use true or false)", v)
-		}
-		c.OIDC.LinkByEmail = b
+	if err := envBool("KORE_OIDC_LINK_BY_EMAIL", &c.OIDC.LinkByEmail); err != nil {
+		return Config{}, err
 	}
 	if err := envBool("KORE_OIDC_AUTO_PROVISION", &c.OIDC.AutoProvision); err != nil {
 		return Config{}, err

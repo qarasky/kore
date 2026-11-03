@@ -18,7 +18,9 @@ admin_password = "change-me"
 # --- Sign in with Kore ID (OpenID Connect; optional) ---
 # Public address of Kore, no trailing slash. The redirect URI to register at
 # Kore ID is public_url + "/api/auth/oidc/callback"; also register
-# public_url + "/login" as a post-logout redirect URI.
+# public_url + "/login" as a post-logout redirect URI and
+# public_url + "/api/auth/oidc/backchannel-logout" as the client's
+# backchannelLogoutUri (Kore ID ends Kore sessions there on sign-out).
 # public_url = "https://kore.example.com"
 # Set false to disable email + password login (needs [oidc]). Default true.
 # local_login = true
@@ -28,7 +30,8 @@ admin_password = "change-me"
 # client_id = "kore"
 # client_secret = ""                   # or KORE_OIDC_CLIENT_SECRET
 # auto_provision = true                # create accounts on first login
-# link_by_email = false                # see README before enabling
+# link_by_email = true                 # adopt an unlinked local account with the
+#                                      # same email when email_verified is true
 # All of these also exist as KORE_PUBLIC_URL, KORE_LOCAL_LOGIN, KORE_OIDC_ISSUER,
 # KORE_OIDC_CLIENT_ID, KORE_OIDC_CLIENT_SECRET, KORE_OIDC_AUTO_PROVISION and
 # KORE_OIDC_LINK_BY_EMAIL (the environment wins over the file).

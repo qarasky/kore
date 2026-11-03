@@ -106,14 +106,14 @@ func TestSSOFromEnvironment(t *testing.T) {
 	t.Setenv("KORE_OIDC_CLIENT_SECRET", "s3cret")
 	t.Setenv("KORE_PUBLIC_URL", "https://kore.example.com/")
 	t.Setenv("KORE_LOCAL_LOGIN", "false")
-	t.Setenv("KORE_OIDC_LINK_BY_EMAIL", "true")
+	t.Setenv("KORE_OIDC_LINK_BY_EMAIL", "false")
 	t.Setenv("KORE_OIDC_AUTO_PROVISION", "false")
 	c, err := Load(write(t, required))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if c.OIDC.Issuer != "https://id.example.com" || c.PublicURL != "https://kore.example.com" || c.OIDC.ClientID != "kore" ||
-		c.OIDC.ClientSecret != "s3cret" || c.LocalLoginEnabled() || !c.OIDC.LinkByEmail || c.OIDC.AutoProvisionEnabled() {
+		c.OIDC.ClientSecret != "s3cret" || c.LocalLoginEnabled() || c.OIDC.LinkByEmailEnabled() || c.OIDC.AutoProvisionEnabled() {
 		t.Fatalf("got %+v", c)
 	}
 }
@@ -123,8 +123,22 @@ func TestSSOFromFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !c.OIDC.Enabled() || !c.LocalLoginEnabled() || !c.OIDC.AutoProvisionEnabled() || c.OIDC.LinkByEmail {
+	if !c.OIDC.Enabled() || !c.LocalLoginEnabled() || !c.OIDC.AutoProvisionEnabled() || !c.OIDC.LinkByEmailEnabled() {
 		t.Fatalf("got %+v", c)
+	}
+}
+
+func TestLinkByEmailFromFile(t *testing.T) {
+	c, err := Load(write(t, required+"public_url = \"https://k.example.com\"\n[oidc]\nissuer = \"https://id.example.com\"\nlink_by_email = false\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.OIDC.LinkByEmailEnabled() {
+		t.Fatal("link_by_email = false ignored")
+	}
+	t.Setenv("KORE_OIDC_LINK_BY_EMAIL", "sometimes")
+	if _, err := Load(write(t, required)); err == nil {
+		t.Error("bad KORE_OIDC_LINK_BY_EMAIL accepted")
 	}
 }
 

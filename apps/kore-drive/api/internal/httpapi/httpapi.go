@@ -118,6 +118,12 @@ func (s *server) handler() http.Handler {
 			mux.ServeHTTP(w, r)
 			return
 		}
+		// Back-channel logout is called by Kore ID, not a browser: it is
+		// authenticated by its signed logout token alone.
+		if r.URL.Path == backchannelPath {
+			mux.ServeHTTP(w, r)
+			return
+		}
 		authed.ServeHTTP(w, r)
 	})
 }

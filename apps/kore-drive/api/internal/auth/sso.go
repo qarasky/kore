@@ -130,20 +130,47 @@ func TakeFlow(ctx context.Context, db *sql.DB, state string) (f Flow, ok bool, e
 	return f, exp > time.Now().Unix(), nil
 }
 
-// NewSSOSession is NewSession plus the provider tokens.
-func NewSSOSession(ctx context.Context, db *sql.DB, userID string, ttl time.Duration, idToken, refreshToken string) (string, error) {
+// NewSSOSession is NewSession plus the provider tokens and the Kore ID
+// session id (sid, "" when the id token has none).
+func NewSSOSession(ctx context.Context, db *sql.DB, userID string, ttl time.Duration, idToken, refreshToken, sid string) (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
 	tok := base64.RawURLEncoding.EncodeToString(b)
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO sessions(token_hash,user_id,expires_at,id_token,refresh_token,checked_at) VALUES(?,?,?,?,?,?)`,
-		hashToken(tok), userID, time.Now().Add(ttl).Unix(), idToken, refreshToken, time.Now().Unix())
+		`INSERT INTO sessions(token_hash,user_id,expires_at,id_token,refresh_token,checked_at,sid) VALUES(?,?,?,?,?,?,?)`,
+		hashToken(tok), userID, time.Now().Add(ttl).Unix(), idToken, refreshToken, time.Now().Unix(), sql.NullString{String: sid, Valid: sid != ""})
 	if err != nil {
 		return "", err
 	}
 	return tok, nil
+}
+
+// DeleteSessionsBySID ends every local session created from the Kore ID
+// session sid (back-channel logout) and returns how many there were.
+func DeleteSessionsBySID(ctx context.Context, db *sql.DB, sid string) (int64, error) {
+	if sid == "" {
+		return 0, nil
+	}
+	res, err := db.ExecContext(ctx, `DELETE FROM sessions WHERE sid=?`, sid)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// DeleteSessionsBySub ends every local session (SSO or password) of the user
+// linked to the Kore ID subject sub and returns how many there were.
+func DeleteSessionsBySub(ctx context.Context, db *sql.DB, sub string) (int64, error) {
+	if sub == "" {
+		return 0, nil
+	}
+	res, err := db.ExecContext(ctx, `DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE sub=?)`, sub)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
 
 // SSOSession is the provider state attached to a session.

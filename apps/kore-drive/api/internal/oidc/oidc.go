@@ -1,7 +1,8 @@
 // Package oidc is a small OpenID Connect relying-party client for Kore ID:
 // discovery, authorization-code + PKCE (S256), token and refresh requests,
-// and verification of EdDSA-signed JWTs against the provider's JWKS. It has
-// no dependencies beyond the standard library.
+// and verification of EdDSA-signed JWTs (ID, access and back-channel logout
+// tokens) against the provider's JWKS. It has no dependencies beyond the
+// standard library.
 package oidc
 
 import (
@@ -52,6 +53,9 @@ type Provider struct {
 	keys      map[string]ed25519.PublicKey
 	keysAt    time.Time
 	lastFetch time.Time // last JWKS fetch, to rate-limit unknown-kid refreshes
+
+	jtiMu sync.Mutex
+	jtis  map[string]time.Time // logout token ids seen, until they expire
 }
 
 type metadata struct {
@@ -261,8 +265,9 @@ func (p *Provider) EndSessionURL(ctx context.Context, idToken, postLogout, state
 
 // Claims are the verified claims Kore cares about.
 type Claims struct {
-	Sub, Email, Name, Nonce, Scope string
-	Expires                        time.Time
+	Sub, Email, Name, Nonce, Scope, Sid string
+	EmailVerified                       bool
+	Expires                             time.Time
 }
 
 func (p *Provider) key(ctx context.Context, kid string) (ed25519.PublicKey, error) {
@@ -313,14 +318,49 @@ func (p *Provider) key(ctx context.Context, kid string) (ed25519.PublicKey, erro
 	return nil, fmt.Errorf("%w: unknown key id", ErrToken)
 }
 
-// Verify checks signature (EdDSA only), issuer, audience (the client id),
-// expiry and not-before of a JWT and returns its claims. The caller checks
-// the nonce (id tokens) or scope (access tokens).
-func (p *Provider) Verify(ctx context.Context, token string) (Claims, error) {
-	fail := func(why string) (Claims, error) { return Claims{}, fmt.Errorf("%w: %s", ErrToken, why) }
+// Token types (the JWT header "typ"), compared case-insensitively and with an
+// optional "application/" prefix (RFC 9068 section 2.1, RFC 8417).
+const (
+	TypAccess = "at+jwt"
+	TypLogout = "logout+jwt"
+)
+
+// BackchannelLogoutEvent is the required key of a logout token's events claim.
+const BackchannelLogoutEvent = "http://schemas.openid.net/event/backchannel-logout"
+
+func normTyp(t string) string {
+	t = strings.ToLower(strings.TrimSpace(t))
+	return strings.TrimPrefix(t, "application/")
+}
+
+// rawClaims is every claim any of the token kinds uses.
+type rawClaims struct {
+	Iss           string          `json:"iss"`
+	Aud           json.RawMessage `json:"aud"`
+	Sub           string          `json:"sub"`
+	Exp           float64         `json:"exp"`
+	Nbf           float64         `json:"nbf"`
+	Iat           float64         `json:"iat"`
+	Jti           string          `json:"jti"`
+	Sid           string          `json:"sid"`
+	Nonce         string          `json:"nonce"`
+	Email         string          `json:"email"`
+	EmailVerified bool            `json:"email_verified"`
+	Name          string          `json:"name"`
+	Scope         string          `json:"scope"`
+	Events        json.RawMessage `json:"events"`
+}
+
+func fail(why string) error { return fmt.Errorf("%w: %s", ErrToken, why) }
+
+// verifyJWT checks signature (EdDSA only), issuer, audience (the client id),
+// expiry and not-before. It returns the header typ (normalised), the claims,
+// and the set of claim names present.
+func (p *Provider) verifyJWT(ctx context.Context, token string) (string, rawClaims, map[string]json.RawMessage, error) {
+	var c rawClaims
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
-		return fail("malformed")
+		return "", c, nil, fail("malformed")
 	}
 	dec := func(s string, v any) error {
 		b, err := base64.RawURLEncoding.DecodeString(s)
@@ -329,64 +369,166 @@ func (p *Provider) Verify(ctx context.Context, token string) (Claims, error) {
 		}
 		return json.Unmarshal(b, v)
 	}
-	var hdr struct{ Alg, Kid string }
+	var hdr struct{ Alg, Kid, Typ string }
 	if dec(parts[0], &hdr) != nil || hdr.Alg != "EdDSA" || hdr.Kid == "" {
-		return fail("unsupported header")
+		return "", c, nil, fail("unsupported header")
 	}
 	sig, err := base64.RawURLEncoding.DecodeString(parts[2])
 	if err != nil {
-		return fail("malformed signature")
+		return "", c, nil, fail("malformed signature")
 	}
 	key, err := p.key(ctx, hdr.Kid)
 	if err != nil {
-		return Claims{}, err
+		return "", c, nil, err
 	}
 	if !ed25519.Verify(key, []byte(parts[0]+"."+parts[1]), sig) {
-		return fail("bad signature")
+		return "", c, nil, fail("bad signature")
 	}
-	var c struct {
-		Iss   string          `json:"iss"`
-		Aud   json.RawMessage `json:"aud"`
-		Sub   string          `json:"sub"`
-		Exp   float64         `json:"exp"`
-		Nbf   float64         `json:"nbf"`
-		Nonce string          `json:"nonce"`
-		Email string          `json:"email"`
-		Name  string          `json:"name"`
-		Scope string          `json:"scope"`
-	}
-	if dec(parts[1], &c) != nil {
-		return fail("malformed claims")
+	var present map[string]json.RawMessage
+	if dec(parts[1], &c) != nil || dec(parts[1], &present) != nil {
+		return "", c, nil, fail("malformed claims")
 	}
 	if c.Iss != p.cfg.Issuer {
-		return fail("wrong issuer")
+		return "", c, nil, fail("wrong issuer")
 	}
 	var aud []string
 	var one string
 	if json.Unmarshal(c.Aud, &one) == nil {
 		aud = []string{one}
 	} else if json.Unmarshal(c.Aud, &aud) != nil {
-		return fail("malformed audience")
+		return "", c, nil, fail("malformed audience")
 	}
 	okAud := false
 	for _, a := range aud {
 		okAud = okAud || a == p.cfg.ClientID
 	}
 	if !okAud {
-		return fail("wrong audience")
+		return "", c, nil, fail("wrong audience")
 	}
 	now := p.now()
-	exp := time.Unix(int64(c.Exp), 0)
-	if c.Exp == 0 || now.After(exp.Add(leeway)) {
-		return fail("expired")
+	if c.Exp == 0 || now.After(time.Unix(int64(c.Exp), 0).Add(leeway)) {
+		return "", c, nil, fail("expired")
 	}
 	if c.Nbf != 0 && now.Add(leeway).Before(time.Unix(int64(c.Nbf), 0)) {
-		return fail("not yet valid")
+		return "", c, nil, fail("not yet valid")
+	}
+	return normTyp(hdr.Typ), c, present, nil
+}
+
+func (c rawClaims) public() Claims {
+	return Claims{Sub: c.Sub, Email: c.Email, Name: c.Name, Nonce: c.Nonce, Scope: c.Scope, Sid: c.Sid,
+		EmailVerified: c.EmailVerified, Expires: time.Unix(int64(c.Exp), 0)}
+}
+
+// Verify checks an ID token: signature, issuer, audience, expiry, not-before
+// and sub. Access and logout tokens (by their typ) are refused. The caller
+// checks the nonce.
+func (p *Provider) Verify(ctx context.Context, token string) (Claims, error) {
+	typ, c, _, err := p.verifyJWT(ctx, token)
+	if err != nil {
+		return Claims{}, err
+	}
+	if typ == TypAccess || typ == TypLogout {
+		return Claims{}, fail("not an id token")
 	}
 	if c.Sub == "" {
-		return fail("missing sub")
+		return Claims{}, fail("missing sub")
 	}
-	return Claims{Sub: c.Sub, Email: c.Email, Name: c.Name, Nonce: c.Nonce, Scope: c.Scope, Expires: exp}, nil
+	return c.public(), nil
+}
+
+// VerifyAccessToken checks a bearer access token: as Verify, but the header
+// typ must be at+jwt (RFC 9068). An ID token is never accepted as a bearer.
+func (p *Provider) VerifyAccessToken(ctx context.Context, token string) (Claims, error) {
+	typ, c, _, err := p.verifyJWT(ctx, token)
+	if err != nil {
+		return Claims{}, err
+	}
+	if typ != TypAccess {
+		return Claims{}, fail("not an access token")
+	}
+	if c.Sub == "" {
+		return Claims{}, fail("missing sub")
+	}
+	return c.public(), nil
+}
+
+// LogoutClaims identify what a back-channel logout ends: the Kore ID session
+// (Sid) or, without one, every session of the subject (Sub).
+type LogoutClaims struct {
+	Sid, Sub, Jti string
+}
+
+// VerifyLogoutToken checks an OIDC Back-Channel Logout token: signature,
+// issuer, audience, typ logout+jwt, iat/exp/jti present, events claim with the
+// back-channel logout event, no nonce, sid or sub present, and jti not seen
+// before. Seen jtis are kept in memory until the token expires, so replay
+// protection is per process (Kore runs a single API instance).
+func (p *Provider) VerifyLogoutToken(ctx context.Context, token string) (LogoutClaims, error) {
+	if token == "" {
+		return LogoutClaims{}, fail("missing logout token")
+	}
+	typ, c, present, err := p.verifyJWT(ctx, token)
+	if err != nil {
+		return LogoutClaims{}, err
+	}
+	if typ != TypLogout {
+		return LogoutClaims{}, fail("not a logout token")
+	}
+	for _, k := range []string{"iat", "exp", "jti"} {
+		if _, ok := present[k]; !ok {
+			return LogoutClaims{}, fail("missing " + k)
+		}
+	}
+	if c.Jti == "" || c.Iat == 0 {
+		return LogoutClaims{}, fail("missing iat or jti")
+	}
+	var events map[string]json.RawMessage
+	if len(c.Events) == 0 || json.Unmarshal(c.Events, &events) != nil || events == nil {
+		return LogoutClaims{}, fail("missing events")
+	}
+	if _, ok := events[BackchannelLogoutEvent]; !ok {
+		return LogoutClaims{}, fail("missing back-channel logout event")
+	}
+	if _, ok := present["nonce"]; ok {
+		return LogoutClaims{}, fail("nonce not allowed")
+	}
+	if c.Sid == "" && c.Sub == "" {
+		return LogoutClaims{}, fail("sid or sub required")
+	}
+	if p.seenJTI(c.Jti, time.Unix(int64(c.Exp), 0).Add(leeway)) {
+		return LogoutClaims{}, fail("replayed")
+	}
+	return LogoutClaims{Sid: c.Sid, Sub: c.Sub, Jti: c.Jti}, nil
+}
+
+// seenJTI reports whether jti was already used and otherwise records it until
+// until. Expired entries are pruned on every call.
+func (p *Provider) seenJTI(jti string, until time.Time) bool {
+	p.jtiMu.Lock()
+	defer p.jtiMu.Unlock()
+	now := p.now()
+	for k, exp := range p.jtis {
+		if now.After(exp) {
+			delete(p.jtis, k)
+		}
+	}
+	if _, ok := p.jtis[jti]; ok {
+		return true
+	}
+	if p.jtis == nil {
+		p.jtis = map[string]time.Time{}
+	}
+	p.jtis[jti] = until
+	return false
+}
+
+// ForgetLogoutJTI lets a logout token be delivered again (used when acting on
+// it failed, so the provider's retry is not refused as a replay).
+func (p *Provider) ForgetLogoutJTI(jti string) {
+	p.jtiMu.Lock()
+	defer p.jtiMu.Unlock()
+	delete(p.jtis, jti)
 }
 
 // Issuer is the configured issuer URL (no trailing slash).
