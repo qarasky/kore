@@ -22,7 +22,7 @@ test("opening the same file twice runs migrations once", () => {
   const path = `/tmp/koremind-db-${crypto.randomUUID()}.sqlite`;
   openDb(path).close();
   const db = openDb(path);
-  expect((db.query("select count(*) c from schema_migrations").get() as { c: number }).c).toBe(3);
+  expect((db.query("select count(*) c from schema_migrations").get() as { c: number }).c).toBe(4);
 });
 
 test("notes belong to a chat and go with it; messages default to no activity", () => {

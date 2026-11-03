@@ -30,6 +30,16 @@ const MIGRATIONS: string[] = [
   create table oidc_flows(state_hash text primary key, nonce text not null, verifier text not null, app_challenge text not null, platform text not null, return_to text, link_user_id text references users(id) on delete cascade, expires_at integer not null);
   create table oidc_tickets(ticket_hash text primary key, user_id text not null references users(id) on delete cascade, app_challenge text not null, logout_url text, expires_at integer not null);
   `,
+  // Kore ID back-channel logout. tokens.sid is the Kore ID session (`sid` claim) a KoreMind session came from; phones paired
+  // from such a session inherit it (pair_codes.sid), so ending the Kore ID session signs both out. oidc_logout_jti remembers
+  // logout-token ids until they expire (replay guard; in the DB so it survives restarts).
+  `
+  alter table tokens add column sid text;
+  create index tokens_sid on tokens(sid) where sid is not null;
+  alter table oidc_tickets add column sid text;
+  alter table pair_codes add column sid text;
+  create table oidc_logout_jti(jti text primary key, expires_at integer not null);
+  `,
 ];
 
 export function openDb(path: string): Database {

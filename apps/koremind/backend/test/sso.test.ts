@@ -19,12 +19,13 @@ const jwk = { ...(await exportJWK(keyPair.publicKey)), kid: "k1", alg: "EdDSA", 
 const jwks = createLocalJWKSet({ keys: [jwk] });
 const verifier = "v".repeat(43);
 
-type Claims = { sub: string; email?: string; name?: string; email_verified?: boolean };
-const sign = (claims: Record<string, unknown>, o: { aud?: string; iss?: string; exp?: number; key?: CryptoKey } = {}) =>
-  new SignJWT(claims).setProtectedHeader({ alg: "EdDSA", kid: "k1" }).setIssuer(o.iss ?? ISSUER).setAudience(o.aud ?? "koremind").setIssuedAt().setExpirationTime(o.exp ?? Math.floor(Date.now() / 1000) + 600).sign(o.key ?? keyPair.privateKey);
+type Claims = { sub: string; email?: string; name?: string; email_verified?: boolean; sid?: string };
+/** Signs like Kore ID. `typ`: "JWT" (id token, the default), "at+jwt" (access token), "logout+jwt"; null = no typ header. */
+const sign = (claims: Record<string, unknown>, o: { aud?: string; iss?: string; exp?: number; key?: CryptoKey; typ?: string | null } = {}) =>
+  new SignJWT(claims).setProtectedHeader({ alg: "EdDSA", kid: "k1", ...(o.typ === null ? {} : { typ: o.typ ?? "JWT" }) }).setIssuer(o.iss ?? ISSUER).setAudience(o.aud ?? "koremind").setIssuedAt().setExpirationTime(o.exp ?? Math.floor(Date.now() / 1000) + 600).sign(o.key ?? keyPair.privateKey);
 
 /** A stand-in for Kore ID: discovery + token endpoint (checks the PKCE verifier and the client secret like the real one). */
-function koreId(opts: { tamper?: (idClaims: Record<string, unknown>) => Record<string, unknown>; discoveryIssuer?: string; signWith?: CryptoKey; aud?: string } = {}) {
+function koreId(opts: { tamper?: (idClaims: Record<string, unknown>) => Record<string, unknown>; discoveryIssuer?: string; signWith?: CryptoKey; aud?: string; idTyp?: string | null } = {}) {
   const codes = new Map<string, { nonce: string; challenge: string; claims: Claims }>();
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -38,8 +39,8 @@ function koreId(opts: { tamper?: (idClaims: Record<string, unknown>) => Record<s
       codes.delete(body.get("code") ?? "");
       if (!c || body.get("redirect_uri") !== `${WEB.replace("3210", "8787")}/auth/callback`) return Response.json({ error: "invalid_grant" }, { status: 400 });
       if ((await s256(body.get("code_verifier") ?? "")) !== c.challenge) return Response.json({ error: "invalid_grant" }, { status: 400 });
-      const claims: Record<string, unknown> = { sub: c.claims.sub, nonce: c.nonce, ...(c.claims.email && { email: c.claims.email }), ...(c.claims.name && { name: c.claims.name }), ...(c.claims.email_verified !== undefined && { email_verified: c.claims.email_verified }) };
-      return Response.json({ token_type: "Bearer", id_token: await sign(opts.tamper ? opts.tamper(claims) : claims, { key: opts.signWith, aud: opts.aud }), access_token: "unused" });
+      const claims: Record<string, unknown> = { sub: c.claims.sub, nonce: c.nonce, azp: "koremind", ...(c.claims.sid && { sid: c.claims.sid }), ...(c.claims.email && { email: c.claims.email }), ...(c.claims.name && { name: c.claims.name }), ...(c.claims.email_verified !== undefined && { email_verified: c.claims.email_verified }) };
+      return Response.json({ token_type: "Bearer", id_token: await sign(opts.tamper ? opts.tamper(claims) : claims, { key: opts.signWith, aud: opts.aud, typ: opts.idTyp }), access_token: "unused" });
     }
     return new Response("nope", { status: 404 });
   }) as typeof fetch;
@@ -60,7 +61,8 @@ function koreId(opts: { tamper?: (idClaims: Record<string, unknown>) => Record<s
 
 const cfgOf = (o: Partial<OidcConfig> = {}): OidcConfig => ({
   issuer: ISSUER, clientId: "koremind", clientSecret: SECRET, scopes: "openid profile email", redirectUri: "http://localhost:8787/auth/callback",
-  autoProvision: false, allowedEmails: [], trustEmailLink: false, webOrigins: [], ...o,
+  // The defaults of loadConfig (see the config tests).
+  autoProvision: true, allowedEmails: [], emailLink: true, ownerEmail: "", backchannelLogoutUri: "http://localhost:8787/auth/backchannel-logout", webOrigins: [], ...o,
 });
 
 function setup(o: { oidc?: Partial<OidcConfig>; passwordLogin?: boolean; kore?: Parameters<typeof koreId>[0] } = {}) {
@@ -179,6 +181,13 @@ describe("id token verification", () => {
   test("missing nonce", () => rejected({ tamper: ({ nonce: _n, ...c }) => c }));
   test("wrong audience", () => rejected({ aud: "korecalendar" }));
   test("signed by someone else", () => rejected({ signWith: otherKey.privateKey }));
+  test("an access token (typ at+jwt) in place of the id token", () => rejected({ idTyp: "at+jwt" }));
+  test("a logout token (typ logout+jwt) in place of the id token", () => rejected({ idTyp: "logout+jwt" }));
+  test("issued to another client (azp)", () => rejected({ tamper: (c) => ({ ...c, azp: "korecalendar" }) }));
+  test("an id token without a typ header is still fine", async () => {
+    const t = setup({ kore: { idTyp: null } });
+    expect((await t.exchange(t.ticketOf((await t.browserLogin(alice)).loc))).status).toBe(200);
+  });
   test("discovery issuer does not match the configured one", async () => {
     const t = setup({ kore: { discoveryIssuer: "https://evil.example" } });
     const r = await t.call("POST", "/auth/oidc/start", { body: { challenge: await s256(verifier), platform: "android" } });
@@ -187,22 +196,35 @@ describe("id token verification", () => {
 });
 
 describe("provisioning policy", () => {
-  test("a second, unknown Kore ID user is refused by default", async () => {
+  test("by default anyone Kore ID lets in gets an account; only the first is the owner", async () => {
     const t = setup();
+    const a = (await (await t.exchange(t.ticketOf((await t.browserLogin(alice)).loc))).json()) as { user: { isOwner: boolean } };
+    const b = (await (await t.exchange(t.ticketOf((await t.browserLogin(bob)).loc))).json()) as { user: { isOwner: boolean } };
+    expect(a.user.isOwner).toBe(true);
+    expect(b.user.isOwner).toBe(false);
+  });
+  test("KOREMIND_OIDC_AUTO_PROVISION=0: a second, unknown Kore ID user is refused", async () => {
+    const t = setup({ oidc: { autoProvision: false } });
     await t.exchange(t.ticketOf((await t.browserLogin(alice)).loc));
     expect((await t.browserLogin(bob)).loc).toBe(`${WEB}/login#sso_error=not_allowed`);
-  });
-  test("KOREMIND_OIDC_AUTO_PROVISION=1 provisions anyone, as a non-owner", async () => {
-    const t = setup({ oidc: { autoProvision: true } });
-    await t.exchange(t.ticketOf((await t.browserLogin(alice)).loc));
-    const b = (await (await t.exchange(t.ticketOf((await t.browserLogin(bob)).loc))).json()) as { user: { isOwner: boolean } };
-    expect(b.user.isOwner).toBe(false);
   });
   test("the allow-list (email or @domain) admits listed users only, including the first", async () => {
     const t = setup({ oidc: { allowedEmails: ["bob@example.com", "@corp.test"] } });
     expect((await t.browserLogin(alice)).loc).toBe(`${WEB}/login#sso_error=not_allowed`);
     expect((await t.exchange(t.ticketOf((await t.browserLogin(bob)).loc))).status).toBe(200);
     expect((await t.exchange(t.ticketOf((await t.browserLogin({ sub: "33333333-3333-4333-8333-333333333333", email: "x@corp.test" })).loc))).status).toBe(200);
+  });
+  test("KOREMIND_OIDC_OWNER_EMAIL pins the owner of an empty instance to that verified email", async () => {
+    const t = setup({ oidc: { ownerEmail: "bob@example.com" } });
+    expect((await t.browserLogin(alice)).loc).toBe(`${WEB}/login#sso_error=owner_pending`);
+    expect((await t.browserLogin(bob)).loc).toBe(`${WEB}/login#sso_error=owner_pending`); // email_verified missing
+    // password setup of the first account is closed: it could claim the owner's email without proving it
+    expect((await t.call("POST", "/auth/register", { body: { email: "bob@example.com", password: "correct horse" } })).status).toBe(403);
+    expect(t.services.db.query("select count(*) c from users").get()).toEqual({ c: 0 });
+    const b = (await (await t.exchange(t.ticketOf((await t.browserLogin({ ...bob, email_verified: true })).loc))).json()) as { user: { isOwner: boolean } };
+    expect(b.user.isOwner).toBe(true);
+    const a = (await (await t.exchange(t.ticketOf((await t.browserLogin(alice)).loc))).json()) as { user: { isOwner: boolean } };
+    expect(a.user.isOwner).toBe(false);
   });
   test("no email, or an unverified one, is refused", async () => {
     const t = setup();
@@ -217,15 +239,20 @@ describe("existing local accounts", () => {
     const r = (await (await t.call("POST", "/auth/register", { body: { email: "alice@example.com", password: "correct horse" } })).json()) as { token: string };
     return { ...t, localToken: r.token };
   };
-  test("same email is NOT linked automatically (Kore ID does not verify emails)", async () => {
+  test("same email without email_verified: true is NOT linked", async () => {
     const t = await withLocalOwner();
     expect((await t.browserLogin(alice)).loc).toBe(`${WEB}/login#sso_error=account_exists`);
+    expect((await t.browserLogin({ ...alice, email_verified: false })).loc).toBe(`${WEB}/login#sso_error=no_email`);
     expect(t.services.auth.userBySub(alice.sub)).toBeNull();
   });
-  test("KOREMIND_OIDC_TRUST_EMAIL_LINK=1 links by email and keeps the data and owner flag", async () => {
-    const t = await withLocalOwner({ oidc: { trustEmailLink: true } });
+  test("KOREMIND_OIDC_EMAIL_LINK=0: not linked even when verified", async () => {
+    const t = await withLocalOwner({ oidc: { emailLink: false } });
+    expect((await t.browserLogin({ ...alice, email_verified: true })).loc).toBe(`${WEB}/login#sso_error=account_exists`);
+  });
+  test("by default a verified email links to the existing account and keeps the data and owner flag", async () => {
+    const t = await withLocalOwner();
     const me = (await (await t.call("GET", "/me", { token: t.localToken })).json()) as { id: string };
-    const r = (await (await t.exchange(t.ticketOf((await t.browserLogin(alice)).loc))).json()) as { user: { id: string; isOwner: boolean } };
+    const r = (await (await t.exchange(t.ticketOf((await t.browserLogin({ ...alice, email_verified: true })).loc))).json()) as { user: { id: string; isOwner: boolean } };
     expect(r.user).toMatchObject({ id: me.id, isOwner: true });
     // the password still works too
     expect((await t.call("POST", "/auth/login", { body: { email: "alice@example.com", password: "correct horse" } })).status).toBe(200);
@@ -239,8 +266,13 @@ describe("existing local accounts", () => {
     const r = (await (await t.exchange(t.ticketOf((await t.browserLogin(alice)).loc))).json()) as { user: { id: string } };
     expect(r.user.id).toBe(me.id);
   });
+  test("a verified email never re-points an account already linked to another Kore ID", async () => {
+    const t = setup();
+    await t.exchange(t.ticketOf((await t.browserLogin(alice)).loc));
+    expect((await t.browserLogin({ sub: "55555555-5555-4555-8555-555555555555", email: alice.email, email_verified: true })).loc).toBe(`${WEB}/login#sso_error=account_exists`);
+  });
   test("a Kore ID already linked to someone else cannot be linked again", async () => {
-    const t = setup({ oidc: { autoProvision: true } });
+    const t = setup();
     const owner = (await (await t.exchange(t.ticketOf((await t.browserLogin(alice)).loc))).json()) as { token: string };
     const local = (await (await t.call("POST", "/auth/register", { token: owner.token, body: { email: "c@example.com", password: "correct horse" } })).json()) as { token: string };
     expect((await t.browserLogin(alice, { token: local.token })).loc).toBe(`${WEB}/login#sso_error=sub_taken`);
@@ -277,7 +309,8 @@ describe("Kore ID access token as API bearer", () => {
     await t.exchange(t.ticketOf((await t.browserLogin(alice)).loc));
     return t;
   };
-  const access = (sub: string, o: Parameters<typeof sign>[1] = {}, extra: Record<string, unknown> = {}) => sign({ sub, scope: "openid profile email", email: "alice@example.com", ...extra }, o);
+  const access = (sub: string, o: Parameters<typeof sign>[1] = {}, extra: Record<string, unknown> = {}) =>
+    sign({ sub, client_id: "koremind", scope: "openid profile email", sid: "s-1", jti: crypto.randomUUID(), email: "alice@example.com", ...extra }, { typ: "at+jwt", ...o });
 
   test("accepted for a linked sub", async () => {
     const t = await linked();
@@ -295,6 +328,15 @@ describe("Kore ID access token as API bearer", () => {
     expect(await status(await access(alice.sub, { key: otherKey.privateKey }))).toBe(401);
     expect(await status(await sign({ sub: alice.sub, nonce: "n", email: "alice@example.com" }))).toBe(401); // an id token
     expect(await status("a.b.c")).toBe(401);
+  });
+  test("rejected unless the header says typ at+jwt, even with every claim right", async () => {
+    const t = await linked();
+    const status = async (tok: string) => (await t.call("GET", "/me", { token: tok })).status;
+    expect(await status(await access(alice.sub, { typ: "JWT" }))).toBe(401); // id-token typ, but scope and all
+    expect(await status(await access(alice.sub, { typ: null }))).toBe(401);
+    expect(await status(await access(alice.sub, { typ: "logout+jwt" }))).toBe(401);
+    expect(await status(await access(alice.sub, { typ: "application/at+jwt" }))).toBe(200); // RFC 9068 long form
+    expect(await status(await access(alice.sub, {}, { client_id: "korecalendar" }))).toBe(401);
   });
   test("not accepted at all when Kore ID is off", async () => {
     const s = createServices({ db: openDb(":memory:"), dataDir: mkdtempSync(join(tmpdir(), "koremind-sso-")), engine: new FakeEngine({ reply: () => [] }), version: "t" });
@@ -320,7 +362,13 @@ describe("config", () => {
   test("defaults and overrides", () => {
     const c = loadConfig({ KOREMIND_PORT: "9000", KOREMIND_OIDC_ISSUER: "https://id.kore.test/", KOREMIND_OIDC_CLIENT_SECRET: " s ", KOREMIND_PUBLIC_URL: "https://api.example.com/", KOREMIND_PASSWORD_LOGIN: "false", KOREMIND_OIDC_ALLOWED_EMAILS: "A@b.c, @d.e", KOREMIND_WEB_ORIGINS: "https://app.example.com/" });
     expect(c.passwordLogin).toBe(false);
-    expect(c.oidc).toMatchObject({ issuer: "https://id.kore.test", clientId: "koremind", clientSecret: "s", redirectUri: "https://api.example.com/auth/callback", scopes: "openid profile email", autoProvision: false, trustEmailLink: false, allowedEmails: ["a@b.c", "@d.e"], webOrigins: ["https://app.example.com"] });
+    expect(c.oidc).toMatchObject({ issuer: "https://id.kore.test", clientId: "koremind", clientSecret: "s", redirectUri: "https://api.example.com/auth/callback", backchannelLogoutUri: "https://api.example.com/auth/backchannel-logout", scopes: "openid profile email", autoProvision: true, emailLink: true, ownerEmail: "", allowedEmails: ["a@b.c", "@d.e"], webOrigins: ["https://app.example.com"] });
+  });
+  test("provisioning switches, the owner pin, and the old name of the email-link switch", () => {
+    const base = { KOREMIND_OIDC_ISSUER: "https://id.kore.test" };
+    expect(loadConfig({ ...base, KOREMIND_OIDC_AUTO_PROVISION: "0", KOREMIND_OIDC_EMAIL_LINK: "0", KOREMIND_OIDC_OWNER_EMAIL: " Owner@X.org " }).oidc).toMatchObject({ autoProvision: false, emailLink: false, ownerEmail: "owner@x.org" });
+    expect(loadConfig({ ...base, KOREMIND_OIDC_TRUST_EMAIL_LINK: "0" }).oidc?.emailLink).toBe(false);
+    expect(loadConfig({ ...base, KOREMIND_OIDC_TRUST_EMAIL_LINK: "0", KOREMIND_OIDC_EMAIL_LINK: "1" }).oidc?.emailLink).toBe(true);
   });
   test("the secret can come from a file", () => {
     const c = loadConfig({ KOREMIND_OIDC_ISSUER: "https://id.kore.test", KOREMIND_OIDC_CLIENT_SECRET_FILE: "/run/secrets/x" }, (p) => (p === "/run/secrets/x" ? "from-file\n" : ""));
@@ -328,5 +376,96 @@ describe("config", () => {
   });
   test("a non-URL issuer is an error", () => {
     expect(() => loadConfig({ KOREMIND_OIDC_ISSUER: "id.kore.test" })).toThrow();
+  });
+});
+
+describe("back-channel logout", () => {
+  const EVENT = { "http://schemas.openid.net/event/backchannel-logout": {} };
+  const logoutToken = (claims: Record<string, unknown>, o: Parameters<typeof sign>[1] = {}) =>
+    sign({ jti: crypto.randomUUID(), events: EVENT, ...claims }, { typ: "logout+jwt", exp: Math.floor(Date.now() / 1000) + 120, ...o });
+  const post = (t: ReturnType<typeof setup>, body: string, type = "application/x-www-form-urlencoded") =>
+    t.services && createApp(t.services, { trustProxy: true }).fetch(new Request("http://localhost:8787/auth/backchannel-logout", { method: "POST", headers: { "content-type": type }, body }));
+  const send = (t: ReturnType<typeof setup>, token: string) => post(t, new URLSearchParams({ logout_token: token }).toString());
+  const signIn = async (t: ReturnType<typeof setup>, c: Claims) => ((await (await t.exchange(t.ticketOf((await t.browserLogin(c)).loc))).json()) as { token: string }).token;
+  const alive = async (t: ReturnType<typeof setup>, token: string) => (await t.call("GET", "/me", { token })).status === 200;
+
+  test("ends every session of that Kore ID session, including a phone paired from it, and nothing else", async () => {
+    const t = setup();
+    const web1 = await signIn(t, { ...alice, sid: "kore-sid-1" });
+    const web2 = await signIn(t, { ...alice, sid: "kore-sid-2" });
+    const bobs = await signIn(t, { ...bob, sid: "kore-sid-3" });
+    const pair = (await (await t.call("POST", "/auth/pair", { token: web1 })).json()) as { code: string };
+    const phone = ((await (await t.call("POST", "/auth/pair/redeem", { body: { code: pair.code } })).json()) as { token: string }).token;
+    expect(t.services.db.query("select sid from tokens where sid is not null order by sid").all()).toEqual([{ sid: "kore-sid-1" }, { sid: "kore-sid-1" }, { sid: "kore-sid-2" }, { sid: "kore-sid-3" }]);
+    // The phone does not get the computer's RP-logout URL.
+    expect(((await (await t.call("POST", "/auth/logout", { token: phone })).json()) as { logoutUrl?: string }).logoutUrl).toBeUndefined();
+    const phone2 = ((await (await t.call("POST", "/auth/pair/redeem", { body: { code: ((await (await t.call("POST", "/auth/pair", { token: web1 })).json()) as { code: string }).code } })).json()) as { token: string }).token;
+
+    const r = await send(t, await logoutToken({ sub: alice.sub, sid: "kore-sid-1" }));
+    expect(r.status).toBe(200);
+    expect(r.headers.get("cache-control")).toBe("no-store");
+    expect(await alive(t, web1)).toBe(false);
+    expect(await alive(t, phone2)).toBe(false);
+    expect(await alive(t, web2)).toBe(true);
+    expect(await alive(t, bobs)).toBe(true);
+  });
+
+  test("without a sid it ends every session of the account linked to that sub (password sessions too)", async () => {
+    const t = setup();
+    const pw = ((await (await t.call("POST", "/auth/register", { body: { email: "alice@example.com", password: "correct horse" } })).json()) as { token: string }).token;
+    const sso = await signIn(t, { ...alice, email_verified: true, sid: "kore-sid-1" }); // links by verified email
+    const bobs = await signIn(t, bob);
+    expect((await send(t, await logoutToken({ sub: alice.sub }))).status).toBe(200);
+    expect(await alive(t, sso)).toBe(false);
+    expect(await alive(t, pw)).toBe(false);
+    expect(await alive(t, bobs)).toBe(true);
+    // an unknown sub is fine (nothing to end), still 200
+    expect((await send(t, await logoutToken({ sub: "99999999-9999-4999-8999-999999999999" }))).status).toBe(200);
+  });
+
+  test("a pending sign-in ticket from the ended session is useless", async () => {
+    const t = setup();
+    const ticket = t.ticketOf((await t.browserLogin({ ...alice, sid: "kore-sid-9" })).loc);
+    expect((await send(t, await logoutToken({ sid: "kore-sid-9", sub: alice.sub }))).status).toBe(200);
+    expect((await t.exchange(ticket)).status).toBe(401);
+  });
+
+  test("a replayed logout token (same jti) is refused", async () => {
+    const t = setup();
+    const tok = await logoutToken({ sub: alice.sub, sid: "x" });
+    expect((await send(t, tok)).status).toBe(200);
+    expect((await send(t, tok)).status).toBe(400);
+  });
+
+  test("invalid logout tokens get 400 and end nothing", async () => {
+    const t = setup();
+    const web = await signIn(t, { ...alice, sid: "kore-sid-1" });
+    const claims = { sub: alice.sub, sid: "kore-sid-1" };
+    const { events: _e, ...noEvents } = { ...claims, events: EVENT };
+    const bad = [
+      await logoutToken(claims, { aud: "korecalendar" }),
+      await logoutToken(claims, { iss: "https://evil.example" }),
+      await logoutToken(claims, { typ: "JWT" }),
+      await logoutToken(claims, { typ: "at+jwt" }),
+      await logoutToken(claims, { typ: null }),
+      await logoutToken(claims, { key: otherKey.privateKey }),
+      await logoutToken(claims, { exp: Math.floor(Date.now() / 1000) - 600 }),
+      await logoutToken({ ...claims, nonce: "n" }),
+      await logoutToken({ ...claims, events: { "http://example.com/other": {} } }),
+      await sign({ ...noEvents, jti: "j1" }, { typ: "logout+jwt" }),
+      await sign({ ...claims, events: EVENT }, { typ: "logout+jwt" }), // no jti
+      await logoutToken({}), // neither sid nor sub
+      "not.a.jwt",
+    ];
+    for (const tok of bad) expect((await send(t, tok)).status).toBe(400);
+    expect((await post(t, "nothing=here"))!.status).toBe(400);
+    expect((await post(t, "", "text/plain"))!.status).toBe(400);
+    expect(await alive(t, web)).toBe(true);
+  });
+
+  test("404 when Kore ID is not configured", async () => {
+    const s = createServices({ db: openDb(":memory:"), dataDir: mkdtempSync(join(tmpdir(), "koremind-sso-")), engine: new FakeEngine({ reply: () => [] }), version: "t" });
+    const r = await createApp(s).fetch(new Request("http://x/auth/backchannel-logout", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "logout_token=a.b.c" }));
+    expect(r.status).toBe(404);
   });
 });

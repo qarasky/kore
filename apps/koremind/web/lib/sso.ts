@@ -60,6 +60,7 @@ export function ssoErrorMessage(code: string): string {
   switch (code) {
     case "denied": return "Kore ID sign-in was cancelled.";
     case "not_allowed": return "This KoreMind does not accept new accounts. Ask the owner to invite you.";
+    case "owner_pending": return "This KoreMind isn't set up yet. Its owner has to sign in first.";
     case "account_exists": return "An account with this email already exists here. Sign in with your password, then link Kore ID in Settings.";
     case "sub_taken": return "That Kore ID is already linked to another account.";
     case "already_linked": return "This account is already linked to a different Kore ID.";

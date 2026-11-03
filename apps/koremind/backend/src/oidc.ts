@@ -1,4 +1,4 @@
-import { createRemoteJWKSet, errors, jwtVerify, type JWTPayload } from "jose";
+import { createRemoteJWKSet, decodeProtectedHeader, errors, jwtVerify, type JWTPayload } from "jose";
 import type { OidcConfig } from "./config";
 
 /** The slice of Kore ID's discovery document KoreMind uses. */
@@ -12,12 +12,18 @@ export type Discovery = {
 };
 
 export class OidcError extends Error {
-  constructor(public code: "discovery" | "token_exchange" | "invalid_id_token" | "invalid_access_token", message: string) {
+  constructor(public code: "discovery" | "token_exchange" | "invalid_id_token" | "invalid_access_token" | "invalid_logout_token", message: string) {
     super(message);
   }
 }
 
-export type Identity = { sub: string; email?: string; emailVerified?: boolean; name?: string; idToken: string };
+/** `sid` is the Kore ID browser session the sign-in belongs to (ties KoreMind sessions to it for back-channel logout). */
+export type Identity = { sub: string; email?: string; emailVerified?: boolean; name?: string; sid?: string; idToken: string };
+
+/** What a verified back-channel logout token asks for: end the sessions of `sid`, or (no sid) every session of `sub`. */
+export type LogoutRequest = { sid?: string; sub?: string; jti: string };
+
+const BACKCHANNEL_EVENT = "http://schemas.openid.net/event/backchannel-logout";
 
 const DISCOVERY_TTL_MS = 3600_000;
 export const b64url = (b: ArrayBuffer | Uint8Array) => Buffer.from(b instanceof Uint8Array ? b : new Uint8Array(b)).toString("base64url");
@@ -100,23 +106,55 @@ export function createOidc(cfg: OidcConfig, deps: { fetch?: typeof fetch; now?: 
       try { payload = (await jwtVerify(body.id_token, (await keys()) as never, verifyOpts)).payload; }
       catch (e) { throw new OidcError("invalid_id_token", e instanceof errors.JOSEError ? e.message : "id_token could not be verified"); }
       if (payload.nonce !== p.nonce) throw new OidcError("invalid_id_token", "nonce mismatch");
+      // An id token is a plain JWT: refuse access/logout tokens (typ at+jwt, logout+jwt) in its place, and tokens issued to another client.
+      const typ = decodeProtectedHeader(body.id_token).typ;
+      if (typ !== undefined && typ.toLowerCase() !== "jwt") throw new OidcError("invalid_id_token", `id_token has typ ${typ}`);
+      if (payload.azp !== undefined && payload.azp !== cfg.clientId) throw new OidcError("invalid_id_token", "azp is not this client");
       return {
         sub: String(payload.sub),
         email: typeof payload.email === "string" ? payload.email.trim().toLowerCase() : undefined,
         emailVerified: typeof payload.email_verified === "boolean" ? payload.email_verified : undefined,
         name: typeof payload.name === "string" ? payload.name : undefined,
+        sid: typeof payload.sid === "string" && payload.sid ? payload.sid : undefined,
         idToken: body.id_token,
       };
     },
 
-    /** Verifies a Kore ID *access* token presented as an API bearer. Returns the subject, or null. */
-    async verifyAccessToken(token: string): Promise<{ sub: string } | null> {
+    /**
+     * Verifies a Kore ID *access* token presented as an API bearer (RFC 9068): header `typ: at+jwt` (so an id token or a
+     * logout token never works as a bearer), signature, issuer, audience = this client, expiry. Returns the subject, or null.
+     */
+    async verifyAccessToken(token: string): Promise<{ sub: string; sid?: string } | null> {
       try {
-        const { payload } = await jwtVerify(token, (await keys()) as never, verifyOpts);
-        // Kore ID's id tokens share iss/aud/sub with access tokens; only access tokens carry `scope`. Refuse id tokens as bearers.
+        const { payload } = await jwtVerify(token, (await keys()) as never, { ...verifyOpts, typ: "at+jwt" });
+        // Belt and braces: access tokens carry a scope and the client id, never a nonce.
         if (typeof payload.scope !== "string" || payload.nonce !== undefined) return null;
-        return { sub: String(payload.sub) };
+        if (payload.client_id !== undefined && payload.client_id !== cfg.clientId) return null;
+        return { sub: String(payload.sub), sid: typeof payload.sid === "string" ? payload.sid : undefined };
       } catch { return null; }
+    },
+
+    /**
+     * Verifies an OIDC Back-Channel Logout token: signature (JWKS), iss, aud = this client, header `typ: logout+jwt`, iat/exp/jti
+     * present, the back-channel `events` member, no `nonce`, a `sid` or `sub`, and a `jti` not seen before (`seen` records it
+     * until `exp`). Throws OidcError("invalid_logout_token") when any of that fails, OidcError("discovery") when Kore ID is down.
+     */
+    async verifyLogoutToken(token: string, seen: (jti: string, exp: number) => boolean): Promise<LogoutRequest> {
+      const bad = (m: string) => new OidcError("invalid_logout_token", m);
+      const k = await keys();
+      let payload: JWTPayload;
+      try {
+        payload = (await jwtVerify(token, k as never, { issuer: cfg.issuer, audience: cfg.clientId, algorithms: ["EdDSA"], clockTolerance: 30, typ: "logout+jwt", requiredClaims: ["iat", "exp", "jti"] })).payload;
+      } catch (e) { throw bad(e instanceof errors.JOSEError ? e.message : "logout token could not be verified"); }
+      const events = payload.events as Record<string, unknown> | undefined;
+      if (!events || typeof events !== "object" || Array.isArray(events) || !(BACKCHANNEL_EVENT in events)) throw bad("events claim missing");
+      if ("nonce" in payload) throw bad("nonce is not allowed in a logout token");
+      const sid = typeof payload.sid === "string" && payload.sid ? payload.sid : undefined;
+      const sub = typeof payload.sub === "string" && payload.sub ? payload.sub : undefined;
+      if (!sid && !sub) throw bad("sid or sub required");
+      if (typeof payload.jti !== "string" || !payload.jti) throw bad("jti missing");
+      if (seen(payload.jti, payload.exp!)) throw bad("logout token replayed");
+      return { sid, sub, jti: payload.jti };
     },
 
     /** RP-initiated logout URL, or null when the provider has no end_session_endpoint. */

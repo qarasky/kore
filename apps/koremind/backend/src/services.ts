@@ -18,7 +18,7 @@ export type ServiceOptions = { db: Database; dataDir: string; engine: Engine; ve
   /** Kore ID sign-in; null/undefined = off. */ oidc?: OidcConfig | null; /** Test seam: a ready-made OIDC client. */ oidcClient?: Oidc; /** false = turn email + password sign-in off (needs oidc). */ passwordLogin?: boolean };
 
 export function createServices(o: ServiceOptions) {
-  const auth = createAuth(o.db, Date.now, { passwordLogin: o.oidc || o.oidcClient ? o.passwordLogin ?? true : true });
+  const auth = createAuth(o.db, Date.now, { passwordLogin: o.oidc || o.oidcClient ? o.passwordLogin ?? true : true, ssoOwnerOnly: !!o.oidc?.ownerEmail });
   const sso = o.oidc ? createSso(o.db, auth, o.oidcClient ?? createOidc(o.oidc), o.oidc) : null;
   const settings = createSettings(o.db);
   const memory = createMemory(join(o.dataDir, "users"), o.engine, (u) => settings.get(u).memoryEnabled);

@@ -45,7 +45,11 @@ const server = Bun.serve({
 });
 
 servicePort = server.port ?? config.port;
-if (config.oidc) console.log(`Kore ID sign-in is on (${config.oidc.issuer}, client ${config.oidc.clientId}). Register ${config.oidc.redirectUri} as its redirect URI.${config.passwordLogin ? "" : " Password sign-in is off."}`);
+if (config.oidc) {
+  const o = config.oidc;
+  console.log(`Kore ID sign-in is on (${o.issuer}, client ${o.clientId}). In Kore ID's clients.json register redirectUris: ["${o.redirectUri}"] and backchannelLogoutUri: "${o.backchannelLogoutUri}".${config.passwordLogin ? "" : " Password sign-in is off."}`);
+  console.log(`  New accounts: ${o.autoProvision ? "anyone Kore ID lets into this app" : "first user and allow-list only"}${o.allowedEmails.length ? `, limited to ${o.allowedEmails.join(", ")}` : ""}. Owner of an empty instance: ${o.ownerEmail || "the first account"}. Link by verified email: ${o.emailLink ? "on" : "off"}.`);
+}
 console.log(`KoreMind backend ${version} is running${process.env.KOREMIND_FAKE_ENGINE ? " (fake engine)" : ""}. Point the apps at:`);
 for (const a of listAddresses(networkInterfaces(), server.port ?? config.port, process.env)) console.log(`  ${a.label.padEnd(9)} ${a.url}`);
 

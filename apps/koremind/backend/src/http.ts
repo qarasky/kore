@@ -1,6 +1,8 @@
 import { ApprovalAnswer, AuthRequest, PairRedeem, Settings, SsoExchange, SsoStart, SendMessageRequest, type PairStart, type StreamEvent } from "@koremind/shared";
 import { z } from "zod";
 import { AuthError } from "./auth";
+import { BACKCHANNEL_LOGOUT_PATH } from "./config";
+import { OidcError } from "./oidc";
 import type { Services } from "./services";
 import { UploadError } from "./uploads";
 
@@ -51,6 +53,22 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
       const to = r.kind === "web" ? `${r.returnTo}#${p[0]}=${encodeURIComponent(p[1])}` : `koremind://sso?${p[0].replace("sso_", "")}=${encodeURIComponent(p[1])}`;
       return new Response(null, { status: 302, headers: { location: to, "cache-control": "no-store", "referrer-policy": "no-referrer" } });
     }
+    // OIDC Back-Channel Logout 1.0: Kore ID (server to server) posts `logout_token` when a Kore ID session ends.
+    if (m === "POST" && path === BACKCHANNEL_LOGOUT_PATH) {
+      if (!s.sso) return fail(404, "not_found", "Kore ID sign-in is not configured");
+      const headers = { "cache-control": "no-store", "content-type": "application/json" };
+      let token: string | null = null;
+      try { token = new URLSearchParams(await req.text()).get("logout_token"); } catch { /* fall through: invalid_request */ }
+      if (!token) return new Response(JSON.stringify({ error: "invalid_request", error_description: "logout_token is required" }), { status: 400, headers });
+      try {
+        await s.sso.backchannelLogout(token);
+        return new Response(null, { status: 200, headers: { "cache-control": "no-store" } });
+      } catch (e) {
+        if (e instanceof OidcError && e.code === "discovery") return new Response(JSON.stringify({ error: "temporarily_unavailable", error_description: e.message }), { status: 503, headers });
+        console.error("sso: back-channel logout refused:", e instanceof Error ? e.message : e);
+        return new Response(JSON.stringify({ error: "invalid_request", error_description: "Invalid logout token" }), { status: 400, headers });
+      }
+    }
     if (m === "POST" && path === "/auth/oidc/start") {
       if (!s.sso) return fail(404, "not_found", "Kore ID sign-in is not configured");
       return json(200, { url: await s.sso.start(await body(req, SsoStart), ip, caller ?? undefined) });
@@ -83,7 +101,7 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
 
     if (m === "POST" && path === "/auth/logout") { const logoutUrl = s.auth.logout(bearer); return json(200, { ok: true, ...(logoutUrl ? { logoutUrl } : {}) }); }
     if (m === "POST" && path === "/auth/pair") {
-      const { code, expiresAt } = s.auth.startPair(u);
+      const { code, expiresAt } = s.auth.startPair(u, bearer);
       const urls = s.addresses();
       const link = `koremind://pair?${[`c=${encodeURIComponent(code)}`, ...urls.map((x) => `u=${encodeURIComponent(x)}`)].join("&")}`;
       const out: PairStart = { code, expiresAt, urls, link };

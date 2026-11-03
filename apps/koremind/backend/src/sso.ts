@@ -14,7 +14,7 @@ const sha256 = (s: string) => new Bun.CryptoHasher("sha256").update(s).digest("h
 
 /** Why a Kore ID sign-in was refused; sent to the client as `sso_error=<code>`. */
 export type SsoErrorCode =
-  | "denied" | "invalid_state" | "provider_error" | "no_email" | "not_allowed" | "account_exists" | "sub_taken" | "already_linked" | "unavailable";
+  | "denied" | "invalid_state" | "provider_error" | "no_email" | "not_allowed" | "owner_pending" | "account_exists" | "sub_taken" | "already_linked" | "unavailable";
 
 export class SsoError extends Error {
   constructor(public code: SsoErrorCode, message: string) { super(message); }
@@ -55,20 +55,28 @@ export function createSso(db: Database, auth: Auth, oidc: Oidc, cfg: OidcConfig,
 
     const sameEmail = db.query("select * from users where email=?").get(id.email) as (Parameters<typeof toUser>[0]) | null;
     if (sameEmail) {
-      // Kore ID does not verify emails (yet), so a matching email proves nothing. Linking is opt-in, or done by the signed-in owner.
-      if (!cfg.trustEmailLink || sameEmail.oidc_sub) throw new SsoError("account_exists", "An account with this email already exists");
+      // Kore ID accounts are made by an admin, so it vouches for the address (`email_verified: true`); only then is "same email"
+      // proof enough to attach this Kore ID to the existing account. Never re-point an account already linked to another Kore ID.
+      if (!cfg.emailLink || id.emailVerified !== true || sameEmail.oidc_sub) throw new SsoError("account_exists", "An account with this email already exists");
       db.run("update users set oidc_sub=? where id=? and oidc_sub is null", [id.sub, sameEmail.id]);
       return toUser({ ...sameEmail, oidc_sub: id.sub });
     }
 
     const first = (db.query("select count(*) c from users").get() as { c: number }).c === 0;
-    const listed = cfg.allowedEmails.length > 0 && emailAllowed(cfg.allowedEmails, id.email);
-    const allowed = cfg.allowedEmails.length ? listed : first || cfg.autoProvision;
-    if (!allowed) throw new SsoError("not_allowed", "This KoreMind does not accept new accounts");
+    // Owner of an empty KoreMind: the first account, or, when pinned, only the pinned (verified) email.
+    if (first && cfg.ownerEmail && (id.email !== cfg.ownerEmail || id.emailVerified !== true)) throw new SsoError("owner_pending", "The owner has to sign in first");
+    if (cfg.allowedEmails.length > 0 && !emailAllowed(cfg.allowedEmails, id.email)) throw new SsoError("not_allowed", "This KoreMind does not accept new accounts");
+    if (!first && !cfg.autoProvision) throw new SsoError("not_allowed", "This KoreMind does not accept new accounts");
     const user: User = { id: crypto.randomUUID(), email: id.email, isOwner: first, ssoLinked: true };
     db.run("insert into users(id,email,password_hash,is_owner,created_at,oidc_sub) values(?,?,?,?,?,?)", [user.id, user.email, "", first ? 1 : 0, now(), id.sub]);
     return user;
   }
+
+  /** Logout-token replay guard: true if `jti` was seen; otherwise remembers it until `exp` (seconds). Shared by every process on this DB. */
+  const seenJti = (jti: string, exp: number): boolean => {
+    db.run("delete from oidc_logout_jti where expires_at < ?", [now()]);
+    return db.run("insert or ignore into oidc_logout_jti(jti, expires_at) values(?,?)", [jti, exp * 1000]).changes === 0;
+  };
 
   return {
     /** Begins a sign-in (or, with `caller`, linking Kore ID to the signed-in account). Returns the Kore ID URL to open. */
@@ -120,7 +128,7 @@ export function createSso(db: Database, auth: Auth, oidc: Oidc, cfg: OidcConfig,
         const user = resolve(identity);
         const ticket = randomB64url(32);
         const end = await oidc.logoutUrl(identity.idToken, flow.return_to ? new URL("/login", flow.return_to).toString() : undefined);
-        db.run("insert into oidc_tickets(ticket_hash,user_id,app_challenge,logout_url,expires_at) values(?,?,?,?,?)", [sha256(ticket), user.id, flow.app_challenge, end, now() + TICKET_TTL_MS]);
+        db.run("insert into oidc_tickets(ticket_hash,user_id,app_challenge,logout_url,sid,expires_at) values(?,?,?,?,?,?)", [sha256(ticket), user.id, flow.app_challenge, end, identity.sid ?? null, now() + TICKET_TTL_MS]);
         return back({ ticket });
       } catch (e) {
         if (e instanceof SsoError) return back({ error: e.code });
@@ -133,11 +141,22 @@ export function createSso(db: Database, auth: Auth, oidc: Oidc, cfg: OidcConfig,
       throttle(`sso-exchange|${ip}`, EXCHANGE_MAX);
       db.run("delete from oidc_tickets where expires_at < ?", [now()]);
       const row = db.query("select * from oidc_tickets where ticket_hash=?").get(sha256(ticket)) as
-        | { user_id: string; app_challenge: string; logout_url: string | null } | null;
+        | { user_id: string; app_challenge: string; logout_url: string | null; sid: string | null } | null;
       if (!row) throw new AuthError("bad_code", "That sign-in has expired. Try again");
       db.run("delete from oidc_tickets where ticket_hash=?", [sha256(ticket)]); // single use, even when the verifier is wrong
       if ((await s256(verifier)) !== row.app_challenge) throw new AuthError("bad_code", "That sign-in has expired. Try again");
-      return auth.issueFor(row.user_id, row.logout_url);
+      return auth.issueFor(row.user_id, { logoutUrl: row.logout_url, sid: row.sid });
+    },
+
+    /**
+     * OIDC Back-Channel Logout: Kore ID POSTs a logout token when a Kore ID session ends (sign-out, admin disable, password reset…).
+     * Verifies it and ends the matching KoreMind sessions. Throws OidcError (invalid token → 400, Kore ID unreachable → 503).
+     */
+    async backchannelLogout(logoutToken: string): Promise<{ ended: number }> {
+      const req = await oidc.verifyLogoutToken(logoutToken, seenJti);
+      const ended = auth.endSessions(req.sid ? { sid: req.sid } : { sub: req.sub });
+      console.log(`sso: back-channel logout (${req.sid ? "sid" : "sub"}) ended ${ended} session(s)`);
+      return { ended };
     },
 
     /** The local user for a Kore ID access token used as an API bearer (no auto-provisioning here). */

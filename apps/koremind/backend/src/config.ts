@@ -9,12 +9,22 @@ export type OidcConfig = {
   scopes: string;
   /** Where Kore ID sends the browser back: this backend's `/auth/callback`. Must be registered for the client. */
   redirectUri: string;
-  /** Create a local account for any Kore ID user who signs in. Off by default: only the first user (the owner) and the allow-list can. */
+  /**
+   * Create a local account for anyone Kore ID lets into this app. On by default: Kore ID accounts are admin-made and access to
+   * KoreMind is granted per user there. Off: only the first user (the owner) and the allow-list get an account.
+   */
   autoProvision: boolean;
-  /** Emails (`a@b.c`) or domains (`@b.c`) that may sign in and be provisioned. Empty = no restriction beyond `autoProvision`. */
+  /** Optional extra filter: emails (`a@b.c`) or domains (`@b.c`) that may get an account. Empty = whoever Kore ID lets in. */
   allowedEmails: string[];
-  /** Link a Kore ID login to an existing local account with the same email. Unsafe unless Kore ID verifies emails or is closed to the public. */
-  trustEmailLink: boolean;
+  /** Link a first Kore ID sign-in to the existing local account with the same email, when Kore ID says `email_verified: true`. On by default. */
+  emailLink: boolean;
+  /**
+   * Pins who becomes the owner of an empty KoreMind: only a Kore ID sign-in with this (verified) email can create the first
+   * account, and password setup of the first account is closed. Empty = the first account made (Kore ID or password) is the owner.
+   */
+  ownerEmail: string;
+  /** This backend's back-channel logout endpoint, to register in Kore ID as the client's `backchannelLogoutUri`. */
+  backchannelLogoutUri: string;
   /** Origins the web UI may return to after sign-in (open-redirect guard). Empty = loopback origins only. */
   webOrigins: string[];
 };
@@ -29,6 +39,7 @@ export type Config = {
   oidc: OidcConfig | null;
 };
 
+export const BACKCHANNEL_LOGOUT_PATH = "/auth/backchannel-logout";
 const list = (v: string | undefined) => (v ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 const flag = (v: string | undefined, dflt: boolean) => (v === undefined || v === "" ? dflt : /^(1|true|yes|on)$/i.test(v.trim()));
 
@@ -46,9 +57,12 @@ export function loadConfig(env: Record<string, string | undefined>, readFile: (p
       clientSecret: (secretFile ? readFile(secretFile) : env.KOREMIND_OIDC_CLIENT_SECRET ?? "").trim(),
       scopes: env.KOREMIND_OIDC_SCOPES?.trim() || "openid profile email",
       redirectUri: env.KOREMIND_OIDC_REDIRECT_URI?.trim() || `${publicUrl}/auth/callback`,
-      autoProvision: flag(env.KOREMIND_OIDC_AUTO_PROVISION, false),
+      autoProvision: flag(env.KOREMIND_OIDC_AUTO_PROVISION, true),
       allowedEmails: list(env.KOREMIND_OIDC_ALLOWED_EMAILS),
-      trustEmailLink: flag(env.KOREMIND_OIDC_TRUST_EMAIL_LINK, false),
+      // KOREMIND_OIDC_TRUST_EMAIL_LINK is the old name (it used to link without email_verified); it still turns the feature on/off.
+      emailLink: flag(env.KOREMIND_OIDC_EMAIL_LINK ?? env.KOREMIND_OIDC_TRUST_EMAIL_LINK, true),
+      ownerEmail: (env.KOREMIND_OIDC_OWNER_EMAIL ?? "").trim().toLowerCase(),
+      backchannelLogoutUri: `${publicUrl}${BACKCHANNEL_LOGOUT_PATH}`,
       webOrigins: (env.KOREMIND_WEB_ORIGINS ?? "").split(",").map((s) => s.trim().replace(/\/+$/, "")).filter(Boolean),
     };
   }
