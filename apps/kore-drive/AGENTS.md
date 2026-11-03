@@ -70,6 +70,16 @@ trusts `X-Forwarded-*` / `CF-Connecting-IP` only from the Docker host
 (`KORE_SUBNET`); the API uses `CF-Connecting-IP` for login rate limits. Don't
 add code that trusts client-supplied headers elsewhere.
 
+**Kore ID (OIDC).** `internal/oidc` is a stdlib-only RP client (discovery, PKCE
+S256, EdDSA JWT verification via JWKS); `httpapi/oidc.go` has the flow, the
+`sub` -> user mapping and the session/bearer middleware. Users are keyed on
+`users.sub` (local ids stay random hex). Never match accounts by email unless
+`oidc.link_by_email` is set: Kore ID does not verify emails. SSO sessions keep
+`id_token`/`refresh_token` in `sessions` and redeem the refresh token every 10
+minutes under one mutex (parallel redemption looks like token theft to Kore
+ID). Password login is gated by `local_login`. The API needs outbound access to
+the issuer (compose `egress` network).
+
 **Security posture.** No external resource loads (fonts, images, scripts,
 CDNs): everything is bundled or inline. Uploaded files never execute in our
 origin: downloads are `attachment` + `nosniff`; inline views (images, PDF,
@@ -104,8 +114,8 @@ restrictive CSP (`sandbox`). Nothing user-controlled becomes a filesystem path
 - Configuration is `.env` only (`KORE_*`, see `.env.example`); the API reads
   `KORE_ADMIN_EMAIL`, `KORE_ADMIN_PASSWORD`, `KORE_DATA_DIR`, `KORE_BIND`,
   `KORE_PORT` from the environment (the TOML file is optional).
-- Releases: `git tag vX.Y.Z && git push origin vX.Y.Z` runs
-  `.github/workflows/release.yml`, which publishes `ghcr.io/qarasky/kore-api`
+- Releases: pushes to `main` publish `:edge`; `git tag vX.Y.Z && git push origin vX.Y.Z` runs
+  `.github/workflows/images.yml` (ci, native amd64/arm64 builds, manifest, smoke, GitHub release), which publishes `ghcr.io/qarasky/kore-api`
   and `kore-web` (amd64 + arm64). `install.sh` pulls them; test changes to it
   with a local file run and a `curl | bash` run (docker must not read the
   script from stdin: keep `</dev/null` on docker commands). raw.githubusercontent
