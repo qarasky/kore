@@ -1,4 +1,4 @@
-import { AppMark, AuthScreen, Button } from "@qarasky/kore-ui";
+import { AppMark, AuthScreen, Button, minLengthRule } from "@qarasky/kore-ui";
 import { useState } from "react";
 
 function Art() {
@@ -27,6 +27,26 @@ export function AuthPage({ variant }: { variant?: string }) {
           </Button>
         </div>
       </AuthScreen>
+    );
+  }
+
+  if (variant === "setup") {
+    return (
+      <AuthScreen
+        app="kore-id"
+        mode="set-password"
+        description="Welcome, Anna. Choose a password to finish setting up your account."
+        error={error}
+        password={{
+          defaultEmail: "anna@northwind.example",
+          emailReadOnly: true,
+          rules: [minLengthRule(10), { label: "No more than 128 characters", test: (p) => p.length <= 128 }],
+          onSubmit: async () => {
+            await new Promise((r) => setTimeout(r, 700));
+            setError("This setup link has expired. Ask your admin for a new one.");
+          },
+        }}
+      />
     );
   }
 

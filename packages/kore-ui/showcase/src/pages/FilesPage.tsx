@@ -1,6 +1,11 @@
 import {
   AppShell,
   Button,
+  CommandPalette,
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetFooter,
   ConfirmDialog,
   ContextMenu,
   ContextMenuContent,
@@ -43,6 +48,7 @@ import {
   Folder,
   FolderPlus,
   HardDrive,
+  Info,
   Link2,
   MoreHorizontal,
   Pencil,
@@ -83,8 +89,10 @@ export function FilesPage() {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === "1");
   const [deleting, setDeleting] = useState<Row | null>(null);
   const [folderOpen, setFolderOpen] = useState(false);
+  const [details, setDetails] = useState<Row | null>(null);
 
   const actions = (row: Row) => [
+    { id: "details", label: "Details", icon: <Info />, run: () => setDetails(row) },
     { id: "rename", label: "Rename", icon: <Pencil />, run: () => toast.show({ message: `Renamed “${row.name}”` }) },
     { id: "download", label: "Download", icon: <Download />, run: () => toast.show({ message: "Download started" }) },
     { id: "share", label: "Share link", icon: <Link2 />, run: () => toast.show({ message: "Link copied", tone: "success" }) },
@@ -237,6 +245,62 @@ export function FilesPage() {
           </TableBody>
         </Table>
       </div>
+
+      <CommandPalette
+        placeholder="Search files, or jump to a section…"
+        groups={[
+          {
+            heading: "Go to",
+            commands: [
+              { id: "files", label: "My files", icon: <HardDrive />, shortcut: "G F", onSelect: () => (window.location.hash = "#/app") },
+              { id: "shared", label: "Shared space", icon: <Users />, onSelect: () => {} },
+              { id: "trash", label: "Trash", icon: <Trash2 />, shortcut: "G T", onSelect: () => {} },
+              { id: "admin", label: "Admin", icon: <Shield />, onSelect: () => (window.location.hash = "#/users") },
+            ],
+          },
+          {
+            heading: "Files",
+            commands: ROWS.map((r) => ({
+              id: r.name,
+              label: r.name,
+              icon: r.kind === "folder" ? <Folder /> : <FileText />,
+              description: r.modified,
+              onSelect: () => setDetails(r),
+            })),
+          },
+          {
+            heading: "Actions",
+            commands: [
+              { id: "new-folder", label: "New folder", icon: <FolderPlus />, shortcut: ["⇧", "N"], onSelect: () => setFolderOpen(true) },
+              { id: "upload", label: "Upload files", icon: <Upload />, shortcut: ["⌘", "U"], onSelect: () => {} },
+            ],
+          },
+        ]}
+      />
+
+      <Sheet open={details !== null} onOpenChange={(open) => !open && setDetails(null)}>
+        <SheetContent title={details?.name ?? ""} description={details ? `Modified ${details.modified} · ${details.size}` : undefined}>
+          <SheetBody className="flex flex-col gap-5">
+            <div className="grid h-40 place-items-center rounded-ui border border-border bg-surface">{details ? ICON[details.kind] : null}</div>
+            <dl className="grid grid-cols-[120px_1fr] gap-y-2 text-sub">
+              <dt className="text-muted">Type</dt>
+              <dd>{details?.kind === "folder" ? "Folder" : "File"}</dd>
+              <dt className="text-muted">Size</dt>
+              <dd>{details?.size}</dd>
+              <dt className="text-muted">Owner</dt>
+              <dd>Anna Berg</dd>
+              <dt className="text-muted">Location</dt>
+              <dd>My files</dd>
+            </dl>
+          </SheetBody>
+          <SheetFooter>
+            <Button onClick={() => setDetails(null)}>Close</Button>
+            <Button variant="primary">
+              <Link2 /> Share link
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       <ConfirmDialog
         open={deleting !== null}

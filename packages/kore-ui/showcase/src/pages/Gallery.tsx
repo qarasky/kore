@@ -7,13 +7,18 @@ import {
   Button,
   Card,
   Checkbox,
+  ColorSwatchPicker,
   Combobox,
+  CommandPalette,
   ConfirmDialog,
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuLabel,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
   CopyButton,
   Dialog,
@@ -40,6 +45,16 @@ import {
   MenuTrigger,
   NavTabs,
   PageHeader,
+  PasswordInput,
+  PointMenu,
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetFooter,
+  SheetTrigger,
+  minLengthRule,
+  pointFromEvent,
+  type MenuPoint,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -72,7 +87,24 @@ import {
   useToast,
   type ProductId,
 } from "@qarasky/kore-ui";
-import { Copy, Download, FolderOpen, Inbox, Link2, MoreHorizontal, Pencil, Plus, Search, Settings, Share2, Trash2, Upload } from "lucide-react";
+import {
+  Archive,
+  Copy,
+  Download,
+  FolderOpen,
+  HardDrive,
+  Inbox,
+  KeyRound,
+  Link2,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Search,
+  Settings,
+  Share2,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { ACCOUNT_URL, APP_URLS, ME, PAGES } from "../demo";
 import { TIME_ZONES, searchPeople } from "../timezones";
@@ -102,6 +134,9 @@ export function Gallery() {
   const toast = useToast();
   const [checked, setChecked] = useState<boolean | "indeterminate">("indeterminate");
   const [showHints, setShowHints] = useState(true);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [point, setPoint] = useState<MenuPoint | null>(null);
+  const [colour, setColour] = useState("#5b8def");
 
   return (
     <div className="mx-auto max-w-[1100px] px-6 pb-24">
@@ -109,7 +144,7 @@ export function Gallery() {
         <div className="text-brand">
           <Wordmark app="kore" />
         </div>
-        <span className="text-muted">kore-ui 0.1.1</span>
+        <span className="text-muted">kore-ui 0.2.0</span>
         <nav aria-label="Showcase pages" className="ml-auto flex flex-wrap gap-1">
           {PAGES.map((p) => (
             <a key={p.href} href={p.href} className="rounded-ui px-3 py-1.5 text-sub text-muted hover:bg-white/5 hover:text-text">
@@ -253,6 +288,41 @@ export function Gallery() {
             </Field>
           </div>
         </div>
+        <div id="password-colour" className="grid gap-6 md:grid-cols-2">
+          <Field label="Password">
+            <PasswordInput defaultValue="hunter2hunter2" />
+          </Field>
+          <Field label="New password" hint="Pick something you don't use elsewhere.">
+            <PasswordInput
+              newPassword
+              defaultValue="correct horse"
+              rules={[minLengthRule(10), { label: "Not only letters", test: (p) => /[^a-z]/i.test(p.replace(/ /g, "")) }]}
+            />
+          </Field>
+          <Field label="Calendar colour" hint={`Selected: ${colour}`}>
+            <ColorSwatchPicker
+              value={colour}
+              onValueChange={setColour}
+              allowCustom
+              colors={[
+                { value: "#5b8def", label: "Blue" },
+                { value: "#3fb950", label: "Green" },
+                { value: "#e5a54b", label: "Amber" },
+                { value: "#f2777a", label: "Red" },
+                { value: "#a371f7", label: "Violet" },
+                { value: "#2bb3c0", label: "Teal" },
+                { value: "#e6e8ee", label: "Light" },
+              ]}
+            />
+          </Field>
+          <fieldset className="flex flex-col">
+            <legend className="mb-1.5 text-meta font-medium text-muted">Coloured checkboxes (calendar list)</legend>
+            <Checkbox label="Work" color="#5b8def" defaultChecked />
+            <Checkbox label="Family" color="#3fb950" defaultChecked />
+            <Checkbox label="Holidays" color="#e5a54b" />
+            <Checkbox label="Light colour" color="#e6e8ee" defaultChecked />
+          </fieldset>
+        </div>
         <div className="grid gap-6 md:grid-cols-3">
           <div className="flex flex-col">
             <Checkbox label="Unchecked" />
@@ -384,19 +454,102 @@ export function Gallery() {
           </Menu>
           <ContextMenu>
             <ContextMenuTrigger asChild>
-              <div className="flex h-control items-center rounded-ui border border-dashed border-border-strong px-4 text-meta text-muted">
-                Right-click here
+              <div
+                tabIndex={0}
+                data-testid="context-area"
+                className="flex h-control items-center rounded-ui border border-dashed border-border-strong px-4 text-meta text-muted"
+              >
+                Right-click here (or focus + Shift+F10)
               </div>
             </ContextMenuTrigger>
             <ContextMenuContent>
               <ContextMenuLabel>Selection</ContextMenuLabel>
-              <ContextMenuItem icon={<Copy />}>Copy</ContextMenuItem>
+              <ContextMenuItem icon={<Copy />} shortcut="⌘C">
+                Copy
+              </ContextMenuItem>
+              <ContextMenuSub>
+                <ContextMenuSubTrigger icon={<Archive />}>Move to</ContextMenuSubTrigger>
+                <ContextMenuSubContent>
+                  <ContextMenuItem>Archive</ContextMenuItem>
+                  <ContextMenuItem>Shared space</ContextMenuItem>
+                </ContextMenuSubContent>
+              </ContextMenuSub>
               <ContextMenuSeparator />
               <ContextMenuItem danger icon={<Trash2 />}>
                 Delete
               </ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>
+        </Row>
+        <Row label="PointMenu">
+          <div
+            tabIndex={0}
+            data-testid="canvas"
+            aria-label="Superboard canvas"
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setPoint(pointFromEvent(e));
+            }}
+            className="grid h-[120px] w-full max-w-[520px] place-items-center rounded-overlay border border-border bg-[radial-gradient(circle,var(--color-border)_1px,transparent_1px)] [background-size:16px_16px] text-meta text-muted"
+          >
+            A canvas that opens its own menu at the cursor
+          </div>
+          <PointMenu point={point} label="Actions for edge-02" onClose={() => setPoint(null)}>
+            <MenuItem icon={<FolderOpen />}>Open history</MenuItem>
+            <MenuItem icon={<Pencil />}>Rename</MenuItem>
+            <MenuSeparator />
+            <MenuItem danger icon={<Trash2 />}>
+              Remove server
+            </MenuItem>
+          </PointMenu>
+        </Row>
+        <Row label="CommandPalette">
+          <Button onClick={() => setPaletteOpen(true)} data-testid="open-palette">
+            <Search /> Search <Kbd className="ml-1">⌘K</Kbd>
+          </Button>
+          <CommandPalette
+            open={paletteOpen}
+            onOpenChange={setPaletteOpen}
+            shortcut={false}
+            groups={[
+              {
+                heading: "Go to",
+                commands: [
+                  { id: "files", label: "My files", icon: <HardDrive />, shortcut: "G F", onSelect: () => {} },
+                  { id: "trash", label: "Trash", icon: <Trash2 />, shortcut: "G T", onSelect: () => {} },
+                ],
+              },
+              {
+                heading: "Actions",
+                commands: [
+                  { id: "upload", label: "Upload files", icon: <Upload />, shortcut: ["⌘", "U"], onSelect: () => {} },
+                  { id: "pw", label: "Change password", icon: <KeyRound />, description: "Kore ID", onSelect: () => {} },
+                ],
+              },
+            ]}
+          />
+        </Row>
+        <Row label="Sheet">
+          {(["right", "left"] as const).map((side) => (
+            <Sheet key={side}>
+              <SheetTrigger asChild>
+                <Button data-testid={`open-sheet-${side}`}>From the {side}</Button>
+              </SheetTrigger>
+              <SheetContent title="edge-02" description="Server · Almaty · up for 12 days" side={side}>
+                <SheetBody className="flex flex-col gap-4">
+                  <StatusDot status="up" label="Up" tintLabel={false} />
+                  <Field label="Display name">
+                    <Input defaultValue="edge-02" />
+                  </Field>
+                  <p className="text-muted">Side panels keep the page in view: details, quick edits, filters.</p>
+                </SheetBody>
+                <SheetFooter>
+                  <Button>Cancel</Button>
+                  <Button variant="primary">Save</Button>
+                </SheetFooter>
+              </SheetContent>
+            </Sheet>
+          ))}
         </Row>
         <Row label="Popover">
           <Popover>
@@ -491,6 +644,12 @@ export function Gallery() {
           <StatusDot status="off" label="Not connected" />
           <StatusDot status="accent" label="Connected" />
           <StatusDot status="up" label="Live" pulse tintLabel={false} />
+        </Row>
+        <Row label="Sizes, muted">
+          <StatusDot status="down" size="sm" label="Small" />
+          <StatusDot status="down" label="Medium" />
+          <StatusDot status="down" size="lg" label="Large" />
+          <StatusDot status="down" muted label="Down (acknowledged)" />
         </Row>
         <Row label="Avatar">
           <Avatar name="Anna Berg" size="sm" />
@@ -611,6 +770,12 @@ export function Gallery() {
             <AccountMenu user={ME} accountUrl={ACCOUNT_URL} apps={{ urls: APP_URLS, current: "korecalendar" }} onSignOut={() => void toast.show({ message: "Signed out" })} />
           </div>
           <AccountMenu user={{ email: "sky@qarasky.dev" }} accountUrl={ACCOUNT_URL} showName={false} onSignOut={() => {}} />
+        </Row>
+        <Row label="Without Kore ID">
+          <AccountMenu user={{ name: "Local Admin", email: "admin@kore.test" }} onSignOut={() => {}} labels={{ menu: "Local account" }}>
+            <MenuItem icon={<Settings />}>Settings</MenuItem>
+            <MenuItem icon={<KeyRound />}>Change password</MenuItem>
+          </AccountMenu>
         </Row>
       </Section>
     </div>

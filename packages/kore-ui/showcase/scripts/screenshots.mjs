@@ -55,6 +55,36 @@ try {
   await shot(desk, "combobox-async");
   await desk.keyboard.press("Escape");
 
+  await desk.locator("#password-colour").screenshot({ path: `${out}/password-colour.png` });
+  console.log("wrote password-colour");
+
+  await desk.getByTestId("context-area").focus();
+  await desk.keyboard.press("Shift+F10");
+  await desk.getByRole("menuitem", { name: "Move to" }).hover();
+  await desk.getByRole("menuitem", { name: "Archive" }).waitFor();
+  await shot(desk, "context-menu-keyboard");
+  await desk.keyboard.press("Escape");
+  await desk.keyboard.press("Escape");
+  // Let the modal context menu finish closing (it locks pointer events until then).
+  await desk.locator("[role=menu]").first().waitFor({ state: "detached" });
+  await desk.waitForTimeout(200);
+
+  const canvas = desk.getByTestId("canvas");
+  await canvas.scrollIntoViewIfNeeded();
+  await canvas.click({ button: "right", position: { x: 300, y: 50 } });
+  await desk.getByRole("menu", { name: "Actions for edge-02" }).waitFor();
+  await shot(desk, "point-menu");
+  await desk.keyboard.press("Escape");
+
+  await desk.getByTestId("open-sheet-left").click();
+  await desk.getByRole("dialog", { name: "edge-02" }).waitFor();
+  await shot(desk, "sheet-left");
+  await desk.keyboard.press("Escape");
+
+  await desk.getByRole("button", { name: "Local account: Local Admin" }).click();
+  await shot(desk, "account-menu-local");
+  await desk.keyboard.press("Escape");
+
   await desk.getByTestId("open-dialog").click();
   await shot(desk, "dialog");
   await desk.keyboard.press("Escape");
@@ -94,6 +124,17 @@ try {
   await shot(desk, "app-shell-collapsed");
   await desk.getByRole("button", { name: "Expand sidebar" }).click();
 
+  await desk.keyboard.press("Control+k");
+  await desk.getByRole("dialog", { name: "Command palette" }).waitFor();
+  await desk.keyboard.type("in");
+  await shot(desk, "command-palette");
+  await desk.keyboard.press("Escape");
+  await desk.getByRole("button", { name: "Actions for Contracts" }).click();
+  await desk.getByRole("menuitem", { name: "Details" }).click();
+  await desk.getByRole("dialog", { name: "Contracts" }).waitFor();
+  await shot(desk, "sheet");
+  await desk.keyboard.press("Escape");
+
   await go("users");
   await shot(desk, "table");
   await desk.getByRole("button", { name: "Add user" }).click();
@@ -111,6 +152,9 @@ try {
   await shot(desk, "auth-error");
   await go("auth/kore-id");
   await shot(desk, "auth-kore-id");
+  await go("auth/setup");
+  await desk.getByLabel("New password").fill("correct horse");
+  await shot(desk, "auth-set-password");
   await go("auth/no-access");
   await shot(desk, "auth-no-access");
 
@@ -120,6 +164,11 @@ try {
   await shot(phone, "mobile-app-shell");
   await phone.getByRole("button", { name: "Open navigation" }).click();
   await shot(phone, "mobile-drawer");
+  await phone.goto(`${base}?p=m#/app`);
+  await phone.getByRole("button", { name: "Actions for Clients" }).click();
+  await phone.getByRole("menuitem", { name: "Details" }).click();
+  await phone.getByRole("dialog", { name: "Clients" }).waitFor();
+  await shot(phone, "mobile-sheet");
   await phone.goto(`${base}?p=s#/settings`);
   await shot(phone, "mobile-settings");
   await phone.goto(`${base}?p=a#/auth`);
