@@ -76,6 +76,7 @@ web and Android are kept 1:1: same features, same strings, same pure helpers wit
 | [docs/api.md](docs/api.md) | The REST + SSE contract. Source of truth is `shared/src/api.ts`. |
 | [docs/deployment-docker.md](docs/deployment-docker.md) | Running KoreMind from the GHCR images with Docker Compose. |
 | [docs/deployment-linux.md](docs/deployment-linux.md) | Running KoreMind on a Linux server with systemd. |
+| [docs/claude-integration.md](docs/claude-integration.md) | Planned, not built: how Claude could be added within Anthropic's terms (the owner's own subscription, and the rules for it). |
 | [docs/releasing.md](docs/releasing.md) | Versioning, the CI/CD pipelines, image tags, Android signing. How to cut a release. |
 | [docs/research/design-research.md](docs/research/design-research.md) | The design research behind Settings, the composer, the picker and motion. |
 | [docs/superpowers/specs/2026-11-02-koremind-design.md](docs/superpowers/specs/2026-11-02-koremind-design.md) | The original product design, with a list of later amendments at the top. |
