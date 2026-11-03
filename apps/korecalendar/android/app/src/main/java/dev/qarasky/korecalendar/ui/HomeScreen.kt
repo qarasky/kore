@@ -1,5 +1,6 @@
 package dev.qarasky.korecalendar.ui
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,7 +55,7 @@ fun HomeScreen(
         },
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.app_bar_title)) },
+                title = { Text(stringResource(R.string.app_bar_title), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Palette.bg, titleContentColor = Palette.text),
                 actions = {
                     TextButton(
@@ -68,12 +69,12 @@ fun HomeScreen(
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for ((v, label) in views) {
                     FilterChip(
                         selected = state.view == v,
                         onClick = { scope.launch { controller.setView(v) } },
-                        label = { Text(stringResource(label)) },
+                        label = { Text(stringResource(label), maxLines = 1, softWrap = false) },
                         modifier = Modifier.heightIn(min = 48.dp),
                     )
                 }
@@ -91,10 +92,23 @@ fun HomeScreen(
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (state.view) {
                     View.Agenda -> AgendaContent(state, listState, onRefresh = { controller.refresh() }, onOpen = onOpen)
-                    View.Day, View.Week -> TimeGridView(state, controller, onOpen)
-                    View.Month -> MonthView(state, controller, onOpen)
+                    View.Day, View.Week -> DenseText { TimeGridView(state, controller, onOpen) }
+                    View.Month -> DenseText { MonthView(state, controller, onOpen) }
                 }
             }
         }
     }
+}
+
+/**
+ * The grids (hour rows, day cells) have a fixed geometry that text cannot outgrow, so inside them the system font scale is
+ * honoured up to 1.3; everywhere else (agenda, details, editor, settings) it is honoured fully.
+ */
+@Composable
+private fun DenseText(content: @Composable () -> Unit) {
+    val d = androidx.compose.ui.platform.LocalDensity.current
+    androidx.compose.runtime.CompositionLocalProvider(
+        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(d.density, minOf(d.fontScale, 1.3f)),
+        content = content,
+    )
 }

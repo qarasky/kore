@@ -5,6 +5,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -58,17 +61,22 @@ fun MonthView(state: AppState.Ready, controller: AppController, onOpen: (eventId
             Row(Modifier.weight(1f).fillMaxWidth()) {
                 for (d in week) {
                     val items = groups[d]?.items ?: emptyList()
-                    val chips = chipsForDay(items, 3)
                     val inMonth = d.month == state.day.month
                     val isToday = d == state.agenda.today
                     val description = stringResource(R.string.day_cell_description, dateText(d), items.size)
-                    Column(
+                    BoxWithConstraints(
                         Modifier.weight(1f).fillMaxHeight()
                             .border(BorderStroke(0.5.dp, Palette.border))
+                            .clipToBounds()
                             .clickable { scope.launch { controller.goTo(d, View.Day) } }
                             .padding(2.dp)
                             .semantics(mergeDescendants = true) { contentDescription = description },
                     ) {
+                    // With a large system font fewer chips fit: show what fits and "+N more", never overlapping text.
+                    val line = with(LocalDensity.current) { 12.sp.toDp() } + 1.dp
+                    val room = ((maxHeight - 22.dp - line) / line).toInt().coerceIn(0, 3)
+                    val chips = chipsForDay(items, if (items.size <= room + 1 && items.size <= 3) items.size.coerceAtMost(maxOf(room + 1, 1)) else room)
+                    Column(Modifier.fillMaxSize()) {
                         Box(
                             Modifier.size(22.dp).then(if (isToday) Modifier.background(Palette.accent, CircleShape) else Modifier).align(Alignment.CenterHorizontally),
                             contentAlignment = Alignment.Center,
@@ -83,6 +91,7 @@ fun MonthView(state: AppState.Ready, controller: AppController, onOpen: (eventId
                             )
                         }
                         if (chips.more > 0) Text(stringResource(R.string.more_events, chips.more), fontSize = 10.sp, color = Palette.muted, maxLines = 1)
+                    }
                     }
                 }
             }
