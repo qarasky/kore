@@ -8,21 +8,27 @@
 # first account is created in the browser afterwards. Safe to re-run: an
 # existing install is left alone. Read it before you run it; it is short.
 #
+# Piped like this, it installs the newest release: it looks it up, downloads the
+# compose files of that release and pulls the matching images from ghcr.io, pinned
+# to that exact version (KORECAL_VERSION in .env). Nothing is built, and git is not needed.
+#
 # Run from inside a clone (git clone ... && cd korecalendar && ./install.sh) it
 # builds the images from that checkout and installs in place (the .env is written
-# there). This is the way to install while the repository is private.
+# there): for trying a branch or your own changes.
 #
-# If the images cannot be pulled (they are not published yet), the installer
-# clones the repository into <install dir>/src and builds them there instead;
-# that needs git, and takes a few minutes the first time.
+# If the images cannot be pulled, the installer clones the repository into
+# <install dir>/src and builds them there instead; that needs git, and takes a
+# few minutes the first time.
 #
 # Non-interactive use: set any of these (and it will not ask):
 #   KORECAL_DIR=~/korecalendar     where the compose files and .env go (default: the
 #                                  checkout when run from one, else ~/korecalendar)
 #   KORECAL_DATA_DIR=<dir>-data    where the database lives (default: next to it)
 #   KORECAL_BIND=127.0.0.1|0.0.0.0 KORECAL_PORT=8080
-#   KORECAL_VERSION=latest         image tag
-#   KORECAL_REF=main               git ref (branch or tag) the files come from
+#   KORECAL_VERSION=0.1.0          image tag to install: a release number, latest or edge
+#                                  (default: the newest release)
+#   KORECAL_REF=v0.1.0             git ref (branch or tag) the compose files come from
+#                                  (default: the tag of KORECAL_VERSION, or main)
 #   KORECAL_REPO_URL=<git url>     where to clone the source from when the images
 #                                  cannot be pulled (default: the GitHub repository)
 #   KORECAL_SOURCE_DIR=<checkout>  install from a local checkout: copies the
@@ -146,6 +152,33 @@ elif [ -n "$(ls -A "$KORECAL_DATA_DIR" 2>/dev/null)" ]; then
 fi
 [ -w "$KORECAL_DATA_DIR" ] || die "$KORECAL_DATA_DIR is not writable by you ($(id -un)). Fix its owner (chown $KORECAL_UID:$KORECAL_GID) and run again."
 
+# --- Which release --------------------------------------------------------
+# The compose files and the images must belong together: unless told otherwise, install
+# the newest release, with the files of its tag.
+latest_release() { # prints the newest release tag (v1.2.3), or nothing
+  local body=""
+  if command -v curl >/dev/null 2>&1; then
+    body="$(curl -fsSL --max-time 15 "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null || true)"
+  elif command -v wget >/dev/null 2>&1; then
+    body="$(wget -q -T 15 -O - "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null || true)"
+  fi
+  printf '%s' "$body" | sed -n 's/.*"tag_name": *"\(v[^"]*\)".*/\1/p' | head -n1
+}
+if [ -z "${KORECAL_SOURCE_DIR:-}" ]; then
+  if [ -z "${KORECAL_VERSION:-}" ] && [ -z "${KORECAL_REF:-}" ]; then
+    TAG="$(latest_release)"
+    if [ -n "$TAG" ]; then
+      KORECAL_VERSION="${TAG#v}"; REF="$TAG"
+    else
+      warn "could not look up the newest release; using the tags latest and main instead"
+    fi
+  elif [ -z "${KORECAL_REF:-}" ]; then
+    case "${KORECAL_VERSION}" in [0-9]*) REF="v${KORECAL_VERSION}" ;; esac
+  fi
+  RAW="https://raw.githubusercontent.com/${REPO}/${REF}"
+  step "Installing KoreCalendar ${KORECAL_VERSION:-latest} (files from ${REF})"
+fi
+
 # --- Files ----------------------------------------------------------------
 step "Writing the compose files to $KORECAL_DIR"
 if ! mkdir -p "$KORECAL_DIR" 2>/dev/null; then
@@ -187,7 +220,7 @@ if [ -n "${KORECAL_SOURCE_DIR:-}" ]; then
 else
   step "Pulling the images"
   if ! docker compose pull --quiet </dev/null 2>/dev/null; then
-    warn "the images could not be pulled (they are not published yet); building them from source instead"
+    warn "the images could not be pulled (is ${KORECAL_VERSION:-latest} published? is the network up?); building them from source instead"
     command -v git >/dev/null 2>&1 || die "git is needed to build from source. Install it (for example: sudo apt install git) and run this again."
     SRC="$KORECAL_DIR/src"
     step "Fetching the source into $SRC"
@@ -258,7 +291,7 @@ elif [ "$SOURCE_INSTALL" = 1 ]; then
   UPSRC="${KORECAL_SOURCE_DIR:-$KORECAL_DIR/src}"
   say "Update later:        back up the database first (docs/deploy.md), then: cd $UPSRC && git pull && cp docker-compose.yml Caddyfile $KORECAL_DIR/ && cd $KORECAL_DIR && docker compose build --pull && docker compose up -d --wait"
 else
-  say "Update later:        cd $KORECAL_DIR && docker compose pull && docker compose up -d"
+  say "Update later:        see docs/deploy.md (Updating): back up the database, then set KORECAL_VERSION in .env to the new release, replace the compose files with that tag's, and: docker compose pull && docker compose up -d --wait"
 fi
 say "AI agents and scripts: create an access token under Settings, then see the API guide:"
 say "  https://github.com/${REPO}/blob/main/docs/api.md"

@@ -30,17 +30,17 @@ Status: **phase 1 (API and core), phase 2 (web app) and CalDAV are done;** the A
 
 ## Install
 
-You need a Linux host (or any machine) with Docker and the Compose plugin, and `git`. Clone, run the installer, open the address it prints and **create your account**
+You need a Linux host (or any machine) with Docker and the Compose plugin. Run the installer, open the address it prints and **create your account**
 (the first account becomes the administrator):
 
 ```sh
-git clone git@github.com:qarasky/korecalendar.git && cd korecalendar
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/qarasky/korecalendar/main/install.sh | bash
 ```
 
-It asks where to put things, which address and port to listen on (default `127.0.0.1:8080`), builds the images from the checkout (a few minutes the first time),
-initializes the data directory and starts everything. The images are not published to a registry yet, so building locally is the install. Then, for an AI agent or a
-script, create an access token under Settings; see the [API guide](docs/api.md#get-a-token).
+It installs the newest release: it asks where to put things and which address and port to listen on (default `127.0.0.1:8080`), pulls the matching images
+(`ghcr.io/qarasky/korecalendar-api` and `-web`, linux amd64 and arm64, pinned to the exact version), initializes the data directory and starts everything.
+Then, for an AI agent or a script, create an access token under Settings; see the [API guide](docs/api.md#get-a-token).
+To run your own changes instead, clone the repository and run `./install.sh` there: it builds from the checkout.
 
 **[docs/deploy.md](docs/deploy.md)** covers everything around that: the manual install, `.env` options, reaching it over HTTPS (Tailscale, Cloudflare Tunnel, your own reverse
 proxy), starting on boot, updating, backups and restore, troubleshooting, and the Docker/firewall caveat. The calendar listens on `127.0.0.1:8080` by default

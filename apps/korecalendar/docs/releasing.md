@@ -44,9 +44,11 @@ Pin `KORECAL_VERSION` in `.env` to an exact release for a server you care about.
 
 A tag whose run fails is fixed forward: delete the tag and any images it pushed, fix the problem, and release again (or release the next patch). Images are never overwritten under a release number.
 
-## First setup (once per package)
+## Visibility of the packages
 
-GitHub creates a package **private** the first time it is pushed. After the first release, open each of the two packages on `https://github.com/qarasky?tab=packages` → Package settings → Change visibility → Public. (This cannot be done from the API.) Until then only the owner can `docker pull` them.
+GitHub decides a package's visibility when it is first published. For this repository both images came out **public**, so anyone can `docker pull` them without logging in; check with
+`docker logout ghcr.io && docker manifest inspect ghcr.io/qarasky/korecalendar-api:latest`. If a fork's packages come out private, make each public under the owner's Packages →
+the package → Package settings → Change visibility (this cannot be done through the API).
 
 ## Android (planned)
 

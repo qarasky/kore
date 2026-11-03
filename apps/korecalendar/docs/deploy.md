@@ -10,7 +10,7 @@ they are marked as such.
 
 ## What you get
 
-Three containers, started with Docker Compose from this repository:
+Three containers, started with Docker Compose from released images (`ghcr.io/qarasky/korecalendar-api` and `-web`, see [releasing.md](releasing.md)):
 
 | Container | What it is | Reachable from |
 | --- | --- | --- |
@@ -32,35 +32,35 @@ so the files in the data directory belong to that user.
 
 ## Requirements
 
-- A 64-bit Linux host (x86_64 or arm64; the images are built on the host, so they match its architecture) with a recent **Docker Engine** and the **Compose plugin**
+- A 64-bit Linux host (x86_64 or arm64; the images exist for both) with a recent **Docker Engine** and the **Compose plugin**
   (`docker compose version` must work; Compose v2). Install from [docs.docker.com/engine/install](https://docs.docker.com/engine/install/).
   Your user must be allowed to use Docker (`sudo usermod -aG docker $USER`, then log in again).
-- `git`, and about 2 GB of free disk for the images and build cache. Building the web image can use a lot of memory for a minute or two; on a very small VPS add a
-  swap file first.
+- About 1 GB of free disk for the images. `git` is needed only to build from source (see below), and building the web image can use a lot of memory for a minute or
+  two; on a very small VPS add a swap file first.
 - An accurate clock (`timedatectl` should say the system clock is synchronized): reminders fire from the server's clock. The host's time zone does not matter; every event
   carries its own zone and every person picks theirs in Settings.
 - Optional, for **browser notifications**: an HTTPS address (see [HTTPS](#https-and-how-to-reach-it)).
 
-The images are not published to a registry yet, so the installer **builds them on your machine from a checkout of this repository**. The first build takes a few minutes.
-
 ## Install (recommended)
 
 ```sh
-git clone git@github.com:qarasky/korecalendar.git      # or the https URL, with a token while the repository is private
-cd korecalendar
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/qarasky/korecalendar/main/install.sh | bash
 ```
+
+This installs the **newest release**: it looks it up, downloads the compose files of that release and pulls the matching images, pinned to that exact version
+(`KORECAL_VERSION` in `.env`). Nothing is built and `git` is not needed. Read the script before you run it; it is short. To install a specific release:
+`KORECAL_VERSION=0.1.0 bash install.sh` (download it first, or pipe it with the variable set in front of `bash`).
 
 The installer asks four things (or takes the defaults), then does everything else:
 
 | Question | Default | Notes |
 | --- | --- | --- |
-| Install directory | the clone itself | where `.env` is written and where you later run `docker compose`. Installing in place means a later `git pull` brings new compose files. A different directory also works (it then gets copies of the compose files and links to the clone, so keep the clone) |
+| Install directory | `~/korecalendar` | where the compose files and `.env` are written and where you later run `docker compose`. (Run from a clone, it installs in place and builds from the clone, see [Build from source](#build-from-source).) |
 | Data directory | `<install dir>-data` (next to it, **outside** the clone so `git clean` can never touch it) | the database lives here; put it on the disk you back up |
 | Listen on | `127.0.0.1` | `127.0.0.1` = this machine only; `0.0.0.0` = every interface (LAN, Tailscale); or one specific address |
 | Port | `8080` | |
 
-It checks Docker, creates the data directory (using `sudo` only if it must), writes `.env` with mode 600, builds the images, runs `korecalendar init` once (this writes the
+It checks Docker, creates the data directory (using `sudo` only if it must), writes `.env` with mode 600, pulls the images, runs `korecalendar init` once (this writes the
 marker file the API insists on, so it refuses to start on an empty or unmounted directory), starts the stack and waits until it is healthy. Then open the printed address
 and **create your account**: the first account becomes the administrator.
 
@@ -71,26 +71,27 @@ A directory you cannot create (for example under `/srv` or `/opt`) is created wi
 KORECAL_YES=1 KORECAL_DATA_DIR=/srv/korecalendar KORECAL_BIND=127.0.0.1 KORECAL_PORT=8080 ./install.sh
 ```
 
-Re-running it where a `.env` already exists does nothing (it never overwrites an installation). If the installer is run without a checkout (`curl … | bash`) and the images cannot be pulled, it clones
-the repository itself into `<install dir>/src` and builds there (this needs git and a repository you can read anonymously, so not while it is private).
+Re-running it where a `.env` already exists does nothing (it never overwrites an installation). If the images cannot be pulled (no network to ghcr.io, a version that does
+not exist), it clones the repository into `<install dir>/src` and builds them there instead.
 
 ## Install (by hand)
 
 The same thing without the script; useful to understand it or to put the files where you want them.
 
 ```sh
-sudo mkdir -p /opt/korecalendar && sudo chown "$(id -u):$(id -g)" /opt/korecalendar
-git clone git@github.com:qarasky/korecalendar.git /opt/korecalendar && cd /opt/korecalendar
+V=0.1.0                                                  # a release: https://github.com/qarasky/korecalendar/releases
+sudo mkdir -p /opt/korecalendar && sudo chown "$(id -u):$(id -g)" /opt/korecalendar && cd /opt/korecalendar
+curl -fsSLO "https://raw.githubusercontent.com/qarasky/korecalendar/v$V/{docker-compose.yml,Caddyfile,.env.example}"
 
 # 1. The data directory, owned by the user the API will run as.
 sudo mkdir -p /srv/korecalendar && sudo chown "$(id -u):$(id -g)" /srv/korecalendar
 
 # 2. Configuration.
 cp .env.example .env
-$EDITOR .env          # KORECAL_DATA_DIR, KORECAL_UID/GID (= `id -u` / `id -g`), KORECAL_BIND, KORECAL_PORT
+$EDITOR .env          # KORECAL_DATA_DIR, KORECAL_UID/GID (= `id -u` / `id -g`), KORECAL_BIND, KORECAL_PORT, and KORECAL_VERSION=0.1.0
 
-# 3. Build, initialize the data directory once, start.
-docker compose build
+# 3. Pull, initialize the data directory once, start.
+docker compose pull
 docker compose run --rm --no-deps api korecalendar init
 docker compose up -d --wait
 
@@ -98,6 +99,19 @@ docker compose up -d --wait
 docker compose ps                                   # all three "healthy"
 curl -s http://127.0.0.1:8080/api/healthz           # {"ok":true}
 ```
+
+### Build from source
+
+To run your own changes or a branch, build the images instead of pulling them. From a clone, the installer builds from it and installs in place (the `.env` is written in the clone;
+the data directory defaults to `<clone>-data`, outside it):
+
+```sh
+git clone https://github.com/qarasky/korecalendar.git && cd korecalendar
+./install.sh                       # builds the images from this checkout; a few minutes the first time
+```
+
+By hand: do the steps above in the clone, with `docker compose build` instead of `docker compose pull`. An image built this way reports `dev` for `korecalendar version`
+unless you pass `--build-arg VERSION=...`.
 
 ### `.env` reference
 
@@ -107,7 +121,7 @@ curl -s http://127.0.0.1:8080/api/healthz           # {"ok":true}
 | `KORECAL_BIND` | `127.0.0.1` | host address Caddy is published on |
 | `KORECAL_PORT` | `8080` | host port |
 | `KORECAL_UID`, `KORECAL_GID` | `1000` | user and group the API runs as; they must own `KORECAL_DATA_DIR` |
-| `KORECAL_VERSION` | `latest` | tag of the locally built images |
+| `KORECAL_VERSION` | `latest` | image tag for both the api and the web image: a release number (`0.1.0`, **recommended**: pin it), `latest` (the newest stable release) or `edge` (the tip of `main`). See [releasing.md](releasing.md#image-tags) |
 | `KORECAL_PUBLIC_URL` | empty | your public `https://` address; sent to push services as the operator contact for browser notifications |
 | `KORECAL_SUBNET` | `172.31.255.0/24` | subnet of Caddy's network, also the range whose forwarded headers are trusted (see below); change it only if it collides with a network you already use |
 
@@ -222,21 +236,27 @@ sudo systemctl daemon-reload
 
 ## Updating
 
-Run these in the installation directory (the clone, if you installed in place). **Take a backup first** ([below](#backups)): migrations are applied automatically when the API
-starts and only go forward.
+Run these in the installation directory. **Take a backup first** ([below](#backups)): migrations are applied automatically when the API starts and only go forward.
+Read the [release notes](https://github.com/qarasky/korecalendar/releases) first; while the version is `0.x`, a minor release may change things.
 
 ```sh
-git pull
-docker compose build --pull        # --pull also fetches newer Node / distroless base images
-docker compose pull caddy          # a newer Caddy image of the pinned minor version
+V=0.2.0                                                  # the release you are moving to
+for f in docker-compose.yml Caddyfile; do                # the compose files that belong to it
+  curl -fsSL "https://raw.githubusercontent.com/qarasky/korecalendar/v$V/$f" -o "$f.new" && mv "$f.new" "$f"
+done
+sed -i "s/^KORECAL_VERSION=.*/KORECAL_VERSION=$V/" .env  # on macOS: sed -i ''
+docker compose pull                                      # the new images, and a newer Caddy of the pinned minor version
 docker compose up -d --wait
-docker image prune -f              # old images pile up after rebuilds (add: docker builder prune -f for build cache)
+docker image prune -f                                    # the old images pile up otherwise
 ```
 
-If you installed into a directory other than the clone, the install directory holds **copies** of `docker-compose.yml` and `Caddyfile`; after `git pull` in the clone, copy them
-over (`cp docker-compose.yml Caddyfile /path/to/install/`) before building.
+To check which version is running: `docker compose run --rm --no-deps api korecalendar version`.
 
-To roll back, check out the previous commit, rebuild, and restore the backup taken before the update (a database that has been migrated forward may not open in an older version).
+If you installed **from a clone** ([Build from source](#build-from-source)), update with `git pull`, `docker compose build --pull`, `docker compose pull caddy` and `docker compose up -d --wait`
+instead. If the clone is not the installation directory, the installation directory holds **copies** of `docker-compose.yml` and `Caddyfile`; copy them over
+(`cp docker-compose.yml Caddyfile /path/to/install/`) before building.
+
+To roll back, put the previous version (and its compose files) back as above and restore the backup taken before the update (a database that has been migrated forward may not open in an older version).
 
 **Changing settings later** (port, bind address, public URL): edit `.env` in the installation directory and run `docker compose up -d`; the stack is recreated with the new values.
 After changing `KORECAL_SUBNET` run `docker compose down` first so the network is rebuilt.
@@ -371,8 +391,8 @@ Without Caddy's header handling you must set the security headers (`Content-Secu
 
 ```sh
 cd ~/korecalendar                                        # the installation directory
-docker compose down --rmi local                          # stops and removes the containers and the images built here
-cd .. && rm -rf ~/korecalendar                           # the clone / install directory (compose files, .env)
+docker compose down --rmi all                            # stops and removes the containers and the images they used
+cd .. && rm -rf ~/korecalendar                           # the install directory (compose files, .env)
 # the data directory holds your calendars; delete it only when you are sure:  sudo rm -rf /srv/korecalendar
 ```
 
