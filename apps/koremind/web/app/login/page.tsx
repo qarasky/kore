@@ -1,5 +1,5 @@
 "use client";
-import { AuthScreen, Spinner } from "@qarasky/kore-ui";
+import { AuthScreen, minLengthRule, Spinner } from "@qarasky/kore-ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -62,14 +62,17 @@ export default function LoginPage() {
   return (
     <AuthScreen
       app="koremind"
+      mode={setup ? "set-password" : "sign-in"}
       title={setup ? t.createAccountTitle : t.loginTitle}
       description={setup ? t.createAccountHint : server?.sso && !passwordLogin ? t.koreIdOnly : undefined}
       error={error}
       sso={server?.sso ? { onClick: startSso, pending: exchanging, label: t.continueKoreId } : undefined}
       password={server && passwordLogin ? {
         onSubmit: submit, invalid,
-        hint: setup ? t.passwordHint : undefined,
-        labels: { email: t.email, password: t.password, submit: setup ? t.createAccount : t.signIn, pending: setup ? t.creatingAccount : t.signingIn },
+        rules: setup ? [minLengthRule(8, t.passwordHint)] : undefined,
+        labels: setup
+          ? { email: t.email, password: t.newPassword, submit: t.setPassword, pending: t.autoSaving }
+          : { email: t.email, password: t.password, submit: t.signIn, pending: t.signingIn },
       } : undefined}
       dividerLabel={t.or}
       footer={<Link href="/connect" className="rounded-ui hover:text-text">{t.changeServer}</Link>}

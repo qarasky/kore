@@ -21,8 +21,6 @@ export function AppFrame({ children }: { children: ReactNode }) {
   useEffect(() => setOrigin(location.origin), []);
   const apps: AppUrls = { ...server?.apps, ...(origin ? { koremind: origin } : {}) };
   const hasOtherApps = Object.keys(apps).some((k) => k !== "koremind");
-  // Without Kore ID there is no Kore ID account page: the menu's account item opens KoreMind's own account settings.
-  const accountUrl = server?.koreId?.accountUrl ?? "/settings#account";
 
   return (
     <AppShell
@@ -37,10 +35,10 @@ export function AppFrame({ children }: { children: ReactNode }) {
               {user && (
                 <AccountMenu
                   user={{ email: user.email }}
-                  accountUrl={accountUrl}
+                  accountUrl={server?.sso ? server.koreId?.accountUrl : undefined}
                   apps={hasOtherApps ? { urls: apps, current: "koremind" } : undefined}
                   onSignOut={signOut}
-                  labels={{ menu: t.account, account: server?.koreId ? t.koreIdAccount : t.account, switchApp: t.switchApp, signOut: t.signOut }}
+                  labels={{ menu: t.account, account: t.koreIdAccount, switchApp: t.switchApp, signOut: t.signOut }}
                 >
                   <MenuItem asChild>
                     <Link href="/settings">
