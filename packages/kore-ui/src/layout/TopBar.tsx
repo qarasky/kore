@@ -4,7 +4,7 @@ import { Menu as MenuIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "../lib/cn";
 import { useLinkComponent, type LinkComponent } from "../lib/link";
-import { useAppShell } from "./AppShell";
+import { SidebarToggle, useAppShell } from "./AppShell";
 
 export type TopBarProps = {
   /** Wordmark (default: the AppShell's `brand`). */
@@ -43,8 +43,17 @@ export function TopBar({ brand: brandProp, brandHref: hrefProp, children, action
           <MenuIcon aria-hidden className="size-5" />
         </button>
       ) : null}
+      {shell?.collapsible ? <SidebarToggle className="-ml-2" /> : null}
       {brand ? (
-        <div className={cn("flex shrink-0 items-center text-brand", hasDrawer && "md:w-[calc(var(--spacing-sidebar)-24px)]", hasDrawer && children ? "max-sm:hidden" : "")}>
+        <div
+          className={cn(
+            "flex shrink-0 items-center text-brand",
+            hasDrawer && !shell?.collapsible && "md:w-[calc(var(--spacing-sidebar)-24px)]",
+            // With the toggle in front, the brand column still ends where the sidebar does.
+            shell?.collapsible && !shell.collapsed && "md:w-[calc(var(--spacing-sidebar)-24px-var(--spacing-control)-0.5rem)]",
+            hasDrawer && children ? "max-sm:hidden" : "",
+          )}
+        >
           {brandHref ? (
             <Link href={brandHref} className="rounded-ui">
               {brand}

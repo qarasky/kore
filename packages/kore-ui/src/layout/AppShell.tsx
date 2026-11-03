@@ -1,10 +1,11 @@
 "use client";
 
-import { X } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { Dialog as RadixDialog } from "radix-ui";
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { cn } from "../lib/cn";
 import { useLinkComponent, type LinkComponent } from "../lib/link";
+import { Tooltip } from "../components/Tooltip";
 
 type AppShellContextValue = {
   /** The navigation drawer (narrow screens). */
@@ -15,6 +16,12 @@ type AppShellContextValue = {
   brand?: ReactNode;
   brandHref?: string;
   menuLabel: string;
+  /** The sidebar can collapse to icons (AppShell `collapsible`). */
+  collapsible: boolean;
+  /** The desktop sidebar shows icons only. Always false inside the drawer. */
+  collapsed: boolean;
+  setCollapsed: (collapsed: boolean) => void;
+  collapseLabels: { collapse: string; expand: string };
 };
 
 const AppShellContext = createContext<AppShellContextValue | null>(null);
@@ -33,8 +40,19 @@ export type AppShellProps = {
   brand?: ReactNode;
   /** Where the wordmark links (the app's home). */
   brandHref?: string;
-  /** Labels for the drawer: open button, dialog name, close button. */
-  labels?: Partial<{ menu: string; drawer: string; close: string }>;
+  /** Labels for the drawer (open button, dialog name, close button) and the collapse toggle. */
+  labels?: Partial<{ menu: string; drawer: string; close: string; collapse: string; expand: string }>;
+  /**
+   * Let the desktop sidebar collapse to a 64px icon rail (tooltips name the icons). The TopBar gets a
+   * toggle. The app owns persistence: store what `onSidebarCollapsedChange` reports and pass it back.
+   */
+  collapsible?: boolean;
+  /** Controlled collapsed state (with `collapsible`). */
+  sidebarCollapsed?: boolean;
+  /** Initial collapsed state when uncontrolled. */
+  defaultSidebarCollapsed?: boolean;
+  /** Called when the user collapses or expands the sidebar. Persist it here (cookie, localStorage, settings). */
+  onSidebarCollapsedChange?: (collapsed: boolean) => void;
   /** Controlled drawer state (optional). */
   drawerOpen?: boolean;
   onDrawerOpenChange?: (open: boolean) => void;
@@ -58,11 +76,31 @@ export function AppShell({
   labels,
   drawerOpen: drawerOpenProp,
   onDrawerOpenChange,
+  collapsible = false,
+  sidebarCollapsed,
+  defaultSidebarCollapsed = false,
+  onSidebarCollapsedChange,
   mainClassName,
   LinkComponent,
   children,
 }: AppShellProps) {
-  const l = { menu: "Open navigation", drawer: "Navigation", close: "Close navigation", ...labels };
+  const l = {
+    menu: "Open navigation",
+    drawer: "Navigation",
+    close: "Close navigation",
+    collapse: "Collapse sidebar",
+    expand: "Expand sidebar",
+    ...labels,
+  };
+  const [collapsedState, setCollapsedState] = useState(defaultSidebarCollapsed);
+  const collapsed = collapsible && !!sidebar && (sidebarCollapsed ?? collapsedState);
+  const setCollapsed = useCallback(
+    (next: boolean) => {
+      if (sidebarCollapsed === undefined) setCollapsedState(next);
+      onSidebarCollapsedChange?.(next);
+    },
+    [sidebarCollapsed, onSidebarCollapsedChange],
+  );
   const [drawerState, setDrawerState] = useState(false);
   const drawerOpen = drawerOpenProp ?? drawerState;
   const setDrawerOpen = useCallback(
@@ -75,10 +113,21 @@ export function AppShell({
   const Link = useLinkComponent(LinkComponent);
 
   const outer = useMemo(
-    () => ({ drawerOpen, setDrawerOpen, inDrawer: false, brand, brandHref, menuLabel: sidebar ? l.menu : "" }),
-    [drawerOpen, setDrawerOpen, brand, brandHref, sidebar, l.menu],
+    () => ({
+      drawerOpen,
+      setDrawerOpen,
+      inDrawer: false,
+      brand,
+      brandHref,
+      menuLabel: sidebar ? l.menu : "",
+      collapsible: collapsible && !!sidebar,
+      collapsed,
+      setCollapsed,
+      collapseLabels: { collapse: l.collapse, expand: l.expand },
+    }),
+    [drawerOpen, setDrawerOpen, brand, brandHref, sidebar, l.menu, collapsible, collapsed, setCollapsed, l.collapse, l.expand],
   );
-  const inner = useMemo(() => ({ ...outer, inDrawer: true }), [outer]);
+  const inner = useMemo(() => ({ ...outer, inDrawer: true, collapsed: false }), [outer]);
 
   return (
     <AppShellContext value={outer}>
@@ -86,7 +135,15 @@ export function AppShell({
         {topBar}
         <div className="flex min-h-0 flex-1">
           {sidebar ? (
-            <aside className="hidden w-sidebar shrink-0 flex-col overflow-y-auto px-3 pb-3 md:flex">{sidebar}</aside>
+            <aside
+              data-collapsed={collapsed || undefined}
+              className={cn(
+                "hidden shrink-0 flex-col overflow-x-hidden overflow-y-auto px-3 pb-3 transition-[width] duration-200 ease-[var(--ease-standard)] md:flex",
+                collapsed ? "w-sidebar-collapsed" : "w-sidebar",
+              )}
+            >
+              {sidebar}
+            </aside>
           ) : null}
           <main
             className={cn(
@@ -139,5 +196,33 @@ export function AppShell({
         </RadixDialog.Root>
       ) : null}
     </AppShellContext>
+  );
+}
+
+export type SidebarToggleProps = { className?: string };
+
+/**
+ * The collapse/expand button of a `collapsible` AppShell (desktop only). TopBar renders one;
+ * use this to put it somewhere else (e.g. the sidebar footer).
+ */
+export function SidebarToggle({ className }: SidebarToggleProps) {
+  const shell = useAppShell();
+  if (!shell?.collapsible) return null;
+  const label = shell.collapsed ? shell.collapseLabels.expand : shell.collapseLabels.collapse;
+  return (
+    <Tooltip content={label} side="bottom">
+      <button
+        type="button"
+        aria-label={label}
+        aria-expanded={!shell.collapsed}
+        onClick={() => shell.setCollapsed(!shell.collapsed)}
+        className={cn(
+          "hidden size-control shrink-0 place-items-center rounded-ui text-muted hover:bg-white/5 hover:text-text md:grid",
+          className,
+        )}
+      >
+        {shell.collapsed ? <PanelLeftOpen aria-hidden className="size-[18px]" /> : <PanelLeftClose aria-hidden className="size-[18px]" />}
+      </button>
+    </Tooltip>
   );
 }

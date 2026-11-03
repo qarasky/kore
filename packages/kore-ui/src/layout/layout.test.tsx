@@ -80,3 +80,63 @@ describe("SettingsLayout", () => {
     expect(onSelect).toHaveBeenCalledOnce();
   });
 });
+
+describe("collapsible sidebar", () => {
+  function Shell(props: { collapsed?: boolean; onChange?: (c: boolean) => void }) {
+    return (
+      <AppShell
+        brand={<span>Kore</span>}
+        collapsible
+        sidebarCollapsed={props.collapsed}
+        onSidebarCollapsedChange={props.onChange}
+        topBar={<TopBar />}
+        sidebar={
+          <Sidebar header={<button type="button">New</button>} footer={<p>Storage</p>}>
+            <SidebarNav label="Sections" title="Files">
+              <SidebarItem href="/files" active trailing="3">
+                My files
+              </SidebarItem>
+            </SidebarNav>
+          </Sidebar>
+        }
+      >
+        <p>Content</p>
+      </AppShell>
+    );
+  }
+
+  it("reports toggles through onSidebarCollapsedChange (the app owns the state)", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const { rerender } = render(<Shell collapsed={false} onChange={onChange} />);
+    const toggle = screen.getByRole("button", { name: "Collapse sidebar" });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await user.click(toggle);
+    expect(onChange).toHaveBeenCalledWith(true);
+    // Controlled: nothing changes until the app passes the new state back.
+    expect(screen.getByText("Files")).toBeInTheDocument();
+    rerender(<Shell collapsed onChange={onChange} />);
+    expect(screen.getByRole("button", { name: "Expand sidebar" })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("shows icons only when collapsed, keeps accessible names and adds tooltips", async () => {
+    render(<Shell collapsed />);
+    const nav = screen.getByRole("navigation", { name: "Sections" });
+    const link = within(nav).getByRole("link", { name: "My files" });
+    expect(link).toHaveAttribute("aria-current", "page");
+    expect(screen.queryByText("Files")).not.toBeInTheDocument();
+    expect(screen.queryByText("3")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Storage")).not.toBeInTheDocument();
+    link.focus();
+    await waitFor(() => expect(screen.getByRole("tooltip")).toHaveTextContent("My files"));
+  });
+
+  it("uncontrolled: toggles itself", async () => {
+    const user = userEvent.setup();
+    render(<Shell />);
+    await user.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    expect(screen.getByRole("button", { name: "Expand sidebar" })).toBeInTheDocument();
+    expect(screen.queryByText("Files")).not.toBeInTheDocument();
+  });
+});
