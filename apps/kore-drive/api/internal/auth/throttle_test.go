@@ -1,12 +1,9 @@
 package auth
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"runtime"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -18,53 +15,11 @@ func TestHashSlotsDefaultSize(t *testing.T) {
 	}
 }
 
-func TestConcurrentUnknownLoginsBoundedBySemaphore(t *testing.T) {
-	db := testDB(t)
-	restore := SetHashConcurrencyForTest(2, 30*time.Second)
-	defer restore()
-	dummy() // precompute outside the measurement
-	var active, peak atomic.Int32
-	hashHook = func() {
-		n := active.Add(1)
-		for {
-			p := peak.Load()
-			if n <= p || peak.CompareAndSwap(p, n) {
-				break
-			}
-		}
-		time.Sleep(20 * time.Millisecond)
-		active.Add(-1)
-	}
-	defer func() { hashHook = nil }()
-	var wg sync.WaitGroup
-	errs := make(chan error, 12)
-	for i := 0; i < 12; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			_, err := Authenticate(context.Background(), db, fmt.Sprintf("nobody%d@x.io", i), "pw")
-			errs <- err
-		}(i)
-	}
-	wg.Wait()
-	close(errs)
-	for err := range errs {
-		if !errors.Is(err, ErrInvalidCredentials) {
-			t.Fatalf("err %v", err)
-		}
-	}
-	if p := peak.Load(); p < 1 || p > 2 {
-		t.Fatalf("peak concurrent hashing %d, cap 2", p)
-	}
-}
-
 func TestHashBusyReturnsErrBusy(t *testing.T) {
-	db := testDB(t)
 	h, err := HashPassword("pw-123456")
 	if err != nil {
 		t.Fatal(err)
 	}
-	mkUser(t, db, "a@b.c", "pw-123456", "user")
 	restore := SetHashConcurrencyForTest(1, 20*time.Millisecond)
 	defer restore()
 	hashSlots <- struct{}{} // occupy the only slot
@@ -77,12 +32,6 @@ func TestHashBusyReturnsErrBusy(t *testing.T) {
 	}
 	if _, err := VerifyPassword(h, "pw-123456"); !errors.Is(err, ErrBusy) {
 		t.Fatalf("verify: %v", err)
-	}
-	if _, err := Authenticate(context.Background(), db, "a@b.c", "pw-123456"); !errors.Is(err, ErrBusy) {
-		t.Fatalf("authenticate: %v", err)
-	}
-	if _, err := Authenticate(context.Background(), db, "nobody@b.c", "pw"); !errors.Is(err, ErrBusy) {
-		t.Fatalf("authenticate unknown: %v", err)
 	}
 	<-hashSlots // free it: works again, and every path released its slot
 	for i := 0; i < 3; i++ {

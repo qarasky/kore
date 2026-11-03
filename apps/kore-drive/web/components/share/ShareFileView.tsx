@@ -6,7 +6,9 @@ import { t } from "@/lib/i18n";
 import { fileKind, type ApiNode } from "@/lib/nodes";
 import { defaultLineNumbers, isMarkdown, previewKind } from "@/lib/preview";
 import { shareUrls } from "@/lib/shares";
-import { DownloadIcon, NodeIcon } from "../icons";
+import { buttonVariants } from "@qarasky/kore-ui";
+import { Download } from "lucide-react";
+import { NodeIcon } from "../NodeIcon";
 import { ImageView, PdfView } from "../MediaView";
 import { PreviewBody } from "../PreviewPane";
 
@@ -15,9 +17,7 @@ export function asPreviewNode(n: { id: string; name: string; size: number; mime:
   return { id: n.id, name: n.name, is_dir: false, size: n.size, mime: n.mime, parent_id: null, space: "shared", updated_at: n.updated_at ?? 0 };
 }
 
-export const primaryLink =
-  "inline-flex items-center justify-center gap-2 rounded-ui bg-accent px-4 py-2 font-medium text-white " +
-  "transition-colors hover:bg-accent-hover";
+export const primaryLink = buttonVariants({ variant: "primary" });
 
 /** A shared file: name, size, expiry, Download, and an inline preview when the file has one. */
 export function ShareFileView({ token, name, size, mime, expiry }: { token: string; name: string; size: number; mime: string; expiry: string }) {
@@ -43,12 +43,12 @@ export function ShareFileView({ token, name, size, mime, expiry }: { token: stri
           </p>
         </div>
         <a href={urls.download("")} download className={primaryLink} data-testid="share-download">
-          <DownloadIcon />
+          <Download aria-hidden />
           {t("publicShare.download")}
         </a>
       </div>
       {showPreview ? (
-        <div data-testid="share-preview" className={"overflow-hidden rounded-b-[10px] " + (kind === "text" ? "max-h-[70vh] overflow-auto" : "h-[70vh]")}>
+        <div data-testid="share-preview" className={"overflow-hidden rounded-b-overlay " + (kind === "text" ? "max-h-[70vh] overflow-auto" : "h-[70vh]")}>
           {kind === "image" ? (
             <ImageView node={node} actual={false} onToggleZoom={() => {}} onUnavailable={() => setNoPreview(true)} onDownload={download} urls={urls} />
           ) : kind === "pdf" ? (

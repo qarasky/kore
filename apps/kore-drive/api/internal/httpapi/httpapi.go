@@ -23,8 +23,8 @@ const sessionTTL = 30 * 24 * time.Hour
 type server struct {
 	db      *sql.DB
 	dataDir string
-	limiter *auth.Limiter // per email|IP (and per user|IP for password changes)
-	ipLimit *auth.Limiter // per client IP across all emails
+	limiter *auth.Limiter // share-link password attempts per share|IP
+	ipLimit *auth.Limiter // share-link password attempts per client IP
 	uploads *uploads.Uploads
 
 	// Public share links (shares.go, public.go).
@@ -37,11 +37,17 @@ type server struct {
 	zipByIP     map[string]int // running public zips per client address
 	publicLimit *auth.Limiter  // requests per client IP across public routes
 	zipSlots    chan struct{}  // concurrent public zip streams
+
+	sso *ssoState // Kore ID login; nil unless configured (oidc.go)
 }
 
 // New returns the API handler. dataDir is the (already checked) volume.
-func New(db *sql.DB, dataDir string) http.Handler {
-	return newServer(db, dataDir).handler()
+func New(db *sql.DB, dataDir string, opts ...Option) http.Handler {
+	s := newServer(db, dataDir)
+	for _, o := range opts {
+		o(s)
+	}
+	return s.handler()
 }
 
 func newServer(db *sql.DB, dataDir string) *server {
@@ -66,12 +72,11 @@ func newServer(db *sql.DB, dataDir string) *server {
 }
 
 func (s *server) handler() http.Handler {
-	db := s.db
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]string{"status": "ok"})
 	})
-	mux.HandleFunc("POST /api/auth/login", s.login)
+	s.registerSSO(mux)
 	mux.HandleFunc("POST /api/auth/logout", s.logout)
 	mux.Handle("GET /api/auth/me", auth.RequireUser(http.HandlerFunc(s.me)))
 	s.registerMe(mux)
@@ -100,13 +105,19 @@ func (s *server) handler() http.Handler {
 		}
 		writeJSON(w, 404, map[string]string{"error": "not_found"})
 	})
-	authed := auth.Middleware(db)(mux)
+	authed := s.sessionMiddleware(mux)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Public share routes never look at the session cookie: they bypass
 		// the session middleware entirely, so being signed in (even as an
 		// admin or the owner) changes nothing there.
 		if strings.HasPrefix(r.URL.Path, publicPrefix) {
 			publicHeaders(w)
+			mux.ServeHTTP(w, r)
+			return
+		}
+		// Back-channel logout is called by Kore ID, not a browser: it is
+		// authenticated by its signed logout token alone.
+		if r.URL.Path == backchannelPath {
 			mux.ServeHTTP(w, r)
 			return
 		}
@@ -120,51 +131,8 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-func (s *server) login(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&in); err != nil {
-		errJSON(w, 400, "bad_request")
-		return
-	}
-	ip := limitKey(r)
-	ipKey := "ip|" + ip
-	key := strings.ToLower(strings.TrimSpace(in.Email)) + "|" + ip
-	if !s.ipLimit.Attempt(ipKey) || !s.limiter.Attempt(key) {
-		w.Header().Set("Retry-After", "900")
-		errJSON(w, 429, "too_many_attempts")
-		return
-	}
-	u, err := auth.Authenticate(r.Context(), s.db, in.Email, in.Password)
-	if err != nil {
-		switch {
-		case errors.Is(err, auth.ErrInvalidCredentials):
-			errJSON(w, 401, "invalid_credentials")
-		case errors.Is(err, auth.ErrBusy):
-			busy(w)
-		default:
-			errJSON(w, 500, "internal")
-		}
-		return
-	}
-	s.limiter.Reset(key)
-	s.ipLimit.Forgive(ipKey)
-	tok, err := auth.NewSession(r.Context(), s.db, u.ID, sessionTTL)
-	if err != nil {
-		errJSON(w, 500, "internal")
-		return
-	}
-	http.SetCookie(w, &http.Cookie{
-		Name: auth.CookieName, Value: tok, Path: "/", HttpOnly: true,
-		SameSite: http.SameSiteLaxMode, Secure: auth.IsHTTPS(r),
-		Expires: time.Now().Add(sessionTTL),
-	})
-	writeJSON(w, 200, u)
-}
-
-// busy answers a request that found the password-hash pool saturated.
+// busy answers a request that found the password-hash pool saturated (share
+// link passwords still use the argon2 pool).
 func busy(w http.ResponseWriter) {
 	w.Header().Set("Retry-After", "2")
 	errJSON(w, 503, "busy")
@@ -180,13 +148,20 @@ func hashErr(w http.ResponseWriter, err error) {
 }
 
 func (s *server) logout(w http.ResponseWriter, r *http.Request) {
+	endSession := ""
 	if c, err := r.Cookie(auth.CookieName); err == nil {
+		endSession = s.ssoLogoutURL(r.Context(), c.Value)
 		auth.DeleteSession(r.Context(), s.db, c.Value)
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name: auth.CookieName, Value: "", Path: "/", HttpOnly: true,
 		SameSite: http.SameSiteLaxMode, Secure: auth.IsHTTPS(r), MaxAge: -1,
 	})
+	if endSession != "" {
+		// Signed in with Kore ID: the browser should also end the SSO session.
+		writeJSON(w, 200, map[string]string{"redirect": endSession})
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

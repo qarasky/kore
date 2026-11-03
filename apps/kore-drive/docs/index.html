@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kore: a small self-hosted file server for your office</title>
-<meta name="description" content="Kore is a lightweight self-hosted Google Drive-style file server: personal and shared spaces, quotas, share links, previews and an admin panel. Go + Next.js, one config file, Docker Compose.">
-<meta property="og:title" content="Kore: a small self-hosted file server for your office">
+<title>KoreDrive: a small self-hosted file server for your office</title>
+<meta name="description" content="KoreDrive is a lightweight self-hosted Google Drive-style file server: personal and shared spaces, quotas, share links, previews and an admin panel. Go + Next.js, one config file, Docker Compose.">
+<meta property="og:title" content="KoreDrive: a small self-hosted file server for your office">
 <meta property="og:description" content="Google Drive-style UI, personal and shared spaces, quotas, share links. Self-hosted, lightweight, MIT.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://qarasky.github.io/kore/">
@@ -18,7 +18,7 @@
 <body>
 <header class="top">
   <div class="wrap">
-    <a class="brand" href="#top"><img src="favicon.svg" alt="">Kore</a>
+    <a class="brand" href="#top"><img src="favicon.svg" alt="">KoreDrive</a>
     <nav class="links" aria-label="Sections">
       <a href="#features">Features</a>
       <a href="#screens">Screenshots</a>
@@ -34,7 +34,7 @@
     <div class="wrap">
       <img class="mark" src="favicon.svg" alt="">
       <h1>Your office files,<br>on your own server.</h1>
-      <p class="lede">Kore is a small, fast, Google Drive-style file server for a team. No suite of apps, no subscription: just files, folders, sharing and quotas.</p>
+      <p class="lede">KoreDrive is a small, fast, Google Drive-style file server for a team. No suite of apps, no subscription: just files, folders, sharing and quotas.</p>
       <div class="cta">
         <a class="btn primary" href="#install">Install in one command</a>
         <a class="btn" href="https://github.com/qarasky/kore">View on GitHub</a>
@@ -42,7 +42,7 @@
       <p class="fine">Open source, MIT licensed. Go API, Next.js UI, SQLite. Runs fine on a small box.</p>
       <div class="frame">
         <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
-        <img src="screenshots/files.png" width="2040" height="1350" alt="Kore's My files view: folders and files with image thumbnails, the storage meter bottom left.">
+        <img src="screenshots/files.png" width="2040" height="1350" alt="KoreDrive's My files view: folders and files with image thumbnails, the storage meter bottom left.">
       </div>
     </div>
   </div>
@@ -50,7 +50,7 @@
   <section id="features">
     <div class="wrap">
       <h2>Everything a small office needs. Nothing it doesn't.</h2>
-      <p class="sub">Built because the big suites were slow and complicated, and the tiny ones looked rough. Kore does file storage and sharing, and does it well.</p>
+      <p class="sub">Built because the big suites were slow and complicated, and the tiny ones looked rough. KoreDrive does file storage and sharing, and does it well.</p>
       <div class="features">
         <div class="card">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -107,7 +107,7 @@
       <h2>Install in a few minutes</h2>
       <p class="sub">Docker and Docker Compose on a Linux machine are all you need. Prebuilt images, one <code>.env</code> file, no source build.</p>
       <div class="install">
-<pre><span class="c"># one command: asks a few questions, then starts Kore</span>
+<pre><span class="c"># one command: asks a few questions, then starts KoreDrive</span>
 curl -fsSL https://raw.githubusercontent.com/qarasky/kore/main/install.sh | bash
 
 <span class="c"># update later</span>
@@ -116,7 +116,7 @@ docker compose pull
 docker compose up -d</pre>
         <ol class="steps">
           <li><b>Run the installer.</b> It sets up the config, the data folder and the admin account, and prints your sign-in details.</li>
-          <li><b>Pick where the files live.</b> Any folder works, for example a RAID mount. Kore refuses to start if that disk isn't mounted.</li>
+          <li><b>Pick where the files live.</b> Any folder works, for example a RAID mount. KoreDrive refuses to start if that disk isn't mounted.</li>
           <li><b>Open it</b> at <code>http://127.0.0.1:8080</code>, put it behind a Cloudflare Tunnel, or bind it to your LAN or Tailscale address.</li>
         </ol>
       </div>
@@ -130,7 +130,7 @@ docker compose up -d</pre>
       <p class="sub">It runs on a real office server, so data safety comes before cleverness.</p>
       <ul class="checks">
         <li><b>Your data stays yours.</b> Plain files plus one SQLite database on a volume you choose.</li>
-        <li><b>Loud failures.</b> If the storage volume isn't mounted, Kore refuses to start instead of writing to an empty folder.</li>
+        <li><b>Loud failures.</b> If the storage volume isn't mounted, KoreDrive refuses to start instead of writing to an empty folder.</li>
         <li><b>Private means private.</b> Other people's personal files don't even show up as existing, admins included.</li>
         <li><b>Safe file handling.</b> Uploads never run in the app's origin, and SVG is never previewed.</li>
         <li><b>Nothing phones home.</b> No external fonts, scripts or analytics: everything is bundled.</li>
@@ -142,7 +142,7 @@ docker compose up -d</pre>
 
 <footer>
   <div class="wrap">
-    <span>Kore · MIT License · © 2026 qarasky</span>
+    <span>KoreDrive · MIT License · © 2026 qarasky</span>
     <span class="r">
       <a href="https://github.com/qarasky/kore">GitHub</a>
       <a href="https://github.com/qarasky/kore#readme">Docs</a>

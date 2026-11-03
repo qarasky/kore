@@ -1,18 +1,19 @@
-# Kore web
+# KoreDrive web
 
-Next.js (App Router, SSR) UI for Kore. Every data page is a Server Component
-that fetches from the Go API with the user's `kore_session` cookie.
+Next.js (App Router, SSR) UI for KoreDrive. Every data page is a Server
+Component that fetches from the Go API with the user's `kore_session` cookie.
 
 ## Layout
 
 | Path | What |
 | --- | --- |
-| `app/(auth)/login/` | Login page (server) + `login-form.tsx` (client). Split layout: form left, picture right (hidden below 900px): the admin's picture from `/api/branding/login-image?v=` or the built-in `components/LoginArt.tsx` |
+| `app/providers.tsx`, `@qarasky/kore-ui` | The Kore design system (tokens in `theme.css`, every primitive, the app shell, account menu, sign-in screen); see `node_modules/@qarasky/kore-ui/DESIGN.md`. `KoreProvider` sets Next's `Link` and hosts tooltips and toasts (`useToast()`) |
+| `app/(auth)/login/` | Login page (server) + `login-form.tsx` (client): kore-ui `AuthScreen` with "Continue with Kore ID" first when Kore ID is on, the password form when local login is on, and the admin's picture from `/api/branding/login-image?v=` or the built-in `components/LoginArt.tsx` on the right (from 900px) |
 | `components/admin/LoginImageCard.tsx`, `lib/branding.ts` | Admin Settings card to upload (PNG/JPEG/WebP, 5 MB) or reset the login picture |
-| `app/(app)/layout.tsx` | App shell: top bar (search, account menu), sidebar (+ New, sections, storage meter) |
+| `app/(app)/layout.tsx`, `components/AppFrame.tsx` | App shell (kore-ui `AppShell`): top bar (search, app switcher, `AccountMenu` with the Kore ID account link when SSO is on), sidebar (`NewMenu`, `SidebarNav` with drop targets, `StorageMeter` = kore-ui `Meter`); a drawer below 768px |
 | `app/(app)/files/[[...folder]]/`, `shared/[[...folder]]/` | File browser: `/files`, `/files/<folderId>`, `/shared`, `/shared/<folderId>` (SSR; more segments are a 404) |
 | `components/FolderPage.tsx`, `lib/folder.ts` | Server side of a folder view: loads path + children, 404 only on API 404, redirects ids from the other space |
-| `components/FileList.tsx` | Client listbox: selection, keyboard, inline rename, context menu (`FileRow`, `NameEditor`, `ContextMenu`, `Menu`) |
+| `components/FileList.tsx` | Client listbox: selection, keyboard, inline rename, context menu (`FileRow`, `NameEditor`; kore-ui `PointMenu` at the cursor, or at the row via `pointFromEvent` from the keyboard) |
 | `hooks/useFileActions.ts`, `hooks/useSelection.ts` | Mutations (API call, then `router.refresh()`) and selection state over the pure `lib/selection.ts` |
 | `lib/upload.ts` | `uploadFile()`: chunked (8 MiB default), resumable upload over `/api/uploads` with retries, abort and a localStorage resume key |
 | `lib/uploadQueue.ts`, `components/UploadContext.tsx`, `components/UploadTray.tsx` | App-wide upload queue (3 files at a time), the bottom-right tray, `router.refresh()` when it drains, leave-page warning |
@@ -22,18 +23,17 @@ that fetches from the Go API with the user's `kore_session` cookie.
 | `components/PreviewPane.tsx`, `components/MediaView.tsx`, `hooks/usePreview.tsx`, `lib/preview.ts` | Quick look for text, image (png, jpg, gif, webp, avif, bmp) and PDF files (Enter / double-click / Space; Esc or Space closes; ←/→ between previewable siblings; Z or a click toggles an image between fit and actual size). Images and PDFs come from `/api/nodes/{id}/view` (`<img>`, or the browser's PDF viewer in an `<iframe>` with a Download fallback), checked first with a HEAD request. `lib/preview.ts` mirrors the server's allowlists (text in `preview.go`, images/PDF in `transfer/view.go`; SVG is never previewed) so other files download without a request; a 415 still falls back to download |
 | `components/StorageMeter.tsx`, `components/StorageDialog.tsx`, `lib/storage.ts` | The sidebar meter opens "Storage": usage by file type from `/api/me/usage/breakdown`, the trashed part (link to the trash) and the largest files (links to their folder with the file selected) |
 | `components/TextView.tsx`, `components/MarkdownView.tsx` | Plain text with optional line numbers/wrap (chunked with `content-visibility`); markdown via `react-markdown` + GFM, no raw HTML, links limited to http(s)/mailto/`#` (`safeLinkHref`), images never loaded |
-| `components/Select.tsx`, `lib/listbox.ts` | The one select control (no native `<select>` anywhere; a unit test enforces it): select-only combobox + listbox, keyboard/type-ahead, popup portaled into the enclosing `<dialog>` so modals keep it in their top layer. E2E helper: `chooseOption(scope, label, option)` |
-| `components/Modal.tsx`, `components/ConfirmDialog.tsx` | Native `<dialog>` modal (inert background, Esc, focus returns to the opener) and a yes/no confirmation on top of it |
+| `components/admin/controls.tsx`, `components/NodeIcon.tsx` | App compositions of kore-ui parts: size + unit input; file-kind icons. Selects, dialogs, menus, password fields (share links) and toasts come from kore-ui (`lib/__tests__/kore-ui-only.test.ts` keeps native `<select>`/`<dialog>` and the old local copies out). E2E helpers: `chooseOption(scope, label, option)`, `toasts(page)` |
 | `app/(app)/trash/`, `components/TrashList.tsx` | My trash / Shared trash (`?space=shared`): restore, delete forever, empty trash (confirmed), retention note from `GET /api/me/settings` |
 | `app/(app)/search/`, `components/SearchResults.tsx`, `lib/search.ts` | `/search?q=`: hits with their location; a file opens its folder with `?select=<id>` (folder pages select and scroll to that row) |
-| `app/(app)/admin/` (`page`, `users/`, `settings/`), `components/admin/` | Admin area, admins only (`requireAdmin()` in the layout and every page; everyone else gets the 404 page). Overview (the Disk card from `/api/admin/disk`, `components/admin/DiskCard.tsx` + `lib/disk.ts`; totals, a usage bar per user from `/api/admin/usage`), Users (add with generated one-time password, edit email/role/quota, reset password, delete with the `user_has_files` explanation and the typed-email `?files=purge` path), Settings (retention, max file size, default quota; inline range checks, unsaved-changes note) |
-| `app/(app)/account/`, `components/ChangePasswordForm.tsx` | Every user's account page: own usage and change password (the API sets a fresh session cookie, so this browser stays signed in) |
+| `app/(app)/admin/` (`page`, `users/`, `settings/`), `components/admin/` | Admin area, admins only (`requireAdmin()` in the layout and every page; everyone else gets the 404 page). Overview (the Disk card from `/api/admin/disk`, `components/admin/DiskCard.tsx` + `lib/disk.ts`; totals, a usage bar per user from `/api/admin/usage`), Users (accounts come from Kore ID on first sign-in; edit email/role/quota, delete with the `user_has_files` explanation and the typed-email `?files=purge` path; no add form or password reset), Settings (retention, max file size, default quota; inline range checks, unsaved-changes note) |
+| `app/(app)/account/` | Every user's account page: own usage, role and the Kore ID link/issuer account link (no password) |
 | `app/s/[token]/`, `components/share/`, `lib/shares.ts`, `lib/shareServer.ts` | Public share link page (outside the app shell; `proxy.ts` lets `/s/*` through signed in or not): file view with inline preview (the preview components take share-scoped URLs via `PreviewUrls`), folder browser with breadcrumb and zip, password gate, and generic expired/revoked/unavailable states. SSR forwards only the `kore_share_*` unlock cookies, never the session |
 | `components/ShareDialog.tsx`, `app/(app)/shared-links/`, `components/SharedLinksList.tsx` | "Share link" (context menu / toolbar, one item): create a link (expiry, optional password), copy, change expiry, set/clear password, revoke. Shared links lists the caller's links (copy, edit, revoke, delete). Rows with an active link show a link badge |
-| `lib/size.ts`, `lib/password.ts`, `lib/admin.ts` | Size input parsing/splitting in binary units labelled GB/TB like `formatBytes`; password rules (UTF-8 bytes, as the API counts), hints and generator; admin API types and error-code messages |
+| `lib/size.ts`, `lib/password.ts`, `lib/admin.ts` | Size input parsing/splitting in binary units labelled GB/TB like `formatBytes`; share-link password rules and labels (UTF-8 bytes, as the API counts); admin API types and error-code messages |
 | `lib/download.ts` | Downloads via a hidden form into a hidden iframe (browser streams to disk; errors become a toast) |
 | `lib/format.ts`, `lib/nodes.ts` | Size/date formatting, node types, hrefs, file kinds |
-| `app/globals.css` | Design tokens (`@theme`) and base styles; dark only. Size scale: 15px base, `text-meta/sub/heading/title/brand/display`, `h-row` (48px list/table rows), `min-h-control` (40px), `control-sm` (32px), `size-icon` |
+| `app/globals.css` | `@import "@qarasky/kore-ui/theme.css"` + `@source` for kore-ui, then app-only CSS (rendered markdown) |
 | `app/icon.svg` | Favicon (the Kore mark; same as `../assets/kore-icon.svg`), excluded from the `proxy.ts` auth gate |
 | `lib/api.ts` | `api<T>(path, init)`: server calls go to `API_URL` with the cookie, browser calls go to same-origin `/api`; errors throw `ApiError{status, code}`. `apiText()` is the same for `text/plain` endpoints (the preview) and returns `{text, truncated}` |
 | `lib/session.ts` | `requireUser()`: validates the session via `/api/auth/me`, redirects to login on 401 |
@@ -76,9 +76,11 @@ One-time setup for e2e: `npx playwright install chromium`. Go must be on `PATH`.
 
 - `e2e/harness/api-server.ts`: builds `../api/cmd/kore` into `$TMPDIR/kore-e2e`,
   wipes and creates a fresh data dir, writes a `kore.toml` (127.0.0.1:18080,
-  admin `admin@kore.test` / `admin-password-123`), runs `kore init`, then
-  serves the API. The directory is removed on exit and wiped again on the
-  next start, so every run begins with an empty database.
+  Kore ID issuer, owner email `admin@kore.test`), runs `kore init`, then
+  serves the API. Tests seed accounts and sessions in its SQLite file
+  (`e2e/harness/db.ts`) because there is no password login. The directory is
+  removed on exit and wiped again on the next start, so every run begins with
+  an empty database.
 - `e2e/harness/web-server.ts`: `next build` with `API_URL=http://127.0.0.1:18080`,
   then serves the production standalone server (`.next/standalone/server.js`)
   on 127.0.0.1:13000. A production build is used instead of `next dev` so tests
@@ -92,21 +94,10 @@ One-time setup for e2e: `npx playwright install chromium`. Go must be on `PATH`.
 
 Set `E2E_BASE_URL` to run the suite against an already running stack instead
 of starting its own servers; UI and `/api` must be served on that one origin
-(as Caddy does). Give it a fresh data dir, and tell it the admin account from
-that stack's `kore.toml`:
-
-```sh
-# from the repo root, with kore.toml (admin@kore.test / admin-password-123),
-# .env (KORE_DATA_DIR pointing at an empty throwaway dir) and `kore init` done:
-docker compose up -d --build
-cd web
-E2E_BASE_URL=http://localhost:8080 \
-E2E_ADMIN_EMAIL=admin@kore.test E2E_ADMIN_PASSWORD=admin-password-123 \
-npm run e2e
-```
-
-The two API-outage tests need the harness's second web instance and are
-skipped in this mode.
+(as Caddy does). Because Kore ID is the only sign-in and the suite seeds
+accounts and sessions in the API's SQLite file, it only runs against the local
+harness; a deployment needs real Kore ID sign-in, which Playwright does not
+perform here.
 
 Tests run with one worker because they share one API (and its login rate
 limiter). Helpers in `e2e/helpers.ts`:

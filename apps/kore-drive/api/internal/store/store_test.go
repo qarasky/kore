@@ -40,7 +40,7 @@ func TestUniqueNameInFolder(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if _, err := db.Exec(`INSERT INTO users(id,email,pw_hash,role,quota_bytes,created_at) VALUES('u1','a@b.c','x','user',0,0),('u2','d@e.f','x','user',0,0)`); err != nil {
+	if _, err := db.Exec(`INSERT INTO users(id,email,pw_hash,role,quota_bytes,created_at) VALUES('u1','a@b.c','','user',0,0),('u2','d@e.f','','user',0,0)`); err != nil {
 		t.Fatal(err)
 	}
 	ins := func(id string, owner, parent any, name string, trashed any) error {

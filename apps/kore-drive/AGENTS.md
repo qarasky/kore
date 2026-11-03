@@ -1,7 +1,7 @@
 # AGENTS.md
 
-Notes for coding agents working on Kore. Read this first; `README.md` covers
-install/operations, `web/README.md` the web app's file map.
+Notes for coding agents working on KoreDrive. Read this first; `README.md`
+covers install/operations, `web/README.md` the web app's file map.
 
 ## What this is
 
@@ -70,6 +70,25 @@ trusts `X-Forwarded-*` / `CF-Connecting-IP` only from the Docker host
 (`KORE_SUBNET`); the API uses `CF-Connecting-IP` for login rate limits. Don't
 add code that trusts client-supplied headers elsewhere.
 
+**Kore ID (OIDC).** `internal/oidc` is a stdlib-only RP client (discovery, PKCE
+S256, EdDSA JWT verification via JWKS); `httpapi/oidc.go` has the flow, the
+`sub` -> user mapping and the session/bearer middleware. Users are keyed on
+`users.sub` (local ids stay random hex). Accounts are matched by email only
+when the token says `email_verified: true` and `oidc.link_by_email` is on (the
+default; Kore ID accounts are admin-managed, so their emails are verified).
+Bearer tokens must have JWT header `typ: at+jwt`. SSO sessions store the Kore
+ID `sid`; `POST /api/auth/oidc/backchannel-logout` (register it as the client's
+`backchannelLogoutUri`) deletes sessions by `sid`, or by `sub` without one; its
+jti replay cache is in memory (one API instance). Kore ID enforces per-user app
+access. SSO sessions keep
+`id_token`/`refresh_token` in `sessions` and redeem the refresh token every 10
+minutes under one mutex (parallel redemption looks like token theft to Kore
+ID). Kore ID is the only way to sign in: there is no password login, no
+registration/setup, no password reset, and no local bootstrap account. A fresh
+install's first admin is the first verified sign-in matching
+`oidc.owner_email`. The API needs outbound access to the issuer (compose
+`egress` network).
+
 **Security posture.** No external resource loads (fonts, images, scripts,
 CDNs): everything is bundled or inline. Uploaded files never execute in our
 origin: downloads are `attachment` + `nosniff`; inline views (images, PDF,
@@ -80,13 +99,14 @@ restrictive CSP (`sandbox`). Nothing user-controlled becomes a filesystem path
 ## UI conventions
 
 - Every UI string lives in `web/lib/i18n/en.ts`, read with `t(key, vars)`.
-- Use the custom `components/Select.tsx`; native `<select>` is banned (a unit
-  test enforces it). No `dangerouslySetInnerHTML`.
-- Design tokens in `web/app/globals.css` `@theme` (dark only): bg `#16181d`,
-  surface `#1d2026`, raised `#23262d`, border `#2c3038`, text `#e6e8ee`,
-  muted `#8a8f9a`, accent `#5b8def`, radius 6px. Sizes are tokens too:
-  `text-meta/sub/heading/title`, `h-row` (48px rows), `min-h-control`
-  (40px controls), `size-icon`. Use them instead of pixel literals.
+- UI is built from `@qarasky/kore-ui` (pinned tarball tag in `web/package.json`;
+  `kore-ui/DESIGN.md` is the design source of truth): AppShell, Button, Field,
+  Input, Select, Dialog, ConfirmDialog, Menu, Toast (`useToast`), Table, Meter,
+  EmptyState, AuthScreen, AccountMenu. Icons are lucide. Don't re-create a
+  primitive locally (a unit test guards the old ones and native
+  `<select>`/`<dialog>`); compose app views from kore-ui parts and its tokens
+  (`bg-surface`, `text-muted`, `h-row`, `min-h-control`, `size-icon`…), no
+  pixel literals or local colour tokens. No `dangerouslySetInnerHTML`.
 - Data pages are Server Components fetching via `api()` with the session
   cookie; mutations call the API from the client, then `router.refresh()`.
 - Error boundaries: use `retry()` (re-fetches the server payload, Next 16.3+),
@@ -102,10 +122,11 @@ restrictive CSP (`sandbox`). Nothing user-controlled becomes a filesystem path
 - Migrations run on start. Caddy's admin API is off: restart it after
   `Caddyfile` changes.
 - Configuration is `.env` only (`KORE_*`, see `.env.example`); the API reads
-  `KORE_ADMIN_EMAIL`, `KORE_ADMIN_PASSWORD`, `KORE_DATA_DIR`, `KORE_BIND`,
-  `KORE_PORT` from the environment (the TOML file is optional).
-- Releases: `git tag vX.Y.Z && git push origin vX.Y.Z` runs
-  `.github/workflows/release.yml`, which publishes `ghcr.io/qarasky/kore-api`
+  `KORE_PUBLIC_URL`, `KORE_OIDC_*`, `KORE_DATA_DIR`, `KORE_BIND` and
+  `KORE_PORT` from the environment (the TOML file is optional). Kore ID is
+  required; `KORE_OIDC_OWNER_EMAIL` names the first administrator.
+- Releases: pushes to `main` publish `:edge`; `git tag vX.Y.Z && git push origin vX.Y.Z` runs
+  `.github/workflows/images.yml` (ci, native amd64/arm64 builds, manifest, smoke, GitHub release), which publishes `ghcr.io/qarasky/kore-api`
   and `kore-web` (amd64 + arm64). `install.sh` pulls them; test changes to it
   with a local file run and a `curl | bash` run (docker must not read the
   script from stdin: keep `</dev/null` on docker commands). raw.githubusercontent

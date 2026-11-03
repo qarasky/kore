@@ -1,5 +1,6 @@
+import { EmptyState, PageHeader } from "@qarasky/kore-ui";
+import { CircleAlert, Search, SearchX } from "lucide-react";
 import type { Metadata } from "next";
-import { PageMessage } from "@/components/PageMessage";
 import { SearchResults } from "@/components/SearchResults";
 import { api, isApiError } from "@/lib/api";
 import { t, type MessageKey } from "@/lib/i18n";
@@ -33,24 +34,26 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border px-4">
-        <h1 className="min-w-0 truncate text-heading font-semibold" data-testid="search-heading">
-          {hits ? t("search.resultsFor", { query }) : t("search.title")}
-        </h1>
-        {hits && hits.length >= SEARCH_LIMIT && (
-          <p className="shrink-0 text-meta text-muted">{t("search.limited", { count: hits.length })}</p>
-        )}
-      </div>
+      <PageHeader
+        title={<span data-testid="search-heading">{hits ? t("search.resultsFor", { query }) : t("search.title")}</span>}
+        actions={
+          hits && hits.length >= SEARCH_LIMIT ? (
+            <p className="truncate text-meta text-muted">{t("search.limited", { count: hits.length })}</p>
+          ) : undefined
+        }
+      />
       {error ? (
-        <PageMessage title={t(error)} testId="search-error" />
+        <div data-testid="search-error" className="flex flex-1 flex-col justify-center">
+          <EmptyState icon={<CircleAlert />} title={t(error)} />
+        </div>
       ) : !hits ? (
-        <PageMessage title={t("search.promptTitle")} testId="search-prompt">
-          {t("search.prompt")}
-        </PageMessage>
+        <div data-testid="search-prompt" className="flex flex-1 flex-col justify-center">
+          <EmptyState icon={<Search />} title={t("search.promptTitle")} description={t("search.prompt")} />
+        </div>
       ) : hits.length === 0 ? (
-        <PageMessage title={t("search.noResultsTitle", { query })} testId="search-empty">
-          {t("search.noResults")}
-        </PageMessage>
+        <div data-testid="search-empty" className="flex flex-1 flex-col justify-center">
+          <EmptyState icon={<SearchX />} className="[overflow-wrap:anywhere]" title={t("search.noResultsTitle", { query })} description={t("search.noResults")} />
+        </div>
       ) : (
         <SearchResults key={query} hits={hits} />
       )}

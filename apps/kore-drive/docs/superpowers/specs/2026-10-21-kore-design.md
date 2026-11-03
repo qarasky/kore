@@ -1,4 +1,4 @@
-# Kore: design
+# KoreDrive: design
 
 ## Intent
 
@@ -7,7 +7,7 @@ The owner runs a small office (3-4 people) with its own Ubuntu server. They want
 - **NextCloud:** slow, hard to configure, full of features they don't need, UI resembles Bitrix (which they dislike).
 - **Quantum (FileBrowser Quantum):** too basic, ugly UI.
 
-Kore is a small, fast, Google-Drive-like file server. Success means: install is trivial, it feels as polished and fast as Drive, and nothing in it is surplus.
+KoreDrive is a small, fast, Google-Drive-like file server. Success means: install is trivial, it feels as polished and fast as Drive, and nothing in it is surplus.
 
 Typical content: documents, some videos. Nothing heavy.
 

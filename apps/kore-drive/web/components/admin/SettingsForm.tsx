@@ -1,14 +1,13 @@
 "use client";
 
+import { Button, Card, Checkbox, Field, Input, Select, SectionHeader, useToast, type SelectOption } from "@qarasky/kore-ui";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { adminErrorKey, parseRetentionDays, type AdminSettings } from "@/lib/admin";
 import { api } from "@/lib/api";
 import { t, type MessageKey } from "@/lib/i18n";
 import { FILE_SIZE_UNITS, parseSize, QUOTA_UNITS, splitSize, type SizeUnit } from "@/lib/size";
-import { Select, type SelectOption } from "../Select";
-import { useToast } from "../Toast";
-import { Field, fieldIds, inputClass, primaryButton, secondaryButton, SizeInput } from "./fields";
+import { SizeInput } from "./controls";
 
 type Form = {
   retention: string;
@@ -77,7 +76,6 @@ function sameMax(a: Form, b: Form): boolean {
 export function SettingsForm({ settings }: { settings: AdminSettings }) {
   const router = useRouter();
   const toast = useToast();
-  const id = useId();
   const [base, setBase] = useState<Form>(() => toForm(settings));
   const [form, setForm] = useState<Form>(base);
   const [pending, setPending] = useState(false);
@@ -136,119 +134,79 @@ export function SettingsForm({ settings }: { settings: AdminSettings }) {
     }
   }
 
-  const retentionIds = fieldIds(`${id}-retention`, true, !!c.errors.retention);
-  const maxIds = fieldIds(`${id}-max`, true, !!c.errors.max);
-  const quotaIds = fieldIds(`${id}-quota`, true, !!c.errors.quota);
-
   return (
-    <form onSubmit={submit} noValidate className="mx-auto max-w-[640px] space-y-6 p-6" data-testid="settings-form">
-      <h2 className="text-title font-semibold tracking-[-0.01em]">{t("settings.title")}</h2>
+    <form onSubmit={submit} noValidate className="mx-auto flex max-w-form flex-col gap-6 p-4 md:p-6" data-testid="settings-form">
+      <SectionHeader title={t("settings.title")} className="mb-0" />
 
-      <Field
-        id={`${id}-retention`}
-        label={t("settings.retention")}
-        hint={t("settings.retentionHint")}
-        error={c.errors.retention && t(c.errors.retention)}
-      >
+      <Field label={t("settings.retention")} hint={t("settings.retentionHint")} error={c.errors.retention && t(c.errors.retention)}>
         <div className="flex items-center gap-2">
-          <input
-            id={`${id}-retention`}
+          <Input
             inputMode="numeric"
             autoComplete="off"
             value={form.retention}
             onChange={(e) => set({ retention: e.target.value })}
-            aria-invalid={!!c.errors.retention || undefined}
-            aria-describedby={retentionIds.describedBy}
-            className={`${inputClass} max-w-[120px]`}
+            className="max-w-[120px]"
           />
           <span className="text-muted">{t("settings.days")}</span>
         </div>
       </Field>
 
-      <Field
-        id={`${id}-max`}
-        label={t("settings.maxFileSize")}
-        hint={t("settings.maxFileSizeHint")}
-        error={c.errors.max && t(c.errors.max)}
-      >
-        <div className="space-y-2">
-          <label className="flex w-fit items-center gap-2">
-            <input
-              type="checkbox"
-              checked={form.unlimited}
-              onChange={(e) => set({ unlimited: e.target.checked })}
-              className="size-3.5 accent-[var(--color-accent)]"
-            />
-            {t("settings.unlimited")}
-          </label>
+      <div className="flex flex-col gap-2">
+        <Field label={t("settings.maxFileSize")} hint={t("settings.maxFileSizeHint")} error={c.errors.max && t(c.errors.max)}>
           <SizeInput
-            id={`${id}-max`}
             label={t("settings.maxFileSize")}
             value={form.unlimited ? "" : form.maxValue}
             unit={form.maxUnit}
             units={FILE_SIZE_UNITS}
             disabled={form.unlimited}
             onChange={(maxValue, maxUnit) => set({ maxValue, maxUnit })}
-            invalid={!!c.errors.max}
-            describedBy={maxIds.describedBy}
           />
-        </div>
-      </Field>
+        </Field>
+        <Checkbox
+          label={t("settings.unlimited")}
+          checked={form.unlimited}
+          onCheckedChange={(v) => set({ unlimited: v === true })}
+        />
+      </div>
 
-      <Field
-        id={`${id}-quota`}
-        label={t("settings.defaultQuota")}
-        hint={t("settings.defaultQuotaHint")}
-        error={c.errors.quota && t(c.errors.quota)}
-      >
+      <Field label={t("settings.defaultQuota")} hint={t("settings.defaultQuotaHint")} error={c.errors.quota && t(c.errors.quota)}>
         <SizeInput
-          id={`${id}-quota`}
           label={t("settings.defaultQuota")}
           value={form.quotaValue}
           unit={form.quotaUnit}
           units={QUOTA_UNITS}
           onChange={(quotaValue, quotaUnit) => set({ quotaValue, quotaUnit })}
-          invalid={!!c.errors.quota}
-          describedBy={quotaIds.describedBy}
         />
       </Field>
 
-      <section aria-labelledby={`${id}-share-title`} className="space-y-3 rounded-[8px] border border-border bg-raised/40 p-4" data-testid="share-settings">
-        <h3 id={`${id}-share-title`} className="font-semibold">
-          {t("settings.shareTitle")}
-        </h3>
-        <p className="text-[12px] text-muted">{t("settings.shareHint")}</p>
-        <label className="flex w-fit items-center gap-2">
-          <input
-            type="checkbox"
-            checked={form.shareEnabled}
-            onChange={(e) => set({ shareEnabled: e.target.checked })}
-            className="size-3.5 accent-[var(--color-accent)]"
-          />
-          {t("settings.shareEnabled")}
-        </label>
-        <div className="space-y-1.5">
-          <span id={`${id}-share-expiry`} className="block font-medium">
-            {t("settings.shareDefaultExpiry")}
-          </span>
+      <Card className="flex flex-col gap-4 p-4" data-testid="share-settings">
+        <div>
+          <h3 className="font-semibold">{t("settings.shareTitle")}</h3>
+          <p className="mt-0.5 text-meta text-muted">{t("settings.shareHint")}</p>
+        </div>
+        <Checkbox
+          label={t("settings.shareEnabled")}
+          checked={form.shareEnabled}
+          onCheckedChange={(v) => set({ shareEnabled: v === true })}
+        />
+        <Field label={t("settings.shareDefaultExpiry")}>
           <Select
-            aria-labelledby={`${id}-share-expiry`}
             value={form.shareExpiry}
             options={expiryOptions(form.shareExpiry)}
-            onChange={(shareExpiry) => set({ shareExpiry })}
+            onValueChange={(shareExpiry) => set({ shareExpiry })}
             className="w-[180px]"
           />
-        </div>
-      </section>
+        </Field>
+      </Card>
 
       <div className="flex items-center gap-3 border-t border-border pt-4">
-        <button type="submit" disabled={pending || !dirty} aria-busy={pending || undefined} className={primaryButton}>
+        <Button type="submit" variant="primary" disabled={!dirty} loading={pending}>
           {pending ? t("settings.saving") : t("settings.save")}
-        </button>
+        </Button>
         {dirty && (
-          <button type="button" disabled={pending} onClick={() => setForm(base)} className={secondaryButton}>
+          <Button disabled={pending} onClick={() => setForm(base)}>
             {t("settings.discard")}
-          </button>
+          </Button>
         )}
         <p aria-live="polite" data-testid="unsaved" className="text-meta text-muted">
           {dirty ? t("settings.unsaved") : ""}

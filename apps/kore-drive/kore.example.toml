@@ -1,5 +1,5 @@
 # Kore configuration for running the binary directly (`kore -config kore.toml`).
-# Copy to kore.toml and edit. For Docker Compose use kore.docker.example.toml.
+# Copy to kore.toml and edit. For Docker Compose use the .env file.
 
 # Port to listen on (default 8080).
 # port = 8080
@@ -10,7 +10,28 @@
 # Directory for the database and stored files (required).
 data_dir = "./data"
 
-# First admin account (required), created on the first start. Kore refuses
-# to start while the password is still "change-me" or shorter than 8 characters.
-admin_email = "admin@example.com"
-admin_password = "change-me"
+# --- Sign in with Kore ID (OpenID Connect; required) ---
+# Kore ID is the only way to sign in. On a fresh install the first sign-in
+# whose verified email equals oidc.owner_email becomes the administrator.
+#
+# Public address of Kore, no trailing slash. The redirect URI to register at
+# Kore ID is public_url + "/api/auth/oidc/callback"; also register
+# public_url + "/login" as a post-logout redirect URI and
+# public_url + "/api/auth/oidc/backchannel-logout" as the client's
+# backchannelLogoutUri (Kore ID ends Kore sessions there on sign-out).
+public_url = "https://kore.example.com"
+
+[oidc]
+issuer = "https://id.example.com"    # required; setting it enables Kore ID
+client_id = "kore"
+client_secret = ""                   # or KORE_OIDC_CLIENT_SECRET
+owner_email = "owner@example.com"    # first Kore ID sign-in with this verified email becomes the admin (fresh install)
+auto_provision = true                # create accounts on first login
+link_by_email = true                 # adopt an unlinked local account with the
+                                     # same email when email_verified is true
+# The other Kore apps, for the app switcher (optional; left-out apps are hidden):
+# apps = { koremind = "https://mind.example.com", korecalendar = "https://cal.example.com", flatline = "https://status.example.com" }
+# All of these also exist as KORE_PUBLIC_URL, KORE_OIDC_ISSUER,
+# KORE_OIDC_CLIENT_ID, KORE_OIDC_CLIENT_SECRET, KORE_OIDC_OWNER_EMAIL,
+# KORE_OIDC_AUTO_PROVISION, KORE_OIDC_LINK_BY_EMAIL and KORE_APP_URLS
+# (app=url,app=url); the environment wins over the file.

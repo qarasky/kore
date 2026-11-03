@@ -35,12 +35,11 @@ func newEnv(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	ph, _ := auth.HashPassword("password-1")
-	a, err := users.Create(context.Background(), db, "admin@x.io", ph, "admin", 0)
+	a, err := users.Create(context.Background(), db, "admin@x.io", "admin", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	u, err := users.Create(context.Background(), db, "user@x.io", ph, "user", 100)
+	u, err := users.Create(context.Background(), db, "user@x.io", "user", 100)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,8 +76,8 @@ func jsonBody(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {
 func TestNonAdminForbidden(t *testing.T) {
 	e := newEnv(t)
 	routes := [][2]string{
-		{"GET", "/api/admin/users"}, {"POST", "/api/admin/users"},
-		{"PATCH", "/api/admin/users/" + e.user.ID}, {"POST", "/api/admin/users/" + e.user.ID + "/password"},
+		{"GET", "/api/admin/users"},
+		{"PATCH", "/api/admin/users/" + e.user.ID},
 		{"DELETE", "/api/admin/users/" + e.user.ID},
 		{"GET", "/api/admin/settings"}, {"PATCH", "/api/admin/settings"}, {"GET", "/api/admin/usage"},
 	}
@@ -93,41 +92,6 @@ func TestNonAdminForbidden(t *testing.T) {
 		if rec := e.do(t, nil, r[0], r[1], `{}`); rec.Code != 401 {
 			t.Errorf("anon %s %s: %d", r[0], r[1], rec.Code)
 		}
-	}
-}
-
-func TestCreateUserDefaultQuota(t *testing.T) {
-	e := newEnv(t)
-	rec := e.do(t, &e.admin, "POST", "/api/admin/users", `{"email":"n@x.io","password":"longenough","role":"user"}`)
-	if rec.Code != 201 {
-		t.Fatalf("%d %s", rec.Code, rec.Body)
-	}
-	if q := jsonBody(t, rec)["quota_bytes"].(float64); int64(q) != 50<<30 {
-		t.Fatalf("quota %v", q)
-	}
-	rec = e.do(t, &e.admin, "PATCH", "/api/admin/settings", `{"default_quota_bytes":1000}`)
-	if rec.Code != 200 {
-		t.Fatalf("%d %s", rec.Code, rec.Body)
-	}
-	rec = e.do(t, &e.admin, "POST", "/api/admin/users", `{"email":"m@x.io","password":"longenough","role":"user"}`)
-	if q := jsonBody(t, rec)["quota_bytes"].(float64); q != 1000 {
-		t.Fatalf("quota %v", q)
-	}
-	for _, body := range []string{
-		`{"email":"bad","password":"longenough","role":"user"}`,
-		`{"email":"o@x.io","password":"short","role":"user"}`,
-		`{"email":"o@x.io","password":"longenough","role":"root"}`,
-		`{"email":"o@x.io","password":"longenough","role":"user","quota_bytes":-1}`,
-	} {
-		if rec := e.do(t, &e.admin, "POST", "/api/admin/users", body); rec.Code != 400 {
-			t.Errorf("%s: %d", body, rec.Code)
-		}
-	}
-	if rec := e.do(t, &e.admin, "POST", "/api/admin/users", `{"email":"N@x.io","password":"longenough","role":"user"}`); rec.Code != 409 {
-		t.Errorf("dup: %d", rec.Code)
-	}
-	if rec := e.do(t, &e.admin, "GET", "/api/admin/users", ""); rec.Code != 200 || strings.Contains(rec.Body.String(), "pw_hash") {
-		t.Errorf("list: %d %s", rec.Code, rec.Body)
 	}
 }
 
@@ -194,31 +158,6 @@ func TestCannotRemoveLastAdmin(t *testing.T) {
 	}
 }
 
-func TestChangeOwnPasswordRequiresCurrent(t *testing.T) {
-	e := newEnv(t)
-	if rec := e.do(t, &e.user, "POST", "/api/me/password", `{"current_password":"wrong","new_password":"newpassword"}`); rec.Code != 403 {
-		t.Fatalf("wrong: %d", rec.Code)
-	}
-	if rec := e.do(t, &e.user, "POST", "/api/me/password", `{"current_password":"password-1","new_password":"x"}`); rec.Code != 400 {
-		t.Fatalf("short: %d", rec.Code)
-	}
-	if rec := e.do(t, nil, "POST", "/api/me/password", `{}`); rec.Code != 401 {
-		t.Fatalf("anon: %d", rec.Code)
-	}
-	if rec := e.do(t, &e.user, "POST", "/api/me/password", `{"current_password":"password-1","new_password":"newpassword"}`); rec.Code != 204 {
-		t.Fatalf("ok: %d %s", rec.Code, rec.Body)
-	}
-	if _, err := auth.Authenticate(context.Background(), e.db, "user@x.io", "newpassword"); err != nil {
-		t.Fatal(err)
-	}
-	if rec := e.do(t, &e.admin, "POST", "/api/admin/users/"+e.user.ID+"/password", `{"new_password":"resetpass1"}`); rec.Code != 204 {
-		t.Fatalf("reset: %d %s", rec.Code, rec.Body)
-	}
-	if _, err := auth.Authenticate(context.Background(), e.db, "user@x.io", "resetpass1"); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestUsageHasNoFileNames(t *testing.T) {
 	e := newEnv(t)
 	addNode(t, e, "n1", e.user.ID, 10)
@@ -253,44 +192,6 @@ func (e *env) doTok(method, path, body, tok string) *httptest.ResponseRecorder {
 	return rec
 }
 
-func TestPasswordChangeRevokesSessions(t *testing.T) {
-	e := newEnv(t)
-	ctx := context.Background()
-	old, _ := auth.NewSession(ctx, e.db, e.user.ID, 3600e9)
-	if rec := e.doTok("GET", "/api/auth/me", "", old); rec.Code != 200 {
-		t.Fatalf("pre: %d", rec.Code)
-	}
-	rec := e.doTok("POST", "/api/me/password", `{"current_password":"password-1","new_password":"newpassword"}`, old)
-	if rec.Code != 204 {
-		t.Fatalf("%d %s", rec.Code, rec.Body)
-	}
-	if rec := e.doTok("GET", "/api/auth/me", "", old); rec.Code != 401 {
-		t.Fatalf("old token after change: %d", rec.Code)
-	}
-	var fresh string
-	for _, c := range rec.Result().Cookies() {
-		if c.Name == auth.CookieName {
-			fresh = c.Value
-		}
-	}
-	if fresh == "" || fresh == old {
-		t.Fatal("no fresh cookie")
-	}
-	if rec := e.doTok("GET", "/api/auth/me", "", fresh); rec.Code != 200 {
-		t.Fatalf("fresh token: %d", rec.Code)
-	}
-	// admin reset revokes too
-	if rec := e.do(t, &e.admin, "POST", "/api/admin/users/"+e.user.ID+"/password", `{"new_password":"resetpass1"}`); rec.Code != 204 {
-		t.Fatalf("reset: %d", rec.Code)
-	}
-	if rec := e.doTok("GET", "/api/auth/me", "", fresh); rec.Code != 401 {
-		t.Fatalf("after reset: %d", rec.Code)
-	}
-	if rec := e.do(t, &e.admin, "POST", "/api/admin/users/nope/password", `{"new_password":"resetpass1"}`); rec.Code != 404 {
-		t.Fatalf("reset missing: %d", rec.Code)
-	}
-}
-
 func TestJSONNotFoundAndUnauthorized(t *testing.T) {
 	e := newEnv(t)
 	check := func(rec *httptest.ResponseRecorder, code int, errc string) {
@@ -305,20 +206,6 @@ func TestJSONNotFoundAndUnauthorized(t *testing.T) {
 	check(e.do(t, nil, "GET", "/api/nope", ""), 404, "not_found")
 	check(e.do(t, nil, "GET", "/api/auth/me", ""), 401, "unauthorized")
 	check(e.do(t, nil, "POST", "/api/healthz", ""), 405, "method_not_allowed")
-}
-
-func TestPasswordTooLong(t *testing.T) {
-	e := newEnv(t)
-	long := strings.Repeat("a", 1025)
-	if rec := e.do(t, &e.admin, "POST", "/api/admin/users", `{"email":"l@x.io","password":"`+long+`","role":"user"}`); rec.Code != 400 || jsonBody(t, rec)["error"] != "password_too_long" {
-		t.Fatalf("create: %d %s", rec.Code, rec.Body)
-	}
-	if rec := e.do(t, &e.admin, "POST", "/api/admin/users/"+e.user.ID+"/password", `{"new_password":"`+long+`"}`); rec.Code != 400 || jsonBody(t, rec)["error"] != "password_too_long" {
-		t.Fatalf("reset: %d %s", rec.Code, rec.Body)
-	}
-	if rec := e.do(t, &e.user, "POST", "/api/me/password", `{"current_password":"password-1","new_password":"`+long+`"}`); rec.Code != 400 || jsonBody(t, rec)["error"] != "password_too_long" {
-		t.Fatalf("self: %d %s", rec.Code, rec.Body)
-	}
 }
 
 func TestPatchUserQuotaEmailCollision(t *testing.T) {

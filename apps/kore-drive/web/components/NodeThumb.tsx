@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { fileKind, type ApiNode } from "@/lib/nodes";
-import { NodeIcon } from "./icons";
+import { NodeIcon } from "./NodeIcon";
 
 /** Extensions the server can thumbnail (`thumbFamilies` in
  *  `api/internal/transfer/thumb.go`; AVIF and SVG keep the icon). */

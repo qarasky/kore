@@ -6,26 +6,85 @@ import (
 	"fmt"
 	"io/fs"
 	"net"
+	"net/mail"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 )
 
 // Config holds the settings read from the config file.
 type Config struct {
-	Port          int    `toml:"port"`
-	Bind          string `toml:"bind"`
-	DataDir       string `toml:"data_dir"`
-	AdminEmail    string `toml:"admin_email"`
-	AdminPassword string `toml:"admin_password"`
+	Port    int    `toml:"port"`
+	Bind    string `toml:"bind"`
+	DataDir string `toml:"data_dir"`
+
+	// PublicURL is the externally visible base URL of Kore (scheme + host,
+	// e.g. https://kore.example.com). Required for Kore ID: the OIDC redirect
+	// URI is PublicURL + "/api/auth/oidc/callback".
+	PublicURL string `toml:"public_url"`
+	OIDC      OIDC   `toml:"oidc"`
+}
+
+// OIDC configures login with Kore ID (any OpenID Connect provider with
+// authorization-code + PKCE S256 and EdDSA-signed tokens). Kore ID is the only
+// way to sign in, so Issuer is required.
+type OIDC struct {
+	Issuer       string `toml:"issuer"`
+	ClientID     string `toml:"client_id"`
+	ClientSecret string `toml:"client_secret"`
+	// LinkByEmail lets a first Kore ID login adopt the existing, not yet
+	// linked local account with the same email, but only when the token says
+	// email_verified = true (default true). Set false to require linking by
+	// hand (Account page or "kore link").
+	LinkByEmail *bool `toml:"link_by_email"`
+	// AutoProvision creates a local account on first login (default true).
+	AutoProvision *bool `toml:"auto_provision"`
+	// OwnerEmail names the first administrator on a fresh install: the first
+	// Kore ID sign-in whose verified email matches becomes an admin.
+	OwnerEmail string `toml:"owner_email"`
+	// Apps maps the other Kore apps (koremind, korecalendar, flatline) to
+	// their base URLs for the app switcher in the top bar and account menu.
+	// Optional; apps left out are not shown. KORE_APP_URLS overrides it as
+	// "koremind=https://mind.example.com,korecalendar=https://cal.example.com".
+	Apps map[string]string `toml:"apps"`
+}
+
+// AppIDs are the app keys Apps accepts (Kore ID's app keys).
+var AppIDs = []string{"kore", "koremind", "korecalendar", "flatline"}
+
+// Enabled reports whether Kore ID login is configured.
+func (o OIDC) Enabled() bool { return o.Issuer != "" }
+
+// LinkByEmailEnabled reports whether a verified email may link an existing account.
+func (o OIDC) LinkByEmailEnabled() bool { return o.LinkByEmail == nil || *o.LinkByEmail }
+
+// AutoProvisionEnabled reports whether unknown Kore ID users get an account.
+func (o OIDC) AutoProvisionEnabled() bool { return o.AutoProvision == nil || *o.AutoProvision }
+
+// FirstUserSSO reports whether a fresh install can create its first
+// administrator from Kore ID: Kore ID is enabled and an owner email is set.
+func (c Config) FirstUserSSO() bool { return c.OIDC.Enabled() && c.OIDC.OwnerEmail != "" }
+
+func envBool(name string, dst **bool) error {
+	v := os.Getenv(name)
+	if v == "" {
+		return nil
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return fmt.Errorf("invalid %s %q (use true or false)", name, v)
+	}
+	*dst = &b
+	return nil
 }
 
 // Load reads and validates the config. The file at path is optional (it may
 // be missing when everything comes from the environment); KORE_PORT,
-// KORE_BIND, KORE_DATA_DIR, KORE_ADMIN_EMAIL and KORE_ADMIN_PASSWORD, when
-// set and non-empty, override the file (this is how the Docker image is
-// configured from .env).
+// KORE_BIND, KORE_DATA_DIR and the Kore ID settings, when set and non-empty,
+// override the file (this is how the Docker image is configured from .env).
 func Load(path string) (Config, error) {
 	c := Config{Port: 8080, Bind: "127.0.0.1"}
 	b, err := os.ReadFile(path)
@@ -45,14 +104,36 @@ func Load(path string) (Config, error) {
 		c.Port = p
 	}
 	for env, dst := range map[string]*string{
-		"KORE_BIND":           &c.Bind,
-		"KORE_DATA_DIR":       &c.DataDir,
-		"KORE_ADMIN_EMAIL":    &c.AdminEmail,
-		"KORE_ADMIN_PASSWORD": &c.AdminPassword,
+		"KORE_BIND":               &c.Bind,
+		"KORE_DATA_DIR":           &c.DataDir,
+		"KORE_PUBLIC_URL":         &c.PublicURL,
+		"KORE_OIDC_ISSUER":        &c.OIDC.Issuer,
+		"KORE_OIDC_CLIENT_ID":     &c.OIDC.ClientID,
+		"KORE_OIDC_CLIENT_SECRET": &c.OIDC.ClientSecret,
+		"KORE_OIDC_OWNER_EMAIL":   &c.OIDC.OwnerEmail,
 	} {
 		if v := os.Getenv(env); v != "" {
 			*dst = v
 		}
+	}
+	if err := envBool("KORE_OIDC_LINK_BY_EMAIL", &c.OIDC.LinkByEmail); err != nil {
+		return Config{}, err
+	}
+	if err := envBool("KORE_OIDC_AUTO_PROVISION", &c.OIDC.AutoProvision); err != nil {
+		return Config{}, err
+	}
+	if v := os.Getenv("KORE_APP_URLS"); v != "" {
+		c.OIDC.Apps = map[string]string{}
+		for _, pair := range strings.Split(v, ",") {
+			k, u, ok := strings.Cut(strings.TrimSpace(pair), "=")
+			if !ok {
+				return Config{}, fmt.Errorf("invalid KORE_APP_URLS entry %q (use app=url)", pair)
+			}
+			c.OIDC.Apps[strings.TrimSpace(k)] = strings.TrimSpace(u)
+		}
+	}
+	if err := c.validateSSO(); err != nil {
+		return Config{}, err
 	}
 	if net.ParseIP(c.Bind) == nil {
 		return Config{}, fmt.Errorf("invalid bind address %q", c.Bind)
@@ -63,11 +144,51 @@ func Load(path string) (Config, error) {
 	if c.DataDir == "" {
 		return Config{}, errors.New("data_dir is required (config file or KORE_DATA_DIR)")
 	}
-	if c.AdminEmail == "" {
-		return Config{}, errors.New("admin_email is required (config file or KORE_ADMIN_EMAIL)")
-	}
-	if c.AdminPassword == "" {
-		return Config{}, errors.New("admin_password is required (config file or KORE_ADMIN_PASSWORD)")
-	}
 	return c, nil
+}
+
+func (c *Config) validateSSO() error {
+	c.PublicURL = strings.TrimRight(c.PublicURL, "/")
+	c.OIDC.Issuer = strings.TrimRight(c.OIDC.Issuer, "/")
+	c.OIDC.OwnerEmail = strings.ToLower(strings.TrimSpace(c.OIDC.OwnerEmail))
+	if c.OIDC.OwnerEmail != "" {
+		a, err := mail.ParseAddress(c.OIDC.OwnerEmail)
+		if err != nil || a.Name != "" || a.Address != c.OIDC.OwnerEmail || len(c.OIDC.OwnerEmail) > 254 {
+			return fmt.Errorf("invalid oidc owner_email %q", c.OIDC.OwnerEmail)
+		}
+	}
+	if !c.OIDC.Enabled() {
+		return errors.New("Kore ID is required: set oidc.issuer (KORE_OIDC_ISSUER)")
+	}
+	if c.OIDC.ClientID == "" {
+		c.OIDC.ClientID = "kore"
+	}
+	if c.PublicURL == "" {
+		return errors.New("public_url (KORE_PUBLIC_URL) is required when Kore ID is enabled")
+	}
+	for name, v := range map[string]string{"oidc.issuer": c.OIDC.Issuer, "public_url": c.PublicURL} {
+		if !absHTTP(v) {
+			return fmt.Errorf("%s must be an absolute http(s) URL, got %q", name, v)
+		}
+	}
+	for k, v := range c.OIDC.Apps {
+		known := false
+		for _, id := range AppIDs {
+			known = known || id == k
+		}
+		if !known {
+			return fmt.Errorf("oidc.apps: unknown app %q (use %s)", k, strings.Join(AppIDs, ", "))
+		}
+		v = strings.TrimRight(v, "/")
+		if !absHTTP(v) {
+			return fmt.Errorf("oidc.apps.%s must be an absolute http(s) URL, got %q", k, v)
+		}
+		c.OIDC.Apps[k] = v
+	}
+	return nil
+}
+
+func absHTTP(v string) bool {
+	u, err := url.Parse(v)
+	return err == nil && (u.Scheme == "https" || u.Scheme == "http") && u.Host != "" && u.RawQuery == "" && u.Fragment == ""
 }

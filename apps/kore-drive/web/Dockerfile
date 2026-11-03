@@ -18,6 +18,8 @@ COPY . .
 RUN npm run build
 
 FROM node:24-alpine
+LABEL org.opencontainers.image.source="https://github.com/qarasky/kore" \
+      org.opencontainers.image.title="kore-web"
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \

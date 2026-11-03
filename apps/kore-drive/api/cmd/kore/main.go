@@ -26,15 +26,23 @@ import (
 	"github.com/qarasky/kore/api/internal/settings"
 	"github.com/qarasky/kore/api/internal/store"
 	"github.com/qarasky/kore/api/internal/uploads"
+	"github.com/qarasky/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/version"
 	"github.com/qarasky/kore/api/internal/volume"
 )
 
 const usage = `usage:
   kore [-config kore.toml]                 serve the API
   kore init [-config kore.toml]            initialize the data volume (marker, blobs/, tmp/uploads/)
+  kore link -email EMAIL -sub UUID [-config kore.toml]
+                                           bind an existing account to a Kore ID subject (the "sub" claim)
+  kore version                             print the release this binary was built from
   kore healthcheck [-config kore.toml | -url URL]
                                            exit 0 if GET /api/healthz returns 200
 `
+
+// stdout is where `version` prints (replaced in tests).
+var stdout io.Writer = os.Stdout
 
 // shutdownGrace is how long in-flight requests get to finish on SIGTERM/SIGINT.
 const shutdownGrace = 30 * time.Second
@@ -59,11 +67,17 @@ func run(ctx context.Context, args []string, stderr io.Writer) int {
 		defaultPath = v
 	}
 	path := fs.String("config", defaultPath, "path to config file (default: $KORE_CONFIG or kore.toml)")
-	var url *string
+	var url, linkEmail, linkSub *string
 	switch cmd {
 	case "serve", "init":
+	case "link":
+		linkEmail = fs.String("email", "", "email of the existing KoreDrive account")
+		linkSub = fs.String("sub", "", "Kore ID subject (UUID) to bind to it")
 	case "healthcheck":
 		url = fs.String("url", "", "health URL (default: derived from the config's bind and port)")
+	case "version":
+		fmt.Fprintln(stdout, "kore", version.String())
+		return 0
 	case "help":
 		fmt.Fprint(stderr, usage)
 		return 0
@@ -95,6 +109,14 @@ func run(ctx context.Context, args []string, stderr io.Writer) int {
 		logger.Printf("config: %v", err)
 		return 1
 	}
+	if cmd == "link" {
+		if err := link(ctx, cfg, *linkEmail, *linkSub); err != nil {
+			logger.Printf("link: %v", err)
+			return 1
+		}
+		logger.Printf("linked %s to Kore ID subject %s", *linkEmail, *linkSub)
+		return 0
+	}
 	if cmd == "init" {
 		if err := volume.Init(cfg.DataDir); err != nil {
 			logger.Printf("init: %v", err)
@@ -108,6 +130,28 @@ func run(ctx context.Context, args []string, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+// link binds an existing local account to a Kore ID subject, the safe way to
+// migrate accounts when link_by_email is off. Stop nothing: SQLite handles the
+// concurrent write.
+func link(ctx context.Context, cfg config.Config, email, sub string) error {
+	if email == "" || sub == "" {
+		return errors.New("-email and -sub are required")
+	}
+	if err := volume.Check(cfg.DataDir); err != nil {
+		return fmt.Errorf("volume: %w", err)
+	}
+	db, err := store.Open(filepath.Join(cfg.DataDir, "kore.db"))
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	u, err := users.GetByEmail(ctx, db, email)
+	if err != nil {
+		return fmt.Errorf("no account with email %q", email)
+	}
+	return auth.LinkSub(ctx, db, u.ID, sub)
 }
 
 // healthcheck GETs the API's /api/healthz (for container health checks; the
@@ -167,10 +211,6 @@ func serve(ctx context.Context, cfg config.Config, logger *log.Logger) error {
 			logger.Printf("closing database: %v", err)
 		}
 	}()
-	if err := auth.Bootstrap(ctx, db, cfg); err != nil {
-		return fmt.Errorf("bootstrap: %w", err)
-	}
-
 	bg, stopBg := context.WithCancel(ctx)
 	var wg sync.WaitGroup
 	wg.Go(func() { every(bg, time.Hour, func(ctx context.Context) { sweepUploads(ctx, db, cfg.DataDir, logger) }) })
@@ -184,8 +224,8 @@ func serve(ctx context.Context, cfg config.Config, logger *log.Logger) error {
 	if err != nil {
 		return err
 	}
-	logger.Printf("kore listening on %s", addr)
-	return serveUntil(ctx, newServer(addr, httpapi.New(db, cfg.DataDir)), ln, shutdownGrace, logger)
+	logger.Printf("kore %s listening on %s", version.String(), addr)
+	return serveUntil(ctx, newServer(addr, httpapi.New(db, cfg.DataDir, httpapi.WithConfig(cfg))), ln, shutdownGrace, logger)
 }
 
 // serveUntil serves on ln until ctx is done, then stops accepting and waits

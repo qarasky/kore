@@ -1,8 +1,11 @@
 /**
- * Password rules mirrored from the API (lengths are UTF-8 bytes, like Go's
- * len()), strength hints, and a generator for initial / reset passwords.
- * Nothing here logs or stores a password.
+ * Password rules for share-link passwords, mirrored from the API (lengths are
+ * UTF-8 bytes, like Go's len()), plus kore-ui labels. Nothing here logs or
+ * stores a password, and none of it is a sign-in credential.
  */
+
+import type { PasswordRule } from "@qarasky/kore-ui";
+import { t } from "./i18n";
 
 export const MIN_PASSWORD_BYTES = 8;
 export const MAX_PASSWORD_BYTES = 1024;
@@ -38,6 +41,23 @@ export function passwordHints(pw: string): PasswordHints {
     mixed: classes >= 2,
   };
 }
+
+/** The strength hints as kore-ui PasswordInput's live checklist. */
+export function passwordRules(): PasswordRule[] {
+  return [
+    { label: t("password.hint.minLength"), test: (pw) => passwordHints(pw).minLength },
+    { label: t("password.hint.long"), test: (pw) => passwordHints(pw).long },
+    { label: t("password.hint.mixed"), test: (pw) => passwordHints(pw).mixed },
+  ];
+}
+
+/** kore-ui PasswordInput's labels, through this app's copy. */
+export const PASSWORD_INPUT_LABELS = {
+  showLabel: t("password.show"),
+  hideLabel: t("password.hide"),
+  ruleMetLabel: t("password.hintMet"),
+  ruleUnmetLabel: t("password.hintUnmet"),
+};
 
 /** No look-alikes (0/O, 1/l/I), so a password read aloud or copied by hand works. */
 export const PASSWORD_ALPHABET = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";

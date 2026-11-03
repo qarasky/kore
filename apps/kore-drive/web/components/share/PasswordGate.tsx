@@ -1,12 +1,13 @@
 "use client";
 
+import { Button, Field, PasswordInput } from "@qarasky/kore-ui";
+import { KeyRound } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useId, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { api } from "@/lib/api";
 import { t, type MessageKey } from "@/lib/i18n";
+import { PASSWORD_INPUT_LABELS } from "@/lib/password";
 import { shareUrls, unlockErrorKey } from "@/lib/shares";
-import { KeyIcon } from "../icons";
-import { PasswordInput } from "./PasswordInput";
 
 /**
  * Asks for a link's password. A correct one sets the unlock cookie (12 h,
@@ -14,7 +15,6 @@ import { PasswordInput } from "./PasswordInput";
  */
 export function PasswordGate({ token }: { token: string }) {
   const router = useRouter();
-  const id = useId();
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<MessageKey | null>(null);
@@ -37,38 +37,23 @@ export function PasswordGate({ token }: { token: string }) {
     <form onSubmit={submit} className="flex flex-col gap-4 px-8 py-10" data-testid="password-gate">
       <div className="flex flex-col items-center gap-2 text-center">
         <span className="flex size-10 items-center justify-center rounded-full bg-accent/15 text-accent">
-          <KeyIcon className="size-5" />
+          <KeyRound aria-hidden className="size-5" />
         </span>
         <h1 className="text-heading font-semibold">{t("publicShare.passwordTitle")}</h1>
         <p className="text-muted">{t("publicShare.passwordBody")}</p>
       </div>
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor={`${id}-pw`} className="font-medium">
-          {t("publicShare.passwordLabel")}
-        </label>
+      <Field label={t("publicShare.passwordLabel")} error={error && t(error)}>
         <PasswordInput
-          id={`${id}-pw`}
+          {...PASSWORD_INPUT_LABELS}
           value={password}
-          onChange={setPassword}
+          onChange={(e) => setPassword(e.target.value)}
           autoFocus
           autoComplete="off"
-          invalid={!!error}
-          describedBy={error ? `${id}-err` : undefined}
         />
-        {error && (
-          <p id={`${id}-err`} role="alert" className="text-meta text-danger">
-            {t(error)}
-          </p>
-        )}
-      </div>
-      <button
-        type="submit"
-        disabled={pending || password === ""}
-        aria-busy={pending || undefined}
-        className="rounded-ui bg-accent px-3.5 py-2 font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
-      >
+      </Field>
+      <Button type="submit" variant="primary" disabled={password === ""} loading={pending}>
         {pending ? t("publicShare.unlocking") : t("publicShare.unlock")}
-      </button>
+      </Button>
     </form>
   );
 }

@@ -1,21 +1,33 @@
 import { expect, request, type APIRequestContext, type Locator, type Page } from "@playwright/test";
+import { DEFAULT_QUOTA, ensureUser, sessionToken } from "./harness/db";
 import { E2E } from "./harness/env";
 
 export const ADMIN = E2E.admin;
+
+/** kore-ui's toast region (Radix): the toasts on screen. */
+export const toasts = (page: Page): Locator => page.getByRole("region", { name: /^Notifications/ });
 export const DEFAULT_PASSWORD = "user-password-123";
 
-/** Logs `page`'s browser context in through the API (sets kore_session). */
-export async function loginAs(page: Page, email: string, password: string): Promise<void> {
-  const res = await page.request.post("/api/auth/login", { data: { email, password } });
-  expect(res.status(), `login as ${email}`).toBe(200);
+/**
+ * Signs `page`'s browser context in. Kore ID is the only login path and the
+ * harness runs no provider, so this seeds a session in the API's database and
+ * sets the cookie the SSO callback would have set. The password argument is
+ * accepted for old call sites and ignored.
+ */
+export async function loginAs(page: Page, email: string, password?: string): Promise<void> {
+  void password; // old call sites still pass one; there is no password login
+  const value = sessionToken(email);
+  await page.context().addCookies([{ name: "kore_session", value, url: E2E.webUrl }]);
 }
 
-/** A standalone API client logged in as the given user (talks to the API directly). */
-export async function apiAs(email: string, password: string): Promise<APIRequestContext> {
-  const ctx = await request.newContext({ baseURL: E2E.apiUrl });
-  const res = await ctx.post("/api/auth/login", { data: { email, password } });
-  expect(res.status(), `api login as ${email}`).toBe(200);
-  return ctx;
+/** A standalone API client signed in as the given user (talks to the API directly). */
+export async function apiAs(email: string, password?: string): Promise<APIRequestContext> {
+  void password; // old call sites still pass one; there is no password login
+  const value = sessionToken(email);
+  return request.newContext({
+    baseURL: E2E.apiUrl,
+    extraHTTPHeaders: { Cookie: `kore_session=${value}` },
+  });
 }
 
 export type CreatedUser = {
@@ -28,22 +40,16 @@ export type CreatedUser = {
 
 let seq = 0;
 
-/** Creates a user through the admin API. Email defaults to a unique address. */
+/**
+ * Creates an account. Accounts come from Kore ID now, so this inserts the row
+ * directly; the returned password is only there for old call sites.
+ */
 export async function createUser(
   opts: { email?: string; password?: string; role?: "admin" | "user"; quota_bytes?: number } = {},
 ): Promise<CreatedUser> {
   const email = opts.email ?? `user-${Date.now()}-${++seq}@kore.test`;
-  const password = opts.password ?? DEFAULT_PASSWORD;
-  const admin = await apiAs(ADMIN.email, ADMIN.password);
-  try {
-    const res = await admin.post("/api/admin/users", {
-      data: { email, password, role: opts.role ?? "user", quota_bytes: opts.quota_bytes },
-    });
-    expect(res.status(), `create user ${email}`).toBe(201);
-    return { ...(await res.json()), password };
-  } finally {
-    await admin.dispose();
-  }
+  const u = ensureUser(email, opts.role ?? "user", opts.quota_bytes ?? DEFAULT_QUOTA);
+  return { ...u, role: u.role as "admin" | "user", password: opts.password ?? DEFAULT_PASSWORD };
 }
 
 /** Creates a folder in the user's personal space (or `parent_id`) and returns its id. */

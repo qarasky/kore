@@ -16,7 +16,7 @@ import { serve } from "./proc.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const apiDir = path.resolve(here, "../../../api");
-const root = path.join(tmpdir(), "kore-e2e");
+const root = path.join(tmpdir(), `kore-e2e-${E2E.apiPort}`);
 const bin = path.join(root, "kore");
 const dataDir = path.join(root, "data");
 const config = path.join(root, "kore.toml");
@@ -35,8 +35,14 @@ writeFileSync(
     `port = ${E2E.apiPort}`,
     `bind = "127.0.0.1"`,
     `data_dir = ${JSON.stringify(dataDir)}`,
-    `admin_email = ${JSON.stringify(E2E.admin.email)}`,
-    `admin_password = ${JSON.stringify(E2E.admin.password)}`,
+    // Kore ID is the only sign-in. Discovery is lazy, so any issuer URL works
+    // until someone clicks the button; tests seed accounts and sessions in
+    // the database (see db.ts) rather than running a real provider.
+    `public_url = ${JSON.stringify(E2E.webUrl)}`,
+    "[oidc]",
+    `issuer = ${JSON.stringify(process.env.E2E_OIDC_ISSUER || "https://id.kore.test")}`,
+    `owner_email = ${JSON.stringify(E2E.admin.email)}`,
+    `apps = { koremind = "https://mind.example.com", korecalendar = "https://cal.example.com" }`,
     "",
   ].join("\n"),
 );
