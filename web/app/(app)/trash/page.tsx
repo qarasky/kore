@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { NavTabs, PageHeader } from "@qarasky/kore-ui";
 import { TrashList } from "@/components/TrashList";
 import { api } from "@/lib/api";
 import { t } from "@/lib/i18n";
@@ -26,32 +26,22 @@ export default async function TrashPage({ searchParams }: PageProps<"/trash">) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-14 shrink-0 items-center gap-4 border-b border-border px-4">
-        <h1 className="text-heading font-semibold">{t("trash.title")}</h1>
-        <nav aria-label={t("trash.tabs")} className="flex items-center gap-1">
-          {TABS.map((tab) => {
-            const active = tab.space === space;
-            return (
-              <Link
-                key={tab.space}
-                href={trashHref(tab.space)}
-                aria-current={active ? "page" : undefined}
-                className={
-                  "rounded-ui px-2.5 py-1 transition-colors " +
-                  (active ? "bg-raised font-medium text-text" : "text-muted hover:bg-white/[0.04] hover:text-text")
-                }
-              >
-                {tab.label()}
-              </Link>
-            );
-          })}
-        </nav>
-        {typeof days === "number" && (
-          <p data-testid="trash-retention" className="ml-auto truncate text-meta text-muted">
-            {days === 1 ? t("trash.retentionOne") : t("trash.retention", { days })}
-          </p>
-        )}
-      </div>
+      <PageHeader
+        title={t("trash.title")}
+        tabs={
+          <NavTabs
+            label={t("trash.tabs")}
+            items={TABS.map((tab) => ({ href: trashHref(tab.space), label: tab.label(), active: tab.space === space }))}
+          />
+        }
+        actions={
+          typeof days === "number" ? (
+            <p data-testid="trash-retention" className="truncate text-meta text-muted max-md:hidden">
+              {days === 1 ? t("trash.retentionOne") : t("trash.retention", { days })}
+            </p>
+          ) : undefined
+        }
+      />
       <TrashList key={space} space={space} items={items} />
     </div>
   );

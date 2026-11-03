@@ -1,6 +1,8 @@
+import { Card } from "@qarasky/kore-ui";
 import Link from "next/link";
 import { DiskCard } from "@/components/admin/DiskCard";
-import { UsageBar, usagePercent } from "@/components/admin/UsageBar";
+import { UsageBar } from "@/components/admin/UsageBar";
+import { usagePercent } from "@/lib/usage";
 import type { AdminUser, UsageRow } from "@/lib/admin";
 import { api } from "@/lib/api";
 import type { DiskInfo } from "@/lib/disk";
@@ -27,18 +29,18 @@ export default async function AdminOverview() {
   );
 
   return (
-    <div className="mx-auto max-w-[880px] space-y-6 p-6">
+    <div className="mx-auto max-w-content space-y-6 p-4 md:p-6">
       <h2 className="sr-only">{t("admin.overview.title")}</h2>
       <DiskCard disk={disk} />
       <div className="grid grid-cols-2 gap-3">
-        <section className="rounded-[8px] border border-border bg-bg/40 p-4">
+        <Card className="p-4">
           <h3 className="text-meta font-medium text-muted">{t("admin.overview.totalUsed")}</h3>
           <p data-testid="total-used" className="mt-1 text-display font-semibold tracking-[-0.02em]">
             {formatBytes(used)}
           </p>
           <p className="text-meta text-muted">{t("admin.overview.allocated", { quota: formatBytes(quota) })}</p>
-        </section>
-        <section className="rounded-[8px] border border-border bg-bg/40 p-4">
+        </Card>
+        <Card className="p-4">
           <h3 className="text-meta font-medium text-muted">{t("admin.overview.users")}</h3>
           <p data-testid="user-count" className="mt-1 text-display font-semibold tracking-[-0.02em]">
             {usage.length}
@@ -46,12 +48,12 @@ export default async function AdminOverview() {
           <p className="text-meta text-muted">
             {admins === 1 ? t("admin.overview.adminsOne") : t("admin.overview.adminsMany", { count: admins })}
           </p>
-        </section>
+        </Card>
       </div>
 
       <section aria-labelledby="usage-heading">
         <div className="mb-3 flex items-baseline justify-between gap-4">
-          <h3 id="usage-heading" className="text-sub font-semibold">
+          <h3 id="usage-heading" className="text-title font-semibold tracking-[-0.01em]">
             {t("admin.overview.usage")}
           </h3>
           <Link href="/admin/users" className="text-meta text-accent hover:underline">
@@ -59,7 +61,7 @@ export default async function AdminOverview() {
           </Link>
         </div>
         <p className="mb-3 text-meta text-muted">{t("admin.overview.privacy")}</p>
-        <ul className="divide-y divide-border rounded-[8px] border border-border">
+        <ul className="divide-y divide-border rounded-overlay border border-border">
           {byUse.map((u) => (
             <li key={u.user_id} data-testid="usage-row" className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] items-center gap-4 px-4 py-2.5">
               <span className="truncate" title={u.email}>

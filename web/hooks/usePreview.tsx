@@ -1,8 +1,8 @@
 "use client";
 
+import { useToast } from "@qarasky/kore-ui";
 import { useState } from "react";
 import { PreviewPane } from "@/components/PreviewPane";
-import { useToast } from "@/components/Toast";
 import { downloadFile } from "@/lib/download";
 import { t } from "@/lib/i18n";
 import type { ApiNode } from "@/lib/nodes";

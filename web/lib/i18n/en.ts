@@ -22,7 +22,7 @@ const en = {
   "login.error.generic": "Could not sign in. Please try again.",
   "login.error.busy": "The server is busy. Try again in a few seconds.",
   "login.error.unreachable": "The file server is not responding. Try again in a moment.",
-  "login.sso": "Sign in with Kore ID",
+  "login.sso": "Continue with Kore ID",
   "login.sso.or": "or",
   "login.sso.subtitle": "Use your Kore ID account.",
   "login.sso.error.failed": "Kore ID sign-in did not complete. Please try again.",
@@ -87,6 +87,14 @@ const en = {
   "account.changePassword": "Change password",
   "account.signOut": "Sign out",
   "account.signOutFailed": "Could not sign out. Try again.",
+  "account.koreId": "Kore ID account",
+  "account.switchApp": "Switch app",
+  "account.storageAndSettings": "Storage and settings",
+  "shell.openNav": "Open navigation",
+  "shell.nav": "Navigation",
+  "shell.closeNav": "Close navigation",
+  "shell.apps": "Apps",
+  "shell.appsList": "Kore apps",
 
   "new.button": "New",
   "new.menu": "Create new",
@@ -226,6 +234,7 @@ const en = {
   "preview.pdfNoViewer": "This browser can't show PDFs inside the page.",
 
   "dialog.cancel": "Cancel",
+  "dialog.close": "Close",
 
   "trash.title": "Trash",
   "trash.tabs": "Trash sections",

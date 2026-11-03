@@ -1,5 +1,6 @@
 "use client";
 
+import { useToast } from "@qarasky/kore-ui";
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { planUploads, type DropSet } from "@/lib/dropEntries";
@@ -7,7 +8,6 @@ import { t } from "@/lib/i18n";
 import { isFileDrag } from "@/lib/moveDrag";
 import { chunkBytesOverride, type UploadTarget } from "@/lib/upload";
 import { UploadQueue } from "@/lib/uploadQueue";
-import { useToast } from "./Toast";
 import { UploadTray } from "./UploadTray";
 
 type Uploads = {

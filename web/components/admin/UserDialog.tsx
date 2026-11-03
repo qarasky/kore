@@ -1,24 +1,23 @@
 "use client";
 
-import { useId, useRef, useState, type FormEvent } from "react";
+import {
+  Button,
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogFooter,
+  Field,
+  Input,
+  Select,
+} from "@qarasky/kore-ui";
+import { useRef, useState, type FormEvent } from "react";
 import { adminErrorKey, type AdminUser } from "@/lib/admin";
 import { api, isApiError } from "@/lib/api";
 import { t, type MessageKey } from "@/lib/i18n";
 import { passwordProblem } from "@/lib/password";
 import type { Role } from "@/lib/session";
 import { parseSize, QUOTA_UNITS, splitSize, type SizeUnit } from "@/lib/size";
-import { Modal } from "../Modal";
-import { Select } from "../Select";
-import {
-  CopyButton,
-  Field,
-  fieldIds,
-  inputClass,
-  PasswordInput,
-  primaryButton,
-  secondaryButton,
-  SizeInput,
-} from "./fields";
+import { OneTimePassword, PasswordInput, SizeInput } from "./controls";
 
 type Errors = Partial<Record<"email" | "password" | "quota" | "form", MessageKey>>;
 
@@ -37,6 +36,7 @@ const looksLikeEmail = (e: string) => /^[^\s@]+@[^\s@]+$/.test(e);
  * Add user (email, initial password with generator, role, quota defaulting to
  * the default quota) or edit one (email, role, quota; only changed fields are
  * sent). An admin editing themselves cannot change their own role.
+ * Mounted while open; closing calls `onClose`.
  */
 export function UserDialog({
   mode,
@@ -54,8 +54,6 @@ export function UserDialog({
   /** Called after a successful save with a toast message. */
   onSaved: (message: string) => void;
 }) {
-  const titleId = useId();
-  const id = useId();
   const emailRef = useRef<HTMLInputElement>(null);
   const initialQuota = splitSize(user?.quota_bytes ?? defaultQuota, QUOTA_UNITS);
   const [email, setEmail] = useState(user?.email ?? "");
@@ -120,132 +118,103 @@ export function UserDialog({
 
   const title = mode === "add" ? t("admin.add.title") : t("admin.edit.title", { email: user?.email ?? "" });
 
-  if (created) {
-    return (
-      <Modal labelledBy={titleId} onClose={onClose} className="w-[min(440px,calc(100vw-32px))]">
-        <div className="space-y-4 p-5" data-testid="user-created">
-          <h2 id={titleId} className="text-title font-semibold tracking-[-0.01em]">
-            {t("admin.add.createdTitle")}
-          </h2>
-          {created.password ? (
-            <>
-              <p className="text-muted">{t("admin.add.createdPassword", { email: created.email })}</p>
-              <div className="flex flex-wrap items-center gap-2">
-                <code data-testid="one-time-password" className="rounded-ui border border-border bg-bg px-2.5 py-1.5 font-mono select-all">
-                  {created.password}
-                </code>
-                <CopyButton text={created.password} />
-              </div>
-            </>
-          ) : (
-            <p className="text-muted">{t("admin.add.createdTyped", { email: created.email })}</p>
-          )}
-          <div className="flex justify-end">
-            <button type="button" autoFocus onClick={onClose} className={primaryButton}>
-              {t("admin.form.done")}
-            </button>
-          </div>
-        </div>
-      </Modal>
-    );
-  }
-
-  const emailIds = fieldIds(`${id}-email`, false, !!errors.email);
-  const pwIds = fieldIds(`${id}-password`, false, !!errors.password);
-  const roleIds = fieldIds(`${id}-role`, true, false);
-  const quotaIds = fieldIds(`${id}-quota`, true, !!errors.quota);
-
   return (
-    <Modal
-      labelledBy={titleId}
-      onClose={() => !pending && onClose()}
-      initialFocus={emailRef}
-      className="w-[min(480px,calc(100vw-32px))]"
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !pending) onClose();
+      }}
     >
-      <form onSubmit={submit} noValidate className="space-y-4 p-5">
-        <h2 id={titleId} className="truncate text-title font-semibold tracking-[-0.01em]">
-          {title}
-        </h2>
-        <Field id={`${id}-email`} label={t("admin.form.email")} error={errors.email && t(errors.email)}>
-          <input
-            ref={emailRef}
-            id={`${id}-email`}
-            type="email"
-            autoComplete="off"
-            spellCheck={false}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            aria-invalid={!!errors.email || undefined}
-            aria-describedby={emailIds.describedBy}
-            className={inputClass}
-          />
-        </Field>
-        {mode === "add" && (
-          <Field id={`${id}-password`} label={t("admin.form.password")} error={errors.password && t(errors.password)}>
-            <PasswordInput
-              id={`${id}-password`}
-              value={password}
-              onChange={(v, gen) => {
-                setPassword(v);
-                setGenerated(gen);
-              }}
-              generate
-              hints
-              invalid={!!errors.password}
-              describedBy={pwIds.describedBy}
-            />
-          </Field>
-        )}
-        <Field
-          id={`${id}-role`}
-          label={t("admin.form.role")}
-          hint={isSelf ? t("admin.form.selfRole") : t("admin.form.roleHint")}
+      {created ? (
+        <DialogContent title={t("admin.add.createdTitle")} size="sm" closeLabel={t("dialog.close")}>
+          <DialogBody data-testid="user-created" className="flex flex-col gap-3">
+            {created.password ? (
+              <>
+                <p className="text-muted">{t("admin.add.createdPassword", { email: created.email })}</p>
+                <OneTimePassword value={created.password} />
+              </>
+            ) : (
+              <p className="text-muted">{t("admin.add.createdTyped", { email: created.email })}</p>
+            )}
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="primary" autoFocus onClick={onClose}>
+              {t("admin.form.done")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      ) : (
+        <DialogContent
+          title={title}
+          closeLabel={t("dialog.close")}
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            emailRef.current?.focus();
+          }}
         >
-          <Select<Role>
-            id={`${id}-role`}
-            name="role"
-            value={role}
-            disabled={isSelf}
-            onChange={setRole}
-            options={[
-              { value: "user", label: t("admin.role.user") },
-              { value: "admin", label: t("admin.role.admin") },
-            ]}
-            aria-labelledby={roleIds.labelId}
-            aria-describedby={roleIds.describedBy}
-          />
-        </Field>
-        <Field
-          id={`${id}-quota`}
-          label={t("admin.form.quota")}
-          hint={t("admin.form.quotaHint")}
-          error={errors.quota && t(errors.quota)}
-        >
-          <SizeInput
-            id={`${id}-quota`}
-            label={t("admin.form.quota")}
-            value={quota.value}
-            unit={quota.unit}
-            units={QUOTA_UNITS}
-            onChange={(value, unit) => setQuota({ value, unit })}
-            invalid={!!errors.quota}
-            describedBy={quotaIds.describedBy}
-          />
-        </Field>
-        {errors.form && (
-          <p role="alert" data-testid="dialog-error" className="text-meta text-danger">
-            {t(errors.form)}
-          </p>
-        )}
-        <div className="flex justify-end gap-2 pt-1">
-          <button type="button" onClick={onClose} disabled={pending} className={secondaryButton}>
-            {t("dialog.cancel")}
-          </button>
-          <button type="submit" disabled={pending} aria-busy={pending || undefined} className={primaryButton}>
-            {pending ? t("admin.form.saving") : mode === "add" ? t("admin.add.submit") : t("admin.edit.submit")}
-          </button>
-        </div>
-      </form>
-    </Modal>
+          <form onSubmit={submit} noValidate className="flex min-h-0 flex-1 flex-col">
+            <DialogBody className="flex flex-col gap-4">
+              <Field label={t("admin.form.email")} error={errors.email && t(errors.email)}>
+                <Input
+                  ref={emailRef}
+                  type="email"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </Field>
+              {mode === "add" && (
+                <Field label={t("admin.form.password")} error={errors.password && t(errors.password)}>
+                  <PasswordInput
+                    value={password}
+                    onChange={(v, gen) => {
+                      setPassword(v);
+                      setGenerated(gen);
+                    }}
+                    generate
+                    hints
+                  />
+                </Field>
+              )}
+              <Field label={t("admin.form.role")} hint={isSelf ? t("admin.form.selfRole") : t("admin.form.roleHint")}>
+                <Select<Role>
+                  name="role"
+                  value={role}
+                  disabled={isSelf}
+                  onValueChange={setRole}
+                  options={[
+                    { value: "user", label: t("admin.role.user") },
+                    { value: "admin", label: t("admin.role.admin") },
+                  ]}
+                />
+              </Field>
+              <Field label={t("admin.form.quota")} hint={t("admin.form.quotaHint")} error={errors.quota && t(errors.quota)}>
+                <SizeInput
+                  label={t("admin.form.quota")}
+                  value={quota.value}
+                  unit={quota.unit}
+                  units={QUOTA_UNITS}
+                  onChange={(value, unit) => setQuota({ value, unit })}
+                />
+              </Field>
+              {errors.form && (
+                <p role="alert" data-testid="dialog-error" className="text-meta text-danger">
+                  {t(errors.form)}
+                </p>
+              )}
+            </DialogBody>
+            <DialogFooter>
+              <Button onClick={onClose} disabled={pending}>
+                {t("dialog.cancel")}
+              </Button>
+              <Button type="submit" variant="primary" loading={pending}>
+                {pending ? t("admin.form.saving") : mode === "add" ? t("admin.add.submit") : t("admin.edit.submit")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      )}
+    </Dialog>
   );
 }

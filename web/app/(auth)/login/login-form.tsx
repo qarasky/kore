@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { AuthScreen } from "@qarasky/kore-ui";
+import { useState, type ReactNode } from "react";
 import { api, isApiError } from "@/lib/api";
 import { t, type MessageKey } from "@/lib/i18n";
 
@@ -13,83 +14,72 @@ function errorKey(e: unknown): MessageKey {
   return "login.error.generic";
 }
 
-const inputClass =
-  "block min-h-control w-full rounded-ui border border-border bg-raised px-3 py-2 text-text " +
-  "placeholder:text-muted outline-none transition-colors " +
-  "hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 " +
-  "aria-invalid:border-danger/70";
+/**
+ * The sign-in screen (kore-ui AuthScreen): "Continue with Kore ID" first and
+ * primary when Kore ID is on, the email + password form when local login is
+ * on, and the login picture on the right from 900px.
+ */
+export function LoginScreen({
+  next,
+  expired,
+  localLogin,
+  ssoHref,
+  ssoError,
+  aside,
+}: {
+  next: string;
+  expired: boolean;
+  localLogin: boolean;
+  /** The OIDC start route, when Kore ID is on. */
+  ssoHref?: string;
+  ssoError?: MessageKey | null;
+  aside: ReactNode;
+}) {
+  const [error, setError] = useState<MessageKey | null>(null);
 
-export function LoginForm({ next, expired }: { next: string; expired: boolean }) {
-  const [error, setError] = useState<MessageKey | null>(expired ? "login.expired" : null);
-  const [pending, setPending] = useState(false);
-  const failed = error !== null && error !== "login.expired";
-
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const data = new FormData(e.currentTarget);
-    setPending(true);
+  async function signIn({ email, password }: { email: string; password: string }) {
     setError(null);
     try {
-      await api("/api/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email: data.get("email"), password: data.get("password") }),
-      });
-      // Full navigation so the destination renders on the server with the new cookie.
-      window.location.assign(next);
+      await api("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
     } catch (err) {
       setError(errorKey(err));
-      setPending(false);
+      throw err; // keeps the form on screen
     }
+    // Full navigation so the destination renders on the server with the new cookie.
+    window.location.assign(next);
+    // Stay "Signing in…" until the page is replaced.
+    await new Promise(() => {});
   }
 
+  const shownError = error ?? ssoError ?? null;
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="space-y-1.5">
-        <label htmlFor="email" className="block text-meta font-medium text-muted">
-          {t("login.email")}
-        </label>
-        <input
-          id="email"
-          name="email"
-          type="email"
-          autoComplete="username"
-          autoFocus
-          required
-          aria-invalid={failed || undefined}
-          className={inputClass}
-        />
-      </div>
-      <div className="space-y-1.5">
-        <label htmlFor="password" className="block text-meta font-medium text-muted">
-          {t("login.password")}
-        </label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          aria-invalid={failed || undefined}
-          className={inputClass}
-        />
-      </div>
-
-      <p
-        role="alert"
-        data-testid="login-error"
-        aria-live="polite"
-        className={`min-h-[1.45em] text-meta ${failed ? "text-danger" : "text-muted"}`}
-      >
-        {error ? t(error) : null}
-      </p>
-
-      <button
-        type="submit"
-        disabled={pending}
-        className="min-h-control w-full rounded-ui bg-accent px-3 py-2 font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-wait disabled:opacity-70"
-      >
-        {pending ? t("login.submitting") : t("login.submit")}
-      </button>
-    </form>
+    <AuthScreen
+      app="kore"
+      title={t("login.title")}
+      description={t(localLogin ? "login.subtitle" : "login.sso.subtitle")}
+      dividerLabel={t("login.sso.or")}
+      error={
+        shownError ? (
+          <span data-testid={error ? "login-error" : "login-sso-error"}>{t(shownError)}</span>
+        ) : null
+      }
+      notice={expired ? <span data-testid="login-error">{t("login.expired")}</span> : null}
+      sso={ssoHref ? { href: ssoHref, label: t("login.sso") } : undefined}
+      password={
+        localLogin
+          ? {
+              onSubmit: signIn,
+              invalid: error === "login.error.invalid",
+              labels: {
+                email: t("login.email"),
+                password: t("login.password"),
+                submit: t("login.submit"),
+                pending: t("login.submitting"),
+              },
+            }
+          : undefined
+      }
+      aside={aside}
+    />
   );
 }

@@ -1,28 +1,24 @@
 "use client";
 
+import { Badge, Button, ConfirmDialog, EmptyState, useToast, type BadgeProps } from "@qarasky/kore-ui";
+import { Link2, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { expiryText, nowSeconds, shareErrorKey, shareUrl, statusLabel, type Share } from "@/lib/shares";
-import { ConfirmDialog } from "./ConfirmDialog";
-import { LinkIcon, LockIcon, NodeIcon } from "./icons";
-import { PageMessage } from "./PageMessage";
+import { NodeIcon } from "./NodeIcon";
 import { RelativeTime } from "./RelativeTime";
 import { ShareDialog } from "./ShareDialog";
-import { useToast } from "./Toast";
 
-const GRID = "grid grid-cols-[minmax(0,1fr)_96px_110px_130px_80px_auto] items-center gap-3 px-4";
-const action =
-  "rounded-ui px-2 py-1 text-meta font-medium text-muted transition-colors hover:bg-white/5 hover:text-text disabled:opacity-50";
-
-const CHIP: Record<Share["status"], string> = {
-  active: "bg-[#3fa66b]/15 text-[#7fd18b]",
-  expired: "bg-warning/15 text-warning",
-  revoked: "bg-white/5 text-muted",
-  item_trashed: "bg-danger/15 text-danger",
-  unavailable: "bg-danger/15 text-danger",
+const GRID = "grid grid-cols-[minmax(0,1fr)_110px_110px_130px_80px_auto] items-center gap-3 px-4";
+const TONE: Record<Share["status"], NonNullable<BadgeProps["tone"]>> = {
+  active: "success",
+  expired: "warning",
+  revoked: "neutral",
+  item_trashed: "danger",
+  unavailable: "danger",
 };
 
 /**
@@ -63,9 +59,9 @@ export function SharedLinksList({ shares }: { shares: Share[] }) {
 
   if (shares.length === 0) {
     return (
-      <PageMessage title={t("sharedLinks.emptyTitle")} testId="shared-links-empty">
-        {t("sharedLinks.empty")}
-      </PageMessage>
+      <div data-testid="shared-links-empty" className="flex flex-1 flex-col justify-center">
+        <EmptyState icon={<Link2 />} title={t("sharedLinks.emptyTitle")} description={t("sharedLinks.empty")} />
+      </div>
     );
   }
 
@@ -104,16 +100,14 @@ export function SharedLinksList({ shares }: { shares: Share[] }) {
                 </span>
                 {s.has_password && (
                   <span title={t("share.protected")} className="shrink-0 text-muted">
-                    <LockIcon className="size-3.5" />
+                    <Lock aria-hidden className="size-3.5" />
                     <span className="sr-only">{t("share.protected")}</span>
                   </span>
                 )}
                 {!s.is_dir && s.node_name && <span className="shrink-0 text-meta text-muted tabular-nums">{formatBytes(s.size)}</span>}
               </div>
               <span>
-                <span className={`rounded-full px-2 py-0.5 text-meta font-medium ${CHIP[s.status] ?? CHIP.unavailable}`}>
-                  {statusLabel(s.status)}
-                </span>
+                <Badge tone={TONE[s.status] ?? "danger"}>{statusLabel(s.status)}</Badge>
               </span>
               <span className="truncate text-muted">
                 <RelativeTime unixSeconds={s.created_at} />
@@ -122,31 +116,31 @@ export function SharedLinksList({ shares }: { shares: Share[] }) {
               <span className="text-right text-muted tabular-nums">{s.download_count}</span>
               <span className="flex justify-end gap-0.5">
                 {editable && (
-                  <button type="button" className={`${action} inline-flex items-center gap-1`} onClick={() => void copy(s)}>
-                    <LinkIcon className="size-3.5" />
+                  <Button size="sm" variant="ghost" onClick={() => void copy(s)}>
+                    <Link2 />
                     {t("share.copy")}
-                  </button>
+                  </Button>
                 )}
                 {editable && (
-                  <button type="button" className={action} onClick={() => setEditing(s)}>
+                  <Button size="sm" variant="ghost" onClick={() => setEditing(s)}>
                     {t("sharedLinks.edit")}
-                  </button>
+                  </Button>
                 )}
                 {live && (
-                  <button
-                    type="button"
-                    className={action}
+                  <Button
+                    size="sm"
+                    variant="ghost"
                     disabled={busy === s.id}
                     onClick={() =>
                       void run(s, () => api(`/api/shares/${encodeURIComponent(s.id)}`, { method: "DELETE" }), t("share.revoked"))
                     }
                   >
                     {t("share.revoke")}
-                  </button>
+                  </Button>
                 )}
-                <button type="button" className={`${action} hover:text-danger`} disabled={busy === s.id} onClick={() => setDeleting(s)}>
+                <Button size="sm" variant="danger-outline" disabled={busy === s.id} onClick={() => setDeleting(s)}>
                   {t("sharedLinks.delete")}
-                </button>
+                </Button>
               </span>
             </li>
           );
@@ -163,11 +157,14 @@ export function SharedLinksList({ shares }: { shares: Share[] }) {
       )}
       {deleting && (
         <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setDeleting(null)}
           title={t("sharedLinks.deleteTitle")}
-          message={t("sharedLinks.deleteMessage", { name: deleting.node_name || t("sharedLinks.hiddenItem") })}
+          description={t("sharedLinks.deleteMessage", { name: deleting.node_name || t("sharedLinks.hiddenItem") })}
           confirmLabel={t("sharedLinks.delete")}
+          cancelLabel={t("dialog.cancel")}
+          pendingLabel={t("list.working")}
           danger
-          onCancel={() => setDeleting(null)}
           onConfirm={async () => {
             const s = deleting;
             await run(s, () => api(`/api/shares/${encodeURIComponent(s.id)}?purge=1`, { method: "DELETE" }), t("sharedLinks.deleted"));

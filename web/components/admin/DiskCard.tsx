@@ -26,7 +26,7 @@ function Swatch({ className }: { className: string }) {
 export function DiskCard({ disk }: { disk: DiskInfo | null }) {
   if (!disk) {
     return (
-      <section aria-labelledby="disk-heading" className="rounded-[8px] border border-border bg-bg/40 p-4">
+      <section aria-labelledby="disk-heading" className="rounded-overlay border border-border bg-surface p-4">
         <h3 id="disk-heading" className="text-sub font-semibold">
           {t("admin.disk.title")}
         </h3>
@@ -50,7 +50,7 @@ export function DiskCard({ disk }: { disk: DiskInfo | null }) {
     <section
       aria-labelledby="disk-heading"
       data-level={v.level}
-      className={`rounded-[8px] border bg-bg/40 p-4 ${LEVEL_BORDER[v.level]}`}
+      className={`rounded-overlay border bg-surface p-4 ${LEVEL_BORDER[v.level]}`}
     >
       <div className="flex items-baseline justify-between gap-4">
         <div className="min-w-0">

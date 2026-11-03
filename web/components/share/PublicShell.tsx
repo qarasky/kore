@@ -1,18 +1,19 @@
+import { EmptyState, Wordmark } from "@qarasky/kore-ui";
+import { Link2Off } from "lucide-react";
 import type { ReactNode } from "react";
 import { t, type MessageKey } from "@/lib/i18n";
 import type { PublicProblem } from "@/lib/shares";
-import { Wordmark } from "../wordmark";
 
 /** The public share page frame: wordmark on top, a centred card. */
 export function PublicShell({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   return (
     <div className="flex min-h-dvh flex-col items-center px-4 py-10">
       <header className="mb-8 text-brand">
-        <Wordmark />
+        <Wordmark app="kore" />
       </header>
       <main
         className={
-          "w-full rounded-[10px] border border-border bg-surface shadow-[0_8px_32px_rgba(0,0,0,0.25)] " +
+          "w-full overflow-hidden rounded-overlay border border-border bg-surface shadow-card " +
           (wide ? "max-w-[960px]" : "max-w-[440px]")
         }
       >
@@ -36,13 +37,8 @@ const PROBLEMS: Record<PublicProblem, [MessageKey, MessageKey]> = {
 export function ShareProblem({ problem }: { problem: PublicProblem }) {
   const [title, body] = PROBLEMS[problem];
   return (
-    <div data-testid="share-problem" data-problem={problem} className="flex flex-col items-center gap-2 px-8 py-12 text-center">
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="mb-2 size-9 text-muted" fill="none" stroke="currentColor" strokeWidth={1.5}>
-        <path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1" strokeLinecap="round" />
-        <path d="M4 4l16 16" strokeLinecap="round" />
-      </svg>
-      <h1 className="text-heading font-semibold">{t(title)}</h1>
-      <p className="max-w-[340px] text-muted">{t(body)}</p>
+    <div data-testid="share-problem" data-problem={problem}>
+      <EmptyState icon={<Link2Off />} title={<span role="heading" aria-level={1}>{t(title)}</span>} description={t(body)} />
     </div>
   );
 }

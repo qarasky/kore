@@ -1,14 +1,28 @@
 "use client";
 
+import { AccountMenu as KoreAccountMenu, MenuItem, useToast, type AppUrls } from "@qarasky/kore-ui";
+import { KeyRound, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { t } from "@/lib/i18n";
-import { KeyIcon, SignOutIcon } from "./icons";
-import { Dropdown } from "./Menu";
-import { useToast } from "./Toast";
+import type { KoreIdLinks } from "./AppFrame";
 
-/** Avatar button in the top bar: who is signed in, password, sign out. */
-export function AccountMenu({ email, passwordLogin = true }: { email: string; passwordLogin?: boolean }) {
+/**
+ * The top bar's account menu (kore-ui AccountMenu): who is signed in, the Kore
+ * ID account (when Kore ID is on), this app's account page and password, the
+ * other Kore apps, sign out.
+ */
+export function AccountMenu({
+  email,
+  passwordLogin = true,
+  koreId,
+  apps,
+}: {
+  email: string;
+  passwordLogin?: boolean;
+  koreId: KoreIdLinks;
+  apps?: AppUrls;
+}) {
   const router = useRouter();
   const toast = useToast();
 
@@ -30,36 +44,31 @@ export function AccountMenu({ email, passwordLogin = true }: { email: string; pa
     window.location.assign("/login");
   }
 
+  // Without Kore ID the account entry is this app's own account page.
+  const accountUrl = koreId.accountUrl ?? "/account";
   return (
-    <Dropdown
-      label={t("account.menu")}
-      buttonLabel={t("account.menu")}
-      align="right"
-      header={
-        <div className="mb-1 max-w-[280px] truncate border-b border-border px-3 pt-1.5 pb-2 text-muted" title={email}>
-          {t("account.signedInAs", { email })}
-        </div>
-      }
-      items={[
-        {
-          id: "password",
-          label: passwordLogin ? t("account.changePassword") : t("account.title"),
-          icon: <KeyIcon />,
-          onSelect: () => router.push("/account"),
-        },
-        { id: "signout", label: t("account.signOut"), icon: <SignOutIcon />, onSelect: signOut },
-      ]}
-      buttonClassName="flex min-h-control items-center gap-2 rounded-ui pr-2.5 pl-1 text-muted transition-colors hover:bg-white/5 hover:text-text"
+    <KoreAccountMenu
+      user={{ email }}
+      accountUrl={accountUrl}
+      apps={apps ? { urls: apps, current: "kore" } : undefined}
+      onSignOut={signOut}
+      labels={{
+        menu: t("account.menu"),
+        account: koreId.accountUrl ? t("account.koreId") : t("account.title"),
+        switchApp: t("account.switchApp"),
+        signOut: t("account.signOut"),
+      }}
     >
-      <span
-        aria-hidden="true"
-        className="flex size-8 items-center justify-center rounded-full bg-accent text-meta font-semibold text-white uppercase"
-      >
-        {email.slice(0, 1)}
-      </span>
-      <span data-testid="current-user" className="hidden max-w-[220px] truncate sm:inline">
-        {email}
-      </span>
-    </Dropdown>
+      {koreId.accountUrl ? (
+        <MenuItem icon={<UserRound />} onSelect={() => router.push("/account")}>
+          {t("account.storageAndSettings")}
+        </MenuItem>
+      ) : null}
+      {passwordLogin ? (
+        <MenuItem icon={<KeyRound />} onSelect={() => router.push("/account")}>
+          {t("account.changePassword")}
+        </MenuItem>
+      ) : null}
+    </KoreAccountMenu>
   );
 }

@@ -3,8 +3,14 @@ import "server-only";
 import { cache } from "react";
 import { api } from "./api";
 
-/** How this instance lets people in (`GET /api/auth/config`). */
-export type AuthConfig = { local_login: boolean; oidc: boolean };
+/** How this instance lets people in (`GET /api/auth/config`). With Kore ID on,
+ *  `issuer` is its base URL and `apps` the Kore apps' URLs for the switcher. */
+export type AuthConfig = {
+  local_login: boolean;
+  oidc: boolean;
+  issuer?: string;
+  apps?: Partial<Record<"kore" | "koremind" | "korecalendar" | "flatline", string>>;
+};
 
 const FALLBACK: AuthConfig = { local_login: true, oidc: false };
 

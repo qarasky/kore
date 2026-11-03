@@ -1,8 +1,8 @@
 "use client";
 
+import { useToast } from "@qarasky/kore-ui";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { useToast } from "@/components/Toast";
 import { api, isApiError } from "@/lib/api";
 import { downloadFile, downloadZip } from "@/lib/download";
 import { t, type MessageKey } from "@/lib/i18n";
@@ -71,7 +71,7 @@ export function useFileActions({ space, parentId, byId }: { space: Space; parent
     toast.show({
       message,
       tone: partial ? "error" : "info",
-      action: { label: t("toast.undo"), run: () => restore(done) },
+      action: { label: t("toast.undo"), onClick: () => restore(done) },
     });
   }
 
