@@ -52,7 +52,7 @@ describe("AccountMenu", () => {
       "https://id.example.com/account",
     );
     // The current app is not offered.
-    expect(within(menu).queryByRole("menuitem", { name: "Kore" })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole("menuitem", { name: "KoreDrive" })).not.toBeInTheDocument();
     expect(within(menu).getByRole("menuitem", { name: "KoreMind" })).toHaveAttribute("href", urls.koremind);
     await user.click(within(menu).getByRole("menuitem", { name: "Sign out" }));
     expect(onSignOut).toHaveBeenCalledOnce();

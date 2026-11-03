@@ -7,7 +7,7 @@ export type ProductId = AppId | "kore-id";
 export type AppInfo = { id: ProductId; name: string; description: string };
 
 export const KORE_PRODUCTS: Record<ProductId, AppInfo> = {
-  kore: { id: "kore", name: "Kore", description: "Files" },
+  kore: { id: "kore", name: "KoreDrive", description: "Files" },
   koremind: { id: "koremind", name: "KoreMind", description: "Assistant" },
   korecalendar: { id: "korecalendar", name: "KoreCalendar", description: "Calendar" },
   flatline: { id: "flatline", name: "KoreMonitor", description: "Uptime" },
@@ -20,7 +20,7 @@ export const KORE_APP_IDS: readonly AppId[] = ["kore", "koremind", "korecalendar
 /** Where each app lives. Apps missing from the map are not shown (e.g. the user has no access). */
 export type AppUrls = Partial<Record<AppId, string>>;
 
-/** Override display names, e.g. `{ flatline: "Flatline" }` until the rename ships. */
+/** Override display names, e.g. `{ flatline: "Flatline" }` for an older name. */
 export type AppNames = Partial<Record<ProductId, string>>;
 
 export function productName(id: ProductId, names?: AppNames): string {
