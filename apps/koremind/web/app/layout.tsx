@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { MotionRoot } from "@/components/MotionRoot";
-import { SessionProvider } from "@/lib/session";
+import { Providers } from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = { title: "KoreMind", description: "Your personal assistant" };
@@ -11,7 +10,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <MotionRoot><SessionProvider>{children}</SessionProvider></MotionRoot>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

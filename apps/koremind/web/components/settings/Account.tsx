@@ -1,53 +1,52 @@
 "use client";
+import { Button, Card, SettingsSection, StatusDot } from "@qarasky/kore-ui";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Card, SectionHeader } from "./parts";
 import { ConnectPhone } from "./ConnectPhone";
-import { Button } from "@/components/ui";
 import { useSession } from "@/lib/session";
 import { beginSso, parseSsoHash, ssoErrorMessage } from "@/lib/sso";
 import { t } from "@/lib/strings";
 
 export function AccountSection() {
-  const { api, baseUrl, user, signOut } = useSession();
-  const [sso, setSso] = useState(false);
-  const [note, setNote] = useState("");
+  const { api, baseUrl, user, server, signOut } = useSession();
+  const [note, setNote] = useState<{ text: string; error: boolean } | null>(null);
   const [linkedNow, setLinkedNow] = useState(false);
-  useEffect(() => { api?.health().then((h) => setSso(!!h.sso)).catch(() => {}); }, [api]);
   // Back from linking a Kore ID: the backend put the result after the #.
   useEffect(() => {
     const back = parseSsoHash(location.hash);
     if (!back) return;
-    history.replaceState(null, "", location.pathname);
-    setNote(back.error ? ssoErrorMessage(back.error) : t.koreIdLinkedDone);
+    history.replaceState(null, "", location.pathname + "#account");
+    setNote(back.error ? { text: ssoErrorMessage(back.error), error: true } : { text: t.koreIdLinkedDone, error: false });
     if (back.linked) setLinkedNow(true);
   }, [api]);
-  const link = async () => { if (!api) return; try { await beginSso(api, "/settings"); } catch (e) { setNote(e instanceof Error ? e.message : t.genericError); } };
+  const link = async () => { if (!api) return; try { await beginSso(api, "/settings"); } catch (e) { setNote({ text: e instanceof Error ? e.message : t.genericError, error: true }); } };
+  const linked = !!user?.ssoLinked || linkedNow;
   return (
-    <section>
-      <SectionHeader title={t.account} hint={t.accountHint} />
-      <Card>
-        <div className="flex min-h-row items-center justify-between gap-3 border-b border-border px-4">
-          <span className="text-sub text-muted">{t.signedInAs}</span>
-          <span className="truncate text-sub">{user?.email}</span>
-        </div>
-        {sso && (
+    <>
+      <SettingsSection title={t.account} description={t.accountHint}>
+        <Card>
           <div className="flex min-h-row items-center justify-between gap-3 border-b border-border px-4">
-            <span className="text-sub text-muted">{t.koreId}</span>
-            {user?.ssoLinked || linkedNow ? <span className="text-sub">{t.koreIdLinked}</span> : <Button variant="ghost" onClick={() => void link()}>{t.linkKoreId}</Button>}
+            <span className="text-muted">{t.signedInAs}</span>
+            <span className="truncate">{user?.email}</span>
           </div>
-        )}
-        <div className="flex min-h-row items-center justify-between gap-3 px-4 py-2">
-          <div className="min-w-0">
-            <p className="text-sub text-muted">{t.server}</p>
-            <p className="break-all text-meta">{baseUrl}</p>
+          {server?.sso && (
+            <div className="flex min-h-row items-center justify-between gap-3 border-b border-border px-4 py-2">
+              <span className="text-muted">{t.koreId}</span>
+              {linked ? <StatusDot status="up" label={t.koreIdLinked} tintLabel={false} /> : <Button size="sm" onClick={() => void link()}>{t.linkKoreId}</Button>}
+            </div>
+          )}
+          <div className="flex min-h-row items-center justify-between gap-3 px-4 py-2">
+            <div className="min-w-0">
+              <p className="text-muted">{t.server}</p>
+              <p className="break-all text-meta">{baseUrl}</p>
+            </div>
+            <Button asChild size="sm"><Link href="/connect">{t.changeServer}</Link></Button>
           </div>
-          <Link href="/connect" className="shrink-0 text-meta text-accent underline underline-offset-2">{t.changeServer}</Link>
-        </div>
-      </Card>
-      {note && <p className="mt-3 text-meta text-muted" role="status">{note}</p>}
+        </Card>
+        {note && <p className={note.error ? "text-meta text-danger" : "text-meta text-muted"} role={note.error ? "alert" : "status"}>{note.text}</p>}
+      </SettingsSection>
       <ConnectPhone />
-      <div className="mt-4"><Button variant="danger" onClick={() => void signOut()}>{t.signOut}</Button></div>
-    </section>
+      <SettingsSection title={t.signOut} description={t.signOutHint} actions={<Button variant="danger-outline" onClick={() => void signOut()}>{t.signOut}</Button>} />
+    </>
   );
 }

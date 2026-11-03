@@ -1,10 +1,9 @@
 "use client";
-import { Smartphone } from "lucide-react";
+import { Button, SettingsSection } from "@qarasky/kore-ui";
 import { AnimatePresence, motion } from "motion/react";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
-import { Card } from "./parts";
-import { Button, ErrorText } from "@/components/ui";
+import { InlineError } from "@/components/InlineError";
 import { secondsLeft } from "@/lib/pair-timer";
 import { collapse } from "@/lib/motion";
 import { useSession } from "@/lib/session";
@@ -43,26 +42,21 @@ export function ConnectPhone() {
   const expired = !!code && left === 0;
 
   return (
-    <Card className="mt-4 p-4">
-      <div className="flex items-start gap-3">
-        <span className="grid size-9 shrink-0 place-items-center rounded-ui bg-raised text-muted" aria-hidden><Smartphone size={18} /></span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sub font-medium">{t.connectPhone}</p>
-          <p className="mt-0.5 text-meta text-muted">{t.connectPhoneHint}</p>
-        </div>
-      </div>
+    <SettingsSection
+      title={t.connectPhone} description={t.connectPhoneHint}
+      actions={<Button variant={code && !expired ? "secondary" : "primary"} loading={busy} onClick={() => void create()}>{code ? t.newCode : t.showQr}</Button>}
+    >
       <AnimatePresence initial={false}>
         {code && (
           <motion.div variants={collapse} initial="hidden" animate="show" exit="exit" className="overflow-hidden">
-            <div className="flex flex-col items-center gap-3 pt-4">
-              <div className={`rounded-ui bg-white p-2 transition-opacity [&>svg]:size-full ${expired ? "opacity-20" : ""}`} role="img" aria-label={t.qrLabel} style={{ width: 208, height: 208 }} dangerouslySetInnerHTML={{ __html: code.svg }} />
+            <div className="flex flex-col items-center gap-3 py-2">
+              <div className={`rounded-overlay bg-white p-2 transition-opacity [&>svg]:size-full ${expired ? "opacity-20" : ""}`} role="img" aria-label={t.qrLabel} style={{ width: 208, height: 208 }} dangerouslySetInnerHTML={{ __html: code.svg }} />
               <p className="text-meta text-muted" role="status">{expired ? t.codeExpired : t.codeExpiresIn(Math.floor(left / 60), left % 60)}</p>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-      <div className="mt-4"><Button variant={code && !expired ? "ghost" : "primary"} onClick={() => void create()} disabled={busy}>{code ? t.newCode : t.showQr}</Button></div>
-      <div className="mt-2"><ErrorText>{error}</ErrorText></div>
-    </Card>
+      <InlineError>{error}</InlineError>
+    </SettingsSection>
   );
 }

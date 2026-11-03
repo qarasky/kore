@@ -1,12 +1,13 @@
 "use client";
 import type { Attachment } from "@koremind/shared";
+import { IconButton } from "@qarasky/kore-ui";
 import { ArrowUp, FileText, Paperclip, Square, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRef, useState, type KeyboardEvent } from "react";
 import { ModelPicker } from "./ModelPicker";
-import { ErrorText } from "./ui";
+import { InlineError } from "./InlineError";
 import { canSend } from "@/lib/chat-state";
-import { pop, quick, spring } from "@/lib/motion";
+import { pop, spring } from "@/lib/motion";
 import { useModelChoice } from "@/lib/contexts";
 import { lacksVision } from "@/lib/model-picker";
 import { useSession } from "@/lib/session";
@@ -48,16 +49,18 @@ export function Composer({ busy, onSend, onStop }: { busy: boolean; onSend(text:
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); }
   };
 
+  // Chat-specific: a multi-line field styled like a kore-ui input (bg/60, hairline, accent border + ring on focus) that holds
+  // the attachments, the model picker and the send button.
   return (
-    <div className="mx-auto w-full max-w-3xl px-3 pb-3 sm:px-4 sm:pb-4">
-      <div className="rounded-[20px] border border-border bg-surface p-2 focus-within:border-border-strong">
+    <div className="mx-auto w-full max-w-reading px-3 pb-3 md:px-4 md:pb-4">
+      <div className="rounded-overlay border border-border bg-bg/60 p-2 transition-colors hover:border-border-strong focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25 focus-within:hover:border-accent">
         <div className="flex flex-wrap gap-2 px-1 pt-1 empty:hidden">
           <AnimatePresence initial={false} mode="popLayout">
             {files.map((f) => (
-              <motion.span key={f.id} layout transition={spring} variants={pop} initial="hidden" animate="show" exit="exit" className="mb-2 flex items-center gap-1 rounded-ui bg-raised py-1 pl-2 pr-1 text-meta">
-                {f.mime.startsWith("image/") ? <img src={api?.uploadUrl(f.id)} alt="" className="size-5 rounded object-cover" /> : <FileText size={14} aria-hidden />}
+              <motion.span key={f.id} layout transition={spring} variants={pop} initial="hidden" animate="show" exit="exit" className="mb-1 flex h-control-sm items-center gap-1.5 rounded-ui border border-border bg-raised pl-2 text-meta">
+                {f.mime.startsWith("image/") ? <img src={api?.uploadUrl(f.id)} alt="" className="size-5 rounded-[4px] object-cover" /> : <FileText className="size-4 text-muted" aria-hidden />}
                 <span className="max-w-32 truncate">{f.name}</span>
-                <button type="button" aria-label={t.delete} onClick={() => setFiles((cur) => cur.filter((x) => x.id !== f.id))} className="grid size-5 place-items-center text-muted hover:text-text"><X size={14} /></button>
+                <IconButton label={`${t.delete} ${f.name}`} icon={<X />} tooltip={false} onClick={() => setFiles((cur) => cur.filter((x) => x.id !== f.id))} className="size-7" />
               </motion.span>
             ))}
           </AnimatePresence>
@@ -69,24 +72,28 @@ export function Composer({ busy, onSend, onStop }: { busy: boolean; onSend(text:
           rows={1}
           placeholder={t.composerPlaceholder}
           aria-label={t.composerPlaceholder}
-          className="block max-h-[200px] w-full resize-none bg-transparent px-2 py-2 text-heading text-text outline-none placeholder:text-muted"
+          className="block max-h-[200px] w-full resize-none bg-transparent px-2 py-2 text-text outline-none placeholder:text-muted focus-visible:outline-none"
         />
         <div className="flex items-center gap-1">
           <input ref={input} type="file" multiple accept="image/*,application/pdf,text/*,application/json" hidden onChange={(e) => void pick(e.target.files)} />
-          <button type="button" aria-label={t.attach} title={t.attach} onClick={() => input.current?.click()} className="grid size-control-sm place-items-center rounded-ui text-muted hover:bg-raised hover:text-text"><Paperclip size={18} /></button>
+          <IconButton label={t.attach} icon={<Paperclip />} onClick={() => input.current?.click()} />
           <ModelPicker />
           <div className="flex-1" />
           <AnimatePresence initial={false} mode="popLayout">
             {busy ? (
-              <motion.button key="stop" type="button" aria-label={t.stop} onClick={onStop} variants={pop} initial="hidden" animate="show" exit="exit" whileTap={{ scale: 0.92 }} className="grid size-control place-items-center rounded-full bg-text text-bg"><Square size={14} fill="currentColor" /></motion.button>
+              <motion.span key="stop" variants={pop} initial="hidden" animate="show" exit="exit" className="flex">
+                <IconButton label={t.stop} icon={<Square className="size-3.5" fill="currentColor" />} variant="secondary" size="md" onClick={onStop} />
+              </motion.span>
             ) : (
-              <motion.button key="send" type="button" aria-label={t.send} onClick={submit} disabled={!canSend({ text, fileCount: files.length, uploading, busy, hasModel: !!model })} variants={pop} initial="hidden" animate="show" exit="exit" whileTap={{ scale: 0.92 }} className="grid size-control place-items-center rounded-full bg-accent text-white transition-opacity hover:bg-accent-hover disabled:opacity-40"><ArrowUp size={20} /></motion.button>
+              <motion.span key="send" variants={pop} initial="hidden" animate="show" exit="exit" className="flex">
+                <IconButton label={t.send} icon={<ArrowUp />} variant="primary" size="md" onClick={submit} disabled={!canSend({ text, fileCount: files.length, uploading, busy, hasModel: !!model })} />
+              </motion.span>
             )}
           </AnimatePresence>
         </div>
       </div>
       <div className="mt-2 px-2">
-        <ErrorText>{error || (!model ? t.noModel : "") || (lacksVision(files, model) ? t.noPhotosWarning : "")}</ErrorText>
+        <InlineError>{error || (!model ? t.noModel : "") || (lacksVision(files, model) ? t.noPhotosWarning : "")}</InlineError>
       </div>
     </div>
   );

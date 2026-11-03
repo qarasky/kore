@@ -1,5 +1,5 @@
 "use client";
-import type { AuthResponse, User } from "@koremind/shared";
+import type { AuthResponse, Health, User } from "@koremind/shared";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createApi, type Api } from "./api";
@@ -13,6 +13,10 @@ type Ctx = {
   api: Api | null;
   user: User | null;
   baseUrl: string | null;
+  /** The server's /health: Kore ID on/off, password sign-in, the Kore ID account page, other Kore apps. Null until loaded. */
+  server: Health | null;
+  /** Re-reads /health (after setup, when the owner exists). */
+  reloadServer(): Promise<Health | null>;
   setBaseUrl(url: string): void;
   signedIn(r: AuthResponse): void;
   signOut(): Promise<void>;
@@ -29,6 +33,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [baseUrl, setBase] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [server, setServer] = useState<Health | null>(null);
   const router = useRouter();
   const path = usePathname();
 
@@ -52,6 +57,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
+  const reloadServer = useCallback(async () => {
+    const h = api ? await api.health().catch(() => null) : null;
+    setServer(h);
+    return h;
+  }, [api]);
+  useEffect(() => { void reloadServer(); }, [reloadServer]);
+
   useEffect(() => {
     if (!ready) return;
     if (!baseUrl) { if (path !== "/connect") router.replace("/connect"); }
@@ -59,7 +71,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [ready, baseUrl, user, path, router]);
 
   const value: Ctx = {
-    ready, api, user, baseUrl,
+    ready, api, user, baseUrl, server, reloadServer,
     setBaseUrl: useCallback((u: string) => { localStorage.setItem(URL_KEY, u); localStorage.removeItem(TOKEN_KEY); setToken(null); setUser(null); setBase(u); }, []),
     signedIn: useCallback((r: AuthResponse) => { localStorage.setItem(TOKEN_KEY, r.token); setToken(r.token); setUser(r.user); }, []),
     signOut: useCallback(async () => {

@@ -57,7 +57,6 @@ export const t = {
   addKey: "Use an API key",
   hideKey: "Hide",
   replaceKey: "Replace key",
-  tonePresets: "How should it sound?",
   toneCustom: "Or describe it yourself",
   providerNeedsConnection: (name: string) => `Connect ${name} in Settings to use its models.`,
   providerDisabled: (name: string) => `${name} is turned off in Settings.`,
@@ -129,4 +128,24 @@ export const t = {
   menu: "Menu",
   genericError: "Something went wrong.",
   stopped: "Stopped",
+  // Frame (kore-ui AppShell, AccountMenu, AppSwitcher)
+  openNavigation: "Open navigation",
+  navigation: "Navigation",
+  closeNavigation: "Close navigation",
+  chats: "Chats",
+  apps: "Apps",
+  koreIdAccount: "Kore ID account",
+  switchApp: "Switch app",
+  settingsSections: "Settings sections",
+  // Chat
+  deleteChatTitle: (title: string) => `Delete “${title}”?`,
+  deleteChatBody: "The chat, its notes and its attachments are deleted. This can't be undone.",
+  deleting: "Deleting…",
+  // Sign-in
+  signingIn: "Signing in…",
+  creatingAccount: "Creating account…",
+  wrongPassword: "That email and password don't match. Try again.",
+  loading: "Loading…",
+  badAddress: "That doesn't look like an address. Try something like 192.168.1.20:8787.",
+  signOutHint: "Signs this browser out of KoreMind, and out of Kore ID if you signed in with it.",
 } as const;
