@@ -83,9 +83,12 @@ test.describe.serial("what an editor save must not do", () => {
   test("the grid keeps its scroll position after a save", async ({ page }) => {
     await openWeek(page, wed);
     const grid = page.getByTestId("time-grid");
-    await grid.evaluate((el) => (el.scrollTop = 600));
+    // Anywhere but where the grid opens by itself (which depends on the time of day), so a
+    // reset to the opening position cannot pass by coincidence.
+    const opening = await grid.evaluate((el) => el.scrollTop);
+    await grid.evaluate((el, target) => (el.scrollTop = target), Math.abs(opening - 600) < 120 ? 300 : 600);
     const before = await grid.evaluate((el) => el.scrollTop);
-    expect(before).toBeGreaterThan(300);
+    expect(Math.abs(before - opening)).toBeGreaterThan(100);
     const dialog = await openEditor(page, eventBlocks(page, "Late"));
     await fillEditor(dialog, { title: "Late (renamed)" });
     await saveEditor(dialog);

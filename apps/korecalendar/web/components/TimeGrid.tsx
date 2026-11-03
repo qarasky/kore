@@ -51,6 +51,9 @@ export function TimeGrid({ days, occurrences }: { days: string[]; occurrences: O
   }, [dropped, mover.busy, settle]);
 
   // Open near the start of the working day, or an hour and a half above the now-line.
+  // Keyed on the days' values: a refresh after a save delivers a new array with the same
+  // days, and must not throw the reader back to the top.
+  const daysKey = days.join(",");
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
@@ -59,7 +62,7 @@ export function TimeGrid({ days, occurrences }: { days: string[]; occurrences: O
     const nowMinutes = todayInGrid ? utcToLocal(new Date(), tz).minutes : null;
     const focus = nowMinutes === null ? 7 * 60 : Math.max(0, nowMinutes - 90);
     el.scrollTop = (focus / 60) * hour * rem;
-  }, [days, tz, todayInGrid]);
+  }, [daysKey, tz, todayInGrid]);
 
   const ghost = drag.ghost;
 
