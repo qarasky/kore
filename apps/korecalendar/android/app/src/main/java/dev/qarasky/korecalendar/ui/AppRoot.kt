@@ -70,6 +70,9 @@ fun AppRoot(controller: AppController, pendingOpen: StateFlow<Pair<String, Strin
     // A short message after a write; a delete offers Undo.
     LaunchedEffect(notice) {
         val n = notice ?: return@LaunchedEffect
+        // A write is done: the event on screen may be gone or split, so go back to the agenda.
+        openEventId = null
+        openEventKey = null
         val undo = n.undoEventId
         val result = snackbar.showSnackbar(
             message = n.message,
