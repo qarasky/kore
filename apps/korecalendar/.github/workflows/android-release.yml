@@ -74,9 +74,14 @@ jobs:
           [ -f "$src" ] || { echo "::error::No signed APK was produced (is the keystore wired in?)."; exit 1; }
           apksigner="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)"
           "$apksigner" verify --verbose "$src"
-          got="$("$apksigner" verify --print-certs "$src" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n1 | tr -d ':' | tr 'A-F' 'a-f')"
-          want="$(tr -d ':\n' < android/signing-fingerprint.txt | tr 'A-F' 'a-f')"
-          [ -n "$got" ] && [ "$got" = "$want" ] || { echo "::error::The APK is signed by a different certificate than android/signing-fingerprint.txt (got $got)."; exit 1; }
+          certs="$("$apksigner" verify --print-certs "$src" 2>&1)"
+          got="$(printf '%s\n' "$certs" | grep -m1 'certificate SHA-256 digest:' | sed 's/.*digest:[[:space:]]*//' | tr -d ':[:space:]' | tr 'A-F' 'a-f' || true)"
+          want="$(tr -d ':[:space:]' < android/signing-fingerprint.txt | tr 'A-F' 'a-f')"
+          if [ -z "$got" ] || [ "$got" != "$want" ]; then
+            echo "::error::The APK is not signed by the certificate in android/signing-fingerprint.txt (expected $want, apksigner reported \"$got\")."
+            echo "apksigner --print-certs said:"; printf '%s\n' "$certs"   # certificate details are public
+            exit 1
+          fi
           mkdir -p dist
           cp "$src" "dist/korecalendar-$v.apk"
           (cd dist && sha256sum "korecalendar-$v.apk" > "korecalendar-$v.apk.sha256")
