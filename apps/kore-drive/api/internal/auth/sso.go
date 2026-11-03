@@ -85,10 +85,11 @@ func LinkSub(ctx context.Context, db *sql.DB, userID, sub string) error {
 	return tx.Commit()
 }
 
-// ProvisionSSO creates an account for a first-time Kore ID user (role "user",
-// no usable password). users.ErrExists means the email is taken.
-func ProvisionSSO(ctx context.Context, db *sql.DB, sub, email string, quotaBytes int64) (users.User, error) {
-	u, err := users.Create(ctx, db, email, ssoNoPassword, "user", quotaBytes)
+// ProvisionSSO creates an account for a first-time Kore ID user (role is
+// normally "user"; the configured owner gets "admin" on a fresh install, no
+// usable password either way). users.ErrExists means the email is taken.
+func ProvisionSSO(ctx context.Context, db *sql.DB, sub, email, role string, quotaBytes int64) (users.User, error) {
+	u, err := users.Create(ctx, db, email, ssoNoPassword, role, quotaBytes)
 	if err != nil {
 		return users.User{}, err
 	}

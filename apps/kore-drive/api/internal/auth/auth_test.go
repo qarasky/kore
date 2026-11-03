@@ -136,6 +136,18 @@ func TestBootstrapOnlyWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestBootstrapLeavesTheFirstAdminToKoreIDOwner(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	cfg := config.Config{OIDC: config.OIDC{Issuer: "https://id.example.com", OwnerEmail: "owner@example.com"}}
+	if err := Bootstrap(ctx, db, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := users.Count(ctx, db); n != 0 {
+		t.Fatalf("users=%d", n)
+	}
+}
+
 func TestBootstrapAdminGetsDefaultQuota(t *testing.T) {
 	db := testDB(t)
 	ctx := context.Background()

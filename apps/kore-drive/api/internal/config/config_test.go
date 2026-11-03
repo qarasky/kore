@@ -108,23 +108,39 @@ func TestSSOFromEnvironment(t *testing.T) {
 	t.Setenv("KORE_LOCAL_LOGIN", "false")
 	t.Setenv("KORE_OIDC_LINK_BY_EMAIL", "false")
 	t.Setenv("KORE_OIDC_AUTO_PROVISION", "false")
+	t.Setenv("KORE_OIDC_OWNER_EMAIL", "  Owner@Example.COM ")
 	c, err := Load(write(t, required))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if c.OIDC.Issuer != "https://id.example.com" || c.PublicURL != "https://kore.example.com" || c.OIDC.ClientID != "kore" ||
-		c.OIDC.ClientSecret != "s3cret" || c.LocalLoginEnabled() || c.OIDC.LinkByEmailEnabled() || c.OIDC.AutoProvisionEnabled() {
+		c.OIDC.ClientSecret != "s3cret" || c.LocalLoginEnabled() || c.OIDC.LinkByEmailEnabled() || c.OIDC.AutoProvisionEnabled() ||
+		c.OIDC.OwnerEmail != "owner@example.com" || !c.FirstUserSSO() {
 		t.Fatalf("got %+v", c)
 	}
 }
 
 func TestSSOFromFile(t *testing.T) {
-	c, err := Load(write(t, required+"public_url = \"http://localhost:3000\"\n[oidc]\nissuer = \"http://localhost:4000\"\nclient_id = \"kore\"\n"))
+	c, err := Load(write(t, required+"public_url = \"http://localhost:3000\"\n[oidc]\nissuer = \"http://localhost:4000\"\nclient_id = \"kore\"\nowner_email = \"  Owner@Example.com \"\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !c.OIDC.Enabled() || !c.LocalLoginEnabled() || !c.OIDC.AutoProvisionEnabled() || !c.OIDC.LinkByEmailEnabled() {
+	if !c.OIDC.Enabled() || !c.LocalLoginEnabled() || !c.OIDC.AutoProvisionEnabled() || !c.OIDC.LinkByEmailEnabled() ||
+		c.OIDC.OwnerEmail != "owner@example.com" {
 		t.Fatalf("got %+v", c)
+	}
+}
+
+func TestFirstAdminFromKoreIDWithoutLocalPassword(t *testing.T) {
+	c, err := Load(write(t, "data_dir = \"/d\"\npublic_url = \"https://k.example.com\"\n[oidc]\nissuer = \"https://id.example.com\"\nowner_email = \"owner@example.com\"\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.FirstUserSSO() || c.AdminEmail != "" || c.AdminPassword != "" {
+		t.Fatalf("got %+v", c)
+	}
+	if _, err := Load(write(t, "data_dir = \"/d\"\npublic_url = \"https://k.example.com\"\n[oidc]\nissuer = \"https://id.example.com\"\n")); err == nil {
+		t.Fatal("admin credentials were not required without an owner email")
 	}
 }
 
@@ -147,6 +163,7 @@ func TestSSOMisconfigurationFails(t *testing.T) {
 		"issuer without public_url":   required + "[oidc]\nissuer = \"https://id.example.com\"\n",
 		"relative issuer":             required + "public_url = \"https://k.example.com\"\n[oidc]\nissuer = \"id.example.com\"\n",
 		"local_login off without sso": required + "local_login = false\n",
+		"bad owner_email":             required + "public_url = \"https://k.example.com\"\n[oidc]\nissuer = \"https://id.example.com\"\nowner_email = \"not an address\"\n",
 	} {
 		if _, err := Load(write(t, body)); err == nil {
 			t.Errorf("%s: expected an error", name)

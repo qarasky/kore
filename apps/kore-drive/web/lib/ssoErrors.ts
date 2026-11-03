@@ -6,6 +6,7 @@ const LOGIN: Record<string, MessageKey> = {
   sso_unavailable: "login.sso.error.unavailable",
   sso_email_in_use: "login.sso.error.emailInUse",
   sso_no_email: "login.sso.error.noEmail",
+  sso_no_admin: "login.sso.error.noAdmin",
   sso_not_provisioned: "login.sso.error.notProvisioned",
 };
 

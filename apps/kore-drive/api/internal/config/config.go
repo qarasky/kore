@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net"
+	"net/mail"
 	"net/url"
 	"os"
 	"strconv"
@@ -46,6 +47,10 @@ type OIDC struct {
 	LinkByEmail *bool `toml:"link_by_email"`
 	// AutoProvision creates a local account on first login (default true).
 	AutoProvision *bool `toml:"auto_provision"`
+	// OwnerEmail names the first administrator on a fresh install: the first
+	// Kore ID sign-in whose verified email matches becomes an admin, so the
+	// install can start without a local password account.
+	OwnerEmail string `toml:"owner_email"`
 	// Apps maps the other Kore apps (koremind, korecalendar, flatline) to
 	// their base URLs for the app switcher in the top bar and account menu.
 	// Optional; apps left out are not shown. KORE_APP_URLS overrides it as
@@ -67,6 +72,10 @@ func (o OIDC) LinkByEmailEnabled() bool { return o.LinkByEmail == nil || *o.Link
 
 // AutoProvisionEnabled reports whether unknown Kore ID users get an account.
 func (o OIDC) AutoProvisionEnabled() bool { return o.AutoProvision == nil || *o.AutoProvision }
+
+// FirstUserSSO reports whether a fresh install can create its first
+// administrator from Kore ID: Kore ID is enabled and an owner email is set.
+func (c Config) FirstUserSSO() bool { return c.OIDC.Enabled() && c.OIDC.OwnerEmail != "" }
 
 func envBool(name string, dst **bool) error {
 	v := os.Getenv(name)
@@ -113,6 +122,7 @@ func Load(path string) (Config, error) {
 		"KORE_OIDC_ISSUER":        &c.OIDC.Issuer,
 		"KORE_OIDC_CLIENT_ID":     &c.OIDC.ClientID,
 		"KORE_OIDC_CLIENT_SECRET": &c.OIDC.ClientSecret,
+		"KORE_OIDC_OWNER_EMAIL":   &c.OIDC.OwnerEmail,
 	} {
 		if v := os.Getenv(env); v != "" {
 			*dst = v
@@ -149,10 +159,12 @@ func Load(path string) (Config, error) {
 	if c.DataDir == "" {
 		return Config{}, errors.New("data_dir is required (config file or KORE_DATA_DIR)")
 	}
-	if c.AdminEmail == "" {
+	if c.AdminEmail == "" && c.AdminPassword == "" && c.FirstUserSSO() {
+		// A fresh install can name its first administrator through Kore ID
+		// instead of creating a local password account.
+	} else if c.AdminEmail == "" {
 		return Config{}, errors.New("admin_email is required (config file or KORE_ADMIN_EMAIL)")
-	}
-	if c.AdminPassword == "" {
+	} else if c.AdminPassword == "" {
 		return Config{}, errors.New("admin_password is required (config file or KORE_ADMIN_PASSWORD)")
 	}
 	return c, nil
@@ -161,6 +173,13 @@ func Load(path string) (Config, error) {
 func (c *Config) validateSSO() error {
 	c.PublicURL = strings.TrimRight(c.PublicURL, "/")
 	c.OIDC.Issuer = strings.TrimRight(c.OIDC.Issuer, "/")
+	c.OIDC.OwnerEmail = strings.ToLower(strings.TrimSpace(c.OIDC.OwnerEmail))
+	if c.OIDC.OwnerEmail != "" {
+		a, err := mail.ParseAddress(c.OIDC.OwnerEmail)
+		if err != nil || a.Name != "" || a.Address != c.OIDC.OwnerEmail || len(c.OIDC.OwnerEmail) > 254 {
+			return fmt.Errorf("invalid oidc owner_email %q", c.OIDC.OwnerEmail)
+		}
+	}
 	if !c.OIDC.Enabled() {
 		if !c.LocalLoginEnabled() {
 			return errors.New("local_login = false needs Kore ID: set oidc.issuer (KORE_OIDC_ISSUER)")

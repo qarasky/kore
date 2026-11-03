@@ -30,6 +30,7 @@ const en = {
   "login.sso.error.unavailable": "Kore ID is not responding. Try again in a moment.",
   "login.sso.error.emailInUse": "An account with your Kore ID email already exists here but is not linked to it. Sign in with your password and link Kore ID from the account page, or ask an admin.",
   "login.sso.error.noEmail": "Kore ID did not share an email address, so no account could be created.",
+  "login.sso.error.noAdmin": "This Kore has no administrator yet. Sign in with the configured owner's Kore ID email, or create the first account with a password.",
   "login.sso.error.notProvisioned": "You have no account here yet. Ask an admin to create one.",
   "login.expired": "Your session has ended. Please sign in again.",
 

@@ -255,6 +255,10 @@ Change it in the UI under **Account** (top-right menu), and add users
 under **Admin**. Keep `.env` readable only by you (`chmod 600`) and set its
 password to anything other than `change-me`.
 
+To start a fresh install with Kore ID alone, leave both empty and set
+`KORE_OIDC_OWNER_EMAIL` (see below); the first sign-in with that verified
+email creates the administrator account instead.
+
 ## Kore ID (single sign-on)
 
 Kore can sign people in with Kore ID, the
@@ -282,6 +286,7 @@ Then in `.env` (or `kore.toml`, see `kore.example.toml`):
 | `KORE_PUBLIC_URL` | | Kore's public address; required with the issuer |
 | `KORE_OIDC_CLIENT_ID` | `kore` | |
 | `KORE_OIDC_CLIENT_SECRET` | empty | the client secret (basic/post; `post` is used) |
+| `KORE_OIDC_OWNER_EMAIL` | empty | on a fresh install, the first Kore ID sign-in whose verified email equals this address becomes the administrator (`owner_email` in TOML); it also lets `KORE_ADMIN_EMAIL`/`KORE_ADMIN_PASSWORD` be left empty |
 | `KORE_OIDC_AUTO_PROVISION` | `true` | create an account on a person's first login (role `user`, default quota) |
 | `KORE_OIDC_LINK_BY_EMAIL` | `true` | on first login, adopt the unlinked local account with the same email when Kore ID says `email_verified` (see below) |
 | `KORE_LOCAL_LOGIN` | `true` | `false` turns email + password login off (login and change-password answer 403 `local_login_disabled`) |
@@ -317,6 +322,15 @@ users; Kore has no other API tokens.
 no SSO allowlist of its own. `KORE_OIDC_AUTO_PROVISION=false` is the only
 extra local filter: then only people who already have a (linked or
 email-matching) Kore account get in.
+
+**Administrators on a fresh install.** Auto-created accounts are normal users.
+If there are no users yet, a Kore ID sign-in is refused (`sso_no_admin`) unless
+its verified email equals `KORE_OIDC_OWNER_EMAIL` (or `owner_email` in the TOML
+file); that first sign-in creates the administrator. This only names the first
+administrator: once any account exists, the owner email promotes nobody else.
+Alternatively, create the first account with a password as above (or let the
+installer's `KORE_ADMIN_*` do it). This decides the role inside Kore; access to
+the app is granted in Kore ID.
 
 **Existing accounts.** On a first Kore ID login whose email matches a local
 account that is not linked yet, Kore links the two **only if the token says

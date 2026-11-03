@@ -7,12 +7,15 @@ import { api } from "./api";
  *  `issuer` is its base URL and `apps` the Kore apps' URLs for the switcher. */
 export type AuthConfig = {
   local_login: boolean;
+  /** Kore ID and an owner email are configured: the first Kore ID sign-in with
+   *  that verified email becomes the administrator on a fresh install. */
+  first_user_sso: boolean;
   oidc: boolean;
   issuer?: string;
   apps?: Partial<Record<"kore" | "koremind" | "korecalendar" | "flatline", string>>;
 };
 
-const FALLBACK: AuthConfig = { local_login: true, oidc: false };
+const FALLBACK: AuthConfig = { local_login: true, first_user_sso: false, oidc: false };
 
 /**
  * Cached per request. Any failure falls back to the password form: it has to
