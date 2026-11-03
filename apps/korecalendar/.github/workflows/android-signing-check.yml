@@ -37,8 +37,10 @@ jobs:
             || { echo "::error::The keystore does not open with the stored password, or has no alias \"$ALIAS\"."; exit 1; }
           fp="$(sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' <<<"$out" | head -n1)"
           [ -n "$fp" ] || { echo "::error::No SHA256 fingerprint found in the keytool output."; exit 1; }
-          # The key password must open the key too.
-          keytool -keypasswd -keystore "$ks" -alias "$ALIAS" -storepass:env STOREPASS -keypass:env KEYPASS -new "$KEYPASS" >/dev/null 2>&1 \
+          # The key password must open the key too: sign a throwaway jar with it.
+          mkdir "$RUNNER_TEMP/probe" && echo probe > "$RUNNER_TEMP/probe/probe.txt"
+          jar cf "$RUNNER_TEMP/probe.jar" -C "$RUNNER_TEMP/probe" probe.txt
+          jarsigner -keystore "$ks" -storepass:env STOREPASS -keypass:env KEYPASS "$RUNNER_TEMP/probe.jar" "$ALIAS" >/dev/null 2>&1 \
             || { echo "::error::The key password does not open the key \"$ALIAS\"."; exit 1; }
           echo "Certificate SHA-256: $fp"
           { echo "### Android release certificate"; echo; echo "SHA-256: \`$fp\`"; echo; echo "Put this value in \`android/signing-fingerprint.txt\`."; } >> "$GITHUB_STEP_SUMMARY"
