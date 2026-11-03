@@ -183,7 +183,7 @@ class AppController(
      * The form for a new event on [day] (today by default): in the account's zone, in the first visible calendar,
      * at the next full hour when the day is today and at nine otherwise, for an hour. Null when signed out.
      */
-    fun newEventForm(day: java.time.LocalDate? = null): FormValues? {
+    fun newEventForm(day: java.time.LocalDate? = null, at: java.time.LocalTime? = null): FormValues? {
         val account = accounts.load() ?: return null
         val snapshot = repo.snapshot.value ?: return null
         val zone = zoneOf(account.timezone)
@@ -191,6 +191,7 @@ class AppController(
         val calendarId = (snapshot.calendars.firstOrNull { it.id !in hidden } ?: snapshot.calendars.firstOrNull())?.id ?: ""
         val local = now().atZone(zone)
         val target = day ?: local.toLocalDate()
+        if (at != null) return newFormValues(target, at, 60, false, zone.id, calendarId)
         val time = if (target == local.toLocalDate()) local.toLocalTime().truncatedTo(java.time.temporal.ChronoUnit.HOURS).plusHours(1) else java.time.LocalTime.of(9, 0)
         // The next hour wraps past midnight: it is tomorrow at 00:00 (as on the web), not a time that is already past.
         val wraps = target == local.toLocalDate() && time < local.toLocalTime()
@@ -227,10 +228,22 @@ class AppController(
         publish()
     }
 
+    private val seen = HashMap<String, dev.qarasky.korecalendar.data.Occurrence>()
+
+    /** An occurrence by event id and key: from the phone's copy, or one a view or a search has shown from the server. */
+    fun findOccurrence(eventId: String, key: String): dev.qarasky.korecalendar.data.Occurrence? =
+        repo.snapshot.value?.occurrences?.firstOrNull { it.eventId == eventId && it.key == key } ?: seen["$eventId|$key"]
+
+    private fun remember(list: List<dev.qarasky.korecalendar.data.Occurrence>) {
+        if (seen.size > 2000) seen.clear()
+        list.forEach { seen["${it.eventId}|${it.key}"] = it }
+    }
+
     /** What the views show for a range of time, without the calendars the person hid. */
     suspend fun loadRange(from: Instant, to: Instant): RangeResult {
         val hidden = prefs.hiddenCalendars
         val r = ranges.load(from, to)
+        remember(r.occurrences)
         return r.copy(occurrences = r.occurrences.filter { it.calendarId !in hidden })
     }
 
@@ -239,12 +252,13 @@ class AppController(
         val zone = account?.let { zoneOf(it.timezone) } ?: ZoneId.of("UTC")
         val hidden = prefs.hiddenCalendars
         val r = SearchSource({ currentApi() }, store, zone, now).search(q)
+        remember(r.occurrences)
         return r.copy(occurrences = r.occurrences.filter { it.calendarId !in hidden })
     }
 
     /** Opens the editor on a new event on [day] (today by default). */
-    fun beginNew(day: java.time.LocalDate? = null) {
-        val form = newEventForm(day) ?: return
+    fun beginNew(day: java.time.LocalDate? = null, at: java.time.LocalTime? = null) {
+        val form = newEventForm(day, at) ?: return
         val e = newEditor() ?: return
         e.openNew(form)
         _editor.value = e

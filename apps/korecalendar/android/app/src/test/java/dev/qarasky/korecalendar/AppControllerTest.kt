@@ -322,4 +322,23 @@ class AppControllerTest {
         api.onOccurrences = { _, _ -> listOf(occ("gym"), occ("home", "c2")) }
         assertEquals(listOf("home"), controller.search("o").occurrences.map { it.eventId })
     }
+
+    @Test fun anEventSeenInAViewOrASearchCanBeOpenedByIdAndKey() = runTest {
+        signedIn()
+        assertEquals("gym", controller.findOccurrence("gym", "gym")?.title)
+        val far = occ("far").copy(key = "far-key")
+        api.onOccurrences = { _, _ -> listOf(far) }
+        assertEquals(null, controller.findOccurrence("far", "far-key"))
+        controller.loadRange(Instant.parse("2026-06-01T00:00:00Z"), Instant.parse("2026-07-01T00:00:00Z"))
+        assertEquals("far", controller.findOccurrence("far", "far-key")?.title)
+    }
+
+    @Test fun aTapOnTheGridOpensTheEditorAtThatTime() = runTest {
+        signedIn()
+        controller.beginNew(java.time.LocalDate.parse("2026-11-09"), java.time.LocalTime.of(14, 30))
+        val f = (controller.editor.value!!.state.value as dev.qarasky.korecalendar.edit.EditorState.Editing).form
+        assertEquals(java.time.LocalDate.parse("2026-11-09"), f.startDay)
+        assertEquals(java.time.LocalTime.of(14, 30), f.startTime)
+        assertEquals(java.time.LocalTime.of(15, 30), f.endTime)
+    }
 }
