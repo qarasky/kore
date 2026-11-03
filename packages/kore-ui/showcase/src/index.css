@@ -1,0 +1,4 @@
+/* Exactly what a consuming app writes. */
+@import "tailwindcss";
+@import "@qarasky/kore-ui/theme.css";
+@source "../node_modules/@qarasky/kore-ui/src";
