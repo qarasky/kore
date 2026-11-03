@@ -8,13 +8,18 @@ import { Dropdown } from "./Menu";
 import { useToast } from "./Toast";
 
 /** Avatar button in the top bar: who is signed in, password, sign out. */
-export function AccountMenu({ email }: { email: string }) {
+export function AccountMenu({ email, passwordLogin = true }: { email: string; passwordLogin?: boolean }) {
   const router = useRouter();
   const toast = useToast();
 
   async function signOut() {
     try {
-      await api("/api/auth/logout", { method: "POST" });
+      // 204, or 200 {redirect} for a Kore ID session: end the SSO session too.
+      const res = await api<{ redirect?: string } | undefined>("/api/auth/logout", { method: "POST" });
+      if (res?.redirect) {
+        window.location.assign(res.redirect);
+        return;
+      }
     } catch {
       toast.show({ message: t("account.signOutFailed"), tone: "error" });
       return;
@@ -38,7 +43,7 @@ export function AccountMenu({ email }: { email: string }) {
       items={[
         {
           id: "password",
-          label: t("account.changePassword"),
+          label: passwordLogin ? t("account.changePassword") : t("account.title"),
           icon: <KeyIcon />,
           onSelect: () => router.push("/account"),
         },

@@ -9,6 +9,7 @@ import { ToastProvider } from "@/components/Toast";
 import { UploadProvider } from "@/components/UploadContext";
 import { Wordmark } from "@/components/wordmark";
 import { api } from "@/lib/api";
+import { getAuthConfig } from "@/lib/authConfig";
 import type { Usage } from "@/lib/nodes";
 import { requireUser } from "@/lib/session";
 
@@ -16,6 +17,7 @@ import { requireUser } from "@/lib/session";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
   const usage = await api<Usage>("/api/me/usage");
+  const auth = await getAuthConfig();
 
   return (
     <ToastProvider>
@@ -29,7 +31,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               <div className="flex min-w-0 flex-1">
                 <SearchBox />
               </div>
-              <AccountMenu email={user.email} />
+              <AccountMenu email={user.email} passwordLogin={auth.local_login} />
             </header>
             <div className="flex min-h-0 flex-1">
               <aside className="flex w-[256px] shrink-0 flex-col gap-4 px-3 pb-4">
