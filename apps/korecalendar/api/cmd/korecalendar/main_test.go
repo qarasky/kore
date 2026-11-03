@@ -152,3 +152,16 @@ func TestServeStartsBackgroundWorkAndStopsOnCancel(t *testing.T) {
 		t.Fatal("background work was still running when serve returned")
 	}
 }
+
+func TestVersionCommandPrintsToStdout(t *testing.T) {
+	var out, stderr bytes.Buffer
+	old := stdout
+	stdout = &out
+	t.Cleanup(func() { stdout = old })
+	if code := run(context.Background(), []string{"version"}, &stderr); code != 0 {
+		t.Fatalf("version exit %d: %s", code, stderr.String())
+	}
+	if !strings.HasPrefix(out.String(), "korecalendar ") || stderr.Len() != 0 {
+		t.Fatalf("stdout %q, stderr %q", out.String(), stderr.String())
+	}
+}

@@ -26,6 +26,7 @@ import (
 	"github.com/qarasky/korecalendar/api/internal/push"
 	"github.com/qarasky/korecalendar/api/internal/reminders"
 	"github.com/qarasky/korecalendar/api/internal/store"
+	"github.com/qarasky/korecalendar/api/internal/version"
 	"github.com/qarasky/korecalendar/api/internal/volume"
 )
 
@@ -34,7 +35,11 @@ const usage = `usage:
   korecalendar init [-config korecal.toml]     initialize the data volume (writes the marker)
   korecalendar healthcheck [-config korecal.toml | -url URL]
                                                exit 0 if GET /api/healthz returns 200
+  korecalendar version                         print the release this binary was built from
 `
+
+// stdout is where `version` prints (replaced in tests).
+var stdout io.Writer = os.Stdout
 
 // shutdownGrace is how long in-flight requests get to finish on SIGTERM/SIGINT.
 const shutdownGrace = 30 * time.Second
@@ -64,6 +69,9 @@ func run(ctx context.Context, args []string, stderr io.Writer) int {
 	case "serve", "init":
 	case "healthcheck":
 		url = fs.String("url", "", "health URL (default: derived from the config's bind and port)")
+	case "version":
+		fmt.Fprintln(stdout, "korecalendar", version.String())
+		return 0
 	case "help":
 		fmt.Fprint(stderr, usage)
 		return 0
@@ -233,7 +241,7 @@ func serveWith(ctx context.Context, cfg config.Config, logger *log.Logger, onBac
 	if err != nil {
 		return err
 	}
-	logger.Printf("korecalendar listening on %s", addr)
+	logger.Printf("korecalendar %s listening on %s", version.String(), addr)
 	return serveUntil(ctx, newServer(addr, httpapi.New(db, cfg.DataDir)), ln, shutdownGrace, logger)
 }
 

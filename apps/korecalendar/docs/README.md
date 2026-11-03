@@ -13,6 +13,7 @@
 
 **For contributors** (see also [../AGENTS.md](../AGENTS.md) and [../web/README.md](../web/README.md))
 
+- [releasing.md](releasing.md): versioning, image tags, how a release is cut and published (and the Android plan).
 - [superpowers/specs/](superpowers/specs/): the designs, with the decisions and who made them:
   [overall design](superpowers/specs/2026-11-02-korecalendar-design.md), [CalDAV](superpowers/specs/2026-11-02-caldav-design.md),
   [web motion](superpowers/specs/2026-11-02-web-motion-design.md) (with the references behind every number).
