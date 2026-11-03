@@ -1,5 +1,5 @@
 {
-  "name": "zero",
+  "name": "koremind",
   "private": true,
   "workspaces": [
     "backend",

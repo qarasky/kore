@@ -1,5 +1,5 @@
 {
-  "name": "@zero/shared",
+  "name": "@koremind/shared",
   "private": true,
   "type": "module",
   "main": "src/index.ts",

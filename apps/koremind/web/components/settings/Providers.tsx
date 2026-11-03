@@ -1,5 +1,5 @@
 "use client";
-import type { ProviderConnection, Settings } from "@zero/shared";
+import type { ProviderConnection, Settings } from "@koremind/shared";
 import { KeyRound, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";

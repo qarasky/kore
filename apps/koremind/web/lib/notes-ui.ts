@@ -1,4 +1,4 @@
-import type { Activity } from "@zero/shared";
+import type { Activity } from "@koremind/shared";
 import { t } from "./strings";
 
 export type PendingApproval = { id: string; action: "read" | "edit"; chat: string };

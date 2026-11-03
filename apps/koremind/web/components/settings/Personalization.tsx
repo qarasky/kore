@@ -1,5 +1,5 @@
 "use client";
-import type { Settings } from "@zero/shared";
+import type { Settings } from "@koremind/shared";
 import { Card, Chip, SectionHeader } from "./parts";
 import { Field } from "@/components/ui";
 import { TONE_PRESETS, activePreset, togglePreset } from "@/lib/settings-model";

@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import type { Activity } from "@zero/shared";
+import type { Activity } from "@koremind/shared";
 import type { Outcome } from "./approvals";
 
 export type NoteCtx = { userId: string; chatId: string };

@@ -12,6 +12,6 @@ export function listAddresses(ifaces: Record<string, NetworkInterfaceInfo[] | un
   const out: Address[] = v4.filter((ip) => !isTailscale(ip)).map((ip) => ({ label: "local" as const, url: `http://${ip}:${port}` }));
   if (!out.length) out.push({ label: "local", url: `http://localhost:${port}` });
   for (const ip of v4.filter(isTailscale)) out.push({ label: "tailscale", url: `http://${ip}:${port}` });
-  if (env.ZERO_PUBLIC_URL) out.push({ label: "domain", url: env.ZERO_PUBLIC_URL.replace(/\/$/, "") });
+  if (env.KOREMIND_PUBLIC_URL) out.push({ label: "domain", url: env.KOREMIND_PUBLIC_URL.replace(/\/$/, "") });
   return out;
 }

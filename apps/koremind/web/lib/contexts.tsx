@@ -1,5 +1,5 @@
 "use client";
-import type { ChatSummary, ProviderInfo } from "@zero/shared";
+import type { ChatSummary, ProviderInfo } from "@koremind/shared";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { defaultChoice, isChoiceAllowed } from "./model-picker";
 import { useSession } from "./session";
@@ -31,7 +31,7 @@ type ModelCtx = {
 };
 const ModelContext = createContext<ModelCtx | null>(null);
 export const useModelChoice = () => { const c = useContext(ModelContext); if (!c) throw new Error("ModelChoiceProvider missing"); return c; };
-const CHOICE_KEY = "zero.model";
+const CHOICE_KEY = "koremind.model";
 
 export function ModelChoiceProvider({ children }: { children: ReactNode }) {
   const { api } = useSession();

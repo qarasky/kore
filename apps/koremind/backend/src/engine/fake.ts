@@ -1,4 +1,4 @@
-import type { ModelInfo, ProviderConnection, ProviderInfo, SignInStart, SignInStatus } from "@zero/shared";
+import type { ModelInfo, ProviderConnection, ProviderInfo, SignInStart, SignInStatus } from "@koremind/shared";
 import type { Engine, EngineEvent, ModelRef, PromptArgs } from "./types";
 
 export type FakeOptions = {
@@ -13,7 +13,7 @@ export type FakeOptions = {
   delayMs?: number;
 };
 
-/** Scripted engine for tests and for running without OpenCode (ZERO_FAKE_ENGINE=1). */
+/** Scripted engine for tests and for running without OpenCode (KOREMIND_FAKE_ENGINE=1). */
 export class FakeEngine implements Engine {
   sessions = new Set<string>();
   prompts: PromptArgs[] = [];

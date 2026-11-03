@@ -19,7 +19,7 @@ test("deleting a chat cascades its messages", () => {
 });
 
 test("opening the same file twice runs migrations once", () => {
-  const path = `/tmp/zero-db-${crypto.randomUUID()}.sqlite`;
+  const path = `/tmp/koremind-db-${crypto.randomUUID()}.sqlite`;
   openDb(path).close();
   const db = openDb(path);
   expect((db.query("select count(*) c from schema_migrations").get() as { c: number }).c).toBe(2);
@@ -38,5 +38,5 @@ test("notes belong to a chat and go with it; messages default to no activity", (
 
 test("loadConfig defaults", () => {
   expect(loadConfig({})).toEqual({ port: 8787, dataDir: "./data", host: "0.0.0.0" });
-  expect(loadConfig({ ZERO_PORT: "9000", ZERO_DATA_DIR: "/x" })).toEqual({ port: 9000, dataDir: "/x", host: "0.0.0.0" });
+  expect(loadConfig({ KOREMIND_PORT: "9000", KOREMIND_DATA_DIR: "/x" })).toEqual({ port: 9000, dataDir: "/x", host: "0.0.0.0" });
 });

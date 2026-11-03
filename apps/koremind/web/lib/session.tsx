@@ -1,12 +1,12 @@
 "use client";
-import type { AuthResponse, User } from "@zero/shared";
+import type { AuthResponse, User } from "@koremind/shared";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createApi, type Api } from "./api";
 import { normalizeBackendUrl } from "./backend-url";
 
-const URL_KEY = "zero.backendUrl";
-const TOKEN_KEY = "zero.token";
+const URL_KEY = "koremind.backendUrl";
+const TOKEN_KEY = "koremind.token";
 
 type Ctx = {
   ready: boolean;

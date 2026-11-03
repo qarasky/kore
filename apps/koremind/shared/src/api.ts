@@ -3,7 +3,7 @@ import { z } from "zod";
 export const User = z.object({ id: z.string(), email: z.string(), isOwner: z.boolean() });
 export type User = z.infer<typeof User>;
 
-export const Health = z.object({ name: z.literal("zero"), version: z.string(), setupRequired: z.boolean() });
+export const Health = z.object({ name: z.literal("koremind"), version: z.string(), setupRequired: z.boolean() });
 export type Health = z.infer<typeof Health>;
 
 export const AuthRequest = z.object({ email: z.string().email(), password: z.string().min(8) });
@@ -120,7 +120,7 @@ export const PairStart = z.object({
   expiresAt: z.number(),
   /** Addresses of the backend, best first (local network, Tailscale, domain). */
   urls: z.array(z.string()),
-  /** What the QR code contains: zero://pair?c=<code>&u=<url>&u=<url>... */
+  /** What the QR code contains: koremind://pair?c=<code>&u=<url>&u=<url>... */
   link: z.string(),
 });
 export type PairStart = z.infer<typeof PairStart>;

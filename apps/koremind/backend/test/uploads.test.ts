@@ -8,7 +8,7 @@ import { createUploads, UploadError } from "../src/uploads";
 const setup = (max = 1024) => {
   const db = openDb(":memory:");
   for (const u of ["u1", "u2"]) db.run("insert into users(id,email,password_hash,is_owner,created_at) values(?,?,?,0,1)", [u, `${u}@x.co`, "h"]);
-  return createUploads(db, mkdtempSync(join(tmpdir(), "zero-up-")), max);
+  return createUploads(db, mkdtempSync(join(tmpdir(), "koremind-up-")), max);
 };
 const err = async (p: Promise<unknown>) => { try { await p; return null; } catch (e) { return e as UploadError; } };
 

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { ProviderInfo } from "@zero/shared";
+import type { ProviderInfo } from "@koremind/shared";
 import { chipLabel, filterModels, thinkingLabel } from "../lib/model-picker";
 
 const providers: ProviderInfo[] = [

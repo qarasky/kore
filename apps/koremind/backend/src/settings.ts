@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import { defaultSettings, type MemoryEntry, type Settings } from "@zero/shared";
+import { defaultSettings, type MemoryEntry, type Settings } from "@koremind/shared";
 
 export function createSettings(db: Database) {
   return {

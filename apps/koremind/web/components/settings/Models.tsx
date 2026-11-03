@@ -1,5 +1,5 @@
 "use client";
-import type { ProviderInfo } from "@zero/shared";
+import type { ProviderInfo } from "@koremind/shared";
 import { Star } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { Card, SectionHeader } from "./parts";

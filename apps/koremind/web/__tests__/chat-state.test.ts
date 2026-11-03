@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { StreamEvent } from "@zero/shared";
+import type { StreamEvent } from "@koremind/shared";
 import { applyEvent, beginTurn, emptyChat } from "../lib/chat-state";
 
 const run = (events: StreamEvent[], text = "hi") => events.reduce(applyEvent, beginTurn(emptyChat, text, []));

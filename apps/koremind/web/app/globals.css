@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Zero design tokens: Kore's palette, dark only. */
+/* KoreMind design tokens: Kore's palette, dark only. */
 @theme {
   --color-bg: #16181d;
   --color-surface: #1d2026;
@@ -53,19 +53,19 @@
 }
 
 @layer components {
-  .zero-md { font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
-  .zero-md > * + * { margin-top: 0.8em; }
-  .zero-md h1, .zero-md h2, .zero-md h3 { font-weight: 600; letter-spacing: -0.01em; line-height: 1.3; }
-  .zero-md h1 { font-size: 1.35em; } .zero-md h2 { font-size: 1.2em; } .zero-md h3 { font-size: 1.05em; }
-  .zero-md ul { list-style: disc; padding-left: 1.4em; } .zero-md ol { list-style: decimal; padding-left: 1.4em; }
-  .zero-md a { color: var(--color-accent); text-decoration: underline; text-underline-offset: 2px; }
-  .zero-md code { font-family: var(--font-mono); font-size: 0.9em; background: var(--color-raised); border-radius: 4px; padding: 0.1em 0.35em; }
-  .zero-md pre { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-ui); padding: 12px; overflow-x: auto; }
-  .zero-md pre code { background: none; padding: 0; }
-  .zero-md blockquote { border-left: 3px solid var(--color-border-strong); padding-left: 12px; color: var(--color-muted); }
-  .zero-md table { border-collapse: collapse; } .zero-md th, .zero-md td { border: 1px solid var(--color-border); padding: 4px 8px; }
+  .koremind-md { font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
+  .koremind-md > * + * { margin-top: 0.8em; }
+  .koremind-md h1, .koremind-md h2, .koremind-md h3 { font-weight: 600; letter-spacing: -0.01em; line-height: 1.3; }
+  .koremind-md h1 { font-size: 1.35em; } .koremind-md h2 { font-size: 1.2em; } .koremind-md h3 { font-size: 1.05em; }
+  .koremind-md ul { list-style: disc; padding-left: 1.4em; } .koremind-md ol { list-style: decimal; padding-left: 1.4em; }
+  .koremind-md a { color: var(--color-accent); text-decoration: underline; text-underline-offset: 2px; }
+  .koremind-md code { font-family: var(--font-mono); font-size: 0.9em; background: var(--color-raised); border-radius: 4px; padding: 0.1em 0.35em; }
+  .koremind-md pre { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-ui); padding: 12px; overflow-x: auto; }
+  .koremind-md pre code { background: none; padding: 0; }
+  .koremind-md blockquote { border-left: 3px solid var(--color-border-strong); padding-left: 12px; color: var(--color-muted); }
+  .koremind-md table { border-collapse: collapse; } .koremind-md th, .koremind-md td { border: 1px solid var(--color-border); padding: 4px 8px; }
   .dot-pulse { display: inline-flex; gap: 4px; }
-  .dot-pulse i { width: 5px; height: 5px; border-radius: 9999px; background: var(--color-muted); animation: zero-pulse 1.2s infinite ease-in-out; }
+  .dot-pulse i { width: 5px; height: 5px; border-radius: 9999px; background: var(--color-muted); animation: koremind-pulse 1.2s infinite ease-in-out; }
   .dot-pulse i:nth-child(2) { animation-delay: 0.15s; } .dot-pulse i:nth-child(3) { animation-delay: 0.3s; }
-  @keyframes zero-pulse { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+  @keyframes koremind-pulse { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
 }

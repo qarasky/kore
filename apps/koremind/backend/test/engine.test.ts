@@ -72,8 +72,8 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-test.skipIf(!process.env.ZERO_LIVE)("live: opencode lists models and streams a reply (or reports the free limit)", async () => {
-  const eng = await createOpencodeEngine({ dataDir: mkdtempSync(join(tmpdir(), "zero-live-")) });
+test.skipIf(!process.env.KOREMIND_LIVE)("live: opencode lists models and streams a reply (or reports the free limit)", async () => {
+  const eng = await createOpencodeEngine({ dataDir: mkdtempSync(join(tmpdir(), "koremind-live-")) });
   try {
     const providers = await eng.listProviders();
     expect(providers[0].id).toBe("opencode");
@@ -152,7 +152,7 @@ test.skipIf(!Bun.which("opencode"))("opencode end to end on a mock OpenRouter: c
     },
   });
   const eng = await createOpencodeEngine({
-    dataDir: mkdtempSync(join(tmpdir(), "zero-mock-")),
+    dataDir: mkdtempSync(join(tmpdir(), "koremind-mock-")),
     config: { providers: { openrouter: { settings: { baseURL: `http://127.0.0.1:${mock.port}/v1`, apiKey: "x" } } } },
   });
   try {
@@ -173,7 +173,7 @@ test.skipIf(!Bun.which("opencode"))("opencode end to end on a mock OpenRouter: c
     const before = calls.length;
     const title = await eng.complete({ kind: "title", system: "You name chats so a person can find them.", text: "User: hi", model });
     expect(title).toContain("Greeting Chat");
-    // Zero names chats itself, so the engine must not add a naming call of its own.
+    // KoreMind names chats itself, so the engine must not add a naming call of its own.
     expect(calls.length - before).toBe(1);
 
     await eng.removeProviderKey("openrouter");
@@ -181,8 +181,8 @@ test.skipIf(!Bun.which("opencode"))("opencode end to end on a mock OpenRouter: c
   } finally { eng.close(); mock.stop(); }
 }, 90_000);
 
-// The whole chain with nothing faked but the model: OpenCode -> Zero's /mcp -> notes -> approval card -> back to the model.
-test.skipIf(!Bun.which("opencode"))("a model saves a note through OpenCode and Zero's MCP endpoint, and asks approval to read another chat", async () => {
+// The whole chain with nothing faked but the model: OpenCode -> KoreMind's /mcp -> notes -> approval card -> back to the model.
+test.skipIf(!Bun.which("opencode"))("a model saves a note through OpenCode and KoreMind's MCP endpoint, and asks approval to read another chat", async () => {
   const { createApp } = await import("../src/http");
   const { createServices } = await import("../src/services");
   const { openDb } = await import("../src/db");
@@ -199,7 +199,7 @@ test.skipIf(!Bun.which("opencode"))("a model saves a note through OpenCode and Z
   };
   const script: ((c: Call) => string)[] = [
     (c) => toolCall(c.tools.find((n) => n.endsWith("save_note"))!, { title: "Milk", body: "2 litres" }),
-    () => toolCall("zero_read_notes", { chat: "Lisbon trip" }),
+    () => toolCall("koremind_read_notes", { chat: "Lisbon trip" }),
     () => text("Noted, and I looked at your Lisbon notes."),
   ];
   const mock = Bun.serve({
@@ -217,16 +217,16 @@ test.skipIf(!Bun.which("opencode"))("a model saves a note through OpenCode and Z
   });
   let app!: ReturnType<typeof createApp>;
   const secret = "e2e-secret";
-  const zero = Bun.serve({ port: 0, fetch: (req, srv) => app.fetch(req, srv.requestIP(req)?.address) });
+  const koremind = Bun.serve({ port: 0, fetch: (req, srv) => app.fetch(req, srv.requestIP(req)?.address) });
   const engine = await createOpencodeEngine({
-    dataDir: mkdtempSync(join(tmpdir(), "zero-e2e-")),
+    dataDir: mkdtempSync(join(tmpdir(), "koremind-e2e-")),
     config: {
       providers: { openrouter: { settings: { baseURL: `http://127.0.0.1:${mock.port}/v1`, apiKey: "x" } } },
-      mcp: { servers: { zero: { type: "remote", url: `http://127.0.0.1:${zero.port}/mcp`, oauth: false, codemode: false, headers: { authorization: `Bearer ${secret}` }, timeout: { execution: 60000 } } } },
+      mcp: { servers: { koremind: { type: "remote", url: `http://127.0.0.1:${koremind.port}/mcp`, oauth: false, codemode: false, headers: { authorization: `Bearer ${secret}` }, timeout: { execution: 60000 } } } },
     },
   });
   try {
-    const services = createServices({ db: openDb(":memory:"), dataDir: mkdtempSync(join(tmpdir(), "zero-e2e-d-")), engine, version: "t", mcpSecret: secret, approvalTimeoutMs: 20_000 });
+    const services = createServices({ db: openDb(":memory:"), dataDir: mkdtempSync(join(tmpdir(), "koremind-e2e-d-")), engine, version: "t", mcpSecret: secret, approvalTimeoutMs: 20_000 });
     app = createApp(services);
     await engine.setProviderKey("openrouter", "sk-test");
     const model = { providerId: "openrouter", modelId: (await engine.listProviders()).find((p) => p.id === "openrouter")!.models[0].id };
@@ -243,12 +243,12 @@ test.skipIf(!Bun.which("opencode"))("a model saves a note through OpenCode and Z
       if (e.type === "approval") services.approvals.answer(u, here.id, e.id, true);
     }
     expect(calls[0].tools.some((n) => n.endsWith("save_note"))).toBe(true);
-    expect(calls[0].tools.filter((n) => /note/.test(n)).sort()).toEqual(["zero_edit_note", "zero_read_notes", "zero_save_note"]);
+    expect(calls[0].tools.filter((n) => /note/.test(n)).sort()).toEqual(["koremind_edit_note", "koremind_read_notes", "koremind_save_note"]);
     expect(evs.map((e) => e.type)).toEqual(expect.arrayContaining(["activity", "approval", "approval_closed", "delta", "done"]));
     expect(evs.filter((e) => e.type === "activity").map((e) => [e.kind, e.chat ?? null])).toEqual([["saved", null], ["read", "Lisbon trip"]]);
     expect((await services.notes.read({ userId: u, chatId: here.id }, {})).text).toContain("2 litres");
     // the model was given the other chat's notes only after approval
     expect(calls[2].last).toContain("Alfama");
     expect(services.chats.get(u, here.id)!.messages.at(-1)!.activity).toHaveLength(2);
-  } finally { engine.close(); mock.stop(); zero.stop(); }
+  } finally { engine.close(); mock.stop(); koremind.stop(); }
 }, 120_000);

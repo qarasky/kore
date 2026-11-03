@@ -1,9 +1,9 @@
 {
-  "name": "@zero/backend",
+  "name": "@koremind/backend",
   "private": true,
   "type": "module",
   "dependencies": {
-    "@zero/shared": "workspace:*",
+    "@koremind/shared": "workspace:*",
     "zod": "^4.0.0"
   },
   "devDependencies": {

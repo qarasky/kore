@@ -1,4 +1,4 @@
-import type { Settings } from "@zero/shared";
+import type { Settings } from "@koremind/shared";
 import { t } from "./strings";
 
 /** Settings stay short: five sections, one visible at a time. */

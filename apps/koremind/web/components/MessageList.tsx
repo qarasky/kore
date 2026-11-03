@@ -1,5 +1,5 @@
 "use client";
-import type { Activity, ChatMessage } from "@zero/shared";
+import type { Activity, ChatMessage } from "@koremind/shared";
 import { BookOpen, FileText, Globe, Lock, Pencil, StickyNote } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef } from "react";

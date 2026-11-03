@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { StreamEvent } from "@zero/shared";
+import type { StreamEvent } from "@koremind/shared";
 import { activityText, approvalText } from "../lib/notes-ui";
 import { applyEvent, beginTurn, emptyChat } from "../lib/chat-state";
 
@@ -14,8 +14,8 @@ test("activity chips read the same on every platform", () => {
 });
 
 test("the approval card asks in plain words", () => {
-  expect(approvalText({ id: "a", action: "read", chat: "Lisbon trip" })).toBe("Zero wants to read the notes from “Lisbon trip”");
-  expect(approvalText({ id: "a", action: "edit", chat: "Lisbon trip" })).toBe("Zero wants to edit the notes in “Lisbon trip”");
+  expect(approvalText({ id: "a", action: "read", chat: "Lisbon trip" })).toBe("KoreMind wants to read the notes from “Lisbon trip”");
+  expect(approvalText({ id: "a", action: "edit", chat: "Lisbon trip" })).toBe("KoreMind wants to edit the notes in “Lisbon trip”");
 });
 
 test("an approval card appears, closes when answered, and activity lands on the finished message", () => {

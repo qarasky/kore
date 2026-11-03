@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { MemoryEntry } from "@zero/shared";
+import type { MemoryEntry } from "@koremind/shared";
 import type { Engine, ModelRef } from "./engine/types";
 
 const LINE = /^- (.*) <!--id:([a-z0-9]+) t:(\d+)-->$/;

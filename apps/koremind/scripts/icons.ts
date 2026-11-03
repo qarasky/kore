@@ -1,4 +1,4 @@
-// Single source of truth for the Zero mark: a ring of four arcs on Kore's 1 / 0.6 / 0.3 / 0.6 opacity ramp.
+// Single source of truth for the KoreMind mark: a ring of four arcs on Kore's 1 / 0.6 / 0.3 / 0.6 opacity ramp.
 const ACCENT = "#5b8def";
 const ARCS: { d: string; opacity: number; alpha: string }[] = [
   { d: "M35.62 18.48A14 14 0 0 1 45.52 28.38", opacity: 1, alpha: "ff" },

@@ -21,7 +21,7 @@ test("initialize, ping and the initialized notification follow the protocol", as
   const { mcp } = setup();
   const init = await mcp.handle(rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } }));
   expect(init.status).toBe(200);
-  expect((init.body as any).result).toMatchObject({ protocolVersion: "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "zero" } });
+  expect((init.body as any).result).toMatchObject({ protocolVersion: "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "koremind" } });
   expect((await mcp.handle(rpc("notifications/initialized", undefined, null))).status).toBe(202);
   expect((await mcp.handle(rpc("ping"))).body).toEqual({ jsonrpc: "2.0", id: 1, result: {} });
 });

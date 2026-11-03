@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "dev.qarasky.zero"
+    namespace = "dev.qarasky.koremind"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "dev.qarasky.zero"
+        applicationId = "dev.qarasky.koremind"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

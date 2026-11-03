@@ -1,5 +1,5 @@
 "use client";
-import type { MemoryEntry, Settings } from "@zero/shared";
+import type { MemoryEntry, Settings } from "@koremind/shared";
 import { Brain, Pencil, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
