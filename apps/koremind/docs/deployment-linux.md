@@ -52,7 +52,7 @@ sudo -iu koremind bash -c 'cd /opt/koremind && bun install && bun run build'
 # 3.4 Configuration
 sudo cp /opt/koremind/deploy/koremind.env.example /etc/koremind/koremind.env
 sudo chown root:koremind /etc/koremind/koremind.env && sudo chmod 640 /etc/koremind/koremind.env
-sudoedit /etc/koremind/koremind.env              # at least check KOREMIND_OPENCODE_BIN
+sudoedit /etc/koremind/koremind.env              # check KOREMIND_OPENCODE_BIN and set the Kore ID settings
 
 # 3.5 The service
 sudo cp /opt/koremind/deploy/koremind.service /etc/systemd/system/koremind.service
@@ -67,12 +67,12 @@ If you installed Bun or OpenCode somewhere other than `/home/koremind/.bun` and 
 ```bash
 systemctl status koremind
 journalctl -u koremind -f                    # logs; Ctrl-C to leave
-curl http://localhost:8787/health        # {"name":"koremind","version":"…","setupRequired":true}
+curl http://localhost:8787/health        # {"name":"koremind","version":"…","setupRequired":true,"sso":true}
 ```
 
 The log lists the addresses the backend is reachable at (local network, Tailscale, your `KOREMIND_PUBLIC_URL`).
 
-**Create the owner account right away.** Open `http://<server-address>:3210` from a computer on the same network and register. The first account becomes the owner and registration then closes. Do this *before* exposing the server anywhere else.
+**Kore ID is the only way in.** Before anyone opens the web UI, set `KOREMIND_OIDC_ISSUER`, the client secret, `KOREMIND_PUBLIC_URL`, `KOREMIND_WEB_ORIGINS` and `KOREMIND_OIDC_OWNER_EMAIL` in `/etc/koremind/koremind.env` (see [kore-id.md](kore-id.md) and [deployment-docker.md](deployment-docker.md)). Restart, open `http://<server-address>:3210` and choose **Continue with Kore ID** as the pinned owner. That first sign-in creates the owner account; everyone else gets an account automatically on their first Kore ID sign-in. There is no password setup and no registration form.
 
 Then, in **Settings → Providers**, add a key for Groq or OpenRouter (the recommended ones) or Codex if you want more than OpenCode's free models. (Only the owner can change providers.)
 
@@ -80,7 +80,7 @@ Then, in **Settings → Providers**, add a key for Groq or OpenRouter (the recom
 
 1. Build or fetch the APK. On any machine with a JDK 17+ and the Android SDK: `cd android && ./gradlew :app:assembleDebug`; the file is `android/app/build/outputs/apk/debug/app-debug.apk`. Copy it to the phone (`adb install -r app-debug.apk`, or any file transfer) and allow installs from that source.
 2. In the web UI open **Settings → Account → Show QR code**.
-3. In the app tap **Scan QR code** and point it at the screen. The phone tries each address in the code until one works, and signs in as you. Scanning needs Google Play services on the phone; otherwise type an address into **Backend URL** and sign in by hand.
+3. In the app tap **Scan QR code** and point it at the screen. The code was minted from your signed-in Kore ID web session, so the phone tries each address in it until one works and signs in as you. Scanning needs Google Play services on the phone; otherwise type an address into **Backend URL** and choose **Continue with Kore ID**.
 
 The app allows plain `http://` to the address you give it, because KoreMind does not set up TLS itself.
 
@@ -102,7 +102,7 @@ Then set `KOREMIND_PUBLIC_URL=https://api.koremind.example.com` in `/etc/koremin
 - Use HTTPS for **both**. A page served over HTTPS cannot call an `http://` backend (browsers block it).
 - The web UI guesses its backend as `<this host>:8787`, which only fits the plain local setup. On the first visit through hostnames, the **Connect to your server** screen appears: enter `https://api.koremind.example.com`.
 - Streaming answers need the proxy not to buffer. The backend already sends `x-accel-buffering: no`; on nginx also set `proxy_buffering off;` and a long `proxy_read_timeout` for the API host.
-- A proxy on this machine is recognised automatically, so login rate limiting sees the real client address. Set `KOREMIND_TRUST_PROXY=1` only if the proxy is on a different machine.
+- A proxy on this machine is recognised automatically, so sign-in and pairing rate limiting see the real client address. Set `KOREMIND_TRUST_PROXY=1` only if the proxy is on a different machine.
 - **Do not expose `/mcp`.** It is how the local OpenCode engine reaches KoreMind's notes tools. It only accepts loopback callers with a secret that changes at every start, but add a deny rule for `/mcp` in your proxy anyway.
 
 ## 7. Firewall
@@ -115,7 +115,7 @@ sudo ufw allow in on tailscale0                                       # Tailscal
 sudo ufw enable
 ```
 
-Do not open `8787` to the whole internet over plain HTTP: passwords and chats would cross the network unencrypted. Login has rate limiting (5 wrong attempts per 15 minutes per address and email), which is a guard rail, not a substitute for TLS or Tailscale.
+Do not open `8787` to the whole internet over plain HTTP: session tokens and chats would cross the network unencrypted. Sign-in and pairing attempts are rate limited, which is a guard rail, not a substitute for TLS or Tailscale.
 
 ## 8. Operating it
 

@@ -75,7 +75,7 @@ fun KoreMindButton(text: String, onClick: () -> Unit, modifier: Modifier = Modif
             contentColor = if (danger) KoreMindColors.Danger else if (ghost) KoreMindColors.Text else androidx.compose.ui.graphics.Color.White,
             disabledContainerColor = KoreMindColors.Raised, disabledContentColor = KoreMindColors.Muted,
         ),
-    ) { Text(text, style = MaterialTheme.typography.labelLarge) }
+    ) { Text(text, style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium) }
 }
 
 @Composable

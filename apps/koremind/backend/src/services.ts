@@ -1,6 +1,9 @@
 import type { Database } from "bun:sqlite";
 import { join } from "node:path";
 import { createAuth } from "./auth";
+import type { OidcConfig } from "./config";
+import { createOidc, type Oidc } from "./oidc";
+import { createSso } from "./sso";
 import { createApprovals } from "./approvals";
 import { createMcp } from "./mcp";
 import { createNotes } from "./notes";
@@ -11,10 +14,12 @@ import { createModels } from "./models";
 import { createSettings } from "./settings";
 import { createUploads } from "./uploads";
 
-export type ServiceOptions = { db: Database; dataDir: string; engine: Engine; version: string; maxUploadBytes?: number; /** Shared secret the local engine presents on /mcp. */ mcpSecret?: string; approvalTimeoutMs?: number; /** Backend addresses a phone can use, best first. */ addresses?: () => string[] };
+export type ServiceOptions = { db: Database; dataDir: string; engine: Engine; version: string; maxUploadBytes?: number; /** Shared secret the local engine presents on /mcp. */ mcpSecret?: string; approvalTimeoutMs?: number; /** Backend addresses a phone can use, best first. */ addresses?: () => string[];
+  /** Kore ID sign-in; null/undefined = off, and then nobody can sign in. */ oidc?: OidcConfig | null; /** Other Kore apps, for the web UI's app switcher. */ apps?: Record<string, string>; /** Test seam: a ready-made OIDC client. */ oidcClient?: Oidc };
 
 export function createServices(o: ServiceOptions) {
   const auth = createAuth(o.db);
+  const sso = o.oidc ? createSso(o.db, auth, o.oidcClient ?? createOidc(o.oidc), o.oidc) : null;
   const settings = createSettings(o.db);
   const memory = createMemory(join(o.dataDir, "users"), o.engine, (u) => settings.get(u).memoryEnabled);
   const uploads = createUploads(o.db, join(o.dataDir, "uploads"), o.maxUploadBytes);
@@ -30,6 +35,7 @@ export function createServices(o: ServiceOptions) {
     onTurnEnd: (chatId) => approvals.endTurn(chatId),
   });
   const addresses = o.addresses ?? (() => ["http://localhost:8787"]);
-  return { db: o.db, engine: o.engine, version: o.version, addresses, approvals, notes, mcp, mcpSecret, auth, settings, memory, uploads, models, chats };
+  const koreId = o.oidc ? { issuer: o.oidc.issuer, accountUrl: `${o.oidc.issuer}/account` } : undefined;
+  return { db: o.db, engine: o.engine, version: o.version, koreId, apps: o.apps ?? {}, addresses, approvals, notes, mcp, mcpSecret, auth, sso, settings, memory, uploads, models, chats };
 }
 export type Services = ReturnType<typeof createServices>;

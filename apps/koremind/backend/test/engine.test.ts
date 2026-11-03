@@ -194,6 +194,7 @@ test.skipIf(!Bun.which("opencode"))("a model saves a note through OpenCode and K
   const { createApp } = await import("../src/http");
   const { createServices } = await import("../src/services");
   const { openDb } = await import("../src/db");
+  const { addUser } = await import("./helpers");
   type Call = { tools: string[]; last: string };
   const calls: Call[] = [];
   let step = 0;
@@ -238,8 +239,8 @@ test.skipIf(!Bun.which("opencode"))("a model saves a note through OpenCode and K
     app = createApp(services);
     await engine.setProviderKey("openrouter", "sk-test");
     const model = { providerId: "openrouter", modelId: (await engine.listProviders()).find((p) => p.id === "openrouter")!.models[0].id };
-    const owner = await services.auth.register({ email: "me@home.lan", password: "correct horse" });
-    const u = owner.user.id;
+    const owner = addUser(services.db, "me@home.lan", { owner: true, sub: "sub-owner" });
+    const u = owner.id;
     const other = services.chats.create(u);
     services.chats.rename(u, other.id, "Lisbon trip");
     await services.notes.save({ userId: u, chatId: other.id }, { title: "Hotel", body: "Alfama" });

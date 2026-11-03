@@ -2,6 +2,7 @@ package dev.qarasky.koremind
 
 import dev.qarasky.koremind.data.Activity
 import dev.qarasky.koremind.data.ChatMessage
+import dev.qarasky.koremind.data.Health
 import dev.qarasky.koremind.data.ProviderConnection
 import dev.qarasky.koremind.data.ProviderInfo
 import dev.qarasky.koremind.data.Settings
@@ -15,6 +16,15 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ContractJsonTest {
+    @Test fun `health says whether Kore ID is on and has no password switch`() {
+        val h = KoreMindJson.decodeFromString(Health.serializer(), """{"name":"koremind","version":"1","setupRequired":false,"sso":true}""")
+        assertTrue(h.sso)
+        assertFalse(h.setupRequired)
+        // An old server that still sends passwordLogin must not break the newer client.
+        val old = KoreMindJson.decodeFromString(Health.serializer(), """{"name":"koremind","version":"1","setupRequired":true,"sso":false,"passwordLogin":true}""")
+        assertFalse(old.sso)
+    }
+
     @Test fun `models payload with provider status and the free flag parses`() {
         val json = """[{"id":"openrouter","name":"OpenRouter","connected":false,"status":"needs_connection","models":[]},
             {"id":"opencode","name":"OpenCode","connected":false,"status":"ready","models":[{"id":"m","name":"M","vision":false,"thinkingLevels":[],"isDefault":true,"free":true}]}]"""

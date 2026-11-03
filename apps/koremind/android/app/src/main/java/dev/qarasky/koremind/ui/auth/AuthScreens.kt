@@ -24,12 +24,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.qarasky.koremind.R
-import dev.qarasky.koremind.data.ApiException
 import dev.qarasky.koremind.ui.AppViewModel
 import dev.qarasky.koremind.ui.PairUi
 import dev.qarasky.koremind.ui.ErrorText
@@ -85,31 +86,27 @@ fun ConnectScreen(vm: AppViewModel, onConnected: () -> Unit) {
 }
 
 @Composable
-fun LoginScreen(vm: AppViewModel, onSignedIn: () -> Unit, onChangeServer: () -> Unit) {
-    var setup by remember { mutableStateOf<Boolean?>(null) }
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+fun LoginScreen(vm: AppViewModel, onChangeServer: () -> Unit) {
+    var sso by remember { mutableStateOf<Boolean?>(null) }
+    val context = LocalContext.current
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val tooMany = stringResource(R.string.too_many_attempts, 1)
 
-    LaunchedEffect(Unit) { setup = vm.setupRequired() }
+    LaunchedEffect(Unit) { vm.health()?.let { sso = it.sso } }
 
     Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         Appear { Column(Modifier.widthIn(max = 380.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Wordmark()
-            Text(if (setup == true) stringResource(R.string.create_account_title) else stringResource(R.string.login_title), style = MaterialTheme.typography.titleLarge)
-            if (setup == true) Text(stringResource(R.string.create_account_hint), style = MaterialTheme.typography.bodySmall, color = KoreMindColors.Muted)
-            KoreMindField(stringResource(R.string.email), email, { email = it }, keyboardType = KeyboardType.Email)
-            KoreMindField(stringResource(R.string.password), password, { password = it }, password = true, hint = if (setup == true) stringResource(R.string.password_hint) else null)
+            Text(stringResource(R.string.login_title), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(if (sso == false) R.string.koreid_unavailable else R.string.koreid_only), style = MaterialTheme.typography.bodySmall, color = KoreMindColors.Muted)
             ErrorText(error)
-            KoreMindButton(if (setup == true) stringResource(R.string.create_account) else stringResource(R.string.sign_in), enabled = !busy && email.isNotBlank() && password.length >= 8, modifier = Modifier.fillMaxWidth(), onClick = {
+            KoreMindButton(stringResource(R.string.continue_koreid), enabled = sso == true && !busy, modifier = Modifier.fillMaxWidth(), onClick = {
                 error = null; busy = true
                 scope.launch {
-                    vm.authenticate(email.trim(), password, setup == true).onSuccess { onSignedIn() }.onFailure {
-                        error = if (it is ApiException && it.code == "rate_limited") tooMany.replace("1", "${((it.retryAfterSec ?: 60) + 59) / 60}") else it.message
-                    }
+                    vm.ssoStart()
+                        .onSuccess { url -> try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) { error = context.getString(R.string.sso_failed) } }
+                        .onFailure { error = it.message }
                     busy = false
                 }
             })

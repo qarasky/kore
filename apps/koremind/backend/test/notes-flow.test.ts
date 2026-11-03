@@ -7,6 +7,7 @@ import { createApp } from "../src/http";
 import { createServices } from "../src/services";
 import { openDb } from "../src/db";
 import { FakeEngine } from "../src/engine/fake";
+import { addUser } from "./helpers";
 
 const model = { providerId: "opencode", modelId: "fast" };
 const SECRET = "test-secret";
@@ -18,13 +19,14 @@ async function world(during: (services: ReturnType<typeof createServices>, sessi
   let services!: ReturnType<typeof createServices>;
   const engine = new FakeEngine({ reply: () => [{ type: "delta", text: "All done" }], during: (a) => during(services, a.sessionId) });
   services = createServices({ db: openDb(":memory:"), dataDir: mkdtempSync(join(tmpdir(), "koremind-nf-")), engine, version: "t", mcpSecret: SECRET, approvalTimeoutMs });
-  const owner = await services.auth.register({ email: "me@home.lan", password: "correct horse" });
-  const u = owner.user.id;
+  const owner = addUser(services.db, "me@home.lan", { owner: true, sub: "sub-owner" });
+  const u = owner.id;
+  const token = services.auth.issueFor(u).token;
   const other = services.chats.create(u);
   services.chats.rename(u, other.id, "Lisbon trip");
   await services.notes.save({ userId: u, chatId: other.id }, { title: "Hotel", body: "Alfama" });
   const here = services.chats.create(u);
-  return { services, u, here, other, token: owner.token };
+  return { services, u, here, other, token };
 }
 const run = async (services: ReturnType<typeof createServices>, u: string, chatId: string, onEvent: (e: StreamEvent) => void) => {
   const evs: StreamEvent[] = [];

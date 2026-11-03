@@ -20,6 +20,26 @@ const MIGRATIONS: string[] = [
   create index notes_chat on notes(chat_id, created_at);
   alter table messages add column activity_json text not null default '[]';
   `,
+  // Kore ID single sign-on. users.oidc_sub is the OIDC `sub` (same UUID in every Kore app); the legacy users.password_hash
+  // column stays only so old databases need no rewrite, and is never read or written for sign-in again. oidc_flows holds one
+  // in-flight login (state -> nonce, PKCE verifier, the client's own PKCE challenge); oidc_tickets is the one-time handover to the client.
+  `
+  alter table users add column oidc_sub text;
+  create unique index users_oidc_sub on users(oidc_sub) where oidc_sub is not null;
+  alter table tokens add column logout_url text;
+  create table oidc_flows(state_hash text primary key, nonce text not null, verifier text not null, app_challenge text not null, platform text not null, return_to text, link_user_id text references users(id) on delete cascade, expires_at integer not null);
+  create table oidc_tickets(ticket_hash text primary key, user_id text not null references users(id) on delete cascade, app_challenge text not null, logout_url text, expires_at integer not null);
+  `,
+  // Kore ID back-channel logout. tokens.sid is the Kore ID session (`sid` claim) a KoreMind session came from; phones paired
+  // from such a session inherit it (pair_codes.sid), so ending the Kore ID session signs both out. oidc_logout_jti remembers
+  // logout-token ids until they expire (replay guard; in the DB so it survives restarts).
+  `
+  alter table tokens add column sid text;
+  create index tokens_sid on tokens(sid) where sid is not null;
+  alter table oidc_tickets add column sid text;
+  alter table pair_codes add column sid text;
+  create table oidc_logout_jti(jti text primary key, expires_at integer not null);
+  `,
 ];
 
 export function openDb(path: string): Database {

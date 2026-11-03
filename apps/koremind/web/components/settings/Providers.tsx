@@ -1,18 +1,18 @@
 "use client";
 import type { ProviderConnection, Settings } from "@koremind/shared";
-import { KeyRound, Loader2 } from "lucide-react";
+import { Badge, Button, Card, Field, Input, SettingsSection, StatusDot, Switch, type Status } from "@qarasky/kore-ui";
+import { KeyRound } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { ProviderIcon } from "@/components/ProviderIcon";
-import { Card, SectionHeader, Switch } from "./parts";
-import { Button, ErrorText, Field } from "@/components/ui";
+import { InlineError } from "@/components/InlineError";
 import { collapse, fadeUp } from "@/lib/motion";
 import { freeOnly, providerEnabled, providerStatus, withFreeOnly, withProviderEnabled } from "@/lib/settings-model";
 import { useSession } from "@/lib/session";
 import { useModelChoice } from "@/lib/contexts";
 import { t } from "@/lib/strings";
 
-const STATUS = { on: t.connected, free: t.freeTier, off: t.notConnected } as const;
+const STATUS: Record<"on" | "free" | "off", { label: string; dot: Status }> = { on: { label: t.connected, dot: "up" }, free: { label: t.freeTier, dot: "warn" }, off: { label: t.notConnected, dot: "off" } };
 
 export function ProvidersSection({ settings, onChange }: { settings: Settings | null; onChange(s: Settings): void }) {
   const { api } = useSession();
@@ -56,8 +56,7 @@ export function ProvidersSection({ settings, onChange }: { settings: Settings | 
   }
 
   return (
-    <section>
-      <SectionHeader title={t.sectionProviders} hint={t.providersHint} />
+    <SettingsSection title={t.sectionProviders} description={t.providersHint}>
       <ul className="flex flex-col gap-3">
         {list.map((p) => {
           const state = providerStatus(p);
@@ -67,45 +66,25 @@ export function ProvidersSection({ settings, onChange }: { settings: Settings | 
           return (
             <motion.li key={p.id} variants={fadeUp} initial="hidden" animate="show">
               <Card className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span className="grid size-9 shrink-0 place-items-center rounded-ui bg-raised text-text" aria-hidden><ProviderIcon id={p.id} name={p.name} size={20} /></span>
-                    <div className="min-w-0">
-                      <p className="flex items-center gap-2 text-sub font-medium"><span className="truncate">{p.name}</span>{p.recommended && <span className="shrink-0 rounded-full border border-accent/40 px-2 py-px text-2xs font-normal text-accent">{t.recommended}</span>}</p>
-                      <p className="flex items-center gap-1.5 text-meta text-muted">
-                        <span className={`size-1.5 rounded-full ${state === "on" ? "bg-accent" : state === "free" ? "bg-warning" : "bg-border-strong"}`} aria-hidden />
-                        {STATUS[state]}
-                      </p>
-                    </div>
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="grid size-control shrink-0 place-items-center rounded-ui border border-border bg-bg/60 text-text" aria-hidden><ProviderIcon id={p.id} name={p.name} size={20} /></span>
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-2 font-medium"><span className="truncate">{p.name}</span>{p.recommended && <Badge tone="accent">{t.recommended}</Badge>}</p>
+                    <StatusDot status={STATUS[state].dot} label={STATUS[state].label} tintLabel={false} className="text-meta text-muted" />
                   </div>
                 </div>
 
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {canSignIn && (
-                      <Button onClick={() => void signIn(p.id)} disabled={signing === p.id} className="flex items-center gap-2">
-                        {signing === p.id && <Loader2 size={14} className="animate-spin" aria-hidden />}
-                        {t.signInChatgpt}
-                      </Button>
-                    )}
-                    {canKey && (
-                      <Button variant="ghost" aria-expanded={open} onClick={() => setKeyOpen(open ? null : p.id)} className="flex items-center gap-2">
-                        <KeyRound size={14} aria-hidden />{open ? t.hideKey : p.connected ? t.replaceKey : t.addKey}
-                      </Button>
-                    )}
-                    {p.connected && <Button variant="ghost" onClick={() => void disconnect(p.id)}>{t.disconnect}</Button>}
-                  </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {canSignIn && <Button variant="primary" size="sm" loading={signing === p.id} onClick={() => void signIn(p.id)}>{t.signInChatgpt}</Button>}
+                  {canKey && <Button size="sm" aria-expanded={open} onClick={() => setKeyOpen(open ? null : p.id)}><KeyRound aria-hidden />{open ? t.hideKey : p.connected ? t.replaceKey : t.addKey}</Button>}
+                  {p.connected && <Button size="sm" variant="danger-outline" onClick={() => void disconnect(p.id)}>{t.disconnect}</Button>}
+                </div>
 
                 {settings && (
-                  <div className="mt-3 divide-y divide-border rounded-ui border border-border">
-                    <div className="flex min-h-control items-center justify-between gap-3 px-3">
-                      <span className="text-sub">{t.useInPicker}</span>
-                      <Switch checked={providerEnabled(settings, p.id)} onChange={(v) => onChange(withProviderEnabled(settings, p.id, v))} label={`${t.useInPicker}: ${p.name}`} />
-                    </div>
+                  <div className="mt-3 border-t border-border pt-2">
+                    <Switch labelFirst label={t.useInPicker} aria-label={`${t.useInPicker}: ${p.name}`} checked={providerEnabled(settings, p.id)} onCheckedChange={(v) => onChange(withProviderEnabled(settings, p.id, v))} />
                     {p.supportsFreeFilter && (
-                      <div className="flex min-h-control items-center justify-between gap-3 px-3 py-2">
-                        <span><span className="block text-sub">{t.onlyFreeModels}</span><span className="block text-2xs text-muted">{t.onlyFreeHint}</span></span>
-                        <Switch checked={freeOnly(settings, p.id)} onChange={(v) => onChange(withFreeOnly(settings, p.id, v))} label={`${t.onlyFreeModels}: ${p.name}`} />
-                      </div>
+                      <Switch labelFirst label={t.onlyFreeModels} description={t.onlyFreeHint} aria-label={`${t.onlyFreeModels}: ${p.name}`} checked={freeOnly(settings, p.id)} onCheckedChange={(v) => onChange(withFreeOnly(settings, p.id, v))} />
                     )}
                   </div>
                 )}
@@ -117,7 +96,7 @@ export function ProvidersSection({ settings, onChange }: { settings: Settings | 
                     </motion.p>
                   )}
                   {canSignIn && signing !== p.id && !open && (
-                    <motion.p variants={collapse} initial="hidden" animate="show" exit="exit" className="overflow-hidden text-2xs text-muted">
+                    <motion.p variants={collapse} initial="hidden" animate="show" exit="exit" className="overflow-hidden text-meta text-muted">
                       <span className="block pt-3">{t.signInSameMachine}</span>
                     </motion.p>
                   )}
@@ -127,8 +106,8 @@ export function ProvidersSection({ settings, onChange }: { settings: Settings | 
                       onSubmit={(e) => { e.preventDefault(); if (keys[p.id]) void saveKey(p.id); }}
                     >
                       <div className="flex items-end gap-2 pt-4">
-                        <div className="flex-1"><Field label={t.apiKey} type="password" autoComplete="off" autoFocus value={keys[p.id] ?? ""} onChange={(e) => setKeys((k) => ({ ...k, [p.id]: e.target.value }))} /></div>
-                        <Button type="submit" disabled={!keys[p.id]}>{t.saveKey}</Button>
+                        <Field label={t.apiKey} className="flex-1"><Input type="password" autoComplete="off" autoFocus value={keys[p.id] ?? ""} onChange={(e) => setKeys((k) => ({ ...k, [p.id]: e.target.value }))} /></Field>
+                        <Button type="submit" variant="primary" disabled={!keys[p.id]}>{t.saveKey}</Button>
                       </div>
                     </motion.form>
                   )}
@@ -138,7 +117,7 @@ export function ProvidersSection({ settings, onChange }: { settings: Settings | 
           );
         })}
       </ul>
-      <div className="mt-3"><ErrorText>{error}</ErrorText></div>
-    </section>
+      <InlineError>{error}</InlineError>
+    </SettingsSection>
   );
 }

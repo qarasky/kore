@@ -1,58 +1,54 @@
 "use client";
+import { AuthScreen, Spinner } from "@qarasky/kore-ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
-import { Wordmark } from "@/components/Mark";
-import { Appear, Button, ErrorText, Field } from "@/components/ui";
-import { ApiError } from "@/lib/api";
+import { useEffect, useState } from "react";
 import { useSession } from "@/lib/session";
+import { beginSso, parseSsoHash, ssoErrorMessage, takeVerifier } from "@/lib/sso";
 import { t } from "@/lib/strings";
 
+/** Sign-in: Kore ID is the only way in. No password form, no first-account setup. */
 export default function LoginPage() {
-  const { api, user, signedIn, ready } = useSession();
+  const { api, user, ready, server, signedIn } = useSession();
   const router = useRouter();
-  const [setup, setSetup] = useState<boolean | null>(null);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [exchanging, setExchanging] = useState(false);
 
   useEffect(() => { if (ready && user) router.replace("/"); }, [ready, user, router]);
-  useEffect(() => {
-    api?.health().then((h) => setSetup(h.setupRequired)).catch((e) => setError(e instanceof Error ? e.message : t.genericError));
-  }, [api]);
+  // The session loads /health; this only surfaces why it failed.
+  useEffect(() => { api?.health().catch((e) => setError(e instanceof Error ? e.message : t.genericError)); }, [api]);
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
+  // Back from Kore ID: the backend put a one-time ticket (or an error) after the #.
+  useEffect(() => {
     if (!api) return;
+    const back = parseSsoHash(location.hash);
+    if (!back) return;
+    history.replaceState(null, "", location.pathname);
+    if (back.error) { setError(ssoErrorMessage(back.error)); return; }
+    const verifier = takeVerifier();
+    if (!back.ticket || !verifier) { setError(ssoErrorMessage("invalid_state")); return; }
+    setExchanging(true);
+    api.ssoExchange(back.ticket, verifier).then((r) => { signedIn(r); router.replace("/"); }).catch((err) => { setError(err instanceof Error ? err.message : t.genericError); setExchanging(false); });
+  }, [api, signedIn, router]);
+
+  async function startSso() {
+    if (!api || !server) return;
     setError("");
-    setBusy(true);
-    try {
-      const r = setup ? await api.register({ email, password }) : await api.login({ email, password });
-      signedIn(r);
-      router.replace("/");
-    } catch (err) {
-      if (err instanceof ApiError && err.code === "rate_limited") setError(t.tooManyAttempts(err.retryAfterSec ?? 60));
-      else setError(err instanceof Error ? err.message : t.genericError);
-    } finally {
-      setBusy(false);
-    }
+    if (!server.sso) { setError(t.koreIdUnavailable); return; }
+    try { await beginSso(api, "/login"); await new Promise(() => {}); /* stay pending while the browser leaves */ }
+    catch (err) { setError(err instanceof Error ? err.message : t.genericError); }
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 px-6">
-      <Appear><Wordmark /></Appear>
-      <Appear delay={0.06}><form onSubmit={submit} className="flex flex-col gap-4">
-        <div>
-          <h1 className="text-display font-semibold tracking-[-0.02em]">{setup ? t.createAccountTitle : t.loginTitle}</h1>
-          {setup && <p className="mt-1 text-meta text-muted">{t.createAccountHint}</p>}
-        </div>
-        <Field label={t.email} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required autoFocus />
-        <Field label={t.password} type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={setup ? "new-password" : "current-password"} hint={setup ? t.passwordHint : undefined} required minLength={8} />
-        <ErrorText>{error}</ErrorText>
-        <Button type="submit" disabled={busy || setup === null}>{setup ? t.createAccount : t.signIn}</Button>
-      </form></Appear>
-      <Link href="/connect" className="text-meta text-muted hover:text-text">{t.changeServer}</Link>
-    </main>
+    <AuthScreen
+      app="koremind"
+      title={t.loginTitle}
+      description={server ? (server.sso ? t.koreIdOnly : t.koreIdUnavailable) : undefined}
+      error={error}
+      sso={{ onClick: startSso, pending: exchanging, label: t.continueKoreId }}
+      footer={<Link href="/connect" className="rounded-ui hover:text-text">{t.changeServer}</Link>}
+    >
+      {!server && !error ? <div className="flex justify-center py-2 text-muted"><Spinner label={t.loading} /></div> : null}
+    </AuthScreen>
   );
 }

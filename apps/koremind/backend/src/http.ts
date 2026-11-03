@@ -1,6 +1,8 @@
-import { ApprovalAnswer, AuthRequest, PairRedeem, Settings, SendMessageRequest, type PairStart, type StreamEvent } from "@koremind/shared";
+import { ApprovalAnswer, PairRedeem, Settings, SsoExchange, SsoStart, SendMessageRequest, type PairStart, type StreamEvent } from "@koremind/shared";
 import { z } from "zod";
 import { AuthError } from "./auth";
+import { BACKCHANNEL_LOGOUT_PATH } from "./config";
+import { OidcError } from "./oidc";
 import type { Services } from "./services";
 import { UploadError } from "./uploads";
 
@@ -35,14 +37,52 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
     const path = url.pathname;
     const m = req.method;
     if (m === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
-    if (m === "GET" && path === "/health") return json(200, { name: "koremind", version: s.version, setupRequired: s.auth.setupRequired() });
+    if (m === "GET" && path === "/health") return json(200, { name: "koremind", version: s.version, setupRequired: s.auth.setupRequired(), sso: !!s.sso, ...(s.koreId ? { koreId: s.koreId } : {}), ...(Object.keys(s.apps).length ? { apps: s.apps } : {}) });
+
+    // Password auth was removed when Kore ID became the only human sign-in. These old paths answer 404 even without a token.
+    if (path === "/auth/login" || path === "/auth/register") return fail(404, "not_found", "Password sign-in is gone. Use Kore ID.");
 
     // A tunnel (cloudflared, tailscale serve) on this machine arrives from loopback: believe its forwarded address, nobody else's.
     const ip = (opts.trustProxy || isLoopback(socketIp) ? req.headers.get("x-forwarded-for")?.split(",")[0].trim() : undefined) ?? socketIp ?? "unknown";
-    const caller = s.auth.verify(tokenOf(req, url));
+    const bearer = tokenOf(req, url);
+    // KoreMind's own opaque session token, or (when Kore ID is on) a Kore ID access token for this app: a JWT has two dots, ours has none.
+    const caller = s.auth.verify(bearer) ?? (s.sso && bearer.split(".").length === 3 ? await s.sso.verifyBearer(bearer) : null);
 
-    if (m === "POST" && path === "/auth/register") return json(200, await s.auth.register(await body(req, AuthRequest), caller ?? undefined));
-    if (m === "POST" && path === "/auth/login") return json(200, await s.auth.login(await body(req, AuthRequest), ip));
+    // Kore ID sign-in. The callback is a browser redirect from Kore ID, so it carries no token.
+    if (m === "GET" && path === "/auth/callback" && s.sso) {
+      const r = await s.sso.callback({ code: url.searchParams.get("code") ?? undefined, state: url.searchParams.get("state") ?? undefined, error: url.searchParams.get("error") ?? undefined });
+      if (r.kind === "web" && !r.returnTo) return new Response("<!doctype html><meta charset=utf-8><title>KoreMind</title><p>This sign-in link has expired or was already used. Go back to KoreMind and try again.", { status: 400, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer" } });
+      const p = r.error ? ["sso_error", r.error] : r.ticket ? ["sso_ticket", r.ticket] : ["sso_linked", "1"];
+      const to = r.kind === "web" ? `${r.returnTo}#${p[0]}=${encodeURIComponent(p[1])}` : `koremind://sso?${p[0].replace("sso_", "")}=${encodeURIComponent(p[1])}`;
+      return new Response(null, { status: 302, headers: { location: to, "cache-control": "no-store", "referrer-policy": "no-referrer" } });
+    }
+    // OIDC Back-Channel Logout 1.0: Kore ID (server to server) posts `logout_token` when a Kore ID session ends.
+    if (m === "POST" && path === BACKCHANNEL_LOGOUT_PATH) {
+      if (!s.sso) return fail(404, "not_found", "Kore ID sign-in is not configured");
+      const headers = { "cache-control": "no-store", "content-type": "application/json" };
+      let token: string | null = null;
+      try { token = new URLSearchParams(await req.text()).get("logout_token"); } catch { /* fall through: invalid_request */ }
+      if (!token) return new Response(JSON.stringify({ error: "invalid_request", error_description: "logout_token is required" }), { status: 400, headers });
+      try {
+        await s.sso.backchannelLogout(token);
+        return new Response(null, { status: 200, headers: { "cache-control": "no-store" } });
+      } catch (e) {
+        if (e instanceof OidcError && e.code === "discovery") return new Response(JSON.stringify({ error: "temporarily_unavailable", error_description: e.message }), { status: 503, headers });
+        console.error("sso: back-channel logout refused:", e instanceof Error ? e.message : e);
+        return new Response(JSON.stringify({ error: "invalid_request", error_description: "Invalid logout token" }), { status: 400, headers });
+      }
+    }
+    if (m === "POST" && path === "/auth/oidc/start") {
+      if (!s.sso) return fail(404, "not_found", "Kore ID sign-in is not configured");
+      return json(200, { url: await s.sso.start(await body(req, SsoStart), ip, caller ?? undefined) });
+    }
+    if (m === "POST" && path === "/auth/oidc/exchange") {
+      if (!s.sso) return fail(404, "not_found", "Kore ID sign-in is not configured");
+      const b = await body(req, SsoExchange);
+      return json(200, await s.sso.exchange(b.ticket, b.verifier, ip));
+    }
+
+    // Kore ID is the only human sign-in. There is deliberately no /auth/login or /auth/register.
 
     // The local OpenCode engine reaches the notes tools here. Loopback only, and it must know the per-run secret.
     if (path === "/mcp") {
@@ -61,9 +101,9 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
     const u = caller.id;
     let r: RegExpMatchArray | null;
 
-    if (m === "POST" && path === "/auth/logout") { s.auth.logout(tokenOf(req, url)); return ok(); }
+    if (m === "POST" && path === "/auth/logout") { const logoutUrl = s.auth.logout(bearer); return json(200, { ok: true, ...(logoutUrl ? { logoutUrl } : {}) }); }
     if (m === "POST" && path === "/auth/pair") {
-      const { code, expiresAt } = s.auth.startPair(u);
+      const { code, expiresAt } = s.auth.startPair(u, bearer);
       const urls = s.addresses();
       const link = `koremind://pair?${[`c=${encodeURIComponent(code)}`, ...urls.map((x) => `u=${encodeURIComponent(x)}`)].join("&")}`;
       const out: PairStart = { code, expiresAt, urls, link };
@@ -167,7 +207,7 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
       catch (e) {
         if (e instanceof HttpError) return fail(e.status, e.code, e.message);
         if (e instanceof AuthError) {
-          const status = e.code === "rate_limited" ? 429 : e.code === "setup_closed" ? 403 : 401; // bad_code and bad_credentials: 401
+          const status = e.code === "rate_limited" ? 429 : e.code === "sso_failed" ? 400 : 401; // bad_code: 401
           return fail(status, e.code, e.message, e.retryAfterSec ? { retryAfterSec: e.retryAfterSec } : {});
         }
         if (e instanceof Error && /UNIQUE constraint/.test(e.message)) return fail(409, "conflict", "That email is already registered");

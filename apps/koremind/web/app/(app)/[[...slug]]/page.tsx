@@ -1,14 +1,14 @@
 "use client";
 import type { Attachment } from "@koremind/shared";
+import { Button, Card, ConfirmDialog, IconButton, PageHeader } from "@qarasky/kore-ui";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Composer } from "@/components/Composer";
+import { InlineError } from "@/components/InlineError";
 import { MessageList } from "@/components/MessageList";
-import { Shell } from "@/components/Shell";
-import { ErrorText } from "@/components/ui";
 import { applyEvent, beginTurn, emptyChat, needsLoad, type ChatState } from "@/lib/chat-state";
 import { useChats, useModelChoice } from "@/lib/contexts";
 import { useSession } from "@/lib/session";
@@ -31,6 +31,7 @@ export default function ChatScreen() {
   const stateRef = useRef(state);
   const update = useCallback((fn: (s: ChatState) => ChatState) => { stateRef.current = fn(stateRef.current); setState(stateRef.current); }, []);
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const chatId = useRef<string | null>(initial.current?.id ?? null);
   const abort = useRef<AbortController | null>(null);
 
@@ -90,27 +91,41 @@ export default function ChatScreen() {
   const title = chats.find((c) => c.id === chatId.current)?.title ?? t.appName;
   const empty = state.messages.length === 0 && !state.draft;
 
+  const deleteChat = async () => {
+    const id = chatId.current!;
+    chatId.current = null;
+    update(() => emptyChat);
+    await remove(id);
+    router.push("/");
+  };
+
   return (
-    <Shell
-      title={empty ? t.appName : title}
-      right={chatId.current && !empty ? (
-        <button type="button" aria-label={t.deleteChat} onClick={async () => { const id = chatId.current!; chatId.current = null; update(() => emptyChat); await remove(id); router.push("/"); }} className="grid size-control place-items-center rounded-ui text-muted hover:bg-raised hover:text-danger"><Trash2 size={18} /></button>
-      ) : null}
-    >
+    <>
+      <PageHeader
+        title={empty ? t.newChat : title}
+        actions={chatId.current && !empty ? <IconButton label={t.deleteChat} icon={<Trash2 />} variant="danger" onClick={() => setConfirmDelete(true)} /> : null}
+      />
+      <ConfirmDialog
+        open={confirmDelete} onOpenChange={setConfirmDelete} danger
+        title={t.deleteChatTitle(title)} description={t.deleteChatBody}
+        confirmLabel={t.delete} cancelLabel={t.cancel} pendingLabel={t.deleting} onConfirm={deleteChat}
+      />
       {empty ? (
-        <div className="flex flex-1 items-center justify-center px-6"><motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.2, 0, 0, 1] }} className="text-display font-semibold tracking-[-0.02em]">{t.homeGreeting}</motion.p></div>
+        <div className="flex flex-1 items-center justify-center px-6"><motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: [0.2, 0, 0, 1] }} className="text-display font-semibold tracking-[-0.01em]">{t.homeGreeting}</motion.p></div>
       ) : (
         <MessageList messages={state.messages} draft={state.draft} onApproval={answerApproval} />
       )}
       {state.connectProvider && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mx-auto mb-2 w-full max-w-3xl px-4"><div className="rounded-ui border border-warning/40 bg-surface p-3 text-sub">
-          <p className="font-medium">{t.connectProvider}</p>
-          <p className="mt-1 text-meta text-muted">{t.connectProviderHint}</p>
-          <Link href="/settings#providers" className="mt-2 inline-block text-meta text-accent underline">{t.openSettings}</Link>
-        </div></motion.div>
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mx-auto mb-2 w-full max-w-reading px-4">
+          <Card className="border-warning/40 p-4">
+            <p className="font-medium">{t.connectProvider}</p>
+            <p className="mt-1 text-meta text-muted">{t.connectProviderHint}</p>
+            <Button asChild size="sm" className="mt-3"><Link href="/settings#providers">{t.openSettings}</Link></Button>
+          </Card>
+        </motion.div>
       )}
-      {state.error && !state.connectProvider && <div className="mx-auto mb-2 w-full max-w-3xl px-4"><ErrorText>{state.error.message}</ErrorText></div>}
+      {state.error && !state.connectProvider && <div className="mx-auto mb-2 w-full max-w-reading px-4"><InlineError>{state.error.message}</InlineError></div>}
       <Composer busy={busy} onSend={send} onStop={stop} />
-    </Shell>
+    </>
   );
 }

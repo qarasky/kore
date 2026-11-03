@@ -1,122 +1,72 @@
 # KoreMind: design
 
-How KoreMind looks, moves and talks. This is the contract for the web UI and the Android app; if you change one, change the other. The research behind it is in [`docs/research/design-research.md`](docs/research/design-research.md). The product design (what KoreMind is) is in `docs/superpowers/specs/2026-11-02-koremind-design.md`.
+What is specific to KoreMind: the chat, the composer, the model picker, notes and approvals, the settings sections, and how the Android app keeps up. Everything else (principles, tokens, type, spacing, layout, components, motion durations, voice, accessibility) is the Kore design system: **[kore-ui's DESIGN.md](https://github.com/qarasky/kore-ui/blob/v0.1.1/DESIGN.md)** (also in `web/node_modules/@qarasky/kore-ui/DESIGN.md` after `bun install`). If the two disagree, kore-ui wins; change this file.
 
-## 1. Principles
-1. **Open and ask.** The app opens to a blank chat with the cursor ready. Nothing stands between the owner and the first message.
-2. **No wait.** The user's message shows instantly, a "thinking" indicator shows immediately, tokens stream as they arrive. Motion and polish never delay a reply.
-3. **Calm chat, dense chrome.** Messages are comfortable to read (15px, 1.6 line height). Everything around them (sidebar, settings, pickers) is compact like Kore.
-4. **Show state in words.** Connected, Free tier, Saving…, Saved. Colour supports the word, never replaces it.
-5. **Few things, honestly named.** Five settings sections. Presets named by outcome. The assistant says what it can really do (web search and notes), and anything that reaches into another chat asks first.
-6. **Dark only.** One theme, Kore's palette.
-7. **Nothing silent.** An action that fails says why, in the place it was triggered. A button never "does nothing".
+The web UI is built from `@qarasky/kore-ui` (pinned tag in `web/package.json`): its `theme.css` holds every token, and AppShell, SettingsLayout, AuthScreen, AccountMenu, AppSwitcher and the primitives come from there. This repo adds no colours, sizes or components of its own beyond the chat-specific views below. The research behind KoreMind's choices is in [`docs/research/design-research.md`](docs/research/design-research.md); the product design is in `docs/superpowers/specs/2026-11-02-koremind-design.md`.
 
-## 2. Tokens
-Kore's palette, taken as is. Web: `web/app/globals.css` (`@theme`). Android: `ui/theme/Theme.kt` (`KoreMindColors`).
+## 1. KoreMind's own principles
+On top of kore-ui §1:
+1. **Open and ask.** The app opens to a blank chat with the cursor ready. Nothing stands between the user and the first message.
+2. **No wait.** The user's message shows instantly, a "thinking" indicator shows immediately, tokens stream as they arrive. Motion never delays a reply.
+3. **Calm chat, dense chrome.** Answers are comfortable to read (15px, 1.6 line height, `reading` width 768px). Everything around them is kore-ui density.
+4. **Few things, honestly named.** Five settings sections. Presets named by outcome. The assistant says what it can really do (web search and notes), and anything that reaches into another chat asks first.
 
-| Token | Value | Use |
-| --- | --- | --- |
-| bg | `#16181d` | Page |
-| surface | `#1d2026` | Panels, cards, composer |
-| raised | `#23262d` | Menus, hover, active nav pill, user bubble |
-| border | `#2c3038` | Hairlines |
-| border-strong | `#3a3f49` | Dividers, off switch, "not connected" dot |
-| text | `#e6e8ee` | Primary text |
-| muted | `#8a8f9a` | Secondary text, hints |
-| accent | `#5b8def` | Primary action, focus ring, active marker, connected dot |
-| accent-hover | `#7aa3f2` | Hover on accent |
-| danger | `#f2777a` | Errors, destructive |
-| warning | `#e5a54b` | "Free tier" dot, quota notices |
+## 2. Frame
+The standard kore-ui AppShell (kore-ui §3): top bar with the KoreMind wordmark, AppSwitcher (when the server lists other apps in `KOREMIND_KORE_APPS`) and AccountMenu (Kore ID account, **Settings**, other apps, Sign out, which also ends the Kore ID session). The sidebar is the chat list: **New chat** (primary) as the header, then a `SidebarNav` "Chats" of `SidebarItem`s, newest first. Each page starts with a `PageHeader`: the chat's title (or "New chat") with **Delete chat** (danger IconButton → ConfirmDialog) on the right; "Settings" with the autosave status. Sign-in and the connect-to-server screen are `AuthScreen app="koremind"`: **Continue with Kore ID** is the only way in (no password form, no first-account setup), with "Change server" as the footer.
 
-Rules: no gradients, no shadows except the model popover; hairline borders over boxes; accent used sparingly (one primary action per card).
+## 3. Chat
+- **Column.** `max-w-reading` (768px), 16px side padding, inside the main panel. User messages right-aligned in a `raised` block with the overlay radius (8px); assistant text is plain, unboxed Markdown (`.koremind-md` in `globals.css`: 1.6 line height, code on `raised`, code blocks on `bg` with a hairline).
+- **Under an answer:** what the assistant did and its sources, as kore-ui `Badge`s (outline; denied access is the danger tone). Sources are links styled with `badgeVariants`.
+- **Status.** "Thinking" / "Searching the web" in `meta` muted with the three-dot pulse (`.dot-pulse`), as a polite status.
+- **Home.** A single centred line, "What's on your mind?" (`text-display`), and the composer.
 
-## 3. Type and size
-- Font: Inter, then system fonts. Nothing loads from the network.
-- Base 15px. Scale: 12 (`2xs`, hints, counters), 13 (`meta`), 14 (`sub`, controls and rows), 16 (`heading`, message text and composer), 17 (`title`, section titles), 24 (`display`, home greeting).
-- Controls 40px tall, compact controls 32px, list rows 48px. Corners 6px; the composer is the only large shape (20px); the user bubble is rounded-2xl.
-- Icons: lucide on web, Material icons on Android, 14-20px, stroke style, never decorative.
-
-## 4. Layout
-- **Shell.** Sidebar (256px) on wide screens, a drawer on narrow ones. Top bar: menu, centered (mobile) or left-aligned (desktop) title, optional right action.
-- **Chat.** Column max 768px, 16px side padding. User messages right-aligned in a raised bubble; assistant text is plain, unboxed Markdown. Sources are small chips under the answer.
-- **Composer.** Floating card, 20px radius, hairline border that strengthens on focus. Attachment chips above the text; below: attach, model chip, spacer, send/stop (40px circle).
-- **Home.** A single centered line, "What's on your mind?", and the composer.
-- **Settings.** Left section nav (200px) + content column (max 576px) on desktop; a scrolling pill row above the content on phones. One section visible at a time; the active section is remembered in the URL hash (`#providers`).
-
-## 5. Components
+### Composer
+A multi-line field that looks like a kore-ui input scaled up: `bg/60`, hairline border, `border-strong` on hover, accent border + 2px accent/25 ring while focused, overlay radius. Attachment chips (32px, raised, hairline, × IconButton) sit above the text; below it: attach (IconButton), the model chip, a spacer, then **Send** (primary IconButton, 40px) which turns into **Stop** (secondary) while answering. Enter sends, Shift+Enter adds a line, IME composition never sends. Errors (file too big, no model, model can't read photos) appear under it.
 
 ### Model picker
-Opens above the composer. Left rail (56px): favorites star, divider, one real provider logo per provider (22px, monochrome, current text colour); a 3px accent marker slides to the active entry. Right: search with an accent underline, rows (name, a "Free" tag when every price tier is zero, "No photos" if the model can't read images, ⌘1-⌘3 on web for the first three rows, favorite star, check on the current one), then a "Thinking level" chip row when the model has levels.
+A kore-ui `Popover` above the model chip (start-aligned, `flush`, 440px). Left rail (56px): favorites star, a divider, one real provider logo per provider (20px, monochrome, current text colour); each is a 40px button with a tooltip, the active one on a white/5 tint with a 3px accent marker that slides between entries. Right: a filled small `Input` with a search icon (focused on open), rows (name, a "Free" `Badge` when every price tier is zero, "No photos" if the model can't read images, `Kbd` ⌘1–⌘3 on the first three rows, favorite star IconButton, accent check and `accent/10` row tint on the current one), then a **Thinking level** row of toggle chips when the model has levels.
 
-**Every offered provider is on the rail** (Groq, OpenRouter, OpenCode, Codex: the recommended two first, in the order the server returns them). One that can't be used right now is dimmed to 40% but still selectable, and its pane explains why instead of listing models: *"Connect {name} in Settings to use its models."* (no key / not signed in) or *"{name} is turned off in Settings."*, with an **Open Settings** button that goes to Settings → Providers. Favorites and the saved choice only count providers that are ready; if the saved choice stops being allowed, KoreMind falls back to the default of the first ready provider. OpenCode counts as ready without a key because its free tier needs none.
+**Every offered provider is on the rail** (Groq, OpenRouter, OpenCode, Codex: the recommended two first, in the order the server returns them). One that can't be used right now is dimmed but still selectable, and its pane explains why instead of listing models: *"Connect {name} in Settings to use its models."* (no key / not signed in) or *"{name} is turned off in Settings."*, with an **Open Settings** button that goes to Settings → Providers. Favorites and the saved choice only count providers that are ready; if the saved choice stops being allowed, KoreMind falls back to the default of the first ready provider. OpenCode counts as ready without a key because its free tier needs none.
 
-Logos come from `assets/providers/*.svg` (models.dev) and are bundled, never loaded from the network: inline SVG on web, tinted vector drawables on Android. There is no separate Codex mark, so Codex (provider id `openai`) uses OpenAI's.
-
-### Settings sections
-| Section | Content |
-| --- | --- |
-| Models | Favorites, with the provider under each model. Empty state says to star a model in the picker. |
-| Providers | One card per provider: logo tile, name, status (dot + words), one primary action. Codex: **Sign in with ChatGPT** + "Use an API key". Groq, OpenRouter and OpenCode: "Use an API key". Groq and OpenRouter carry a small accent **Recommended** pill next to the name. Connected: "Replace key" and **Disconnect**. The key field is disclosed on demand. Under the actions, two switches: **Use in model picker** (every provider) and **Only free models** (OpenCode and OpenRouter, with the hint "Hide paid models from the picker."). Both are per user, autosaved, and the picker follows immediately. |
-| Personalization | Name, four tone presets (Short and direct, Friendly, Formal, Playful), free-text tone, "anything it should always know" (600 characters, counter). |
-| Memory | Switch with a count, then editable rows. |
-| Account | Email, server address with "Change server", **Connect your phone** (QR), Sign out. |
-
-Settings are **autosaved** 700 ms after the last change and flushed when leaving. The header shows Saving… / Saved / an error. There is no Save button.
-
-### Provider states
-`on` = accent dot, "Connected". `free` = warning dot, "Free tier, no key" (OpenCode only). `off` = muted dot, "Not connected". Sign-in is only offered for Codex and must be finished in a browser on the computer that runs KoreMind; the Android app says so instead of offering it.
-
-### Connect your phone (QR)
-Settings → Account → **Show QR code** (web). A white tile with dark modules (scanners read that best), a countdown ("Expires in 1:42"), and **New code** once it expires or on demand. The code lives two minutes and works once. On Android, **Scan QR code** appears on the Connect-to-server and Sign-in screens (and a `koremind://pair` link opens the app): it tries each address in the code until one answers, then signs in as the same account. Scanning is Android-only and showing is web-only by nature; everything else is 1:1.
+Logos come from `assets/providers/*.svg` (models.dev) and are bundled, never loaded from the network: inline SVG on web, tinted vector drawables on Android. Codex (provider id `openai`) uses OpenAI's mark.
 
 ### Notes and approvals
-The assistant has three notes tools (save, read, edit). A note belongs to one chat of one user; by default a tool only touches the current chat. When the owner asks it to look at or change **another chat's** notes, an **approval card** appears in the chat: *"KoreMind wants to read the notes from “{chat}”"* / *"…edit the notes in “{chat}”"* with **Allow** and **Deny**. The card is warning-bordered, collapses the moment it is tapped, and the stream stays open while it waits (60 s, then "The request expired."). Allowing covers that chat for the rest of the turn; edit covers read. Nothing about another chat, not even whether a note exists, is revealed before the user agrees.
-
-What the assistant did is shown as small chips under its message and kept in the history: *Saved note “X”*, *Updated note “X”*, *Read notes*, *Read notes from “Y”*, *Access to “Y” was denied* (denied is danger-coloured).
+The assistant has three notes tools (save, read, edit). A note belongs to one chat of one user; by default a tool only touches the current chat. When the user asks it to look at or change **another chat's** notes, an **approval card** appears in the chat (a `Card` with a warning/40 border): *"KoreMind wants to read the notes from “{chat}”"* / *"…edit the notes in “{chat}”"* with **Allow** (primary, small) and **Deny** (secondary, small). It collapses the moment it is tapped, and the stream stays open while it waits (60 s, then "The request expired."). Allowing covers that chat for the rest of the turn; edit covers read. Nothing about another chat, not even whether a note exists, is revealed before the user agrees. What happened is kept as badges under the message: *Saved note “X”*, *Updated note “X”*, *Read notes*, *Read notes from “Y”*, *Access to “Y” was denied*.
 
 ### Chat titles
-A new chat is titled with its first words immediately. After the first answer, the chosen model names it (at most 5 words, same language, no quotes). The title arrives after the reply, fades into the sidebar and header, and never overwrites a title the owner typed.
+A new chat is titled with its first words immediately. After the first answer, the chosen model names it (at most 5 words, same language, no quotes). The title arrives after the reply and never overwrites a title the user typed.
 
 ### Errors
-Shown where the action happened, in danger colour, with what to do next. A provider that can't be disconnected (connected via an environment variable on the server) says exactly that. "No provider" (free quota used up) shows a warning card with a link to Settings → Providers.
+Kore-ui §5: where the action happened, in danger colour, with what to do next. Form fields use `Field error`; sign-in uses AuthScreen's `error`; everything else (composer, chat, a settings card) a small animated `role="alert"` line (`components/InlineError.tsx`). "No provider" (free quota used up) shows a warning card with **Open Settings**.
 
-## 6. Motion
-One language, defined in `web/lib/motion.ts` (web) and `ui/theme` helpers (Android).
+## 4. Settings
+kore-ui `SettingsLayout` (200px section nav with icons + one 576px column; a pill row on phones that keeps the current pill in view) under a `PageHeader` "Settings" whose right side shows the autosave status. One section at a time, remembered in the URL hash (`#providers`). Each section is one or more `SettingsSection`s.
 
-| Kind | Duration / curve | Used for |
-| --- | --- | --- |
-| quick | 140 ms, ease-out `[0.2, 0, 0, 1]` | Popovers, status swaps, exits |
-| smooth | 220 ms, same curve | Section changes, entrances |
-| spring | stiffness 520, damping 42 | Layout moves: nav pill, rail marker, list reflow, switch thumb |
-| screen | 320 ms | Sign-in and connect screens, home greeting |
+| Section | Content |
+| --- | --- |
+| Models | Favorite models in a `Card` (model, provider under it, a filled star to unpin). Empty: `EmptyState` "No favorites yet". |
+| Providers | One `Card` per provider: logo tile, name, a `Badge` **Recommended** (Groq, OpenRouter), and the state as a `StatusDot` with words: Connected (up), Free tier, no key (warn, OpenCode), Not connected (off). Actions as small buttons: Codex **Sign in with ChatGPT** (primary) + "Use an API key"; others "Use an API key"; connected: "Replace key" and **Disconnect** (danger-outline). The key field (Field + password Input + **Save key**) is disclosed on demand. Under a hairline, `Switch` rows (label first): **Use in model picker** (every provider) and **Only free models** (OpenCode, OpenRouter: "Hide paid models from the picker."). |
+| Personalization | Name, tone presets as toggle chips (Short and direct, Friendly, Formal, Playful), free-text tone, "Anything it should always know" (`Textarea`, 600 characters, counter as the Field's `labelAside`). |
+| Memory | `Switch` "Remember things about me" with the count as its description, then the remembered items in a `Card` (edit → `Textarea` with Cancel / Save; delete). Empty: `EmptyState`. |
+| Account | A `Card`: signed in as, Kore ID (**Link Kore ID** or "Linked"), server with **Change server**. Then **Connect your phone** (QR) and **Sign out** (danger-outline) as their own sections. |
 
-What moves:
-- New messages rise 8px and fade in (not the ones already on screen when a chat loads).
-- Thinking / Searching status crossfades; sources pop in staggered by 40 ms.
-- Send turns into Stop and back with a small scale.
-- Attachment chips scale in and out; remaining chips glide.
-- Model popover: scale 0.96 → 1 from its bottom-left corner. Rail marker slides between providers.
-- Sidebar: rows glide when a chat is added or removed; titles crossfade when renamed; the mobile drawer slides.
-- Settings: nav pill slides between sections; content fades 8px; key field and sign-in hints expand; list rows collapse when removed; the switch thumb springs.
-- Errors expand and fade in under the field.
+Settings are **autosaved** 700 ms after the last change and flushed when leaving; the header says Saving… / Saved / an error. There is no Save button (kore-ui §3 prefers autosave for KoreMind).
 
-Rules: motion explains a change and never delays content. Exits are shorter than entrances. The OS "reduce motion" setting is honored globally (`MotionConfig reducedMotion="user"` on web; animator-duration scale on Android): transforms and layout animation stop, opacity may remain.
+**Toggle chips** (tone presets, thinking level) are kore-ui's small secondary `Button` with `aria-pressed`, tinted `accent/15` with an `accent/60` border when on (`components/ToggleChip.tsx`; kore-ui has no toggle button).
 
-## 7. Copy
-- Plain, short, no exclamation marks. "Not connected", not "Provider unavailable".
-- Say what happens next: "Finish signing in on the tab that opened. This updates by itself."
-- Labels are about outcomes, not parameters.
-- All UI strings live in `web/lib/strings.ts` and `res/values/strings.xml`.
+### Connect your phone (QR)
+Settings → Account → **Show QR code** (web): a white tile with dark modules (scanners read that best), a countdown ("Expires in 1:42"), and **New code** once it expires or on demand. The code lives two minutes and works once. On Android, **Scan QR code** appears on the Connect-to-server and Sign-in screens (and a `koremind://pair` link opens the app): it tries each address in the code until one answers, then signs in as the same account.
 
-## 8. Accessibility
-- Visible focus ring in accent on every interactive element.
-- Targets at least 32px (40px for primary controls).
-- Status changes (saving, thinking, errors) use `role="status"` / `role="alert"`.
-- Switches use `role="switch"` with `aria-checked`; presets use `aria-pressed`; the section nav marks the current page with `aria-current`.
-- Keyboard: Enter sends, Shift+Enter adds a line (IME composition never sends); Esc closes the picker; ⌘/Ctrl+1-3 choose the first three models.
+## 5. Motion
+kore-ui's durations and curves (§2 Motion); KoreMind keeps `motion` for chat-specific effects, in `web/lib/motion.ts`: `quick` 140 ms and `smooth` 220 ms on `cubic-bezier(0.2, 0, 0, 1)`, and a spring (stiffness 520, damping 42) for layout moves (rail marker, list reflow). Overlays, the drawer, menus, dialogs and switches use kore-ui's own CSS animations.
 
-## 9. Parity: web and Android
-Both clients implement the same behaviour with the same strings (`web/lib/strings.ts`, `res/values/strings.xml`) and the same pure helpers (picker filtering and provider status, settings lists, activity text, chat reducer), each with its own tests. When a feature changes, change both and the strings together. The only deliberate asymmetries are inherent to the device: showing the pairing QR (web) vs scanning it (Android), and Codex's ChatGPT sign-in, which must be finished in a browser on the computer that runs KoreMind (Android shows a note instead of a button).
+What moves: new messages rise 8px and fade in (not the ones already on screen when a chat loads); the status line crossfades; sources and activity badges pop in staggered by 40 ms; Send turns into Stop with a small scale; attachment chips scale in and out; the rail marker slides; settings content fades 8px between sections; the key field and sign-in hints expand; removed rows collapse; inline errors expand. The OS "reduce motion" setting is honoured (`MotionConfig reducedMotion="user"` plus kore-ui's global rule; animator-duration scale on Android).
 
-## 10. What KoreMind does not do
+## 6. Copy
+kore-ui §5. KoreMind specifics: labels are about outcomes, not parameters ("Only free models", "Remember things about me"); say what happens next ("Finish signing in on the tab that opened. This updates by itself."). All UI strings live in `web/lib/strings.ts` and `android/…/res/values/strings.xml`; kore-ui's own labels are passed from there.
+
+## 7. Android
+The Compose app follows the same tokens (`ui/theme/Theme.kt`: kore-ui's colours incl. danger-solid and status colours, 6dp controls / 8dp overlays, 15sp body, 600-weight titles) and the same screens, strings and pure helpers (picker filtering and provider status, settings lists, activity text, chat reducer, SSO link routing), each with its own tests. When a feature changes, change both and the strings together. Deliberate differences, by platform convention: Material switches (52×32), a 56dp top app bar, the model picker as a bottom sheet, system font instead of bundled Inter, 18–20dp chat bubble and composer radii. Inherent asymmetries: showing the pairing QR (web) vs scanning it (Android), and Codex's ChatGPT sign-in, which must be finished in a browser on the computer that runs KoreMind (Android shows a note instead of a button).
+
+## 8. What KoreMind does not do
 No light theme, no gradients, no decorative animation, no onboarding tour, no upsells, no mode chip for web search (it is simply on), no memory tool exposed to the model, no per-section save buttons.

@@ -1,5 +1,7 @@
 package dev.qarasky.koremind.ui.settings
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -222,7 +224,7 @@ private fun ProvidersSection(vm: AppViewModel, settings: Settings?, onChange: (S
             val state = providerStatus(p.id, p.connected)
             val open = keyOpen == p.id
             val dot by animateColorAsState(
-                when (state) { ProviderState.On -> KoreMindColors.Accent; ProviderState.Free -> KoreMindColors.Warning; ProviderState.Off -> KoreMindColors.BorderStrong },
+                when (state) { ProviderState.On -> KoreMindColors.Accent; ProviderState.Free -> KoreMindColors.Warning; ProviderState.Off -> KoreMindColors.StatusOff },
                 quickSpec(LocalMotion.current), label = "dot",
             )
             Column(CardModifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -378,6 +380,13 @@ private fun MemorySection(vm: AppViewModel, settings: Settings?, onChange: (Sett
 @Composable
 private fun AccountSection(vm: AppViewModel, onChangeServer: () -> Unit) {
     val session by vm.session.collectAsStateWithLifecycle()
+    val me by vm.me.collectAsStateWithLifecycle()
+    var sso by remember { mutableStateOf(false) }
+    var linking by remember { mutableStateOf(false) }
+    var linkError by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { vm.refreshMe(); sso = vm.health()?.sso == true }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(ScreenPadding), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         SectionHeader(stringResource(R.string.account), stringResource(R.string.account_hint))
         Column(CardModifier) {
@@ -393,7 +402,31 @@ private fun AccountSection(vm: AppViewModel, onChangeServer: () -> Unit) {
                 }
                 Text(stringResource(R.string.change_server), color = KoreMindColors.Accent, modifier = Modifier.clickable(onClick = onChangeServer).padding(8.dp))
             }
+            // Kore ID: shown once linked, or when the server offers it. Linking reuses the sign-in flow with the bearer token.
+            val linked = me?.ssoLinked == true
+            if (linked || sso) {
+                Box(Modifier.fillMaxWidth().size(width = 1.dp, height = 1.dp).background(KoreMindColors.Border))
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.koreid), color = KoreMindColors.Muted, modifier = Modifier.weight(1f))
+                    if (linked) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Box(Modifier.size(6.dp).background(KoreMindColors.StatusUp, CircleShape))
+                        Text(stringResource(R.string.koreid_linked))
+                    } else Text(
+                        stringResource(R.string.link_koreid), color = if (linking || me == null) KoreMindColors.Muted else KoreMindColors.Accent,
+                        modifier = Modifier.clickable(enabled = !linking && me != null) {
+                            linkError = null; linking = true
+                            scope.launch {
+                                vm.ssoStart()
+                                    .onSuccess { url -> try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) { linkError = context.getString(R.string.sso_failed) } }
+                                    .onFailure { linkError = it.message }
+                                linking = false
+                            }
+                        }.padding(8.dp),
+                    )
+                }
+            }
         }
+        ErrorText(linkError)
         KoreMindButton(stringResource(R.string.sign_out), ghost = true, danger = true, onClick = vm::signOut)
     }
 }

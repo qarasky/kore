@@ -4,6 +4,7 @@
   "type": "module",
   "dependencies": {
     "@koremind/shared": "workspace:*",
+    "jose": "^6.2.15",
     "zod": "^4.0.0"
   },
   "devDependencies": {

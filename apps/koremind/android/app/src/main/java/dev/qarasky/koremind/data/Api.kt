@@ -61,10 +61,12 @@ class KoreMindApi(val baseUrl: String, private val token: () -> String?) {
     @kotlinx.serialization.Serializable data class Ok(val ok: Boolean = true)
 
     suspend fun health(): Health = get("/health")
-    suspend fun register(email: String, password: String): AuthResponse = send("POST", "/auth/register", AuthRequest(email, password))
-    suspend fun login(email: String, password: String): AuthResponse = send("POST", "/auth/login", AuthRequest(email, password))
-    suspend fun logout(): Ok = call("POST", "/auth/logout", null, serializer())
+    suspend fun logout(): LogoutResponse = call("POST", "/auth/logout", null, serializer())
     suspend fun me(): User = get("/me")
+    /** Kore ID: the URL to open in the browser. [challenge] is the PKCE challenge of a verifier kept on the phone.
+     *  Sent while signed in (with the bearer token) it links Kore ID to this account instead of signing in. */
+    suspend fun ssoStart(challenge: String): SsoStartResponse = send("POST", "/auth/oidc/start", SsoStartBody(challenge, "android"))
+    suspend fun ssoExchange(ticket: String, verifier: String): AuthResponse = send("POST", "/auth/oidc/exchange", SsoExchangeBody(ticket, verifier))
     suspend fun models(): List<ProviderInfo> = get("/models")
     suspend fun providers(): List<ProviderConnection> = get("/providers")
     suspend fun favorites(): List<String> = get("/favorites")
