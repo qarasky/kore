@@ -32,7 +32,7 @@ import dev.qarasky.korecalendar.ui.theme.Palette
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EventDetailsScreen(state: AppState.Ready, eventId: String, key: String, onBack: () -> Unit) {
+fun EventDetailsScreen(state: AppState.Ready, eventId: String, key: String, onBack: () -> Unit, onEdit: (dev.qarasky.korecalendar.data.Occurrence) -> Unit, onDelete: (dev.qarasky.korecalendar.data.Occurrence) -> Unit) {
     BackHandler(onBack = onBack)
     val row = state.agenda.days.flatMap { d -> d.rows.map { d.date to it } }.firstOrNull { (_, r) -> r.item.occ.eventId == eventId && r.item.occ.key == key }
     val labels = Labels(stringResource(R.string.today), stringResource(R.string.tomorrow))
@@ -45,6 +45,12 @@ fun EventDetailsScreen(state: AppState.Ready, eventId: String, key: String, onBa
                 title = { Text(stringResource(R.string.event_details)) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Palette.bg, titleContentColor = Palette.text),
                 navigationIcon = { TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.back)) } },
+                actions = {
+                    row?.let { (_, r) ->
+                        TextButton(onClick = { onEdit(r.item.occ) }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.edit)) }
+                        TextButton(onClick = { onDelete(r.item.occ) }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.delete), color = Palette.danger) }
+                    }
+                },
             )
         },
     ) { padding ->

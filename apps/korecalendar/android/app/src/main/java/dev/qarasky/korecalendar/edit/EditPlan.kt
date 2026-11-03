@@ -277,3 +277,11 @@ fun planUpdate(master: Event, occurrence: Occurrence?, form: FormValues, scope: 
         warnings,
     )
 }
+
+/** The form with its start moved; the end moves with it, so the duration (or an all-day event's length in days) stays. */
+fun FormValues.withStart(day: LocalDate, time: LocalTime): FormValues {
+    if (allDay) return copy(startDay = day, endDay = day.plusDays(ChronoUnit.DAYS.between(startDay, endDay)))
+    val length = diffMinutes(startDay.atTime(startTime), endDay.atTime(endTime))
+    val end = day.atTime(time).plusMinutes(length)
+    return copy(startDay = day, startTime = time, endDay = end.toLocalDate(), endTime = end.toLocalTime())
+}

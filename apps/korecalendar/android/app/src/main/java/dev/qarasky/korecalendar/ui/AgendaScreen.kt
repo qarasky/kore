@@ -46,6 +46,7 @@ fun AgendaScreen(
     onRefresh: suspend () -> Unit,
     onOpen: (eventId: String, key: String) -> Unit,
     onSettings: () -> Unit,
+    onNew: () -> Unit,
 ) {
     val agenda = state.agenda
     val labels = Labels(stringResource(R.string.today), stringResource(R.string.tomorrow))
@@ -56,6 +57,13 @@ fun AgendaScreen(
 
     Scaffold(
         containerColor = Palette.bg,
+        floatingActionButton = {
+            androidx.compose.material3.ExtendedFloatingActionButton(
+                onClick = onNew,
+                containerColor = Palette.accent,
+                contentColor = Palette.bg,
+            ) { Text(stringResource(R.string.new_event)) }
+        },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.agenda_title)) },
@@ -74,7 +82,7 @@ fun AgendaScreen(
             onRefresh = { scope.launch { onRefresh() } },
             modifier = Modifier.padding(padding).fillMaxSize(),
         ) {
-            LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp), modifier = Modifier.fillMaxSize()) {
+            LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 96.dp), modifier = Modifier.fillMaxSize()) {
                 item { StatusLine(state) }
                 for (day in agenda.days) {
                     item(key = "h-${day.date}") {

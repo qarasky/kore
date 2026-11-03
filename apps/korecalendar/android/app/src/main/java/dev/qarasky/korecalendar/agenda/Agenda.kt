@@ -165,6 +165,9 @@ fun dayLabel(date: LocalDate, today: LocalDate, labels: Labels): String = when (
     else -> shortDate(date, withYear = date.year != today.year)
 }
 
+/** "14:30" or "2:30 PM". */
+fun timeLabel(t: java.time.LocalTime, clock24: Boolean): String = clock(t, clock24)
+
 private fun clock(t: java.time.LocalTime, clock24: Boolean): String {
     if (clock24) return "%02d:%02d".format(t.hour, t.minute)
     val h = if (t.hour % 12 == 0) 12 else t.hour % 12

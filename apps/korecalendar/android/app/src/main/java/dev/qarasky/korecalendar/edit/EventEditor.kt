@@ -105,6 +105,13 @@ class EventEditor(
         return planUpdate(m, occurrence, s.form, Scope.All).allowedScopes
     }
 
+    /** False for an existing event whose form still equals what the server has: saving would send nothing. */
+    fun hasChanges(): Boolean {
+        val s = editing() ?: return false
+        val m = master ?: return true
+        return planUpdate(m, occurrence, s.form, Scope.All).requests.isNotEmpty()
+    }
+
     fun deleteScopes(occ: Occurrence): List<Scope> = if (occ.isRecurring) listOf(Scope.This, Scope.Following, Scope.All) else listOf(Scope.All)
 
     suspend fun save(scope: Scope): SaveResult {

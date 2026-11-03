@@ -34,6 +34,7 @@ class Graph private constructor(app: Application) {
         signInFlow = SignIn(apiFor, accounts, Build.MODEL),
         apiFor = apiFor,
         background = AndroidBackground(app),
+        messages = dev.qarasky.korecalendar.ui.ResourceMessages(app),
         now = { Instant.now() },
     )
 

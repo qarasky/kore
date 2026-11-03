@@ -42,3 +42,6 @@ fun monthLong(month0: Int): String =
 
 /** "31 Dec 2026". */
 fun fullDate(d: LocalDate): String = "${d.dayOfMonth} ${MONTH_NAMES[d.monthValue - 1]} ${d.year}"
+
+/** "Wed 4 Nov 2026". */
+fun dateText(d: LocalDate): String = "${weekdayShort(weekday(d))} ${d.dayOfMonth} ${MONTH_NAMES[d.monthValue - 1]} ${d.year}"
