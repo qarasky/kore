@@ -235,7 +235,10 @@ export async function saveEditor(dialog: Locator): Promise<void> {
 
 /** The toast with `text` (kore-ui's toasts are list items in the "Notifications" region). */
 export function toast(page: Page, text: string | RegExp): Locator {
-  return page.getByRole("region", { name: /^Notifications/ }).getByRole("listitem").filter({ hasText: text });
+  return page
+    .getByRole("region", { name: /^Notifications/ })
+    .locator('[data-kore-toast][data-state="open"]')
+    .filter({ hasText: text });
 }
 
 /** Answer a "which events?" dialog. */
