@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/qarasky/kore/api/internal/auth"
 	"github.com/qarasky/kore/api/internal/nodes"
 	"github.com/qarasky/kore/api/internal/users"
 	"github.com/qarasky/kore/api/internal/volume"
@@ -129,9 +128,6 @@ func TestDeleteUserPurgeFiles(t *testing.T) {
 	if rec := e.do(t, &e.admin, "GET", "/api/nodes?space=shared", ""); rec.Code != 200 || !strings.Contains(rec.Body.String(), shared.ID) {
 		t.Fatalf("shared listing: %d %s", rec.Code, rec.Body)
 	}
-	if _, err := auth.Authenticate(context.Background(), e.db, "user@x.io", "password-1"); err == nil {
-		t.Fatal("deleted user can still log in")
-	}
 	if rec := e.do(t, &e.admin, "DELETE", path+"?files=purge", ""); rec.Code != 404 {
 		t.Fatalf("again: %d", rec.Code)
 	}
@@ -221,8 +217,7 @@ func TestDeleteUserUploaderInOtherPersonalSpace(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
 	e.db.Exec(`UPDATE users SET quota_bytes=? WHERE id=?`, 1<<20, e.user.ID)
-	ph, _ := auth.HashPassword("password-1")
-	y, err := users.Create(ctx, e.db, "y@x.io", ph, "user", 1<<20)
+	y, err := users.Create(ctx, e.db, "y@x.io", "user", 1<<20)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,33 +282,5 @@ func TestDeleteUserUploaderInOtherPersonalSpace(t *testing.T) {
 	e.db.QueryRow(`SELECT count(*) FROM users WHERE id=?`, e.user.ID).Scan(&n)
 	if n != 0 {
 		t.Fatal("user still exists")
-	}
-}
-
-func TestChangeOwnPasswordRateLimited(t *testing.T) {
-	e := newEnv(t)
-	for i := 0; i < 5; i++ {
-		if rec := e.do(t, &e.user, "POST", "/api/me/password", `{"current_password":"wrong","new_password":"newpassword"}`); rec.Code != 403 {
-			t.Fatalf("attempt %d: %d", i+1, rec.Code)
-		}
-	}
-	rec := e.do(t, &e.user, "POST", "/api/me/password", `{"current_password":"password-1","new_password":"newpassword"}`)
-	if rec.Code != 429 || jsonBody(t, rec)["error"] != "too_many_attempts" || rec.Header().Get("Retry-After") == "" {
-		t.Fatalf("6th: %d %s %q", rec.Code, rec.Body, rec.Header().Get("Retry-After"))
-	}
-	if _, err := auth.Authenticate(context.Background(), e.db, "user@x.io", "password-1"); err != nil {
-		t.Fatal("password changed despite the limit")
-	}
-	// Per user: another account is unaffected, and success clears its count.
-	for i := 0; i < 4; i++ {
-		e.do(t, &e.admin, "POST", "/api/me/password", `{"current_password":"wrong","new_password":"newpassword"}`)
-	}
-	if rec := e.do(t, &e.admin, "POST", "/api/me/password", `{"current_password":"password-1","new_password":"newpassword"}`); rec.Code != 204 {
-		t.Fatalf("admin: %d %s", rec.Code, rec.Body)
-	}
-	for i := 0; i < 5; i++ {
-		if rec := e.do(t, &e.admin, "POST", "/api/me/password", `{"current_password":"wrong","new_password":"x"}`); rec.Code != 403 {
-			t.Fatalf("after reset, attempt %d: %d", i+1, rec.Code)
-		}
 	}
 }

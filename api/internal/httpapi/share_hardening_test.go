@@ -47,22 +47,6 @@ func TestLimitKeyGroupsIPv6By64(t *testing.T) {
 	}
 }
 
-func TestLoginLimitGroupsIPv6By64(t *testing.T) {
-	h := setup(t)
-	for i := 0; i < 5; i++ {
-		// A fresh address in the same /64 for every attempt.
-		if rec := loginFrom(h, "[2001:db8:9:9::"+string(rune('a'+i))+"]:1", "a@b.c", "bad"); rec.Code != 401 {
-			t.Fatalf("attempt %d: %d", i, rec.Code)
-		}
-	}
-	if rec := loginFrom(h, "[2001:db8:9:9::ff]:1", "a@b.c", "right-pw"); rec.Code != 429 {
-		t.Fatalf("same /64 not limited: %d", rec.Code)
-	}
-	if rec := loginFrom(h, "[2001:db8:9:a::1]:1", "a@b.c", "right-pw"); rec.Code != 200 {
-		t.Fatalf("other /64: %d", rec.Code)
-	}
-}
-
 func TestPublicLimitPerForwardedClient(t *testing.T) {
 	e := newShareEnv(t)
 	f := e.put(t, e.user, nodes.Space{}, nil, "a.txt", []byte("A"))
@@ -126,7 +110,10 @@ func TestSharePasswordMinLength(t *testing.T) {
 	sh := e.share(t, e.user, `{"node_id":"`+f.ID+`","password":"12345678"}`)
 	code(t, e.do(t, &e.user, "PATCH", "/api/shares/"+sh["id"].(string), `{"password":"short"}`), 400, "password_too_short")
 	// A link made before the rule, with a 4-character password, still opens.
-	h, _ := auth.HashPassword("abcd")
+	h, err := auth.HashPassword("abcd")
+	if err != nil {
+		t.Fatal(err)
+	}
 	e.db.Exec(`UPDATE shares SET password_hash=? WHERE id=?`, h, sh["id"])
 	code(t, e.pub("POST", pubPath(sh["token"].(string))+"/unlock", `{"password":"abcd"}`), 204, "")
 }

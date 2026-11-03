@@ -38,7 +38,7 @@ func (s *syncBuffer) String() string {
 func writeConfig(t *testing.T, dataDir string, port int, bind string) string {
 	t.Helper()
 	p := filepath.Join(t.TempDir(), "kore.toml")
-	body := fmt.Sprintf("port = %d\nbind = %q\ndata_dir = %q\nadmin_email = \"admin@x.io\"\nadmin_password = \"a-real-password-1\"\n", port, bind, dataDir)
+	body := fmt.Sprintf("port = %d\nbind = %q\ndata_dir = %q\npublic_url = \"https://kore.example.com\"\n[oidc]\nissuer = \"https://id.example.com\"\n", port, bind, dataDir)
 	if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}

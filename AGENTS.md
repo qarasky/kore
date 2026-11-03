@@ -83,8 +83,11 @@ jti replay cache is in memory (one API instance). Kore ID enforces per-user app
 access. SSO sessions keep
 `id_token`/`refresh_token` in `sessions` and redeem the refresh token every 10
 minutes under one mutex (parallel redemption looks like token theft to Kore
-ID). Password login is gated by `local_login`. The API needs outbound access to
-the issuer (compose `egress` network).
+ID). Kore ID is the only way to sign in: there is no password login, no
+registration/setup, no password reset, and no local bootstrap account. A fresh
+install's first admin is the first verified sign-in matching
+`oidc.owner_email`. The API needs outbound access to the issuer (compose
+`egress` network).
 
 **Security posture.** No external resource loads (fonts, images, scripts,
 CDNs): everything is bundled or inline. Uploaded files never execute in our
@@ -119,8 +122,9 @@ restrictive CSP (`sandbox`). Nothing user-controlled becomes a filesystem path
 - Migrations run on start. Caddy's admin API is off: restart it after
   `Caddyfile` changes.
 - Configuration is `.env` only (`KORE_*`, see `.env.example`); the API reads
-  `KORE_ADMIN_EMAIL`, `KORE_ADMIN_PASSWORD`, `KORE_DATA_DIR`, `KORE_BIND`,
-  `KORE_PORT` from the environment (the TOML file is optional).
+  `KORE_PUBLIC_URL`, `KORE_OIDC_*`, `KORE_DATA_DIR`, `KORE_BIND` and
+  `KORE_PORT` from the environment (the TOML file is optional). Kore ID is
+  required; `KORE_OIDC_OWNER_EMAIL` names the first administrator.
 - Releases: pushes to `main` publish `:edge`; `git tag vX.Y.Z && git push origin vX.Y.Z` runs
   `.github/workflows/images.yml` (ci, native amd64/arm64 builds, manifest, smoke, GitHub release), which publishes `ghcr.io/qarasky/kore-api`
   and `kore-web` (amd64 + arm64). `install.sh` pulls them; test changes to it

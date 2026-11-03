@@ -19,7 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <BrowserProvider>
       <UploadProvider>
-        <AppFrame user={{ email: user.email, role: user.role }} usage={usage} passwordLogin={auth.local_login} koreId={koreId}>
+        <AppFrame user={{ email: user.email, role: user.role }} usage={usage} koreId={koreId}>
           {children}
         </AppFrame>
       </UploadProvider>

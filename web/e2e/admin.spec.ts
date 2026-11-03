@@ -1,6 +1,7 @@
-import { expect, request, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import en from "../lib/i18n/en";
 import { E2E } from "./harness/env";
+import { userExists } from "./harness/db";
 import { ADMIN, apiAs, chooseOption, createFolder, createUser, loginAs, uploadFile, toasts } from "./helpers";
 
 const GiB = 1024 ** 3;
@@ -24,87 +25,42 @@ async function usedBytes(api: APIRequestContext): Promise<number> {
   return (await res.json()).used_bytes;
 }
 
-/** An API client that is not logged in, for login attempts. */
-async function anonApi(): Promise<APIRequestContext> {
-  return request.newContext({ baseURL: E2E.apiUrl });
-}
-
-async function loginStatus(email: string, password: string): Promise<number> {
-  const api = await anonApi();
-  try {
-    return (await api.post("/api/auth/login", { data: { email, password } })).status();
-  } finally {
-    await api.dispose();
-  }
-}
-
 async function adminLogin(page: Page) {
   await loginAs(page, ADMIN.email, ADMIN.password);
 }
 
-test("an admin creates a user, who signs in to an empty space with that quota", async ({ page, browser }) => {
-  const admin = await apiAs(ADMIN.email, ADMIN.password);
-  const settings: Settings = await (await admin.get("/api/admin/settings")).json();
-  await admin.dispose();
+test("accounts come from Kore ID: the admin sets role and quota, with no add form or password", async ({ page }) => {
+  const email = `edited-${Date.now()}@kore.test`;
+  await createUser({ email, role: "user", quota_bytes: 0 });
 
   await adminLogin(page);
   await page.goto("/admin/users");
-  await page.getByRole("button", { name: en["admin.users.add"] }).click();
-  await expect(page.getByRole("dialog", { name: en["admin.add.title"] })).toBeVisible();
-  // The title (the dialog's name) changes once the user is created.
-  const dialog = page.getByRole("dialog");
+  await expect(page.getByTestId("admin-users-sso-note")).toContainText(en["admin.users.ssoNote"]);
+  await expect(page.getByRole("button", { name: /add user/i })).toHaveCount(0);
+  await expect(row(page, email)).toContainText("0 B of 0 B");
 
-  // The quota defaults to the default quota for new users.
-  const quota = dialog.getByLabel(en["admin.form.quota"], { exact: true });
-  const unit = dialog.getByLabel(tt("admin.form.unit", { field: en["admin.form.quota"] }));
-  const def = settings.default_quota_bytes;
-  const tb = def >= 1024 * GiB;
-  await expect(quota).toHaveValue(String(Number((def / (tb ? 1024 * GiB : GiB)).toFixed(2))));
-  await expect(unit).toHaveText(tb ? "TB" : "GB");
+  await page.getByRole("button", { name: tt("admin.users.editUser", { email }) }).click();
+  const dialog = page.getByRole("dialog", { name: tt("admin.edit.title", { email }) });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText(en["admin.edit.ssoNote"]);
+  await expect(dialog.locator('input[type="password"]')).toHaveCount(0);
 
-  const email = `created-${Date.now()}@kore.test`;
-  await dialog.getByLabel(en["admin.form.email"]).fill(email);
-  const password = dialog.getByLabel(en["admin.form.password"], { exact: true });
-  await expect(password).toHaveAttribute("autocomplete", "new-password");
-  // Too short is caught before any request.
-  await password.fill("short");
-  await dialog.getByRole("button", { name: en["admin.add.submit"] }).click();
-  await expect(dialog.getByText(en["admin.error.passwordTooShort"])).toBeVisible();
-
-  await dialog.getByRole("button", { name: en["password.generateLabel"] }).click();
-  // kore-ui's PasswordInput keeps the value hidden; it is shown once after saving.
-  const generated = await password.inputValue();
-  expect(generated).toMatch(/^[\w]{5}(-[\w]{5}){3}$/);
-  await quota.fill("3");
+  await chooseOption(dialog, en["admin.form.role"], en["admin.role.admin"]);
+  await dialog.getByLabel(en["admin.form.quota"], { exact: true }).fill("3");
   await chooseOption(dialog, tt("admin.form.unit", { field: en["admin.form.quota"] }), "GB");
-  await dialog.getByRole("button", { name: en["admin.add.submit"] }).click();
+  await dialog.getByRole("button", { name: en["admin.edit.submit"] }).click();
 
-  // The generated password is shown once more, with Copy.
-  await expect(dialog.getByTestId("user-created")).toBeVisible();
-  await expect(dialog.getByTestId("one-time-password")).toHaveText(generated);
-  await expect(dialog.getByRole("button", { name: en["password.copyLabel"] })).toBeVisible();
-  await dialog.getByRole("button", { name: en["admin.form.done"] }).click();
   await expect(dialog).toBeHidden();
   await expect(row(page, email)).toContainText("0 B of 3 GB");
-  await expect(row(page, email)).toContainText(en["admin.role.user"]);
+  await expect(row(page, email)).toContainText(en["admin.role.admin"]);
 
-  // The new user signs in through the login page in a fresh browser context.
-  const ctx = await browser.newContext({ baseURL: E2E.webUrl });
-  try {
-    const p = await ctx.newPage();
-    await p.goto("/login");
-    await p.getByLabel(en["login.email"]).fill(email);
-    await p.getByLabel(en["login.password"]).fill(generated);
-    await p.getByRole("button", { name: en["login.submit"] }).click();
-    await expect(p).toHaveURL("/files");
-    await expect(p.getByText(en["empty.folder"])).toBeVisible();
-    await expect(p.getByTestId("storage-meter")).toContainText("0 B of 3 GB used");
-    await expect(
-      p.getByRole("navigation", { name: en["nav.label"] }).getByRole("link", { name: en["nav.admin"] }),
-    ).toHaveCount(0);
-  } finally {
-    await ctx.close();
-  }
+  // Leave no extra admin behind: the last-admin test below expects one.
+  await page.getByRole("button", { name: tt("admin.users.editUser", { email }) }).click();
+  const again = page.getByRole("dialog", { name: tt("admin.edit.title", { email }) });
+  await chooseOption(again, en["admin.form.role"], en["admin.role.user"]);
+  await again.getByRole("button", { name: en["admin.edit.submit"] }).click();
+  await expect(again).toBeHidden();
+  await expect(row(page, email)).toContainText(en["admin.role.user"]);
 });
 
 test("the overview shows totals and a usage bar per user", async ({ page }) => {
@@ -146,9 +102,7 @@ test("non-admins get the 404 page for the admin area and 403 from the admin API"
   }
   for (const [method, path] of [
     ["GET", "/api/admin/users"],
-    ["POST", "/api/admin/users"],
     ["PATCH", `/api/admin/users/${user.id}`],
-    ["POST", `/api/admin/users/${user.id}/password`],
     ["DELETE", `/api/admin/users/${user.id}?files=purge`],
     ["GET", "/api/admin/settings"],
     ["PATCH", "/api/admin/settings"],
@@ -213,7 +167,7 @@ test("deleting a user with files explains why; the purge keeps their shared uplo
 
     // The account is gone (its session too); the shared file stays and counts against the admin.
     expect((await api.get("/api/auth/me")).status()).toBe(401);
-    expect(await loginStatus(user.email, user.password)).toBe(401);
+    expect(userExists(user.email)).toBe(false);
     const list = await (await admin.get("/api/nodes?space=shared")).json();
     expect(list.map((n: { id: string }) => n.id)).toContain(sharedId);
     expect(await usedBytes(admin)).toBe(before + Buffer.byteLength(shared));
@@ -351,94 +305,6 @@ test("settings persist after reload; out-of-range values show errors", async ({ 
     expect((await admin.patch("/api/admin/settings", { data: original })).status()).toBe(200);
     await admin.dispose();
   }
-});
-
-test("resetting a password signs the user out; the new password works", async ({ page, browser }) => {
-  const user = await createUser();
-  const ctx = await browser.newContext({ baseURL: E2E.webUrl });
-  try {
-    const p = await ctx.newPage();
-    await loginAs(p, user.email, user.password);
-    await p.goto("/files");
-    await expect(p).toHaveURL("/files");
-
-    await adminLogin(page);
-    await page.goto("/admin/users");
-    await page.getByRole("button", { name: tt("admin.users.resetPasswordFor", { email: user.email }) }).click();
-    await expect(page.getByRole("dialog", { name: tt("admin.reset.title", { email: user.email }) })).toBeVisible();
-    const dialog = page.getByRole("dialog");
-    const field = dialog.getByLabel(en["admin.reset.newPassword"], { exact: true });
-    await expect(field).toHaveAttribute("autocomplete", "new-password");
-    await field.fill("short");
-    await expect(dialog.getByRole("listitem").filter({ hasText: en["password.hint.minLength"] })).not.toHaveAttribute(
-      "data-met",
-    );
-    await dialog.getByRole("button", { name: en["admin.reset.submit"] }).click();
-    await expect(dialog.getByText(en["admin.error.passwordTooShort"])).toBeVisible();
-    const fresh = "brand-new-pass-2026";
-    await field.fill(fresh);
-    await expect(dialog.getByRole("listitem").filter({ hasText: en["password.hint.minLength"] })).toHaveAttribute(
-      "data-met",
-      "true",
-    );
-    await dialog.getByRole("button", { name: en["admin.reset.submit"] }).click();
-    await expect(dialog.getByTestId("password-reset-done")).toContainText(
-      tt("admin.reset.doneTyped", { email: user.email }),
-    );
-    // A typed password is never echoed back.
-    await expect(dialog.getByTestId("one-time-password")).toHaveCount(0);
-    await dialog.getByRole("button", { name: en["admin.form.done"] }).click();
-
-    // The user's existing session is gone.
-    await p.goto("/files");
-    await expect(p).toHaveURL(/\/login\?/);
-    expect(await loginStatus(user.email, user.password)).toBe(401);
-    expect(await loginStatus(user.email, fresh)).toBe(200);
-  } finally {
-    await ctx.close();
-  }
-});
-
-test("changing your own password keeps this session; the old password stops working", async ({ page }) => {
-  const user = await createUser();
-  await loginAs(page, user.email, user.password);
-  await page.goto("/files");
-  await page.getByRole("button", { name: en["account.menu"] }).click();
-  await page.getByRole("menuitem", { name: en["account.changePassword"] }).click();
-  await expect(page).toHaveURL("/account");
-  await expect(page.getByTestId("account-usage")).toContainText(/^0 B of .+ used \(0%\)$/);
-
-  const current = page.getByLabel(en["account.currentPassword"], { exact: true });
-  const next = page.getByLabel(en["account.newPassword"], { exact: true });
-  const confirm = page.getByLabel(en["account.confirmPassword"], { exact: true });
-  const submit = page.getByRole("button", { name: en["account.submit"] });
-  await expect(current).toHaveAttribute("autocomplete", "current-password");
-  await expect(next).toHaveAttribute("autocomplete", "new-password");
-  await expect(confirm).toHaveAttribute("autocomplete", "new-password");
-
-  await current.fill("not-my-password");
-  await next.fill("another-password-1");
-  await confirm.fill("another-password-1");
-  await submit.click();
-  await expect(page.getByText(en["account.error.wrongPassword"])).toBeVisible();
-
-  await current.fill(user.password);
-  await confirm.fill("another-password-2");
-  await submit.click();
-  await expect(page.getByText(en["account.error.mismatch"])).toBeVisible();
-
-  const changed = "another-password-1";
-  await confirm.fill(changed);
-  await submit.click();
-  await expect(page.getByTestId("password-changed")).toHaveText(en["account.changed"]);
-  await expect(current).toHaveValue("");
-
-  // The API issued a fresh cookie with the change: still signed in here.
-  await page.reload();
-  await expect(page).toHaveURL("/account");
-  expect((await page.request.get("/api/auth/me")).status()).toBe(200);
-  expect(await loginStatus(user.email, user.password)).toBe(401);
-  expect(await loginStatus(user.email, changed)).toBe(200);
 });
 
 test("deleting the last admin or your own account shows why it is refused", async ({ page }) => {

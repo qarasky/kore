@@ -84,21 +84,17 @@ services:
       KORE_BIND: 0.0.0.0
       KORE_PORT: "8080"
       KORE_DATA_DIR: /data
-      # First admin account, created on the first start.
-      KORE_ADMIN_EMAIL: ${KORE_ADMIN_EMAIL:-}
-      KORE_ADMIN_PASSWORD: ${KORE_ADMIN_PASSWORD:-}
-      # Sign in with Kore ID (OpenID Connect). Empty KORE_OIDC_ISSUER = off.
+      # Sign in with Kore ID (OpenID Connect); the only way in.
       KORE_PUBLIC_URL: ${KORE_PUBLIC_URL:-}
       KORE_OIDC_ISSUER: ${KORE_OIDC_ISSUER:-}
       KORE_OIDC_CLIENT_ID: ${KORE_OIDC_CLIENT_ID:-kore}
       KORE_OIDC_CLIENT_SECRET: ${KORE_OIDC_CLIENT_SECRET:-}
       KORE_OIDC_LINK_BY_EMAIL: ${KORE_OIDC_LINK_BY_EMAIL:-true}
       KORE_OIDC_AUTO_PROVISION: ${KORE_OIDC_AUTO_PROVISION:-true}
-      # The first administrator on a fresh install can come from Kore ID instead of
-      # local admin credentials: set this to the owner's verified email.
+      # The first administrator on a fresh install: the first Kore ID sign-in
+      # with this verified email.
       KORE_OIDC_OWNER_EMAIL: ${KORE_OIDC_OWNER_EMAIL:-}
       KORE_APP_URLS: ${KORE_APP_URLS:-}
-      KORE_LOCAL_LOGIN: ${KORE_LOCAL_LOGIN:-true}
     volumes:
       # Never auto-created: if the volume is not mounted, compose fails
       # instead of writing into an empty directory on the root disk.
@@ -132,6 +128,5 @@ networks:
   # api and web: no published ports and no outbound internet access.
   internal:
     internal: true
-  # Outbound access for the API alone, to reach Kore ID. Without Kore ID
-  # configured the API makes no outbound connections at all.
+  # Outbound access for the API alone, to reach Kore ID (the only sign-in).
   egress: {}

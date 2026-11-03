@@ -26,13 +26,11 @@ export type KoreIdLinks = {
 export function AppFrame({
   user,
   usage,
-  passwordLogin,
   koreId,
   children,
 }: {
   user: Pick<User, "email" | "role">;
   usage: Usage;
-  passwordLogin: boolean;
   koreId: KoreIdLinks;
   children: ReactNode;
 }) {
@@ -56,7 +54,7 @@ export function AppFrame({
                   accountLabel={t("account.koreId")}
                 />
               ) : null}
-              <AccountMenu email={user.email} passwordLogin={passwordLogin} koreId={koreId} apps={apps} />
+              <AccountMenu email={user.email} koreId={koreId} apps={apps} />
             </>
           }
         >

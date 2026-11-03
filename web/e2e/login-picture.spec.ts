@@ -40,7 +40,7 @@ async function anonLogin(browser: Browser, width: number) {
 
 test("login page: form plus picture on wide screens, just the form on narrow ones", async ({ browser }) => {
   const wide = await anonLogin(browser, 1280);
-  await expect(wide.page.getByLabel(en["login.email"])).toBeVisible();
+  await expect(wide.page.getByRole("link", { name: en["login.sso"] })).toBeVisible();
   const panel = wide.page.getByTestId("login-picture");
   await expect(panel).toBeVisible();
   const box = (await panel.boundingBox())!;
@@ -56,7 +56,7 @@ test("login page: form plus picture on wide screens, just the form on narrow one
   await wide.close();
 
   const narrow = await anonLogin(browser, 700);
-  await expect(narrow.page.getByLabel(en["login.email"])).toBeVisible();
+  await expect(narrow.page.getByRole("link", { name: en["login.sso"] })).toBeVisible();
   await expect(narrow.page.getByTestId("login-picture")).toBeHidden();
   await narrow.close();
 });

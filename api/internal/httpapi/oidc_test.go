@@ -129,11 +129,10 @@ type ssoEnv struct {
 	idp *fakeID
 }
 
-func setupSSO(t *testing.T, linkByEmail, autoProvision, password bool) *ssoEnv {
+func setupSSO(t *testing.T, linkByEmail, autoProvision bool) *ssoEnv {
 	t.Helper()
-	e := newSSOEnv(t, linkByEmail, autoProvision, password, "")
-	hash, _ := auth.HashPassword("right-pw")
-	if _, err := users.Create(context.Background(), e.db, "local@kore.test", hash, "admin", 7); err != nil {
+	e := newSSOEnv(t, linkByEmail, autoProvision, "")
+	if _, err := users.Create(context.Background(), e.db, "local@kore.test", "admin", 7); err != nil {
 		t.Fatal(err)
 	}
 	return e
@@ -142,10 +141,10 @@ func setupSSO(t *testing.T, linkByEmail, autoProvision, password bool) *ssoEnv {
 // setupSSOEmpty is setupSSO without the seeded local admin: a fresh install.
 func setupSSOEmpty(t *testing.T, ownerEmail string) *ssoEnv {
 	t.Helper()
-	return newSSOEnv(t, false, true, true, ownerEmail)
+	return newSSOEnv(t, false, true, ownerEmail)
 }
 
-func newSSOEnv(t *testing.T, linkByEmail, autoProvision, password bool, ownerEmail string) *ssoEnv {
+func newSSOEnv(t *testing.T, linkByEmail, autoProvision bool, ownerEmail string) *ssoEnv {
 	t.Helper()
 	db, err := store.Open(filepath.Join(t.TempDir(), "k.db"))
 	if err != nil {
@@ -154,7 +153,7 @@ func newSSOEnv(t *testing.T, linkByEmail, autoProvision, password bool, ownerEma
 	t.Cleanup(func() { db.Close() })
 	idp := newFakeID(t)
 	p := oidc.New(oidc.Config{Issuer: idp.srv.URL, ClientID: "kore", ClientSecret: "secret", RedirectURL: pubURL + callbackPath})
-	return &ssoEnv{h: New(db, t.TempDir(), WithProvider(p, pubURL, linkByEmail, autoProvision, password, ownerEmail)), db: db, idp: idp}
+	return &ssoEnv{h: New(db, t.TempDir(), WithProvider(p, pubURL, linkByEmail, autoProvision, ownerEmail)), db: db, idp: idp}
 }
 
 func (e *ssoEnv) do(method, target string, hdr map[string]string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
@@ -178,6 +177,21 @@ func cookie(rec *httptest.ResponseRecorder, name string) *http.Cookie {
 		}
 	}
 	return nil
+}
+
+// sessionCookie signs an existing local account in directly (SSO is the only
+// login path, but tests need a cookie without running a provider).
+func sessionCookie(t *testing.T, db *sql.DB, email string) *http.Cookie {
+	t.Helper()
+	u, err := users.GetByEmail(context.Background(), db, email)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok, err := auth.NewSession(context.Background(), db, u.ID, 3600e9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &http.Cookie{Name: auth.CookieName, Value: tok}
 }
 
 // startLogin runs /api/auth/oidc/login and returns the provider URL query and the flow cookie.
@@ -216,7 +230,7 @@ func (e *ssoEnv) signIn(t *testing.T) *httptest.ResponseRecorder {
 }
 
 func TestSSOFullLoginProvisionsAndCreatesSession(t *testing.T) {
-	e := setupSSO(t, false, true, true)
+	e := setupSSO(t, false, true)
 	q, fc := e.startLogin(t, "/api/auth/oidc/login?next=/trash")
 	if q.Get("code_challenge_method") != "S256" || q.Get("code_challenge") == "" || q.Get("nonce") == "" ||
 		q.Get("client_id") != "kore" || q.Get("redirect_uri") != pubURL+callbackPath {
@@ -253,14 +267,14 @@ func TestSSOFullLoginProvisionsAndCreatesSession(t *testing.T) {
 	if n, _ := users.Count(context.Background(), e.db); n != 2 {
 		t.Fatalf("%d users", n)
 	}
-	// Password login is impossible for the SSO-only account.
-	if rec := login(e.h, "new@kore.test", "!", nil); rec.Code != 401 {
-		t.Fatalf("password login for SSO account: %d", rec.Code)
+	// Password login no longer exists at all.
+	if rec := e.do("POST", "/api/auth/login", nil); rec.Code != 404 {
+		t.Fatalf("password login endpoint: %d", rec.Code)
 	}
 }
 
 func TestSSOCallbackRejects(t *testing.T) {
-	e := setupSSO(t, false, true, true)
+	e := setupSSO(t, false, true)
 	good := func() (url.Values, *http.Cookie) {
 		q, fc := e.startLogin(t, "/api/auth/oidc/login")
 		e.idp.nonce = q.Get("nonce")
@@ -303,7 +317,7 @@ func TestSSOEmailCollision(t *testing.T) {
 		name             string
 		linkByEmail, ver bool
 	}{{"unverified", true, false}, {"flag off", false, true}} {
-		e := setupSSO(t, tc.linkByEmail, true, true)
+		e := setupSSO(t, tc.linkByEmail, true)
 		e.idp.email, e.idp.emailVerified = "local@kore.test", tc.ver
 		q, fc := e.startLogin(t, "/api/auth/oidc/login")
 		e.idp.nonce = q.Get("nonce")
@@ -323,7 +337,7 @@ func TestSSOLinkByVerifiedEmailIsDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	if _, err := users.Create(context.Background(), db, "local@kore.test", "x", "admin", 7); err != nil {
+	if _, err := users.Create(context.Background(), db, "local@kore.test", "admin", 7); err != nil {
 		t.Fatal(err)
 	}
 	idp := newFakeID(t)
@@ -347,7 +361,7 @@ func TestSSOLinkByVerifiedEmailIsDefault(t *testing.T) {
 }
 
 func TestSSOLinkByEmailWhenEnabled(t *testing.T) {
-	e := setupSSO(t, true, true, true)
+	e := setupSSO(t, true, true)
 	e.idp.email, e.idp.emailVerified = "local@kore.test", true
 	q, fc := e.startLogin(t, "/api/auth/oidc/login")
 	e.idp.nonce = q.Get("nonce")
@@ -370,7 +384,7 @@ func TestSSOLinkByEmailWhenEnabled(t *testing.T) {
 }
 
 func TestSSONoAutoProvision(t *testing.T) {
-	e := setupSSO(t, false, false, true)
+	e := setupSSO(t, false, false)
 	q, fc := e.startLogin(t, "/api/auth/oidc/login")
 	e.idp.nonce = q.Get("nonce")
 	if rec := e.callback(q, "c", fc); !strings.HasSuffix(rec.Header().Get("Location"), "sso_not_provisioned") {
@@ -379,9 +393,8 @@ func TestSSONoAutoProvision(t *testing.T) {
 }
 
 func TestSSOLinkFlowFromSignedInAccount(t *testing.T) {
-	e := setupSSO(t, false, true, true)
-	rec := login(e.h, "local@kore.test", "right-pw", nil)
-	local := cookie(rec, auth.CookieName)
+	e := setupSSO(t, false, true)
+	local := sessionCookie(t, e.db, "local@kore.test")
 	// Anonymous link attempts go to the login page.
 	if r := e.do("GET", "/api/auth/oidc/login?link=1", nil); r.Header().Get("Location") != pubURL+"/login" {
 		t.Fatalf("anonymous link: %s", r.Header().Get("Location"))
@@ -411,21 +424,17 @@ func TestSSOLinkFlowFromSignedInAccount(t *testing.T) {
 	}
 }
 
-func TestSSODisablesLocalLogin(t *testing.T) {
-	e := setupSSO(t, false, true, false)
-	if rec := login(e.h, "local@kore.test", "right-pw", nil); rec.Code != 403 || !strings.Contains(rec.Body.String(), "local_login_disabled") {
-		t.Fatalf("login: %d %s", rec.Code, rec.Body)
-	}
+func TestAuthConfigWithoutLocalLogin(t *testing.T) {
+	e := setupSSO(t, false, true)
 	var cfg struct {
-		LocalLogin bool              `json:"local_login"`
-		OIDC       bool              `json:"oidc"`
-		Issuer     string            `json:"issuer"`
-		Apps       map[string]string `json:"apps"`
+		OIDC   bool              `json:"oidc"`
+		Issuer string            `json:"issuer"`
+		Apps   map[string]string `json:"apps"`
 	}
 	if err := json.Unmarshal(e.do("GET", "/api/auth/config", nil).Body.Bytes(), &cfg); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.LocalLogin || !cfg.OIDC || cfg.Issuer == "" || cfg.Apps["kore"] == "" {
+	if !cfg.OIDC || cfg.Issuer == "" || cfg.Apps["kore"] == "" {
 		t.Fatalf("%+v", cfg)
 	}
 }
@@ -472,8 +481,7 @@ func TestOIDCOwnerEmailCreatesTheFirstAdministrator(t *testing.T) {
 	})
 	t.Run("no promotion once an account exists", func(t *testing.T) {
 		e := setupSSOEmpty(t, "new@kore.test")
-		hash, _ := auth.HashPassword("right-pw")
-		if _, err := users.Create(context.Background(), e.db, "local@kore.test", hash, "admin", 7); err != nil {
+		if _, err := users.Create(context.Background(), e.db, "local@kore.test", "admin", 7); err != nil {
 			t.Fatal(err)
 		}
 		e.idp.emailVerified = true
@@ -488,7 +496,7 @@ func TestOIDCOwnerEmailCreatesTheFirstAdministrator(t *testing.T) {
 
 func TestAuthConfigFirstUserSSO(t *testing.T) {
 	for name, owner := range map[string]string{"unset": "", "set": "owner@example.com"} {
-		e := newSSOEnv(t, false, true, true, owner)
+		e := newSSOEnv(t, false, true, owner)
 		var cfg struct {
 			FirstUserSSO bool `json:"first_user_sso"`
 		}
@@ -505,7 +513,7 @@ func TestAuthConfigDefaultWithoutSSO(t *testing.T) {
 	h := setup(t)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/auth/config", nil))
-	if strings.TrimSpace(rec.Body.String()) != `{"local_login":true,"oidc":false,"first_user_sso":false}` {
+	if strings.TrimSpace(rec.Body.String()) != `{"oidc":false,"first_user_sso":false}` {
 		t.Fatal(rec.Body.String())
 	}
 	rec = httptest.NewRecorder()
@@ -516,7 +524,7 @@ func TestAuthConfigDefaultWithoutSSO(t *testing.T) {
 }
 
 func TestSSOBearerToken(t *testing.T) {
-	e := setupSSO(t, false, true, true)
+	e := setupSSO(t, false, true)
 	bearer := func(tok string) int {
 		return e.do("GET", "/api/me/usage", map[string]string{"Authorization": "Bearer " + tok}).Code
 	}
@@ -571,7 +579,7 @@ func ageSession(t *testing.T, e *ssoEnv, c *http.Cookie) {
 }
 
 func TestSSOSessionRefreshAndRevocation(t *testing.T) {
-	e := setupSSO(t, false, true, true)
+	e := setupSSO(t, false, true)
 	sess := ssoSession(t, e)
 	if e.do("GET", "/api/auth/me", nil, sess).Code != 200 {
 		t.Fatal("fresh session rejected")
@@ -614,7 +622,7 @@ func TestSSOSessionRefreshAndRevocation(t *testing.T) {
 }
 
 func TestSSOParallelRequestsRefreshOnce(t *testing.T) {
-	e := setupSSO(t, false, true, true)
+	e := setupSSO(t, false, true)
 	sess := ssoSession(t, e)
 	ageSession(t, e, sess)
 	var wg sync.WaitGroup
@@ -634,7 +642,7 @@ func TestSSOParallelRequestsRefreshOnce(t *testing.T) {
 }
 
 func TestSSOLogoutRedirectsToEndSession(t *testing.T) {
-	e := setupSSO(t, false, true, true)
+	e := setupSSO(t, false, true)
 	sess := ssoSession(t, e)
 	rec := e.do("POST", "/api/auth/logout", nil, sess)
 	if rec.Code != 200 {
@@ -649,8 +657,8 @@ func TestSSOLogoutRedirectsToEndSession(t *testing.T) {
 	if e.do("GET", "/api/auth/me", nil, sess).Code != 401 {
 		t.Fatal("session survived logout")
 	}
-	// A password session still logs out with 204.
-	local := cookie(login(e.h, "local@kore.test", "right-pw", nil), auth.CookieName)
+	// A plain session (no provider tokens) still logs out with 204.
+	local := sessionCookie(t, e.db, "local@kore.test")
 	if c := e.do("POST", "/api/auth/logout", nil, local).Code; c != 204 {
 		t.Fatalf("local logout %d", c)
 	}

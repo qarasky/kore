@@ -147,7 +147,7 @@ func link(ctx context.Context, cfg config.Config, email, sub string) error {
 		return err
 	}
 	defer db.Close()
-	u, _, err := users.GetByEmail(ctx, db, email)
+	u, err := users.GetByEmail(ctx, db, email)
 	if err != nil {
 		return fmt.Errorf("no account with email %q", email)
 	}
@@ -211,10 +211,6 @@ func serve(ctx context.Context, cfg config.Config, logger *log.Logger) error {
 			logger.Printf("closing database: %v", err)
 		}
 	}()
-	if err := auth.Bootstrap(ctx, db, cfg); err != nil {
-		return fmt.Errorf("bootstrap: %w", err)
-	}
-
 	bg, stopBg := context.WithCancel(ctx)
 	var wg sync.WaitGroup
 	wg.Go(func() { every(bg, time.Hour, func(ctx context.Context) { sweepUploads(ctx, db, cfg.DataDir, logger) }) })

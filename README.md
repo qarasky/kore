@@ -62,12 +62,15 @@ curl -fsSL https://raw.githubusercontent.com/qarasky/kore/main/install.sh | bash
 ```
 
 Read the script first if you like; it is short. It needs Docker and the
-Compose plugin, not git, Go or Node. For a non-interactive install set
-`KORE_DIR`, `KORE_DATA_DIR`, `KORE_ADMIN_EMAIL`, `KORE_ADMIN_PASSWORD`,
-`KORE_BIND`, `KORE_PORT` and `KORE_YES=1` (see the header of `install.sh`).
+Compose plugin, not git, Go or Node. It asks for the public URL and the Kore
+ID issuer; for a non-interactive install set `KORE_DIR`, `KORE_DATA_DIR`,
+`KORE_PUBLIC_URL`, `KORE_OIDC_ISSUER`, `KORE_OIDC_OWNER_EMAIL`,
+`KORE_OIDC_CLIENT_ID`/`KORE_OIDC_CLIENT_SECRET`, `KORE_BIND`, `KORE_PORT`
+and `KORE_YES=1` (see the header of `install.sh`).
 
-Then open `http://127.0.0.1:8080` (or what the script printed) and sign in
-with the admin account.
+Then open the URL the script printed and click **Continue with Kore ID**.
+Kore ID is the only way to sign in; the first sign-in with
+`KORE_OIDC_OWNER_EMAIL` becomes the administrator.
 
 ### Manual install
 
@@ -85,8 +88,11 @@ docker compose up -d
 
 In `.env` set:
 
-- `KORE_ADMIN_EMAIL` and a real `KORE_ADMIN_PASSWORD` of at least 8 characters
-  (Kore refuses to start with `change-me` or a shorter one).
+- `KORE_PUBLIC_URL` (the address people use to reach Kore),
+  `KORE_OIDC_ISSUER` (Kore ID) and `KORE_OIDC_OWNER_EMAIL` (the first
+  administrator's verified Kore ID email). Register
+  `KORE_PUBLIC_URL/api/auth/oidc/callback` as the client's redirect URI (see
+  [Kore ID](#kore-id-the-only-way-to-sign-in)).
 - `KORE_DATA_DIR` (host path of the data dir) and `KORE_UID`/`KORE_GID` (the
   host user that should own the files; `id -u` and `id -g`).
 - Optionally `KORE_BIND`/`KORE_PORT` (where Caddy listens) and `KORE_VERSION`
@@ -103,10 +109,11 @@ Check health with `docker compose ps` (all three `healthy`) or
 `curl -s localhost:8080/api/healthz`. To build the images from source instead
 of pulling them, clone the repository and run `docker compose build`.
 
-Kore itself (the Go binary) reads `KORE_ADMIN_EMAIL`, `KORE_ADMIN_PASSWORD`,
-`KORE_DATA_DIR`, `KORE_BIND` and `KORE_PORT` from the environment, which is
-how the container is configured. `kore.example.toml` is the equivalent config
-file for running the binary without Docker (`kore -config kore.toml`).
+Kore itself (the Go binary) reads `KORE_PUBLIC_URL`, the `KORE_OIDC_*`
+settings, `KORE_DATA_DIR`, `KORE_BIND` and `KORE_PORT` from the environment,
+which is how the container is configured. `kore.example.toml` is the
+equivalent config file for running the binary without Docker
+(`kore -config kore.toml`).
 
 ## LAN / Tailscale
 
@@ -245,25 +252,24 @@ Database migrations run automatically on start. If the `Caddyfile` changed,
 also run `docker compose restart caddy` (its admin API is off, so it does not
 reload by itself).
 
-## First login and the admin password
+## First login and the first administrator
 
-Log in with `KORE_ADMIN_EMAIL`/`KORE_ADMIN_PASSWORD` from `.env` (the
-installer prints them). The admin account is created only on the very first
-start (when there are no users); after that the password in `.env` is
-ignored (with `KORE_LOCAL_LOGIN=false` it cannot be used to sign in; see Kore ID).
-Change it in the UI under **Account** (top-right menu), and add users
-under **Admin**. Keep `.env` readable only by you (`chmod 600`) and set its
-password to anything other than `change-me`.
+Kore ID is the only way to sign in; there is no local password account.
+On a fresh install, the first sign-in whose **verified** Kore ID email equals
+`KORE_OIDC_OWNER_EMAIL` creates the administrator account. Once any account
+exists the owner email promotes nobody else. Admins then manage roles,
+quotas and deletion under **Admin > Users** (accounts themselves are created
+by Kore ID on first sign-in). Access to the app is granted in Kore ID.
 
-To start a fresh install with Kore ID alone, leave both empty and set
-`KORE_OIDC_OWNER_EMAIL` (see below); the first sign-in with that verified
-email creates the administrator account instead.
+Keep `.env` readable only by you (`chmod 600`); it holds the OIDC client
+secret.
 
-## Kore ID (single sign-on)
+## Kore ID (the only way to sign in)
 
-Kore can sign people in with Kore ID, the
-OpenID Connect provider shared by the Kore apps. It is off until
-`KORE_OIDC_ISSUER` is set; nothing changes for existing installs.
+Kore signs people in with Kore ID, the OpenID Connect provider shared by the
+Kore apps. It is required: the API refuses to start without
+`KORE_OIDC_ISSUER` and `KORE_PUBLIC_URL`, and the login page offers nothing
+else.
 
 **Set up.** In Kore ID's `clients.json`, give client `kore` this redirect URI,
 post-logout redirect URI and back-channel logout URI (use your real address):
@@ -282,19 +288,19 @@ Then in `.env` (or `kore.toml`, see `kore.example.toml`):
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `KORE_OIDC_ISSUER` | empty (off) | Kore ID's base URL; endpoints and keys come from its discovery document |
-| `KORE_PUBLIC_URL` | | Kore's public address; required with the issuer |
+| `KORE_OIDC_ISSUER` | | Kore ID's base URL (required); endpoints and keys come from its discovery document |
+| `KORE_PUBLIC_URL` | | Kore's public address (required) |
 | `KORE_OIDC_CLIENT_ID` | `kore` | |
 | `KORE_OIDC_CLIENT_SECRET` | empty | the client secret (basic/post; `post` is used) |
-| `KORE_OIDC_OWNER_EMAIL` | empty | on a fresh install, the first Kore ID sign-in whose verified email equals this address becomes the administrator (`owner_email` in TOML); it also lets `KORE_ADMIN_EMAIL`/`KORE_ADMIN_PASSWORD` be left empty |
+| `KORE_OIDC_OWNER_EMAIL` | empty | on a fresh install, the first Kore ID sign-in whose verified email equals this address becomes the administrator (`owner_email` in TOML); set it before the first start |
 | `KORE_OIDC_AUTO_PROVISION` | `true` | create an account on a person's first login (role `user`, default quota) |
 | `KORE_OIDC_LINK_BY_EMAIL` | `true` | on first login, adopt the unlinked local account with the same email when Kore ID says `email_verified` (see below) |
-| `KORE_LOCAL_LOGIN` | `true` | `false` turns email + password login off (login and change-password answer 403 `local_login_disabled`) |
 
 The API container needs outbound access to Kore ID: `docker-compose.yml`
 attaches it to an `egress` network for that. Browsers also have to reach Kore ID.
 
-**How it works.** The login page shows "Sign in with Kore ID". The API runs the
+**How it works.** Kore ID is the only sign-in. The login page shows only
+"Continue with Kore ID" (plus an error or issuer message). The API runs the
 authorization-code flow with PKCE (S256), a random `state` bound to the browser
 by a short-lived cookie, and a `nonce`; it verifies the id token (EdDSA
 signature against the JWKS, issuer, audience `kore`, expiry, nonce) and maps
@@ -306,7 +312,7 @@ everywhere at Kore ID or the account is gone there, the Kore session ends too
 (a Kore ID outage does not log anyone out). Signing out of Kore also ends the
 Kore ID session (RP-initiated logout). The other direction uses OIDC
 Back-Channel Logout: when a Kore ID session ends (sign-out, admin disable,
-"sign out everywhere", password reset), Kore ID POSTs a signed `logout_token`
+"sign out everywhere", account disable), Kore ID POSTs a signed `logout_token`
 to `/api/auth/oidc/backchannel-logout`, and Kore deletes every session created
 from that Kore ID session (the id token's `sid`, stored on the session), or,
 for a token without `sid`, every session of the user linked to its `sub`. The
@@ -328,25 +334,23 @@ If there are no users yet, a Kore ID sign-in is refused (`sso_no_admin`) unless
 its verified email equals `KORE_OIDC_OWNER_EMAIL` (or `owner_email` in the TOML
 file); that first sign-in creates the administrator. This only names the first
 administrator: once any account exists, the owner email promotes nobody else.
-Alternatively, create the first account with a password as above (or let the
-installer's `KORE_ADMIN_*` do it). This decides the role inside Kore; access to
-the app is granted in Kore ID.
+The role is set inside Kore; access to the app is granted in Kore ID.
 
-**Existing accounts.** On a first Kore ID login whose email matches a local
-account that is not linked yet, Kore links the two **only if the token says
+**Existing accounts.** Accounts made before Kore ID only keep their row (files,
+quota, role). Their passwords no longer work; the first Kore ID sign-in whose
+email matches an unlinked local account links the two **only if the token says
 `email_verified: true`** (the default, `KORE_OIDC_LINK_BY_EMAIL=true`). An
-unverified email, or any match with the flag set to `false`, is **refused**
+unverified email, or a match with the flag set to `false`, is **refused**
 (`sso_email_in_use`) rather than merged; a local account already linked to a
-different Kore ID account is never taken over. To link by hand:
+different Kore ID account is never taken over. To link by hand, an operator
+runs:
 
-- the person signs in with their password, opens **Account**, and clicks **Link Kore ID**
-  (they must authenticate at Kore ID again);
-- an operator runs `docker compose exec api kore link -email jane@example.com -sub <Kore ID uuid>`.
+```sh
+docker compose exec api kore link -email jane@example.com -sub <Kore ID uuid>
+```
 
-Migration path to SSO-only: link every account (above), check that the admin
-can sign in with Kore ID, then set `KORE_LOCAL_LOGIN=false`. Setting it back to
-`true` restores password login (SSO-created accounts have no password; an admin
-can set one under **Admin**).
+They can then sign in through Kore ID. Passwords are never read or written
+again; the legacy column stays so old databases keep working.
 
 ## Releases and images
 
@@ -385,9 +389,8 @@ build the images without pushing them.
   sudo systemctl daemon-reload
   ```
 
-- **`admin_password is still the placeholder "change-me"`** or
-  **`admin_password must be at least 8 characters`**: fix `KORE_ADMIN_PASSWORD`
-  in `.env`.
+- **`Kore ID is required: set oidc.issuer (KORE_OIDC_ISSUER)`**: set
+  `KORE_OIDC_ISSUER` and `KORE_PUBLIC_URL` in `.env`; Kore ID is the only way in.
 - **Port already in use / `address already in use`**: change `KORE_PORT` in
   `.env`, then `docker compose up -d`.
 - **`permission denied` on `/data/...`**: the data dir is not owned by
@@ -417,7 +420,7 @@ build the images without pushing them.
 Needs Go (see `api/go.mod`) and Node 24 (as in `web/Dockerfile`).
 
 ```sh
-cp kore.example.toml kore.toml          # set data_dir, admin_email, admin_password
+cp kore.example.toml kore.toml          # set data_dir, public_url, [oidc]
 mkdir -p data && (cd api && go run ./cmd/kore init -config ../kore.toml)
 (cd api && go run ./cmd/kore -config ../kore.toml)    # API on 127.0.0.1:8080
 
@@ -436,8 +439,9 @@ cd web && npm run e2e                              # the whole e2e suite
 The e2e harness (`web/e2e/harness/`) builds the Go binary and a production
 Next build, starts both on fresh, throwaway data, and removes it afterwards
 (`npx playwright install chromium` once). `E2E_SKIP_BUILD=1` reuses the last
-web build. To run the suite against a running deployment instead, set
-`E2E_BASE_URL` (plus `E2E_ADMIN_EMAIL`/`E2E_ADMIN_PASSWORD`); see
+web build. The suite seeds accounts and sessions directly in the throwaway
+API's SQLite file (Kore ID is the only sign-in, and the harness runs no
+provider), so it does not run against an external deployment; see
 `web/README.md`.
 
 ## License

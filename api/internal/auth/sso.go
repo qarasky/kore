@@ -18,10 +18,6 @@ var (
 	ErrAlreadyLinked = errors.New("this user is already linked to a different Kore ID account")
 )
 
-// ssoNoPassword is stored as pw_hash for accounts created by SSO. It is not a
-// valid hash, so password login can never succeed for them.
-const ssoNoPassword = "!"
-
 // HashToken is the stored form of a raw session token.
 func HashToken(tok string) string { return hashToken(tok) }
 
@@ -86,10 +82,10 @@ func LinkSub(ctx context.Context, db *sql.DB, userID, sub string) error {
 }
 
 // ProvisionSSO creates an account for a first-time Kore ID user (role is
-// normally "user"; the configured owner gets "admin" on a fresh install, no
-// usable password either way). users.ErrExists means the email is taken.
+// normally "user"; the configured owner gets "admin" on a fresh install).
+// users.ErrExists means the email is taken.
 func ProvisionSSO(ctx context.Context, db *sql.DB, sub, email, role string, quotaBytes int64) (users.User, error) {
-	u, err := users.Create(ctx, db, email, ssoNoPassword, role, quotaBytes)
+	u, err := users.Create(ctx, db, email, role, quotaBytes)
 	if err != nil {
 		return users.User{}, err
 	}
@@ -161,8 +157,8 @@ func DeleteSessionsBySID(ctx context.Context, db *sql.DB, sid string) (int64, er
 	return res.RowsAffected()
 }
 
-// DeleteSessionsBySub ends every local session (SSO or password) of the user
-// linked to the Kore ID subject sub and returns how many there were.
+// DeleteSessionsBySub ends every local session of the user linked to the Kore
+// ID subject sub and returns how many there were.
 func DeleteSessionsBySub(ctx context.Context, db *sql.DB, sub string) (int64, error) {
 	if sub == "" {
 		return 0, nil

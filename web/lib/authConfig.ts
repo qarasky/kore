@@ -6,7 +6,6 @@ import { api } from "./api";
 /** How this instance lets people in (`GET /api/auth/config`). With Kore ID on,
  *  `issuer` is its base URL and `apps` the Kore apps' URLs for the switcher. */
 export type AuthConfig = {
-  local_login: boolean;
   /** Kore ID and an owner email are configured: the first Kore ID sign-in with
    *  that verified email becomes the administrator on a fresh install. */
   first_user_sso: boolean;
@@ -15,11 +14,11 @@ export type AuthConfig = {
   apps?: Partial<Record<"kore" | "koremind" | "korecalendar" | "flatline", string>>;
 };
 
-const FALLBACK: AuthConfig = { local_login: true, first_user_sso: false, oidc: false };
+const FALLBACK: AuthConfig = { first_user_sso: false, oidc: false };
 
 /**
- * Cached per request. Any failure falls back to the password form: it has to
- * render even when this lookup does not work (older API, API down).
+ * Cached per request. Any failure falls back to "Kore ID is not configured",
+ * which still renders when this lookup does not work (API down).
  */
 export const getAuthConfig = cache(async (): Promise<AuthConfig> => {
   try {

@@ -31,7 +31,7 @@ func (e *ssoEnv) logoutWith(tok string) *httptest.ResponseRecorder {
 func alive(e *ssoEnv, c *http.Cookie) bool { return e.do("GET", "/api/auth/me", nil, c).Code == 200 }
 
 func TestSSOLoginStoresSid(t *testing.T) {
-	e := setupSSO(t, false, true, true)
+	e := setupSSO(t, false, true)
 	e.idp.sid = "sid-abc"
 	sess := ssoSession(t, e)
 	var sid string
@@ -39,7 +39,7 @@ func TestSSOLoginStoresSid(t *testing.T) {
 		t.Fatalf("sid %q err %v", sid, err)
 	}
 	// Password sessions have none.
-	local := cookie(login(e.h, "local@kore.test", "right-pw", nil), auth.CookieName)
+	local := sessionCookie(t, e.db, "local@kore.test")
 	var n int
 	e.db.QueryRow(`SELECT count(*) FROM sessions WHERE token_hash=? AND sid IS NULL`, auth.HashToken(local.Value)).Scan(&n)
 	if n != 1 {
@@ -48,7 +48,7 @@ func TestSSOLoginStoresSid(t *testing.T) {
 }
 
 func TestBackchannelLogoutBySid(t *testing.T) {
-	e := setupSSO(t, false, true, true)
+	e := setupSSO(t, false, true)
 	e.idp.sid = "sid-A"
 	a1, a2 := ssoSession(t, e), ssoSession(t, e)
 	e.idp.sid = "sid-B"
@@ -71,12 +71,12 @@ func TestBackchannelLogoutBySid(t *testing.T) {
 }
 
 func TestBackchannelLogoutBySub(t *testing.T) {
-	e := setupSSO(t, false, true, true)
+	e := setupSSO(t, false, true)
 	e.idp.sid = "sid-A"
 	a := ssoSession(t, e)
 	e.idp.sid = "sid-B"
 	b := ssoSession(t, e)
-	other := cookie(login(e.h, "local@kore.test", "right-pw", nil), auth.CookieName)
+	other := sessionCookie(t, e.db, "local@kore.test")
 	rec := e.logoutWith(e.idp.logout("jti-sub", map[string]any{"sid": nil}))
 	if rec.Code != 200 {
 		t.Fatalf("%d %s", rec.Code, rec.Body)
@@ -90,7 +90,7 @@ func TestBackchannelLogoutBySub(t *testing.T) {
 }
 
 func TestBackchannelLogoutRejects(t *testing.T) {
-	e := setupSSO(t, false, true, true)
+	e := setupSSO(t, false, true)
 	sess := ssoSession(t, e)
 	_, otherKey, _ := ed25519.GenerateKey(rand.Reader)
 	forged := func() string {
@@ -154,7 +154,7 @@ func mapOf(tok string) map[string]any {
 }
 
 func TestBackchannelLogoutBypassesSessionAndNeedsSSO(t *testing.T) {
-	e := setupSSO(t, false, true, true)
+	e := setupSSO(t, false, true)
 	sess := ssoSession(t, e)
 	// A browser cookie on the request changes nothing (no session, no CSRF gate).
 	req := httptest.NewRequest("POST", backchannelPath, strings.NewReader(url.Values{"logout_token": {e.idp.logout("j-c", nil)}}.Encode()))
