@@ -37,7 +37,8 @@ Tap a row for the details. Pull down to refresh. **Today** jumps back to the top
 Long-press the home screen, **Widgets**, **Calendar**, and drag the Agenda widget out. It is about three rows tall by default and shows more rows when you make it taller.
 
 - It lists **all your calendars' events from now on**, with day headings, and moves on to tomorrow (or whenever the next event is) when nothing is left today. An event leaves the list when it ends.
-- It draws only from the copy on the phone, so it appears instantly and works offline. It says "Updated N h ago" when the copy is more than three hours old.
+- It draws only from the copy on the phone, so it appears instantly and works offline. It says "Updated N h ago" when the copy is more than three hours old, even when it has nothing to list, and it redraws by itself
+  (also offline) when the first event ends, when the copy turns three hours old (then every hour) and at midnight, so "Tomorrow" becomes "Today". With a larger system font it lists fewer rows rather than clipping them.
 - Tap a row to open that event in the app; tap anywhere else to open the agenda.
 
 ## How it stays up to date

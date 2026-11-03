@@ -56,7 +56,8 @@ class SyncEngine(
             store.commit(accountId, calendars, occurrences, from, cursor, started)
             return SyncResult.Ok(changed = refetch)
         } catch (e: ApiException) {
-            return if (e.status == 401) SyncResult.SignedOut else SyncResult.Failed(e.code, e.message ?: "")
+            // Only the API's own answer means the token is gone: a proxy or portal with a 401 page of its own does not.
+            return if (e.status == 401 && e.code == "unauthorized") SyncResult.SignedOut else SyncResult.Failed(e.code, e.message ?: "")
         } catch (e: NetworkException) {
             return SyncResult.Offline
         }

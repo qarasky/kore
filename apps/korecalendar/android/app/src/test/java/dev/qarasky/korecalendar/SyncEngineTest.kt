@@ -148,6 +148,17 @@ class SyncEngineTest {
         assertEquals(1, store.snapshot().occurrences.size)
     }
 
+    @Test fun aProxysOwn401IsNotARevokedToken() = runTest {
+        script(occurrences = { from, _ -> if (from == Instant.parse("2026-10-21T00:00:00Z")) listOf(occ("e1", "2026-11-05T09:00:00Z")) else emptyList() })
+        engine().sync()
+        val before = store.dump()
+        // A reverse proxy (or a captive portal) answering 401 with its own page is not the API saying "unauthorized".
+        api.onChanges = { throw ApiException(401, "bad_response", "Unexpected answer from the server (HTTP 401).") }
+        val r = engine().sync()
+        assertTrue("got $r", r is SyncResult.Failed)
+        assertEquals(before, store.dump())
+    }
+
     @Test fun anotherAccountEmptiesTheCopyFirst() = runTest {
         script(occurrences = { _, _ -> listOf(occ("e1", "2026-11-05T09:00:00Z")) })
         engine("u1").sync()

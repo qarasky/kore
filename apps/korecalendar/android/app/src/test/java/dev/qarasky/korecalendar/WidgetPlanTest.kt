@@ -3,6 +3,9 @@ package dev.qarasky.korecalendar
 import dev.qarasky.korecalendar.agenda.AgendaDay
 import dev.qarasky.korecalendar.agenda.AgendaItem
 import dev.qarasky.korecalendar.data.Occurrence
+import dev.qarasky.korecalendar.agenda.WidgetModel
+import dev.qarasky.korecalendar.widget.Footer
+import dev.qarasky.korecalendar.widget.footerFor
 import dev.qarasky.korecalendar.widget.fitRows
 import dev.qarasky.korecalendar.widget.rowsFor
 import java.time.Instant
@@ -55,5 +58,32 @@ class WidgetPlanTest {
     @Test fun neverEmptiesAWidgetThatHasAnyRow() {
         val fitted = fitRows(listOf(day(4, "a", "b")), 10f, footer = false)
         assertEquals(1, fitted.sumOf { it.items.size })
+    }
+
+    @Test fun largerTextMeansFewerRows() {
+        assertEquals(2, rowsFor(110f, fontScale = 1.3f))
+        assertEquals(1, rowsFor(110f, fontScale = 2f))
+        assertEquals(3, rowsFor(146f, fontScale = 1.3f))
+        assertEquals(3, rowsFor(110f, fontScale = 1f))
+    }
+
+    @Test fun largerTextTrimsRowsThatWouldBeClipped() {
+        val days = listOf(day(4, "a"), day(5, "b", "c")) // fits 110 dp at normal size, not at 1.3x
+        assertEquals(listOf("a"), fitRows(days, 110f, footer = false, fontScale = 1.3f).flatMap { it.items }.map { it.occ.eventId })
+        val one = listOf(day(4, "a", "b"))
+        assertEquals(1, fitRows(one, 110f, footer = false, fontScale = 2f).sumOf { it.items.size })
+        assertEquals(one, fitRows(one, 110f, footer = false, fontScale = 1f))
+    }
+
+    private fun model(empty: Boolean, stale: Long?, never: Boolean = false) =
+        WidgetModel(days = emptyList(), rowCount = 0, empty = empty, staleHours = stale, neverSynced = never, nextTick = null)
+
+    @Test fun theAgeIsShownWhateverTheWidgetListsAndNeverWhenSignedOut() {
+        assertEquals(Footer.Stale(72), footerFor(model(empty = true, stale = 72), signedIn = true)) // empty but old
+        assertEquals(Footer.Stale(5), footerFor(model(empty = false, stale = 5), signedIn = true))
+        assertEquals(Footer.NeverSynced, footerFor(model(empty = true, stale = null, never = true), signedIn = true))
+        assertEquals(null, footerFor(model(empty = false, stale = null), signedIn = true))
+        assertEquals(null, footerFor(model(empty = false, stale = 9), signedIn = false))
+        assertEquals(null, footerFor(null, signedIn = true))
     }
 }

@@ -157,7 +157,8 @@ class AgendaTest {
         val hiddenOnly = listOf(timed("b", "2026-11-04T10:00:00Z", "2026-11-04T11:00:00Z", cal = "c2"))
         val w = widget(hiddenOnly, now = "2026-11-04T08:00:00Z", hidden = setOf("c2"))
         assertTrue(w.empty)
-        assertNull(w.nextTick)
+        // Nothing to end, but the copy will go stale: that is when to redraw.
+        assertEquals(Instant.parse("2026-11-04T10:50:01Z"), w.nextTick)
     }
 
     @Test fun widgetSaysHowOldTheCopyIsOnlyAfterThreeHours() {
@@ -168,6 +169,35 @@ class AgendaTest {
         val never = widget(manyToday, "2026-11-04T10:00:00Z", lastSync = null)
         assertTrue(never.neverSynced)
         assertNull(never.staleHours)
+    }
+
+    @Test fun widgetRedrawsWhenTheCopyBecomesStaleEvenWithNoEvents() {
+        val w = widget(emptyList(), now = "2026-11-04T08:00:00Z", lastSync = "2026-11-04T07:50:00Z")
+        assertEquals(Instant.parse("2026-11-04T10:50:01Z"), w.nextTick) // three hours and a second after the sync
+    }
+
+    @Test fun onceStaleItRedrawsEveryHourSoTheAgeKeepsUp() {
+        // last sync 07:50, now 11:20 (3 h 30 m old): the age reads "3 h", and becomes "4 h" at 11:50:01
+        val w = widget(emptyList(), now = "2026-11-04T11:20:00Z", lastSync = "2026-11-04T07:50:00Z")
+        assertEquals(Instant.parse("2026-11-04T11:50:01Z"), w.nextTick)
+    }
+
+    @Test fun widgetRedrawsAtMidnightOfTheAccountZoneSoTomorrowBecomesToday() {
+        // 22:30 in Berlin; the sync is fresh and the next event is far away
+        val far = timed("far", "2026-11-06T09:00:00Z", "2026-11-06T10:00:00Z")
+        val w = widget(listOf(far), now = "2026-11-04T21:30:00Z", lastSync = "2026-11-04T21:25:00Z")
+        assertEquals(Instant.parse("2026-11-04T23:00:00Z"), w.nextTick) // 00:00 on the 5th in Berlin
+    }
+
+    @Test fun anEventEndingSoonerThanAnyOtherReasonStillWins() {
+        val soon = timed("soon", "2026-11-04T08:00:00Z", "2026-11-04T08:30:00Z")
+        val w = widget(listOf(soon), now = "2026-11-04T08:10:00Z", lastSync = "2026-11-04T08:05:00Z")
+        assertEquals(Instant.parse("2026-11-04T08:30:00Z"), w.nextTick)
+    }
+
+    @Test fun neverSyncedStillRedrawsAtMidnight() {
+        val w = widget(emptyList(), now = "2026-11-04T08:00:00Z", lastSync = null)
+        assertEquals(Instant.parse("2026-11-04T23:00:00Z"), w.nextTick)
     }
 
     // --- labels and times -------------------------------------------------------------------------

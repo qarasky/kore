@@ -129,8 +129,23 @@ fun widgetModel(
         empty = all.isEmpty(),
         staleHours = staleHours(lastSyncAt, now),
         neverSynced = lastSyncAt == null,
-        nextTick = days.firstOrNull()?.items?.firstOrNull()?.endInstant,
+        nextTick = nextTick(days.firstOrNull()?.items?.firstOrNull()?.endInstant, lastSyncAt, now, zone),
     )
+}
+
+/**
+ * When the widget must be redrawn even if nothing is synced (an offline phone gets no sync to do it for it):
+ * the first listed event ends, the copy turns three hours old (then each hour after, so the age keeps up),
+ * or the account's day rolls over ("Tomorrow" becomes "Today"). The earliest moment after [now].
+ */
+fun nextTick(firstEnds: Instant?, lastSyncAt: Instant?, now: Instant, zone: ZoneId): Instant? {
+    val staleTick = lastSyncAt?.let {
+        val age = Duration.between(it, now)
+        val hours = if (age > STALE_AFTER) age.toHours() + 1 else STALE_AFTER.toHours()
+        it.plus(Duration.ofHours(hours)).plusSeconds(1)
+    }
+    val midnight = now.atZone(zone).toLocalDate().plusDays(1).atStartOfDay(zone).toInstant()
+    return listOfNotNull(firstEnds, staleTick, midnight).filter { it.isAfter(now) }.minOrNull()
 }
 
 // --- Text ----------------------------------------------------------------------------------------

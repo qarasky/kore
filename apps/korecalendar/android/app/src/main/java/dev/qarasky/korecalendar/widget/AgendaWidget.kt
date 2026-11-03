@@ -119,18 +119,18 @@ class AgendaWidget : GlanceAppWidget() {
     private fun Content(data: WidgetData) {
         val context = LocalContext.current
         val heightDp = LocalSize.current.height.value
+        val fontScale = context.resources.configuration.fontScale
         val now = Instant.now()
         val snap = data.snapshot
         val model: WidgetModel? = if (snap != null) {
-            widgetModel(snap.occurrences, snap.calendars, data.hidden, data.zone, now, snap.lastSyncAt, rowsFor(heightDp))
+            widgetModel(snap.occurrences, snap.calendars, data.hidden, data.zone, now, snap.lastSyncAt, rowsFor(heightDp, fontScale))
         } else {
             null
         }
-        val footer = when {
-            model == null -> null
-            model.neverSynced -> context.getString(R.string.never_synced)
-            model.staleHours != null -> context.getString(R.string.updated_hours_ago, model.staleHours.toInt())
-            else -> null
+        val footer = when (val f = footerFor(model, data.signedIn)) {
+            null -> null
+            Footer.NeverSynced -> context.getString(R.string.never_synced)
+            is Footer.Stale -> context.getString(R.string.updated_hours_ago, f.hours.toInt())
         }
         val labels = Labels(context.getString(R.string.today), context.getString(R.string.tomorrow))
         val allDay = context.getString(R.string.all_day)
@@ -143,11 +143,14 @@ class AgendaWidget : GlanceAppWidget() {
         ) {
             when {
                 !data.signedIn -> Text(context.getString(R.string.widget_sign_in), style = style(Palette.muted))
-                model == null || model.empty -> Text(context.getString(R.string.widget_empty), style = style(Palette.muted))
+                model == null || model.empty -> {
+                    Text(context.getString(R.string.widget_empty), style = style(Palette.muted))
+                    if (footer != null) Text(footer, style = TextStyle(color = ColorProvider(Palette.muted), fontSize = 10.sp))
+                }
                 else -> {
                     // A RemoteViews column holds at most 10 children and silently drops the rest, so each
                     // day is one nested column (heading + its rows) and the outer one counts days only.
-                    for (day in fitRows(model.days, heightDp, footer != null).take(if (footer != null) MAX_CHILDREN - 1 else MAX_CHILDREN)) {
+                    for (day in fitRows(model.days, heightDp, footer != null, fontScale).take(if (footer != null) MAX_CHILDREN - 1 else MAX_CHILDREN)) {
                         Column(modifier = GlanceModifier.fillMaxWidth()) {
                             Text(
                                 dayLabel(day.date, today, labels),
