@@ -114,4 +114,15 @@
     <string name="edit_err_range">That time range is too large.</string>
     <string name="edit_err_busy">The server is busy. Try again in a moment.</string>
     <string name="edit_err_internal">The server hit an error. Try again.</string>
+
+    <!-- Editor messages -->
+    <string name="toast_created">Event created</string>
+    <string name="toast_saved">Event saved</string>
+    <string name="toast_deleted">Event deleted</string>
+    <string name="toast_restored">Event restored</string>
+    <string name="toast_dropped_one">1 changed occurrence no longer fit the new schedule and was reset.</string>
+    <string name="toast_dropped_many">%1$d changed occurrences no longer fit the new schedule and were reset.</string>
+    <string name="editor_error_title">Enter a title</string>
+    <string name="editor_error_end_before_start">The end can\'t be before the start</string>
+    <string name="editplan_warn_cannot_move_day">This repeat rule can\'t follow a move to another day, so only this event can be moved.</string>
 </resources>
