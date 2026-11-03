@@ -27,6 +27,7 @@ import (
 	"github.com/qarasky/kore/api/internal/store"
 	"github.com/qarasky/kore/api/internal/uploads"
 	"github.com/qarasky/kore/api/internal/users"
+	"github.com/qarasky/kore/api/internal/version"
 	"github.com/qarasky/kore/api/internal/volume"
 )
 
@@ -35,9 +36,13 @@ const usage = `usage:
   kore init [-config kore.toml]            initialize the data volume (marker, blobs/, tmp/uploads/)
   kore link -email EMAIL -sub UUID [-config kore.toml]
                                            bind an existing account to a Kore ID subject (the "sub" claim)
+  kore version                             print the release this binary was built from
   kore healthcheck [-config kore.toml | -url URL]
                                            exit 0 if GET /api/healthz returns 200
 `
+
+// stdout is where `version` prints (replaced in tests).
+var stdout io.Writer = os.Stdout
 
 // shutdownGrace is how long in-flight requests get to finish on SIGTERM/SIGINT.
 const shutdownGrace = 30 * time.Second
@@ -70,6 +75,9 @@ func run(ctx context.Context, args []string, stderr io.Writer) int {
 		linkSub = fs.String("sub", "", "Kore ID subject (UUID) to bind to it")
 	case "healthcheck":
 		url = fs.String("url", "", "health URL (default: derived from the config's bind and port)")
+	case "version":
+		fmt.Fprintln(stdout, "kore", version.String())
+		return 0
 	case "help":
 		fmt.Fprint(stderr, usage)
 		return 0
@@ -220,7 +228,7 @@ func serve(ctx context.Context, cfg config.Config, logger *log.Logger) error {
 	if err != nil {
 		return err
 	}
-	logger.Printf("kore listening on %s", addr)
+	logger.Printf("kore %s listening on %s", version.String(), addr)
 	return serveUntil(ctx, newServer(addr, httpapi.New(db, cfg.DataDir, httpapi.WithConfig(cfg))), ln, shutdownGrace, logger)
 }
 

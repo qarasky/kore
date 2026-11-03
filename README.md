@@ -250,9 +250,86 @@ reload by itself).
 Log in with `KORE_ADMIN_EMAIL`/`KORE_ADMIN_PASSWORD` from `.env` (the
 installer prints them). The admin account is created only on the very first
 start (when there are no users); after that the password in `.env` is
-ignored. Change it in the UI under **Account** (top-right menu), and add users
+ignored (with `KORE_LOCAL_LOGIN=false` it cannot be used to sign in; see Kore ID).
+Change it in the UI under **Account** (top-right menu), and add users
 under **Admin**. Keep `.env` readable only by you (`chmod 600`) and set its
 password to anything other than `change-me`.
+
+## Kore ID (single sign-on)
+
+Kore can sign people in with Kore ID, the
+OpenID Connect provider shared by the Kore apps. It is off until
+`KORE_OIDC_ISSUER` is set; nothing changes for existing installs.
+
+**Set up.** In Kore ID's `clients.json`, give client `kore` this redirect URI
+and post-logout redirect URI (use your real address):
+
+```
+redirectUris:           https://kore.example.com/api/auth/oidc/callback
+postLogoutRedirectUris: https://kore.example.com/login
+```
+
+Then in `.env` (or `kore.toml`, see `kore.example.toml`):
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `KORE_OIDC_ISSUER` | empty (off) | Kore ID's base URL; endpoints and keys come from its discovery document |
+| `KORE_PUBLIC_URL` | | Kore's public address; required with the issuer |
+| `KORE_OIDC_CLIENT_ID` | `kore` | |
+| `KORE_OIDC_CLIENT_SECRET` | empty | the client secret (basic/post; `post` is used) |
+| `KORE_OIDC_AUTO_PROVISION` | `true` | create an account on a person's first login (role `user`, default quota) |
+| `KORE_OIDC_LINK_BY_EMAIL` | `false` | on first login, adopt the local account with the same email (see below) |
+| `KORE_LOCAL_LOGIN` | `true` | `false` turns email + password login off (login and change-password answer 403 `local_login_disabled`) |
+
+The API container needs outbound access to Kore ID: `docker-compose.yml`
+attaches it to an `egress` network for that. Browsers also have to reach Kore ID.
+
+**How it works.** The login page shows "Sign in with Kore ID". The API runs the
+authorization-code flow with PKCE (S256), a random `state` bound to the browser
+by a short-lived cookie, and a `nonce`; it verifies the id token (EdDSA
+signature against the JWKS, issuer, audience `kore`, expiry, nonce) and maps
+the token's `sub` (the same UUID in every Kore app) to a local user in
+`users.sub`. A normal `kore_session` cookie is then issued, so everything
+else (quotas, roles, share links, uploads) is unchanged. Sessions created this
+way redeem their refresh token every ten minutes: if the person signed out
+everywhere at Kore ID or the account is gone there, the Kore session ends too
+(a Kore ID outage does not log anyone out). Signing out of Kore also ends the
+Kore ID session (RP-initiated logout). The API also accepts
+`Authorization: Bearer <Kore ID access token>` (audience `kore`) alongside the
+cookie, mapped to the same users; Kore has no other API tokens.
+
+**Existing accounts.** Kore ID does not verify email addresses and anyone can
+register there, so by default an SSO login whose email matches an unlinked
+local account is **refused** (`sso_email_in_use`) rather than merged. Link them
+one of these ways:
+
+- the person signs in with their password, opens **Account**, and clicks **Link Kore ID**
+  (they must authenticate at Kore ID again);
+- an operator runs `docker compose exec api kore link -email jane@example.com -sub <Kore ID uuid>`;
+- only if Kore ID's registration is closed and you control who has accounts there:
+  `KORE_OIDC_LINK_BY_EMAIL=true`.
+
+Migration path to SSO-only: link every account (above), check that the admin
+can sign in with Kore ID, then set `KORE_LOCAL_LOGIN=false`. Setting it back to
+`true` restores password login (SSO-created accounts have no password; an admin
+can set one under **Admin**).
+
+## Releases and images
+
+Every push to `main` and every `v*.*.*` tag runs `.github/workflows/images.yml`:
+the CI jobs, then native amd64 and arm64 builds of `api/` and `web/`, one
+multi-arch tag per image with a build provenance attestation, a smoke test
+(`scripts/smoke.sh`) of the published images, and for tags a GitHub release.
+
+| Event | Tags pushed (`ghcr.io/qarasky/kore-api` and `kore-web`) |
+| --- | --- |
+| tag `v1.2.3` | `1.2.3`, `1.2`, `1`, `latest` |
+| tag `v0.2.0` | `0.2.0`, `0.2`, `latest` |
+| tag `v1.0.0-rc.1` | `1.0.0-rc.1` only |
+| push to `main` | `edge`, `sha-<7 chars>` |
+
+`kore version` prints the release the binary was built from. Pull requests
+build the images without pushing them.
 
 ## Troubleshooting
 

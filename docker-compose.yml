@@ -87,6 +87,14 @@ services:
       # First admin account, created on the first start.
       KORE_ADMIN_EMAIL: ${KORE_ADMIN_EMAIL:?set KORE_ADMIN_EMAIL in .env}
       KORE_ADMIN_PASSWORD: ${KORE_ADMIN_PASSWORD:?set KORE_ADMIN_PASSWORD in .env}
+      # Sign in with Kore ID (OpenID Connect). Empty KORE_OIDC_ISSUER = off.
+      KORE_PUBLIC_URL: ${KORE_PUBLIC_URL:-}
+      KORE_OIDC_ISSUER: ${KORE_OIDC_ISSUER:-}
+      KORE_OIDC_CLIENT_ID: ${KORE_OIDC_CLIENT_ID:-kore}
+      KORE_OIDC_CLIENT_SECRET: ${KORE_OIDC_CLIENT_SECRET:-}
+      KORE_OIDC_LINK_BY_EMAIL: ${KORE_OIDC_LINK_BY_EMAIL:-false}
+      KORE_OIDC_AUTO_PROVISION: ${KORE_OIDC_AUTO_PROVISION:-true}
+      KORE_LOCAL_LOGIN: ${KORE_LOCAL_LOGIN:-true}
     volumes:
       # Never auto-created: if the volume is not mounted, compose fails
       # instead of writing into an empty directory on the root disk.
@@ -101,7 +109,9 @@ services:
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
-    networks: [internal]
+    # `egress` only so the API can reach Kore ID (discovery, token, JWKS);
+    # nothing is published on it.
+    networks: [internal, egress]
     # In-flight requests get 30 s to finish on `docker compose stop/down`.
     stop_grace_period: 40s
     logging: *logging
@@ -118,3 +128,6 @@ networks:
   # api and web: no published ports and no outbound internet access.
   internal:
     internal: true
+  # Outbound access for the API alone, to reach Kore ID. Without Kore ID
+  # configured the API makes no outbound connections at all.
+  egress: {}
