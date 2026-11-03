@@ -4,27 +4,31 @@ The API is the product: the web app and the Android app use exactly these endpoi
 The full contract is [`openapi.yaml`](openapi.yaml), also served at `GET /api/openapi.json` with no login. This guide shows
 the common jobs with real requests and responses.
 
-Examples use `$B` for the server address and `$TOK` for an access token.
+Examples use `$B` for the server address, `$AUTH` for a signed-in credential (a Kore ID access token, or the session cookie's token) and `$TOK` for an access token.
 
 ## Get a token
 
-The first account is created once, on a fresh install, and becomes the admin. It also gets a calendar named "Personal".
-`GET /api/setup` answers `{"setup_required": true}` until then, which is how the web app decides whether to offer "Create account".
+Sign-in is **Kore ID only**: open `$B` in a browser and continue with Kore ID. There is no email + password login and no first-run
+form. On a fresh install, the first sign-in whose verified email is the server's `KORECAL_OIDC_OWNER_EMAIL` becomes the administrator;
+everyone else is provisioned as a normal user on first sign-in. `GET /api/auth/config` says which provider (if any) the server offers:
 
 ```bash
-curl -s $B/api/setup -H 'Content-Type: application/json' \
-  -d '{"email":"me@example.com","password":"correct horse battery"}'
+curl -s $B/api/auth/config
 ```
 
 ```json
-{"token":"joRbrg…","user":{"id":"061bd42ae508723f4e92095815dedf4b","email":"me@example.com","role":"admin","timezone":"UTC"}}
+{"first_user_sso":true,"oidc":{"name":"Kore ID","issuer":"https://id.kore.example","login_url":"/api/auth/oidc/login","client_id":"korecalendar","account_url":"https://id.kore.example/account","apps":{"korecalendar":"https://calendar.example.com/"}}}
 ```
 
-That `token` is a session. For an agent, create a long-lived, revocable access token with it (an access token cannot create or
+`oidc` is `null` when the operator has not configured a provider, and then nobody can sign in. The browser flow sets a session cookie.
+A script that can obtain a Kore ID **access token** (header `typ: at+jwt`, audience `korecalendar`) can send it as the bearer instead:
+it counts as a session. Kore ID id tokens are refused.
+
+That session is short-lived. For an agent, create a long-lived, revocable access token with it (an access token cannot create or
 revoke tokens, so a leaked one cannot mint more). The secret is shown once:
 
 ```bash
-curl -s $B/api/tokens -H "Authorization: Bearer $SESSION" -H 'Content-Type: application/json' -d '{"name":"claude"}'
+curl -s $B/api/tokens -H "Authorization: Bearer $AUTH" -H 'Content-Type: application/json' -d '{"name":"claude"}'
 ```
 
 ```json

@@ -79,7 +79,7 @@ func addSub(t *testing.T, db *sql.DB, userID, endpoint string) string {
 
 func newUser(t *testing.T, db *sql.DB, email string) users.User {
 	t.Helper()
-	u, err := users.Create(context.Background(), db, email, "x", "user")
+	u, err := users.Create(context.Background(), db, email, "user")
 	if err != nil {
 		t.Fatal(err)
 	}

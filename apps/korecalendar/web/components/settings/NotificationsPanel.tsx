@@ -5,9 +5,7 @@ import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
 import { pushSupport, subscriptionToJSON, urlBase64ToUint8Array, type PushSupport } from "@/lib/push";
-import { Button } from "../Button";
-import { useToast } from "../Toast";
-import { SettingsSection } from "./Section";
+import { Button, SettingsSection, useToast } from "@qarasky/kore-ui";
 
 const STORE_KEY = "korecal.push.subscription";
 
@@ -58,9 +56,9 @@ export function NotificationsPanel() {
       const { id } = await api<{ id: string }>("/api/push/subscriptions", { method: "POST", body: JSON.stringify(subscriptionToJSON(sub)) });
       localStorage.setItem(STORE_KEY, id);
       setState({ kind: "on" });
-      toast(t("notify.enabled"));
+      toast.show({ message: t("notify.enabled") });
     } catch (e) {
-      toast(errorMessage(e), { kind: "error" });
+      toast.show({ message: errorMessage(e), tone: "error" });
     } finally {
       setBusy(false);
     }
@@ -76,9 +74,9 @@ export function NotificationsPanel() {
       await sub?.unsubscribe();
       localStorage.removeItem(STORE_KEY);
       setState({ kind: "off" });
-      toast(t("notify.disabled"));
+      toast.show({ message: t("notify.disabled") });
     } catch (e) {
-      toast(errorMessage(e), { kind: "error" });
+      toast.show({ message: errorMessage(e), tone: "error" });
     } finally {
       setBusy(false);
     }
@@ -111,7 +109,7 @@ export function NotificationsPanel() {
             <p className="text-sub">{t("notify.on")}</p>
             <div className="mt-3 flex gap-2">
               <Button onClick={test}>{t("notify.test")}</Button>
-              <Button variant="danger" onClick={disable} disabled={busy}>
+              <Button variant="danger-outline" onClick={disable} disabled={busy}>
                 {t("notify.disable")}
               </Button>
             </div>
@@ -119,7 +117,7 @@ export function NotificationsPanel() {
           </>
         ) : null}
       </div>
-      <p className="mt-4 text-meta text-muted">{t("notify.phone")}</p>
+      <p className="text-meta text-muted">{t("notify.phone")}</p>
     </SettingsSection>
   );
 }

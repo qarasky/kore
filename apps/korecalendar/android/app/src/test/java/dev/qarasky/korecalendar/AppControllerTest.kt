@@ -7,7 +7,12 @@ import dev.qarasky.korecalendar.data.NetworkException
 import dev.qarasky.korecalendar.data.Occurrence
 import dev.qarasky.korecalendar.data.Prefs
 import dev.qarasky.korecalendar.data.Repository
-import dev.qarasky.korecalendar.data.Session
+import dev.qarasky.korecalendar.data.AuthConfig
+import dev.qarasky.korecalendar.data.KOREID_REDIRECT_URI
+import dev.qarasky.korecalendar.data.KoreIdEndpoints
+import dev.qarasky.korecalendar.data.KoreIdProvider
+import dev.qarasky.korecalendar.data.OidcInfo
+import dev.qarasky.korecalendar.data.Pkce
 import dev.qarasky.korecalendar.data.SignIn
 import dev.qarasky.korecalendar.data.SignInResult
 import dev.qarasky.korecalendar.data.TokenCreated
@@ -15,6 +20,8 @@ import dev.qarasky.korecalendar.data.User
 import dev.qarasky.korecalendar.ui.AppController
 import dev.qarasky.korecalendar.ui.AppState
 import dev.qarasky.korecalendar.ui.Background
+import java.net.URI
+import java.net.URLDecoder
 import java.time.Instant
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -45,7 +52,13 @@ class AppControllerTest {
     private val api = FakeApi()
     private val background = FakeBackground()
     private var now = Instant.parse("2026-11-04T10:00:00Z")
-    private val signIn = SignIn({ _, _ -> api }, accounts, "Pixel")
+    private class FakeProvider(val endpoints: KoreIdEndpoints) : KoreIdProvider {
+        override suspend fun discover(issuer: String) = endpoints
+        override suspend fun exchange(endpoints: KoreIdEndpoints, code: String, pkce: Pkce): String = "kore-access-token"
+    }
+
+    private val provider = FakeProvider(KoreIdEndpoints("https://id.kore.example/authorize", "https://id.kore.example/token"))
+    private val signIn = SignIn({ _, _ -> api }, accounts, "Pixel", provider)
     private val controller = AppController(accounts, prefs, store, repo, signIn, { _, _ -> api }, background, TestMessages) { now }
 
     private val cal = Calendar("c1", "Work", "#7b6cf0")
@@ -55,13 +68,21 @@ class AppControllerTest {
     )
 
     private fun serverWith(user: String = "u1", vararg events: Occurrence) {
-        api.onLogin = { _, _ -> Session("sess", User(user, "me@example.com", "user", "Europe/Berlin")) }
+        api.onAuthConfig = { AuthConfig(oidc = OidcInfo("Kore ID", "https://id.kore.example")) }
+        api.onMe = { User(user, "me@example.com", "user", "Europe/Berlin") }
         api.onCreateToken = { TokenCreated("t1", it, "kcal_app") }
         api.onCalendars = { listOf(cal, Calendar("c2", "Home", "#4caf50")) }
         api.onOccurrences = { from, _ -> if (from == Instant.parse("2026-10-21T00:00:00Z")) events.toList() else emptyList() }
     }
 
     private fun ready() = controller.state.value as AppState.Ready
+
+    /** The whole Kore ID sign-in with a provider that signs in at once. */
+    private suspend fun koreIdSignIn(c: AppController = controller): SignInResult =
+        c.signInWithKoreId("https://cal.example.com") { authUrl ->
+            val state = URLDecoder.decode(URI(authUrl).rawQuery.split('&').first { it.startsWith("state=") }.substringAfter('='), "UTF-8")
+            "$KOREID_REDIRECT_URI?code=test-code&state=$state&iss=https://id.kore.example"
+        }
 
     @Test fun withoutAnAccountItIsSignedOut() = runTest {
         controller.start()
@@ -71,7 +92,7 @@ class AppControllerTest {
     @Test fun signingInRunsTheFirstSyncAndShowsTheAgenda() = runTest {
         serverWith("u1", occ("gym"))
         controller.start()
-        val r = controller.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+        val r = koreIdSignIn()
         assertTrue(r is SignInResult.Ok)
         assertEquals(listOf("gym"), ready().agenda.days.single().rows.map { it.item.occ.eventId })
         assertEquals(1, background.scheduled)
@@ -81,7 +102,7 @@ class AppControllerTest {
     @Test fun aRevokedTokenAsksToSignInAgainAndKeepsTheCopy() = runTest {
         serverWith("u1", occ("gym"))
         controller.start()
-        controller.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+        koreIdSignIn()
         api.onChanges = { throw ApiException(401, "unauthorized", "Sign in.") }
         now = now.plusSeconds(60)
         controller.refresh()
@@ -89,7 +110,7 @@ class AppControllerTest {
         assertEquals(1, store.snapshot().occurrences.size) // kept for the widget
         // The same person signs in again: fine, the copy is simply refreshed.
         api.onChanges = { dev.qarasky.korecalendar.data.ChangeSet(cursor = 2) }
-        controller.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+        koreIdSignIn()
         assertFalse(accounts.isRevoked())
         assertEquals(1, ready().agenda.days.single().rows.size)
     }
@@ -97,12 +118,12 @@ class AppControllerTest {
     @Test fun anotherAccountDoesNotInheritTheOldEvents() = runTest {
         serverWith("u1", occ("mine"))
         controller.start()
-        controller.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+        koreIdSignIn()
         api.onChanges = { throw ApiException(401, "unauthorized", "Sign in.") }
         controller.refresh()
         serverWith("u2") // a different person, with no events
         api.onChanges = { dev.qarasky.korecalendar.data.ChangeSet(cursor = 1) }
-        controller.signIn("https://cal.example.com", "other@example.com", "pw-pw-pw-pw")
+        koreIdSignIn()
         assertTrue(store.snapshot().occurrences.isEmpty())
         assertEquals("u2", store.snapshot().accountId)
     }
@@ -110,7 +131,7 @@ class AppControllerTest {
     @Test fun refreshingOfflineKeepsTheAgendaAndSaysSo() = runTest {
         serverWith("u1", occ("gym"))
         controller.start()
-        controller.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+        koreIdSignIn()
         api.onCalendars = { throw NetworkException("down") }
         controller.refresh()
         val s = ready()
@@ -121,7 +142,7 @@ class AppControllerTest {
     @Test fun hidingACalendarUpdatesPrefsTheAgendaAndTheWidget() = runTest {
         serverWith("u1", occ("work", "c1"), occ("home", "c2"))
         controller.start()
-        controller.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+        koreIdSignIn()
         assertEquals(2, ready().agenda.days.single().rows.size)
         val before = background.widgetRefreshes
         controller.toggleCalendar("c2")
@@ -136,7 +157,7 @@ class AppControllerTest {
     @Test fun theClockPreferenceIsKeptAndShown() = runTest {
         serverWith("u1")
         controller.start()
-        controller.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+        koreIdSignIn()
         assertTrue(ready().clock24)
         controller.setClock24(false)
         assertFalse(ready().clock24)
@@ -146,7 +167,7 @@ class AppControllerTest {
     @Test fun signingOutForgetsEverything() = runTest {
         serverWith("u1", occ("gym"))
         controller.start()
-        controller.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+        koreIdSignIn()
         controller.signOut()
         assertEquals(AppState.SignedOut("", "", revoked = false), controller.state.value)
         assertNull(accounts.load())
@@ -160,7 +181,7 @@ class AppControllerTest {
     @Test fun aNewEventStartsInTheNextFullHourInTheAccountsZoneWithTheFirstVisibleCalendar() = runTest {
         serverWith("u1", occ("gym"))
         controller.start()
-        controller.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+        koreIdSignIn()
         val f = controller.newEventForm()!!
         // 10:00 UTC is 11:00 in Berlin: the next full hour is 12:00.
         assertEquals(java.time.LocalDate.parse("2026-11-04"), f.startDay)
@@ -178,7 +199,7 @@ class AppControllerTest {
         serverWith("u1", occ("gym"))
         api.onCalendars = { emptyList() }
         controller.start()
-        controller.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+        koreIdSignIn()
         assertEquals("", controller.newEventForm()!!.calendarId)
         controller.beginNew()
         assertTrue(controller.editor.value != null)
@@ -187,7 +208,7 @@ class AppControllerTest {
     @Test fun savingThroughTheEditorSyncsSoTheScreensAndTheWidgetAgree() = runTest {
         serverWith("u1", occ("gym"))
         controller.start()
-        controller.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+        koreIdSignIn()
         val refreshesBefore = background.widgetRefreshes
         val editor = controller.newEditor()!!
         editor.openNew(controller.newEventForm()!!.copy(title = "Dentist"))
@@ -207,7 +228,7 @@ class AppControllerTest {
     private suspend fun signedIn() {
         serverWith("u1", occ("gym"))
         controller.start()
-        controller.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+        koreIdSignIn()
     }
 
     @Test fun beginningANewEventOpensTheEditorAndSavingPostsANotice() = runTest {
@@ -272,7 +293,7 @@ class AppControllerTest {
         serverWith("u1", occ("gym"))
         now = Instant.parse("2026-11-04T22:30:00Z") // 23:30 in Berlin
         controller.start()
-        controller.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+        koreIdSignIn()
         val f = controller.newEventForm()!!
         assertEquals(java.time.LocalDate.parse("2026-11-05"), f.startDay)
         assertEquals(java.time.LocalTime.of(0, 0), f.startTime)
@@ -367,7 +388,7 @@ class AppControllerTest {
         val c = AppController(accounts, prefs, store, repo, signIn, { _, _ -> api }, background, TestMessages, checker, "0.1.0") { now }
         serverWith("u1", occ("gym"))
         c.start()
-        c.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+        koreIdSignIn(c)
         c.checkForUpdate()
         assertEquals(dev.qarasky.korecalendar.update.UpdateInfo("0.9.0", "https://example.test/r"), (c.state.value as AppState.Ready).update)
         c.setUpdateCheck(false)

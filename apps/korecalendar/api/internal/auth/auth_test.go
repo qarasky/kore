@@ -10,27 +10,10 @@ import (
 	"github.com/qarasky/korecalendar/api/internal/users"
 )
 
-func TestHashAndVerify(t *testing.T) {
-	h, err := HashPassword("correct horse")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ok, _ := VerifyPassword(h, "correct horse"); !ok {
-		t.Fatal("right password rejected")
-	}
-	if ok, _ := VerifyPassword(h, "wrong horse"); ok {
-		t.Fatal("wrong password accepted")
-	}
-	if ok, err := VerifyPassword("garbage", "x"); ok || err != nil {
-		t.Fatalf("malformed hash: %v %v", ok, err)
-	}
-}
-
 func TestSessionRoundTripAndExpiry(t *testing.T) {
 	db := testutil.NewDB(t)
 	ctx := context.Background()
-	h, _ := HashPassword("long enough pw")
-	u, err := users.Create(ctx, db, "a@example.com", h, "admin")
+	u, err := users.Create(ctx, db, "a@example.com", "admin")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,18 +39,6 @@ func TestSessionRoundTripAndExpiry(t *testing.T) {
 	}
 	if _, err := UserForToken(ctx, db, tok); !errors.Is(err, users.ErrNotFound) {
 		t.Fatalf("deleted session: %v", err)
-	}
-}
-
-func TestAuthenticateUnknownEmailAndWrongPasswordIndistinguishable(t *testing.T) {
-	db := testutil.NewDB(t)
-	ctx := context.Background()
-	h, _ := HashPassword("long enough pw")
-	users.Create(ctx, db, "a@example.com", h, "user")
-	_, e1 := Authenticate(ctx, db, "a@example.com", "nope nope nope")
-	_, e2 := Authenticate(ctx, db, "x@example.com", "nope nope nope")
-	if !errors.Is(e1, ErrInvalidCredentials) || !errors.Is(e2, ErrInvalidCredentials) {
-		t.Fatalf("%v %v", e1, e2)
 	}
 }
 

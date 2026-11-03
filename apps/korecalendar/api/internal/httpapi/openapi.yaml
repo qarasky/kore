@@ -37,7 +37,8 @@ info:
     Another user's data is `404 not_found`, never 403.
 
     **Authentication.** `Authorization: Bearer <token>`: a personal access token (`kcal_...`, created with
-    `POST /api/tokens`) or the session token returned by login. The web app uses the `korecal_session` cookie.
+    `POST /api/tokens`), or a Kore ID access token (a JWT with header `typ: at+jwt` whose audience is this app's client id;
+    treated like a session; id tokens are refused). Browsers use the `korecal_session` cookie set by the Kore ID callback.
   license:
     name: MIT
 servers:
@@ -52,16 +53,13 @@ x-error-codes:
   unauthorized: Missing, expired or revoked credentials (HTTP 401).
   forbidden: The credentials are valid but this action needs a signed-in session, not an access token (HTTP 403).
   not_found: No such item, or it belongs to someone else (HTTP 404).
-  bad_credentials: Wrong email or password (HTTP 401).
   rate_limited: Too many attempts; wait `retryAfterSec` (HTTP 429).
-  setup_closed: The first account already exists (HTTP 409).
-  email_taken: That email is already registered (HTTP 409).
   version_conflict: The event changed since the `If-Match` version you sent (HTTP 412).
   idempotency_conflict: The Idempotency-Key was used with a different body, or its first request is still running (HTTP 409).
   range_too_large: More than 400 days or 5000 occurrences requested (HTTP 400).
   calendar_not_empty: The calendar still has events; repeat with `?force=1` to delete it with them, restorable for 30 days (HTTP 409).
   payload_too_large: The .ics file is over 5 MB (HTTP 413).
-  busy: The server is hashing too many passwords right now; retry shortly (HTTP 503).
+  invalid_request: The back-channel logout token is missing, invalid or already used (HTTP 400).
   internal: Something failed on the server (HTTP 500).
 paths:
   /api/healthz:
@@ -78,40 +76,55 @@ paths:
       security: []
       responses:
         "200": { description: The OpenAPI 3.1 description of this API., content: { application/json: { schema: { type: object } } } }
-  /api/setup:
+  /api/auth/config:
     get:
-      summary: Whether first-run setup is still open
-      description: "`setup_required` is true only while no account exists. The sign-in page uses it to offer \"Create account\"."
+      summary: Which sign-in method this server offers
+      description: "Kore ID is the only way in. `first_user_sso` is true when Kore ID is configured with an owner email: the first sign-in with that verified email becomes the administrator. `oidc` is null when no provider is configured, and then nobody can sign in; the apps show that instead of a password form."
       x-access: public
       security: []
       responses:
-        "200": { description: The setup state., content: { application/json: { schema: { type: object, properties: { setup_required: { type: boolean } } } } } }
+        "200": { description: The sign-in method., content: { application/json: { schema: { type: object, properties: { first_user_sso: { type: boolean }, oidc: { type: [object, "null"] } } } } } }
+  /api/auth/oidc/login:
+    get:
+      summary: Start sign-in with Kore ID (browser redirect)
+      description: Redirects (302) to Kore ID with PKCE, state and nonce. `next` is a same-site path to return to. 404 unless Kore ID is configured.
+      x-access: public
+      security: []
+      parameters:
+        - { name: next, in: query, required: false, schema: { type: string, example: /calendar/week } }
+      responses:
+        "302": { description: Redirect to the Kore ID authorization endpoint. }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/auth/oidc/callback:
+    get:
+      summary: Kore ID redirect target (browser redirect)
+      description: Validates state, exchanges the code, verifies the id token, maps `sub` to a local user (creating or linking one as configured), sets the session cookie and redirects (302) to `next`. On failure it redirects to `/login?error=<reason>`.
+      x-access: public
+      security: []
+      parameters:
+        - { name: code, in: query, schema: { type: string } }
+        - { name: state, in: query, schema: { type: string } }
+      responses:
+        "302": { description: Redirect to the app, or to the sign-in page with an error. }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/auth/oidc/backchannel-logout:
     post:
-      summary: Create the first account (becomes admin)
-      description: Works only while no account exists; afterwards `409 setup_closed`. Also creates a default calendar "Personal".
+      summary: Kore ID back-channel logout (called by Kore ID, not by browsers)
+      description: "OIDC Back-Channel Logout 1.0. Register `<public_url>/api/auth/oidc/backchannel-logout` as the client's `backchannelLogoutUri` in Kore ID. The form field `logout_token` must be a JWT signed by the issuer's JWKS with header `typ: logout+jwt`, `aud` = this server's client id, `iat`, `exp`, `jti`, the back-channel logout event in `events`, no `nonce`, and a `sid` or `sub`; each `jti` works once. Ends every session started from that Kore ID session (`sid`), or every session of that user (`sub` only). Access tokens (`kcal_…`) are not sessions and keep working. 404 unless Kore ID is configured."
       x-access: public
       security: []
-      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Credentials" } } } }
+      requestBody: { required: true, content: { application/x-www-form-urlencoded: { schema: { type: object, required: [logout_token], properties: { logout_token: { type: string } } } } } }
       responses:
-        "201": { description: Account created and signed in., content: { application/json: { schema: { $ref: "#/components/schemas/Session" } } } }
-        "409": { $ref: "#/components/responses/Error" }
-        "422": { $ref: "#/components/responses/Error" }
-  /api/login:
-    post:
-      summary: Sign in
-      description: Returns a session token (use as a bearer token) and sets the session cookie. 5 failed attempts per email and address, and 30 per address, in 15 minutes; then `429 rate_limited`.
-      x-access: public
-      security: []
-      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Credentials" } } } }
-      responses:
-        "200": { description: Signed in., content: { application/json: { schema: { $ref: "#/components/schemas/Session" } } } }
-        "401": { $ref: "#/components/responses/Error" }
-        "429": { $ref: "#/components/responses/Error" }
+        "200": { description: The sessions (if any) ended. }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
   /api/logout:
     post:
       summary: Sign out (ends this session)
+      description: For a session that came from Kore ID the response is 200 with `end_session_url`; send the browser there to end the single sign-on session too (it returns to `/login`).
       x-access: user
       responses:
+        "200": { description: Signed out; also end the Kore ID session at this URL., content: { application/json: { schema: { type: object, properties: { end_session_url: { type: string } } } } } }
         "204": { description: Signed out. }
   /api/me:
     get:
@@ -128,14 +141,23 @@ paths:
         "200": { description: The updated user., content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
         "422": { $ref: "#/components/responses/Error" }
   /api/admin/users:
-    post:
-      summary: Create another account (admin only)
-      description: Non-admins get `404 not_found`, so the route is not revealed. Also creates the new user's default calendar.
+    get:
+      summary: List accounts (admin only)
+      description: "Roles and whether a Kore ID identity is linked. No passwords are stored or shown. Non-admins get `404 not_found`, so the route is not revealed."
       x-access: admin
-      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Credentials" } } } }
       responses:
-        "201": { description: Created., content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
-        "409": { $ref: "#/components/responses/Error" }
+        "200": { description: Every account, by email., content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/AdminUser" } } } } }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/admin/users/{id}:
+    patch:
+      summary: Change a user's role (admin only)
+      description: "`role` is `user` or `admin`. People sign in with Kore ID; there is no password to set or reset."
+      x-access: admin
+      parameters: [{ $ref: "#/components/parameters/id" }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [role], properties: { role: { type: string, enum: [user, admin] } } } } } }
+      responses:
+        "200": { description: The updated user., content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
+        "404": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
   /api/tokens:
     get:
@@ -393,13 +415,6 @@ components:
             code: { type: string }
             message: { type: string }
             retryAfterSec: { type: integer }
-    Credentials:
-      type: object
-      required: [email, password]
-      properties:
-        email: { type: string }
-        password: { type: string, minLength: 8 }
-        role: { type: string, enum: [user, admin], description: Only for POST /api/admin/users. }
     User:
       type: object
       properties:
@@ -407,11 +422,15 @@ components:
         email: { type: string }
         role: { type: string, enum: [user, admin] }
         timezone: { type: string, example: UTC }
-    Session:
+    AdminUser:
       type: object
       properties:
-        token: { type: string, description: Use as a bearer token. }
-        user: { $ref: "#/components/schemas/User" }
+        id: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [user, admin] }
+        timezone: { type: string, example: UTC }
+        created_at: { type: integer }
+        kore_id_linked: { type: boolean, description: Whether a Kore ID identity is attached to this account yet. }
     Token:
       type: object
       properties:

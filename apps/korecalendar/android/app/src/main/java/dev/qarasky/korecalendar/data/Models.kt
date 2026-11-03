@@ -27,8 +27,14 @@ object InstantSerializer : KSerializer<Instant> {
 @Serializable
 data class User(val id: String, val email: String, val role: String = "user", val timezone: String = "UTC")
 
+/** `GET /api/auth/config`: the sign-in methods the server offers. */
 @Serializable
-data class Session(val token: String, val user: User)
+data class AuthConfig(
+    val oidc: OidcInfo? = null,
+)
+
+@Serializable
+data class OidcInfo(val name: String, val issuer: String)
 
 @Serializable
 data class TokenCreated(val id: String, val name: String, val token: String)

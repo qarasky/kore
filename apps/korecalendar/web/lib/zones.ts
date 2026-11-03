@@ -11,8 +11,19 @@ export function allZones(): string[] {
   return [...zones].sort();
 }
 
-/** Select options "Europe/Berlin (GMT+1)", with `extra` (a zone already in use) always present. */
-export function zoneOptions(extra: string[], at: Date = new Date()): { value: string; label: string }[] {
+export type ZoneOption = { value: string; label: string; description: string; keywords: string[] };
+
+/**
+ * Combobox options: the zone name ("Europe/Berlin"), its current offset as the hint ("GMT+1"),
+ * and the region and city words as search keywords ("Europe", "Berlin"). `extra` (a zone already
+ * in use) is always present.
+ */
+export function zoneOptions(extra: string[], at: Date = new Date()): ZoneOption[] {
   const names = new Set([...allZones(), ...extra.filter(Boolean)]);
-  return [...names].sort().map((value) => ({ value, label: `${value} (${offsetLabel(value, at)})` }));
+  return [...names].sort().map((value) => ({
+    value,
+    label: value,
+    description: offsetLabel(value, at),
+    keywords: value.split(/[/_]/),
+  }));
 }

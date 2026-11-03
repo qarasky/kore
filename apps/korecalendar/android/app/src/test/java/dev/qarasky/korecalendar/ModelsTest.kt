@@ -3,7 +3,6 @@ package dev.qarasky.korecalendar
 import dev.qarasky.korecalendar.data.ApiJson
 import dev.qarasky.korecalendar.data.ChangeSet
 import dev.qarasky.korecalendar.data.Occurrence
-import dev.qarasky.korecalendar.data.Session
 import java.time.Instant
 import kotlinx.serialization.builtins.ListSerializer
 import org.junit.Assert.assertEquals
@@ -44,11 +43,5 @@ class ModelsTest {
         assertEquals(3, c.upserted.single().version)
         assertEquals(listOf("e0"), c.deleted)
         assertTrue(c.more)
-    }
-
-    @Test fun decodesASession() {
-        val s = ApiJson.decodeFromString(Session.serializer(), """{"token":"tok","user":{"id":"u","email":"a@b.c","role":"admin","timezone":"UTC"}}""")
-        assertEquals("tok", s.token)
-        assertEquals("UTC", s.user.timezone)
     }
 }

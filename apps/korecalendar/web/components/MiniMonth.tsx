@@ -1,5 +1,6 @@
 "use client";
 
+import { IconButton } from "@qarasky/kore-ui";
 import { m } from "motion/react";
 import { spring } from "@/lib/motion";
 import Link from "next/link";
@@ -8,8 +9,7 @@ import { addMonths, isSameMonth, monthGrid, parseDay } from "@/lib/dates";
 import { formatDayShort, monthName, weekdayShort } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { calendarHref, viewDays } from "@/lib/range";
-import { iconButtonClass } from "./Button";
-import { ChevronLeftIcon, ChevronRightIcon } from "./icons";
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { useShell } from "./ShellContext";
 
 const WEEK_ORDER: Record<string, number> = { sun: 0, mon: 1, sat: 6 };
@@ -30,16 +30,12 @@ export function MiniMonth() {
   return (
     <section aria-label={t("calendars.miniMonth")}>
       <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-sub font-semibold">
+        <h2 className="pl-2 text-sub font-semibold">
           {monthName(month - 1)} {year}
         </h2>
         <div className="flex">
-          <button type="button" aria-label={t("calendars.previousMonth")} className={iconButtonClass()} onClick={() => setOffset((o) => o - 1)}>
-            <ChevronLeftIcon size={16} />
-          </button>
-          <button type="button" aria-label={t("calendars.nextMonth")} className={iconButtonClass()} onClick={() => setOffset((o) => o + 1)}>
-            <ChevronRightIcon size={16} />
-          </button>
+          <IconButton label={t("calendars.previousMonth")} icon={<ChevronLeftIcon />} onClick={() => setOffset((o) => o - 1)} />
+          <IconButton label={t("calendars.nextMonth")} icon={<ChevronRightIcon />} onClick={() => setOffset((o) => o + 1)} />
         </div>
       </div>
       <div className="grid grid-cols-7 text-center text-2xs text-muted">
@@ -73,7 +69,7 @@ export function MiniMonth() {
                 (isToday
                   ? "rounded-full bg-accent font-semibold text-white"
                   : (isSameMonth(d, shown) ? "text-text" : "text-muted/60") +
-                    (view === "week" || !inView.has(d) ? " hover:bg-raised" : " bg-raised") +
+                    (view === "week" || !inView.has(d) ? " rounded-[4px] hover:bg-white/5" : " bg-raised") +
                     (isSel ? " rounded-full ring-1 ring-accent" : ""))
               }
             >

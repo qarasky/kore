@@ -51,7 +51,7 @@ This installs the **newest release**: it looks it up, downloads the compose file
 (`KORECAL_VERSION` in `.env`). Nothing is built and `git` is not needed. Read the script before you run it; it is short. To install a specific release:
 `KORECAL_VERSION=0.1.0 bash install.sh` (download it first, or pipe it with the variable set in front of `bash`).
 
-The installer asks four things (or takes the defaults), then does everything else:
+The installer asks a few things (or takes the defaults), then does everything else:
 
 | Question | Default | Notes |
 | --- | --- | --- |
@@ -59,16 +59,23 @@ The installer asks four things (or takes the defaults), then does everything els
 | Data directory | `<install dir>-data` (next to it, **outside** the clone so `git clean` can never touch it) | the database lives here; put it on the disk you back up |
 | Listen on | `127.0.0.1` | `127.0.0.1` = this machine only; `0.0.0.0` = every interface (LAN, Tailscale); or one specific address |
 | Port | `8080` | |
+| Public address | empty | the `https://` origin registered with Kore ID; required when an issuer is set |
+| Kore ID issuer | empty | e.g. `https://id.kore.example`; the only sign-in method. Without it nobody can sign in |
+| Kore ID client secret | empty | the secret Kore ID printed for the `korecalendar` client |
+| Owner email | empty | the first Kore ID sign-in with this verified email becomes the administrator |
 
 It checks Docker, creates the data directory (using `sudo` only if it must), writes `.env` with mode 600, pulls the images, runs `korecalendar init` once (this writes the
 marker file the API insists on, so it refuses to start on an empty or unmounted directory), starts the stack and waits until it is healthy. Then open the printed address
-and **create your account**: the first account becomes the administrator.
+and **sign in with Kore ID**: the first sign-in whose verified email is `KORECAL_OIDC_OWNER_EMAIL` becomes the administrator. Fill in
+`KORECAL_OIDC_ISSUER`, `KORECAL_OIDC_CLIENT_SECRET` and `KORECAL_OIDC_OWNER_EMAIL` in `.env` before the first start (or before the first sign-in).
 
 Non-interactive (scripts, provisioning): set the answers as environment variables and `KORECAL_YES=1` (run it as your normal user, not as root: the API then runs as you).
 A directory you cannot create (for example under `/srv` or `/opt`) is created with `sudo` and handed to you:
 
 ```sh
-KORECAL_YES=1 KORECAL_DATA_DIR=/srv/korecalendar KORECAL_BIND=127.0.0.1 KORECAL_PORT=8080 ./install.sh
+KORECAL_YES=1 KORECAL_DATA_DIR=/srv/korecalendar KORECAL_BIND=127.0.0.1 KORECAL_PORT=8080 \
+  KORECAL_PUBLIC_URL=https://calendar.example.com KORECAL_OIDC_ISSUER=https://id.kore.example \
+  KORECAL_OIDC_CLIENT_SECRET=... KORECAL_OIDC_OWNER_EMAIL=you@example.com ./install.sh
 ```
 
 Re-running it where a `.env` already exists does nothing (it never overwrites an installation). If the images cannot be pulled (no network to ghcr.io, a version that does
@@ -122,16 +129,86 @@ unless you pass `--build-arg VERSION=...`.
 | `KORECAL_PORT` | `8080` | host port |
 | `KORECAL_UID`, `KORECAL_GID` | `1000` | user and group the API runs as; they must own `KORECAL_DATA_DIR` |
 | `KORECAL_VERSION` | `latest` | image tag for both the api and the web image: a release number (`0.1.0`, **recommended**: pin it), `latest` (the newest stable release) or `edge` (the tip of `main`). See [releasing.md](releasing.md#image-tags) |
-| `KORECAL_PUBLIC_URL` | empty | your public `https://` address; sent to push services as the operator contact for browser notifications |
+| `KORECAL_PUBLIC_URL` | empty | your public `https://` address; required for Kore ID (it builds the redirect URI) and sent to push services as the operator contact for browser notifications |
 | `KORECAL_SUBNET` | `172.31.255.0/24` | subnet of Caddy's network, also the range whose forwarded headers are trusted (see below); change it only if it collides with a network you already use |
+
+| `KORECAL_OIDC_ISSUER` | empty | the [Kore ID](#sign-in-with-kore-id) provider's public address, e.g. `https://id.kore.example`; the only sign-in method (with no issuer nobody can sign in) |
+| `KORECAL_OIDC_CLIENT_ID` | `korecalendar` | the client id registered in Kore ID |
+| `KORECAL_OIDC_CLIENT_SECRET` | empty | the client secret Kore ID printed for it (keep `.env` private) |
+| `KORECAL_OIDC_EXTRA_AUDIENCES` | empty | more client ids (comma separated) whose Kore ID access tokens the API accepts, e.g. `korecalendar-android` |
+| `KORECAL_OIDC_ADMIN_SUBS` | empty | Kore ID subjects (comma separated) that are administrators here (who may sign in at all is set in Kore ID) |
+| `KORECAL_OIDC_OWNER_EMAIL` | empty | on a fresh install, the first Kore ID sign-in whose verified email equals this address becomes the administrator (`owner_email` in TOML); set it before the first sign-in |
+| `KORECAL_OIDC_AUTO_PROVISION` | `true` | create a local account on a first Kore ID sign-in |
+| `KORECAL_OIDC_LINK_BY_EMAIL` | `verified` | `verified`, `off` or `trusted`: link a Kore ID login to a local account with the same email |
+| `KORECAL_KORE_APPS` | empty | the other Kore apps for the account menu's app switcher, `kore=https://…,koremind=https://…,flatline=https://…` (`korecalendar` defaults to `KORECAL_PUBLIC_URL`) |
+| `KORECAL_OIDC_NAME`, `KORECAL_OIDC_SCOPES` | `Kore ID`, `openid profile email` | button label and requested scopes |
 
 The API itself also reads `KORECAL_PORT`, `KORECAL_BIND`, `KORECAL_DATA_DIR`, `KORECAL_PUBLIC_URL` and a TOML file (`korecalendar.example.toml`); inside the containers
 compose sets those for you and you do not touch them.
 
+## Sign in with Kore ID
+
+KoreCalendar signs in with [Kore ID](https://github.com/qarasky/kore-id), the shared OpenID Connect sign-in of the Kore apps.
+It is the **only** way in: there is no email + password login, no first-run form, and no password reset. Without `KORECAL_OIDC_ISSUER`
+the apps start but show "No sign-in method is configured" instead of a password form.
+
+1. In Kore ID's `clients.json` register the client `korecalendar` (`"app": "korecalendar"`) with
+   `redirectUris` `["https://calendar.example.com/api/auth/oidc/callback"]`, `postLogoutRedirectUris` `["https://calendar.example.com/login"]`,
+   `backchannelLogoutUri` `"https://calendar.example.com/api/auth/oidc/backchannel-logout"` and `homeUrl` `"https://calendar.example.com/"`
+   (your `KORECAL_PUBLIC_URL`). The Android app is the public client `korecalendar-android` (same `"app": "korecalendar"`, redirect
+   `dev.qarasky.korecalendar:/oauth2redirect`); set `KORECAL_OIDC_EXTRA_AUDIENCES=korecalendar-android`. The API logs these URIs at start.
+2. In `.env` set `KORECAL_PUBLIC_URL`, `KORECAL_OIDC_ISSUER` and `KORECAL_OIDC_CLIENT_SECRET`, then `docker compose up -d`. On a fresh install, also set
+   `KORECAL_OIDC_OWNER_EMAIL` to the first administrator's Kore ID email (or register their subject in `KORECAL_OIDC_ADMIN_SUBS`) so that sign-in can create the
+   first account. There is no local password fallback, so this is also how a fresh install starts.
+   The api container must reach the issuer (it is on the `egress` network); the browser must reach it too, at the same address.
+3. The sign-in page now shows "Sign in with Kore ID". The browser goes to Kore ID with PKCE, a `state` and a `nonce`; the API checks the state against a cookie
+   and a one-time server-side record, exchanges the code, verifies the id token's EdDSA signature against Kore ID's JWKS (issuer, audience, expiry, nonce)
+   and starts the usual session cookie, remembering the Kore ID session id (`sid`). Logging out also ends the Kore ID session.
+4. **Back-channel logout.** When the Kore ID session ends (sign-out in any Kore app, an admin disabling the user, "sign out everywhere", a password reset),
+   Kore ID POSTs a logout token to `/api/auth/oidc/backchannel-logout`. The API verifies it (JWKS signature, issuer, audience = its own client id, `typ: logout+jwt`,
+   the back-channel `events` claim, no `nonce`, a `jti` it has not seen before) and deletes every KoreCalendar session from that `sid` (all sessions of that `sub`
+   when the token has no `sid`); Kore ID access tokens of that session stop working as bearer tokens too. `kcal_` access tokens are not sessions and keep working:
+   revoke them in Settings. The api must be reachable from Kore ID at `KORECAL_PUBLIC_URL`.
+
+**Who may use it.** Kore ID decides: each Kore ID user has per-app access, and `/authorize` refuses users without access to the app `korecalendar` (it covers
+`korecalendar` and `korecalendar-android`). KoreCalendar has no allowlist of its own and does not need one.
+
+**Who is who.** An account is keyed on the token's `sub` (the same UUID in every Kore app). The first sign-in creates an account (`KORECAL_OIDC_AUTO_PROVISION`)
+with its default calendar. The email is copied once and is not kept in sync.
+
+**Administrators.** Auto-created accounts are normal users, except subjects in `KORECAL_OIDC_ADMIN_SUBS` and, on a fresh install, the first Kore ID sign-in whose
+verified email equals `KORECAL_OIDC_OWNER_EMAIL` (or `owner_email` in the TOML file). On a fresh install with no account yet, a Kore ID sign-in is otherwise refused
+unless the subject is in `KORECAL_OIDC_ADMIN_SUBS` (so the first person Kore ID lets in does not become the administrator by accident). Once an account exists,
+`owner_email` does not promote anyone else: it only names the first administrator. This decides the role inside KoreCalendar; access to the app is granted in Kore ID.
+
+**Existing accounts (migration).** Kore ID accounts are created by its administrator, so their email addresses are trusted and tokens carry
+`email_verified: true`. With the default `KORECAL_OIDC_LINK_BY_EMAIL=verified`, the first Kore ID sign-in of someone who already has a local account with the same
+email lands on that account (calendars, tokens and all). A local account already linked to another Kore ID subject is never taken over. `off` never links by email;
+then link by hand: read your `sub` at the Kore ID account page (or `GET /userinfo`) and run, on the server:
+
+```sh
+docker compose run --rm --no-deps api korecalendar link you@example.com 00000000-0000-4000-8000-000000000000
+```
+
+`trusted` links on any email match even without `email_verified`; use it only with a provider you fully trust.
+
+**No password fallback.** `POST /api/login`, `POST /api/setup` and the local account-creation endpoint are gone from the API; the web app has no password fields and `/setup`
+only redirects to `/login`. Existing password accounts are not lost: with `KORECAL_OIDC_LINK_BY_EMAIL=verified` their first Kore ID sign-in joins the account (calendars,
+tokens and all). Access tokens (`kcal_…`) and CalDAV (which only ever took access tokens) keep working. Configure Kore ID before the first sign-in: with no issuer,
+nobody can sign in.
+
+**Agents and scripts** keep using access tokens; nothing about them changes. The API also accepts a Kore ID *access token* (a JWT for audience `korecalendar`, or an
+`KORECAL_OIDC_EXTRA_AUDIENCES` client) as `Authorization: Bearer`: it counts as a signed-in session (it can create `kcal_` tokens, which is how the Android app finishes sign-in).
+ID tokens and tokens for other Kore apps are refused. A Kore ID access token lasts about 10 minutes.
+
+**Limits.** Disabling someone in Kore ID ends their KoreCalendar sessions through back-channel logout, but not `kcal_` access tokens (or CalDAV, which uses them)
+they already hold: KoreCalendar has no way to disable a user yet; revoke their tokens from Settings as the owner of the account, or in the database. If the
+back-channel call cannot reach KoreCalendar, the session lasts until it expires (30 days) or the user signs out.
+
 ## HTTPS and how to reach it
 
 Caddy here speaks **plain HTTP**. That is fine on a LAN or a VPN, but two things need HTTPS: **browser notifications** (browsers only allow push on a secure origin; the
-Settings page tells you when it is not) and **using the API, the web app or CalDAV over the internet**, because passwords, session cookies and CalDAV's HTTP Basic
+Settings page tells you when it is not) and **using the API, the web app or CalDAV over the internet**, because sign-in redirects, session cookies and CalDAV's HTTP Basic
 credentials would otherwise cross the network in clear text. Pick one:
 
 ### Only on this machine, or on a trusted LAN
@@ -204,7 +281,7 @@ network, `KORECAL_SUBNET`. Anyone else's forwarded headers are overwritten with 
 
 - **Behind a proxy on the same host, set `CF-Connecting-IP` yourself** (the two examples above do). The API prefers that header, so setting it to the real client address (and
   overwriting whatever the client sent) gives every person their own rate-limit bucket and stops anyone from choosing their own address by sending the header. Without it,
-  every client behind your proxy shares one address (the Docker gateway), so thirty wrong passwords from anyone lock everyone out for 15 minutes, and a client that sends its own
+  every client behind your proxy shares one address (the Docker gateway), so thirty sign-in attempts from anyone lock everyone out for 15 minutes, and a client that sends its own
   `CF-Connecting-IP` is believed. Cloudflare Tunnel sets and overwrites it for you. A Tailscale-only setup is fine without it (the people behind it are your own devices and share one bucket).
 - A proxy on **another** machine is not trusted: its clients all appear as the proxy's address, and `X-Forwarded-Proto: https` is ignored (so cookies are not marked `Secure`).
   Put the proxy on the same host, or terminate TLS there and keep the hop local.
@@ -229,10 +306,11 @@ sudo systemctl daemon-reload
 
 ## Using it
 
-- **Accounts.** The first account is the administrator and can add others under Settings → Users (it shows the new person's password once). Each person's calendars are private.
-- **Agents and scripts.** Settings → Access tokens creates a token for the REST API ([api.md](api.md)); the same token is the password for **CalDAV** ([caldav.md](caldav.md)). A token has the powers of its account, except managing tokens: a token of the **administrator** account can also create users, so give agents tokens from a non-admin account.
+- **Accounts.** The first Kore ID sign-in with the owner email is the administrator. Settings → Users lists every account, shows whether Kore ID is linked, and lets an
+  administrator change roles; there are no passwords to create, show or reset. Each person's calendars are private.
+- **Agents and scripts.** Settings → Access tokens creates a token for the REST API ([api.md](api.md)); the same token is the password for **CalDAV** ([caldav.md](caldav.md)). A token has the powers of its account, except managing tokens. Give agents tokens from a non-admin account.
 - **Time zones.** Each person sets theirs under Settings → General.
-- **No password reset yet.** There is no "forgot password" flow or reset command; keep your backups and a second administrator account. (Tokens can be revoked and re-created at any time.)
+- **No local passwords.** Sign-in, password changes and resets all live in Kore ID. Keep your backups and a second administrator account for lockout recovery.
 
 ## Updating
 
@@ -314,8 +392,8 @@ Logs are rotated by Docker (10 MB × 3 files per container).
 | `Pool overlaps with other one on this address space` | `KORECAL_SUBNET` collides with an existing Docker network: pick another range |
 | The web app says "Can't reach the server" | the API is down or unhealthy: `docker compose ps`, then `logs api`; your data is safe |
 | Settings says browser notifications need HTTPS | open the app from an `https://` address (see HTTPS above) |
-| CalDAV client gets 401 | use your **email** as the user name and an **access token** (Settings → Access tokens) as the password; the account password is not accepted |
-| Locked out after wrong passwords (HTTP 429) | wait the time shown (15 minutes); five wrong attempts per email and address, thirty per address |
+| CalDAV client gets 401 | use your **email** as the user name and an **access token** (Settings → Access tokens) as the password; account passwords do not exist |
+| Locked out after too many sign-in attempts (HTTP 429) | wait the time shown (15 minutes); thirty attempts per address |
 | Cannot reach it from another device | `KORECAL_BIND` is `127.0.0.1`: use the LAN address or `0.0.0.0` (mind the firewall note above), or a tunnel |
 
 On a host with **SELinux** enforcing (Fedora, RHEL and relatives), a bind-mounted data directory may be unreadable from the container; relabel it by adding `selinux: z` under
@@ -381,7 +459,7 @@ Without Caddy's header handling you must set the security headers (`Content-Secu
 
 - Publish only what you mean to: `127.0.0.1` plus a tunnel or proxy is the safest default; `0.0.0.0` exposes the (plain HTTP) calendar to every network the host is on.
 - Use HTTPS for anything beyond a trusted LAN. Access tokens give full access (except managing tokens); create one per integration and revoke what you no longer use.
-- Logins are rate limited (5 wrong attempts per email and address, 30 per address, 15 minutes), and so are CalDAV sign-ins. The account password is never accepted by CalDAV.
+- Sign-in attempts are rate limited (30 per address in 15 minutes), and so are CalDAV sign-ins. CalDAV accepts only an access token, never a session or a password.
 - The `api` container may open outbound connections (for browser push) but refuses to connect to private, loopback and link-local addresses, so a push subscription cannot be
   used to reach other services on your network. The `web` container is on the internal network only and has no outbound access at all.
 - Nothing is loaded from third-party hosts: no CDN, fonts, analytics or scripts.

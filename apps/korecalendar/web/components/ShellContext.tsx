@@ -2,7 +2,7 @@
 
 import { createContext, useContext } from "react";
 import type { Prefs } from "@/lib/prefs";
-import type { Calendar, User, View } from "@/lib/types";
+import type { AuthConfig, Calendar, User, View } from "@/lib/types";
 
 export type Shell = {
   me: User;
@@ -13,6 +13,8 @@ export type Shell = {
   /** The day the view is anchored on (the `date` query, else today). */
   day: string;
   today: string;
+  /** Kore ID sign-in settings (account page, app switcher), or null when SSO is off. */
+  kore: AuthConfig["oidc"];
 };
 
 const ShellContext = createContext<Shell | null>(null);

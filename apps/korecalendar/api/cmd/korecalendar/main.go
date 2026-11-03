@@ -23,9 +23,12 @@ import (
 	"github.com/qarasky/korecalendar/api/internal/config"
 	"github.com/qarasky/korecalendar/api/internal/events"
 	"github.com/qarasky/korecalendar/api/internal/httpapi"
+	"github.com/qarasky/korecalendar/api/internal/oidc"
 	"github.com/qarasky/korecalendar/api/internal/push"
 	"github.com/qarasky/korecalendar/api/internal/reminders"
+	"github.com/qarasky/korecalendar/api/internal/sso"
 	"github.com/qarasky/korecalendar/api/internal/store"
+	"github.com/qarasky/korecalendar/api/internal/users"
 	"github.com/qarasky/korecalendar/api/internal/version"
 	"github.com/qarasky/korecalendar/api/internal/volume"
 )
@@ -35,6 +38,8 @@ const usage = `usage:
   korecalendar init [-config korecal.toml]     initialize the data volume (writes the marker)
   korecalendar healthcheck [-config korecal.toml | -url URL]
                                                exit 0 if GET /api/healthz returns 200
+  korecalendar link [-config korecal.toml] EMAIL SUB
+                                               link a local account to a Kore ID subject (migration)
   korecalendar version                         print the release this binary was built from
 `
 
@@ -66,7 +71,7 @@ func run(ctx context.Context, args []string, stderr io.Writer) int {
 	path := fs.String("config", defaultPath, "path to config file (default: $KORECAL_CONFIG or korecal.toml)")
 	var url *string
 	switch cmd {
-	case "serve", "init":
+	case "serve", "init", "link":
 	case "healthcheck":
 		url = fs.String("url", "", "health URL (default: derived from the config's bind and port)")
 	case "version":
@@ -84,6 +89,13 @@ func run(ctx context.Context, args []string, stderr io.Writer) int {
 			return 0
 		}
 		return 2
+	}
+	if cmd == "link" {
+		if fs.NArg() != 2 {
+			fmt.Fprint(stderr, usage)
+			return 2
+		}
+		return linkUser(ctx, *path, fs.Arg(0), fs.Arg(1), stderr)
 	}
 	if fs.NArg() > 0 {
 		fmt.Fprintf(stderr, "korecalendar: unexpected argument %q\n%s", fs.Arg(0), usage)
@@ -242,7 +254,74 @@ func serveWith(ctx context.Context, cfg config.Config, logger *log.Logger, onBac
 		return err
 	}
 	logger.Printf("korecalendar %s listening on %s", version.String(), addr)
-	return serveUntil(ctx, newServer(addr, httpapi.New(db, cfg.DataDir)), ln, shutdownGrace, logger)
+	opts, err := signInOptions(db, cfg)
+	if err != nil {
+		ln.Close()
+		return err
+	}
+	return serveUntil(ctx, newServer(addr, httpapi.NewWithOptions(db, cfg.DataDir, opts)), ln, shutdownGrace, logger)
+}
+
+// signInOptions builds the sign-in settings from the config. Kore ID is
+// discovered lazily on first use, so a provider that is down at startup does
+// not stop the calendar from coming up. Without a provider nobody can sign in;
+// the web and Android apps say so rather than offering a password form.
+func signInOptions(db *sql.DB, cfg config.Config) (httpapi.Options, error) {
+	o := httpapi.Options{PublicURL: strings.TrimRight(cfg.PublicURL, "/")}
+	if !cfg.OIDC.Enabled() {
+		return o, nil
+	}
+	p, err := oidc.New(oidc.Config{
+		Issuer: cfg.OIDC.Issuer, ClientID: cfg.OIDC.ClientID, ClientSecret: cfg.OIDC.ClientSecret,
+		RedirectURL: cfg.OIDCRedirectURL(), Scopes: cfg.OIDC.Scopes, Audiences: cfg.OIDC.ExtraAudiences,
+	})
+	if err != nil {
+		return o, fmt.Errorf("oidc: %w", err)
+	}
+	o.SSO = &sso.Service{DB: db, Provider: p, Cfg: cfg.OIDC}
+	o.ButtonName = cfg.OIDC.Name
+	o.Apps = cfg.OIDC.Apps
+	log.Printf("oidc: sign-in with %s enabled (client %s); register redirect URI %s and backchannelLogoutUri %s",
+		cfg.OIDC.Issuer, cfg.OIDC.ClientID, cfg.OIDCRedirectURL(), cfg.OIDCBackchannelLogoutURL())
+	return o, nil
+}
+
+// linkUser ties an existing local account to a Kore ID subject, so that user's
+// next Kore ID sign-in lands on the account (and its calendars) it already has.
+func linkUser(ctx context.Context, path, email, sub string, stderr io.Writer) int {
+	cfg, err := config.Load(path)
+	if err != nil {
+		fmt.Fprintf(stderr, "link: %v\n", err)
+		return 1
+	}
+	if err := volume.Check(cfg.DataDir); err != nil {
+		fmt.Fprintf(stderr, "link: volume: %v\n", err)
+		return 1
+	}
+	db, err := store.Open(filepath.Join(cfg.DataDir, "korecal.db"))
+	if err != nil {
+		fmt.Fprintf(stderr, "link: store: %v\n", err)
+		return 1
+	}
+	defer db.Close()
+	u, existing, err := users.GetLinkByEmail(ctx, db, strings.ToLower(strings.TrimSpace(email)))
+	switch {
+	case errors.Is(err, users.ErrNotFound):
+		fmt.Fprintf(stderr, "link: no local account with email %q\n", email)
+		return 1
+	case err != nil:
+		fmt.Fprintf(stderr, "link: %v\n", err)
+		return 1
+	case existing != "":
+		fmt.Fprintf(stderr, "link: %s is already linked to subject %s\n", u.Email, existing)
+		return 1
+	}
+	if err := users.LinkSub(ctx, db, u.ID, strings.TrimSpace(sub)); err != nil {
+		fmt.Fprintf(stderr, "link: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(stderr, "linked %s to Kore ID subject %s\n", u.Email, sub)
+	return 0
 }
 
 // serveUntil serves on ln until ctx is done, then stops accepting and waits

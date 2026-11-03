@@ -5,10 +5,8 @@ import { weekdayLong, weekdayShort } from "@/lib/format";
 import { t, type MessageKey } from "@/lib/i18n";
 import { matchPreset, presets, type Freq, type Recurrence, type RuleRecurrence } from "@/lib/rrule";
 import { addDays, parseDay, weekday } from "@/lib/dates";
-import { Button } from "./Button";
-import { inputClass } from "./Field";
+import { Button, Input, Select } from "@qarasky/kore-ui";
 import { useShell } from "./ShellContext";
-import { Select } from "./Select";
 
 type Rule = RuleRecurrence;
 
@@ -41,14 +39,14 @@ export function RecurrenceEditor({
   if (value.kind === "raw" && !replacing) {
     return (
       <div className="flex flex-col gap-2" data-testid="raw-rule">
-        <span className="text-sub text-muted">{t("recurrence.label")}</span>
-        <div className="rounded-ui border border-border bg-bg/50 p-3">
+        <span className="text-meta font-medium text-muted">{t("recurrence.label")}</span>
+        <div className="rounded-ui border border-border bg-bg/60 p-3">
           <p className="text-sub font-medium">{t("recurrence.rawTitle")}</p>
           <code data-testid="raw-rule-text" className="mt-1 block text-meta break-all text-muted">
             {value.rrule}
           </code>
           <p className="mt-2 text-meta text-muted">{t("recurrence.rawHint")}</p>
-          <Button small className="mt-2" onClick={() => setReplacing(true)}>
+          <Button size="sm" className="mt-2" onClick={() => setReplacing(true)}>
             {t("recurrence.change")}
           </Button>
         </div>
@@ -82,10 +80,10 @@ export function RecurrenceEditor({
 
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor={`${id}-preset`} className="text-sub text-muted">
+      <label htmlFor={`${id}-preset`} className="text-meta font-medium text-muted">
         {t("recurrence.label")}
       </label>
-      <Select id={`${id}-preset`} value={selected} options={options} onChange={choose} />
+      <Select id={`${id}-preset`} value={selected} options={options} onValueChange={choose} />
       {showCustom && rule ? <CustomRule rule={rule} start={start} weekStart={WEEK_START[prefs.weekStart]} onChange={onChange} /> : null}
     </div>
   );
@@ -107,7 +105,7 @@ function CustomRule({ rule, start, weekStart, onChange }: { rule: Rule; start: s
         <label htmlFor={`${id}-n`} className="text-sub whitespace-nowrap text-muted">
           {t("recurrence.every")}
         </label>
-        <input
+        <Input
           id={`${id}-n`}
           type="number"
           min={1}
@@ -119,14 +117,14 @@ function CustomRule({ rule, start, weekStart, onChange }: { rule: Rule; start: s
             const n = Number(e.target.value);
             if (Number.isInteger(n) && n >= 1) set({ interval: n });
           }}
-          className={`${inputClass} w-20`}
+          className="w-20"
         />
         <div className="w-32">
           <Select
             aria-label={t("recurrence.freqLabel")}
             value={rule.freq}
             options={FREQS.map((f) => ({ value: f, label: t(`recurrence.freq.${f}` as MessageKey) }))}
-            onChange={(freq) => set({ freq, byDay: freq === "WEEKLY" && rule.byDay.length === 0 ? [weekday(start)] : rule.byDay })}
+            onValueChange={(freq) => set({ freq, byDay: freq === "WEEKLY" && rule.byDay.length === 0 ? [weekday(start)] : rule.byDay })}
           />
         </div>
       </div>
@@ -147,7 +145,7 @@ function CustomRule({ rule, start, weekStart, onChange }: { rule: Rule; start: s
                 }}
                 className={
                   "grid size-control-sm place-items-center rounded-full text-meta font-medium transition-colors " +
-                  (on ? "bg-accent text-white" : "border border-border text-muted hover:border-border-strong hover:text-text")
+                  (on ? "bg-accent text-white" : "border border-border-strong text-muted hover:bg-white/5 hover:text-text")
                 }
               >
                 {weekdayShort(d).slice(0, 2)}
@@ -165,7 +163,7 @@ function CustomRule({ rule, start, weekStart, onChange }: { rule: Rule; start: s
             { value: "dayOfMonth", label: t("recurrence.monthlyDay", { d: day }) },
             { value: "nthWeekday", label: t("recurrence.monthlyNth", { ordinal, day: weekdayLong(weekday(start)) }) },
           ]}
-          onChange={(monthly) => set({ monthly })}
+          onValueChange={(monthly) => set({ monthly })}
         />
       ) : null}
 
@@ -180,22 +178,22 @@ function CustomRule({ rule, start, weekStart, onChange }: { rule: Rule; start: s
               { value: "until", label: t("recurrence.endUntil") },
               { value: "count", label: t("recurrence.endCount") },
             ]}
-            onChange={(type) =>
+            onValueChange={(type) =>
               set({ end: type === "never" ? { type } : type === "until" ? { type, date: addDays(start, 90) } : { type, count: Number(count) >= 1 ? Number(count) : 10 } })
             }
           />
         </div>
         {rule.end.type === "until" ? (
-          <input
+          <Input
             type="date"
             aria-label={t("recurrence.endDate")}
             value={rule.end.date}
             onChange={(e) => e.target.value && set({ end: { type: "until", date: e.target.value } })}
-            className={`${inputClass} w-44`}
+            className="w-44"
           />
         ) : null}
         {rule.end.type === "count" ? (
-          <input
+          <Input
             type="number"
             min={1}
             inputMode="numeric"
@@ -206,7 +204,7 @@ function CustomRule({ rule, start, weekStart, onChange }: { rule: Rule; start: s
               const n = Number(e.target.value);
               if (Number.isInteger(n) && n >= 1) set({ end: { type: "count", count: n } });
             }}
-            className={`${inputClass} w-24`}
+            className="w-24"
           />
         ) : null}
       </div>

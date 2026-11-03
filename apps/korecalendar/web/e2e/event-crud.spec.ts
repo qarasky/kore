@@ -1,9 +1,10 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import {
   allEvents,
   api,
   calendars,
   chooseOption,
+  chooseZone,
   createEventViaApi,
   editor,
   eventBlocks,
@@ -39,7 +40,7 @@ test.describe.serial("events: create, edit, delete", () => {
   test("create an event with every field from the editor", async ({ page }) => {
     const dialog = await openNewEvent(page);
     await fillEditor(dialog, { title: "Planning", startDate: wed, startTime: "14:00", endDate: wed, endTime: "15:30", location: "Room 4", notes: "Bring the roadmap" });
-    await chooseOption(dialog, "Time zone", /Europe\/Berlin/);
+    await chooseZone(dialog, "Time zone", "Europe/Berlin");
     await chooseOption(dialog, "Add a reminder", "30 minutes before");
     await chooseOption(dialog, "Calendar", "Work");
     await saveEditor(dialog);
@@ -73,7 +74,7 @@ test.describe.serial("events: create, edit, delete", () => {
   test("delete asks first, and Undo brings the event back", async ({ page }) => {
     await eventBlocks(page, "Planning (moved)").click();
     await page.getByTestId("event-popover").getByRole("button", { name: "Delete" }).click();
-    const confirm = page.locator("dialog[open]");
+    const confirm = page.getByRole("alertdialog");
     await expect(confirm).toContainText("Delete event?");
     await confirm.getByRole("button", { name: "Delete" }).click();
     await expect(toast(page, "Event deleted")).toBeVisible();

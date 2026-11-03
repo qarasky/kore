@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
-import { useToast, type ToastOptions } from "@/components/Toast";
+import { useToast, type ToastInput } from "@qarasky/kore-ui";
 import { errorMessage } from "@/lib/errors";
 
 /**
@@ -16,15 +16,15 @@ export function useMutate() {
   const [pending, setPending] = useState(false);
 
   const run = useCallback(
-    async <T,>(fn: () => Promise<T>, success?: { message: string; options?: ToastOptions }): Promise<T | undefined> => {
+    async <T,>(fn: () => Promise<T>, success?: { message: string; options?: Omit<ToastInput, "message"> }): Promise<T | undefined> => {
       setPending(true);
       try {
         const result = await fn();
-        if (success) toast(success.message, success.options);
+        if (success) toast.show({ message: success.message, ...success.options });
         router.refresh();
         return result;
       } catch (e) {
-        toast(errorMessage(e), { kind: "error" });
+        toast.show({ message: errorMessage(e), tone: "error" });
         return undefined;
       } finally {
         setPending(false);

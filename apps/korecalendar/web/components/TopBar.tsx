@@ -1,70 +1,70 @@
 "use client";
 
+import { Button, IconButton, TopBar } from "@qarasky/kore-ui";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { COMPACT_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
 import { formatDayTitle } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { calendarHref, navigate } from "@/lib/range";
-import { AccountMenu } from "./AccountMenu";
-import { buttonClass, iconButtonClass } from "./Button";
-import { COMPACT_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
+import { AccountMenu, KoreAppSwitcher } from "./AccountMenu";
 import { useEditor } from "./EditorContext";
-import { ChevronLeftIcon, ChevronRightIcon, MenuIcon_, PlusIcon } from "./icons";
-import { SearchBox } from "./SearchBox";
 import { useShell } from "./ShellContext";
 import { ViewSwitcher } from "./ViewSwitcher";
-import { Wordmark } from "./wordmark";
 
-export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
+/**
+ * kore-ui's TopBar: period navigation, title and the view tabs in the middle; New event, apps and
+ * account on the right. Search lives at the top of the sidebar: with a calendar's period controls
+ * there is no room for it in the bar at laptop widths.
+ */
+export function CalendarTopBar() {
   const { view, day, today, prefs } = useShell();
   const { openNew } = useEditor();
-  const pathname = usePathname();
-  const search = useSearchParams();
-  const query = pathname === "/search" ? (search.get("q") ?? "") : "";
   const compact = useMediaQuery(COMPACT_QUERY);
 
   return (
-    <header className="flex h-topbar shrink-0 items-center gap-2 px-3">
-      <button type="button" aria-label={t("nav.menu")} className={`${iconButtonClass()} md:hidden`} onClick={onOpenMenu}>
-        <MenuIcon_ />
-      </button>
-      <Link href="/" className="mr-1 text-brand max-sm:hidden md:w-[calc(var(--spacing-sidebar)-1.25rem)]">
-        <Wordmark />
-      </Link>
+    <TopBar
+      actions={
+        <>
+          <Button variant="primary" onClick={() => openNew()} className="max-sm:hidden">
+            <Plus />
+            {t("nav.newEvent")}
+          </Button>
+          <IconButton variant="primary" size="md" label={t("nav.newEvent")} tooltip={false} icon={<Plus />} onClick={() => openNew()} className="sm:hidden" />
+          <KoreAppSwitcher />
+          <AccountMenu />
+        </>
+      }
+    >
       {view ? (
-        <div className="flex min-w-0 items-center gap-1.5">
-          <Link href={calendarHref(view, today)} className={buttonClass("secondary", true)}>
-            {t("nav.today")}
-          </Link>
-          <Link href={calendarHref(view, navigate(view, day, -1, compact))} aria-label={t("nav.previous")} className={iconButtonClass()}>
-            <ChevronLeftIcon />
-          </Link>
-          <Link href={calendarHref(view, navigate(view, day, 1, compact))} aria-label={t("nav.next")} className={iconButtonClass()}>
-            <ChevronRightIcon />
-          </Link>
+        <div className="flex min-w-0 items-center gap-1">
+          <Button asChild size="sm" className="mr-1">
+            <Link href={calendarHref(view, today)}>{t("nav.today")}</Link>
+          </Button>
+          <IconButton asChild label={t("nav.previous")}>
+            <Link href={calendarHref(view, navigate(view, day, -1, compact))}>
+              <ChevronLeft />
+            </Link>
+          </IconButton>
+          <IconButton asChild label={t("nav.next")}>
+            <Link href={calendarHref(view, navigate(view, day, 1, compact))}>
+              <ChevronRight />
+            </Link>
+          </IconButton>
           <h1 className="ml-1 truncate text-heading font-semibold tracking-[-0.01em] max-sm:text-sub" aria-live="polite">
             {formatDayTitle(day, view, prefs.weekStart, compact)}
           </h1>
         </div>
       ) : (
-        <Link href={calendarHref(prefs.view, today)} className={buttonClass("ghost", true)}>
-          <ChevronLeftIcon size={16} />
-          {t("nav.backToCalendar")}
-        </Link>
+        <Button asChild variant="ghost" size="sm">
+          <Link href={calendarHref(prefs.view, today)}>
+            <ChevronLeft />
+            {t("nav.backToCalendar")}
+          </Link>
+        </Button>
       )}
       <div className="flex-1" />
-      <SearchBox key={query} initial={query} />
-      <div className="hidden md:block">
-        <ViewSwitcher />
-      </div>
-      <button type="button" onClick={() => openNew()} className={`${buttonClass("primary", true)} max-sm:hidden`}>
-        <PlusIcon size={16} />
-        {t("nav.newEvent")}
-      </button>
-      <button type="button" aria-label={t("nav.newEvent")} onClick={() => openNew()} className="grid size-control-sm place-items-center rounded-ui bg-accent text-white hover:bg-accent-hover sm:hidden">
-        <PlusIcon size={18} />
-      </button>
-      <AccountMenu />
-    </header>
+      <ViewSwitcher className="hidden shrink-0 md:flex" />
+    </TopBar>
   );
 }

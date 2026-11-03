@@ -1,12 +1,13 @@
 "use client";
 
+import { Input } from "@qarasky/kore-ui";
+import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { t } from "@/lib/i18n";
-import { SearchIcon } from "./icons";
 
-/** The top bar's search field; submitting opens `/search?q=`. */
-export function SearchBox({ initial = "", always = false }: { initial?: string; always?: boolean }) {
+/** The search field (kore-ui's filled top-bar input); submitting opens `/search?q=`. */
+export function SearchBox({ initial = "", className = "w-56" }: { initial?: string; className?: string }) {
   const router = useRouter();
   const [q, setQ] = useState(initial);
 
@@ -17,17 +18,18 @@ export function SearchBox({ initial = "", always = false }: { initial?: string; 
   }
 
   return (
-    <form role="search" onSubmit={submit} className={always ? "relative" : "relative hidden md:block"}>
-      <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" size={16} />
-      <input
+    <form role="search" onSubmit={submit} className={className}>
+      <Input
         type="search"
         name="q"
+        size="sm"
+        variant="filled"
         data-search-input
         aria-label={t("nav.search")}
         placeholder={t("nav.searchPlaceholder")}
+        leadingIcon={<Search />}
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        className={`min-h-control-sm ${always ? "w-full" : "w-44"} rounded-ui border border-border bg-surface pr-3 pl-8 text-sub text-text outline-none transition-[width,border-color] placeholder:text-muted hover:border-border-strong ${always ? "" : "focus:w-64"} focus:border-accent`}
       />
     </form>
   );

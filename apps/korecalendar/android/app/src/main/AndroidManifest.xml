@@ -21,6 +21,14 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Kore ID sign-in returns here (RFC 8252 private-use scheme; register exactly
+                 dev.qarasky.korecalendar:/oauth2redirect for the client korecalendar-android). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="dev.qarasky.korecalendar" android:path="/oauth2redirect" />
+            </intent-filter>
         </activity>
 
         <receiver

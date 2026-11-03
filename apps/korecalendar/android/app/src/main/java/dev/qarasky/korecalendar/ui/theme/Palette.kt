@@ -2,7 +2,7 @@ package dev.qarasky.korecalendar.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-/** The web app's design tokens (web/app/globals.css); PaletteTest keeps the two equal. */
+/** The Kore design tokens (kore-ui theme.css, see kore-ui DESIGN.md); PaletteTest keeps the two equal. */
 object Palette {
     val bg = Color(0xFF16181D)
     val surface = Color(0xFF1D2026)
@@ -12,6 +12,7 @@ object Palette {
     val text = Color(0xFFE6E8EE)
     val muted = Color(0xFF8A8F9A)
     val accent = Color(0xFF5B8DEF)
+    val accentHover = Color(0xFF7AA3F2)
     val danger = Color(0xFFF2777A)
     val warning = Color(0xFFE5A54B)
 }

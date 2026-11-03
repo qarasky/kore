@@ -5,8 +5,9 @@
 #
 # It asks a few questions (or takes the defaults), writes .env, creates and
 # initializes the data directory, pulls the images and starts the calendar. The
-# first account is created in the browser afterwards. Safe to re-run: an
-# existing install is left alone. Read it before you run it; it is short.
+# first administrator is the first Kore ID sign-in with the configured owner
+# email. Safe to re-run: an existing install is left alone. Read it before you
+# run it; it is short.
 #
 # Piped like this, it installs the newest release: it looks it up, downloads the
 # compose files of that release and pulls the matching images from ghcr.io, pinned
@@ -25,6 +26,10 @@
 #                                  checkout when run from one, else ~/korecalendar)
 #   KORECAL_DATA_DIR=<dir>-data    where the database lives (default: next to it)
 #   KORECAL_BIND=127.0.0.1|0.0.0.0 KORECAL_PORT=8080
+#   KORECAL_PUBLIC_URL=https://calendar.example.com
+#   KORECAL_OIDC_ISSUER=https://id.kore.example   Kore ID (the only sign-in)
+#   KORECAL_OIDC_CLIENT_SECRET=<secret>           the client secret Kore ID printed
+#   KORECAL_OIDC_OWNER_EMAIL=you@example.com      who becomes the first administrator
 #   KORECAL_VERSION=0.1.0          image tag to install: a release number, latest or edge
 #                                  (default: the newest release)
 #   KORECAL_REF=v0.1.0             git ref (branch or tag) the compose files come from
@@ -116,9 +121,22 @@ ask KORECAL_DIR "Install directory (compose files and .env)" "$KORECAL_DIR"
 ask KORECAL_DATA_DIR "Data directory (the database)" "${KORECAL_DIR%/}-data"
 ask KORECAL_BIND "Listen on (127.0.0.1 = this machine only, 0.0.0.0 = LAN/Tailscale too)" "127.0.0.1"
 ask KORECAL_PORT "Port" "8080"
+ask KORECAL_PUBLIC_URL "Public address (https://calendar.example.com; required for Kore ID)" ""
+ask KORECAL_OIDC_ISSUER "Kore ID issuer (its public address, e.g. https://id.kore.example)" ""
+if [ -n "$KORECAL_OIDC_ISSUER" ]; then
+  ask KORECAL_OIDC_CLIENT_SECRET "Kore ID client secret" ""
+  ask KORECAL_OIDC_OWNER_EMAIL "Owner email (the first administrator)" ""
+else
+  warn "no KORECAL_OIDC_ISSUER: nobody can sign in until you set it (and an owner email) in .env"
+fi
 
 case "$KORECAL_PORT" in ''|*[!0-9]*) die "the port must be a number" ;; esac
 case "$KORECAL_BIND" in ''|*[!0-9.:a-fA-F]*) die "the listen address must be an IP address such as 127.0.0.1 or 0.0.0.0" ;; esac
+if [ -n "$KORECAL_OIDC_ISSUER" ]; then
+  case "$KORECAL_PUBLIC_URL" in http://*|https://*) ;; *) die "Kore ID needs a public address (a full http:// or https:// URL)" ;; esac
+  case "$KORECAL_OIDC_OWNER_EMAIL" in *@*) ;; *) die "Kore ID needs an owner email for the first administrator" ;; esac
+fi
+case "${KORECAL_OIDC_CLIENT_SECRET:-}" in *$'\n'*) die "the client secret must not contain a newline" ;; esac
 
 KORECAL_DIR="${KORECAL_DIR/#\~/$HOME}"
 KORECAL_DATA_DIR="${KORECAL_DATA_DIR/#\~/$HOME}"
@@ -207,6 +225,10 @@ KORECAL_PORT=${KORECAL_PORT}
 KORECAL_UID=${KORECAL_UID}
 KORECAL_GID=${KORECAL_GID}
 KORECAL_VERSION=${KORECAL_VERSION:-latest}
+KORECAL_PUBLIC_URL=${KORECAL_PUBLIC_URL:-}
+KORECAL_OIDC_ISSUER=${KORECAL_OIDC_ISSUER:-}
+KORECAL_OIDC_CLIENT_SECRET=${KORECAL_OIDC_CLIENT_SECRET:-}
+KORECAL_OIDC_OWNER_EMAIL=${KORECAL_OIDC_OWNER_EMAIL:-}
 EOF2
 chmod 600 "$KORECAL_DIR/.env"
 umask 022
@@ -281,7 +303,7 @@ elif [ "$KORECAL_BIND" != "127.0.0.1" ]; then
 fi
 say
 printf '%sKoreCalendar is running.%s\n' "$G" "$N"
-say "  Open it:   http://${HOST}:${KORECAL_PORT}   (the first account you create becomes the administrator)"
+say "  Open it:   http://${HOST}:${KORECAL_PORT}   (continue with Kore ID; the first sign-in with the owner email becomes the administrator)"
 say "  Files:     $KORECAL_DIR   (docker-compose.yml, Caddyfile, .env)"
 say "  Data:      $KORECAL_DATA_DIR"
 say

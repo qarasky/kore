@@ -163,7 +163,7 @@ func TestFindLiveByUID(t *testing.T) {
 	if _, err := FindLiveByUID(ctx, f.db, f.user.ID, "nope"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("unknown: %v", err)
 	}
-	other, _ := users.Create(ctx, f.db, "b@example.com", "x", "user")
+	other, _ := users.Create(ctx, f.db, "b@example.com", "user")
 	if _, err := FindLiveByUID(ctx, f.db, other.ID, "gym@example.com"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("another user's: %v", err)
 	}

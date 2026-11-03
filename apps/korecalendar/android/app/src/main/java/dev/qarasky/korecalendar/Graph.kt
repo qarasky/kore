@@ -33,7 +33,7 @@ class Graph private constructor(app: Application) {
         prefs = prefs,
         store = store,
         repo = repo,
-        signInFlow = SignIn(apiFor, accounts, Build.MODEL),
+        signInFlow = SignIn(apiFor, accounts, Build.MODEL, dev.qarasky.korecalendar.data.HttpKoreId()),
         apiFor = apiFor,
         background = AndroidBackground(app),
         messages = dev.qarasky.korecalendar.ui.ResourceMessages(app),

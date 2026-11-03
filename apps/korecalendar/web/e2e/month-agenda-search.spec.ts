@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { addDays, createEventViaApi, freshOwner, login, today, weekOf } from "./helpers";
 
 const [mon, tue, wed, thu] = weekOf(today("UTC"));
@@ -26,11 +26,11 @@ test.describe.serial("month, agenda and search", () => {
     const more = c.getByTestId("more-events");
     await expect(more).toHaveText("+2 more");
     await more.click();
-    const list = c.getByRole("dialog");
+    const list = page.getByRole("dialog"); // the day's list (a popover, portalled out of the cell)
     await expect(list.getByTestId("event")).toHaveCount(5);
     await expect(list.getByTestId("event").filter({ hasText: "Echo" })).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(c.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
   });
 
   test("a multi-day all-day event appears in every cell it covers", async ({ page }) => {

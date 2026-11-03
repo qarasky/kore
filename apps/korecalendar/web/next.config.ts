@@ -7,6 +7,8 @@ const apiUrl = (process.env.API_URL || "http://127.0.0.1:8080").replace(/\/+$/, 
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  // kore-ui ships TypeScript source; Next compiles it with the app.
+  transpilePackages: ["@qarasky/kore-ui"],
   // In production Caddy routes /api/*, /dav/* (CalDAV) and /.well-known/caldav to
   // the Go service before requests reach Next, so this rewrite only matters when
   // Next is hit directly (dev, e2e). CalDAV is not proxied here: Next's rewrite

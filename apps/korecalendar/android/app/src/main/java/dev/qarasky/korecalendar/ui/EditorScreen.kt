@@ -156,7 +156,7 @@ private fun Form(editor: EventEditor, s: EditorState.Editing, ready: AppState.Re
                 Text(banner, color = Palette.danger)
                 if (s.conflict) {
                     Text(stringResource(R.string.editor_conflict_hint), color = Palette.muted, style = MaterialTheme.typography.bodySmall)
-                    OutlinedButton(onClick = { scope.launch { editor.reload() } }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.editor_reload)) }
+                    OutlinedButton(shape = MaterialTheme.shapes.small, onClick = { scope.launch { editor.reload() } }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.editor_reload)) }
                 }
             }
         }
@@ -263,7 +263,7 @@ private fun Choice(text: String, leading: (@Composable () -> Unit)? = null, onCl
 private fun DateTimeRow(label: String, day: LocalDate, time: LocalTime, allDay: Boolean, clock24: Boolean, onDate: () -> Unit, onTime: () -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(label, Modifier.width(56.dp), color = Palette.muted)
-        OutlinedButton(onClick = onDate, modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics { contentDescription = "$label: ${dateText(day)}" }) { Text(dateText(day)) }
-        if (!allDay) OutlinedButton(onClick = onTime, modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "$label: ${timeLabel(time, clock24)}" }) { Text(timeLabel(time, clock24)) }
+        OutlinedButton(shape = MaterialTheme.shapes.small, onClick = onDate, modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics { contentDescription = "$label: ${dateText(day)}" }) { Text(dateText(day)) }
+        if (!allDay) OutlinedButton(shape = MaterialTheme.shapes.small, onClick = onTime, modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "$label: ${timeLabel(time, clock24)}" }) { Text(timeLabel(time, clock24)) }
     }
 }

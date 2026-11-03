@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { startApi, stopApi } from "./harness/api-server";
 import { DEAD_WEB_URL, EXTERNAL } from "./harness/env";
 import { startDeadWeb, stopDeadWeb } from "./harness/web-server";

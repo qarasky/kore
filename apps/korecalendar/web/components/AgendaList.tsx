@@ -9,7 +9,7 @@ import { t } from "@/lib/i18n";
 import { utcToLocal } from "@/lib/tz";
 import type { Clock, Occurrence } from "@/lib/types";
 import { useEditor } from "./EditorContext";
-import { RepeatIcon } from "./icons";
+import { RepeatIcon } from "lucide-react";
 import { useShell } from "./ShellContext";
 
 /** When an occurrence is on `day`: "All day", "16:00 – 17:00", "continues"… */
@@ -58,7 +58,7 @@ export function AgendaList({ days, occurrences }: { days: string[]; occurrences:
                     data-key={occ.key}
                     data-title={occ.title}
                     onClick={(e) => openOccurrence(occ, e.currentTarget)}
-                    className="flex min-h-control w-full items-center gap-3 rounded-ui px-2 text-left hover:bg-raised"
+                    className="flex min-h-control w-full items-center gap-3 rounded-ui px-2 text-left hover:bg-white/5"
                   >
                     <span aria-hidden="true" className="h-5 w-1 shrink-0 rounded-full" style={{ backgroundColor: tint.edge }} />
                     <span className="w-32 shrink-0 text-sub text-muted tabular-nums">{whenOn(occ, day, tz, prefs.clock)}</span>

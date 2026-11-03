@@ -95,7 +95,7 @@ func TestPaginationWithMore(t *testing.T) {
 func TestChangesOnlyOwn(t *testing.T) {
 	f := newFixture(t)
 	f.simple(t, "mine")
-	other, _ := users.Create(context.Background(), f.db, "b@example.com", "x", "user")
+	other, _ := users.Create(context.Background(), f.db, "b@example.com", "user")
 	cs, err := Changes(context.Background(), f.db, other.ID, 0, 100)
 	if err != nil || len(cs.Upserted) != 0 || len(cs.Deleted) != 0 {
 		t.Fatalf("%+v %v", cs, err)

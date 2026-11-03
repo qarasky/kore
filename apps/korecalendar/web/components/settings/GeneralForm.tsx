@@ -5,11 +5,9 @@ import { useMutate } from "@/hooks/useMutate";
 import { t } from "@/lib/i18n";
 import { updateTimezone } from "@/lib/mutations";
 import { PREF_COOKIES, writePref } from "@/lib/prefs";
-import { Field } from "../Field";
-import { Select } from "../Select";
+import { Field, Select, SettingsSection } from "@qarasky/kore-ui";
 import { useShell } from "../ShellContext";
 import { TimezoneSelect } from "../TimezoneSelect";
-import { SettingsSection } from "./Section";
 
 /** Time zone (saved to the account) and display preferences (cookies). Each change saves at once. */
 export function GeneralForm() {
@@ -19,7 +17,7 @@ export function GeneralForm() {
 
   return (
     <SettingsSection title={t("general.heading")}>
-      <div className="flex flex-col gap-5">
+      <>
         <Field label={t("general.timezone")} hint={t("general.timezoneHint")}>
           <TimezoneSelect
             value={tz}
@@ -41,7 +39,7 @@ export function GeneralForm() {
               { value: "sun", label: t("general.sun") },
               { value: "sat", label: t("general.sat") },
             ]}
-            onChange={(v) => {
+            onValueChange={(v) => {
               writePref(PREF_COOKIES.weekStart, v);
               void run(async () => undefined, { message: t("general.saved") });
             }}
@@ -55,7 +53,7 @@ export function GeneralForm() {
               { value: "24h", label: t("general.24h") },
               { value: "12h", label: t("general.12h") },
             ]}
-            onChange={(v) => {
+            onValueChange={(v) => {
               writePref(PREF_COOKIES.clock, v);
               void run(async () => undefined, { message: t("general.saved") });
             }}
@@ -70,13 +68,13 @@ export function GeneralForm() {
               { value: "reduce", label: t("general.motionReduce") },
               { value: "full", label: t("general.motionFull") },
             ]}
-            onChange={(v) => {
+            onValueChange={(v) => {
               writePref(PREF_COOKIES.motion, v);
               void run(async () => undefined, { message: t("general.saved") });
             }}
           />
         </Field>
-      </div>
+      </>
     </SettingsSection>
   );
 }

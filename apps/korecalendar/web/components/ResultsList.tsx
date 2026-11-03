@@ -10,7 +10,7 @@ import { t } from "@/lib/i18n";
 import { calendarHref } from "@/lib/range";
 import { utcToLocal } from "@/lib/tz";
 import type { Occurrence } from "@/lib/types";
-import { RepeatIcon } from "./icons";
+import { RepeatIcon } from "lucide-react";
 import { useShell } from "./ShellContext";
 
 /** Search hits grouped by day; each row opens that day. */
@@ -35,7 +35,7 @@ export function ResultsList({ occurrences }: { occurrences: Occurrence[] }) {
                   <Link
                     href={calendarHref("day", day)}
                     data-testid="result"
-                    className="flex min-h-control items-center gap-3 rounded-ui px-2 hover:bg-raised"
+                    className="flex min-h-control items-center gap-3 rounded-ui px-2 hover:bg-white/5"
                   >
                     <span aria-hidden="true" className="h-5 w-1 shrink-0 rounded-full" style={{ backgroundColor: tint.edge }} />
                     <span className="w-24 shrink-0 text-sub text-muted tabular-nums">{time}</span>

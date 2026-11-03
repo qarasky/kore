@@ -168,8 +168,8 @@ class AppController(
     /** The permission answer or a setting changed: set the alarms again. */
     suspend fun remindersChanged() = syncRemindersAndLook()
 
-    suspend fun signIn(rawUrl: String, email: String, password: String): SignInResult {
-        val r = signInFlow.signIn(rawUrl, email, password)
+    suspend fun signInWithKoreId(rawUrl: String, browse: suspend (String) -> String): SignInResult {
+        val r = signInFlow.signInWithKoreId(rawUrl, browse)
         if (r is SignInResult.Ok) {
             background.scheduleSync()
             syncState = SyncState.Idle

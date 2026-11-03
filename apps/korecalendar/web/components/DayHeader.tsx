@@ -16,7 +16,7 @@ export function DayHeader({ day, today }: { day: string; today: string }) {
       href={calendarHref("day", day)}
       aria-label={t("grid.goToDay", { date: formatDayShort(day) })}
       aria-current={isToday ? "date" : undefined}
-      className="flex flex-col items-center gap-0.5 border-l border-border py-1.5 text-meta hover:bg-raised/50"
+      className="flex flex-col items-center gap-0.5 border-l border-border py-1.5 text-meta hover:bg-white/[0.04]"
     >
       <span className={isToday ? "text-accent" : "text-muted"}>{weekdayShort(weekday(day))}</span>
       <span

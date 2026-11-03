@@ -31,6 +31,8 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        // The browser finished a Kore ID sign-in: hand the redirect to the waiting sign-in.
+        intent.data?.takeIf { it.scheme == "dev.qarasky.korecalendar" }?.let { dev.qarasky.korecalendar.data.KoreIdRedirects.deliver(it.toString()) }
         openFrom(intent)
     }
 

@@ -31,6 +31,6 @@ export const DATA_DIR = join(WORK_DIR, "data");
 export const CONFIG_FILE = join(WORK_DIR, "korecal.toml");
 export const PID_DIR = join(WORK_DIR, "pids");
 
-export const OWNER = { email: "owner@korecal.test", password: "owner-password-123" };
+export const OWNER = { email: "owner@korecal.test" };
 
 export const FIXTURES = join(API_DIR, "internal/ics/testdata");

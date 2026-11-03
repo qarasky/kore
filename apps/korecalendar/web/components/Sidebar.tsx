@@ -1,34 +1,52 @@
 "use client";
 
-import Link from "next/link";
+import { Sidebar, SidebarItem, SidebarNav, useAppShell } from "@qarasky/kore-ui";
+import { Settings } from "lucide-react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { t } from "@/lib/i18n";
 import { CalendarList } from "./CalendarList";
-import { SettingsIcon } from "./icons";
 import { MiniMonth } from "./MiniMonth";
+import { SearchBox } from "./SearchBox";
 import { useShell } from "./ShellContext";
+import { ViewSwitcher } from "./ViewSwitcher";
 
-/** Mini month, calendar list and a link to Settings. Shared by the desktop
- *  panel and the mobile drawer. */
-export function SidebarContent() {
+/**
+ * kore-ui's Sidebar: the mini month and the calendar list (app content), Settings at the bottom.
+ * Search sits at the top; in the phone drawer the view switcher joins it.
+ */
+export function CalendarSidebar() {
   const { day } = useShell();
-  return (
-    <div className="flex h-full flex-col gap-5 overflow-y-auto p-3">
-      <MiniMonth key={day.slice(0, 7)} />
-      <CalendarList />
-      <div className="mt-auto">
-        <Link href="/settings" className="flex min-h-control-sm items-center gap-2.5 rounded-ui px-1.5 text-sub text-muted hover:bg-raised hover:text-text">
-          <SettingsIcon size={16} />
-          {t("nav.settings")}
-        </Link>
+  const inDrawer = !!useAppShell()?.inDrawer;
+  const pathname = usePathname();
+  const search = useSearchParams();
+  const query = pathname === "/search" ? (search.get("q") ?? "") : "";
+  const sidebar = (
+    <Sidebar
+      header={
+        <div className="flex flex-col gap-3">
+          {inDrawer ? <ViewSwitcher /> : null}
+          <SearchBox key={query} initial={query} className="w-full" />
+        </div>
+      }
+      footer={
+        <SidebarNav label={t("nav.main")}>
+          <SidebarItem href="/settings" icon={<Settings />} active={pathname.startsWith("/settings")}>
+            {t("nav.settings")}
+          </SidebarItem>
+        </SidebarNav>
+      }
+    >
+      <div className="px-1 pt-1">
+        <MiniMonth key={day.slice(0, 7)} />
       </div>
-    </div>
+      <CalendarList />
+    </Sidebar>
   );
-}
-
-export function Sidebar() {
-  return (
-    <aside aria-label={t("nav.sidebar")} className="hidden w-sidebar shrink-0 overflow-hidden rounded-ui bg-surface md:block">
-      <SidebarContent />
-    </aside>
+  return inDrawer ? (
+    <div data-testid="mobile-nav" className="flex min-h-full flex-1 flex-col">
+      {sidebar}
+    </div>
+  ) : (
+    sidebar
   );
 }

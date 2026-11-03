@@ -15,6 +15,7 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import dev.qarasky.korecalendar.data.Account
 import dev.qarasky.korecalendar.data.ApiJson
 import dev.qarasky.korecalendar.data.HttpApi
 import dev.qarasky.korecalendar.data.WriteRequest
@@ -32,7 +33,7 @@ import org.junit.runner.RunWith
 
 /**
  * The key flows on a real (emulated) phone against a real server: sign in, create, edit one occurrence of a series,
- * delete and undo. Needs `server`, `email` and `password` instrumentation arguments (`scripts/android-ui-test.sh`
+ * delete and undo. Needs `server`, `email` and `session` instrumentation arguments (`scripts/android-ui-test.sh`
  * starts a server and passes them); without them the tests are skipped.
  */
 @OptIn(ExperimentalTestApi::class)
@@ -43,39 +44,50 @@ class EditingFlowTest {
     private val args = InstrumentationRegistry.getArguments()
     private val server = args.getString("server")
     private val email = args.getString("email")
-    private val password = args.getString("password")
+    private val session = args.getString("session")
     private val graph = Graph.get(InstrumentationRegistry.getInstrumentation().targetContext)
     private var scenario: ActivityScenario<MainActivity>? = null
     private val tomorrow: LocalDate = LocalDate.now(ZoneOffset.UTC).plusDays(1)
 
     @Before fun setUp() {
-        Assume.assumeTrue("no server given: skipping the UI flows", server != null && email != null && password != null)
+        Assume.assumeTrue("no server given: skipping the UI flows", server != null && email != null && session != null)
         // The system's notification permission dialog would cover the app: the tests grant it up front.
         val target = InstrumentationRegistry.getInstrumentation().targetContext
         InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(target.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
-        runBlocking { graph.controller.signOut() }
+        runBlocking {
+            graph.controller.signOut()
+            val url = normalizeServerUrl(server!!)!!
+            val api = HttpApi(url, session!!)
+            val me = api.me()
+            val appToken = api.createToken("Android, ui test").token
+            graph.accounts.save(Account(url.base, me.id, me.email, me.timezone, appToken))
+        }
     }
 
     @After fun tearDown() {
         scenario?.close()
-        runBlocking { graph.controller.signOut() }
+        runBlocking {
+            graph.controller.signOut()
+            val url = normalizeServerUrl(server!!)!!
+            val api = HttpApi(url, session!!)
+            val me = api.me()
+            val appToken = api.createToken("Android, ui test").token
+            graph.accounts.save(Account(url.base, me.id, me.email, me.timezone, appToken))
+        }
     }
 
     /** Seeds the server the way an agent would: through the public API. */
     private fun seed(json: String) = runBlocking {
         val url = normalizeServerUrl(server!!)!!
-        val session = HttpApi(url, null).login(email!!, password!!)
-        val s = HttpApi(url, session.token)
-        s.write(WriteRequest("POST", "/api/events", ApiJson.parseToJsonElement(json) as JsonObject, null, null))
-        s.logout()
+        val s = HttpApi(url, session!!)
+        val me = s.me()
+        val appToken = s.createToken("Android, seed").token
+        HttpApi(url, appToken).write(WriteRequest("POST", "/api/events", ApiJson.parseToJsonElement(json) as JsonObject, null, null))
     }
 
     private fun launchAndSignIn() {
+        // The account is already seeded (see setUp); Kore ID itself needs a browser.
         scenario = ActivityScenario.launch(MainActivity::class.java)
-        rule.onNode(hasSetTextAction() and hasText("Server address")).performTextInput(server!!)
-        rule.onNode(hasSetTextAction() and hasText("Email")).performTextInput(email!!)
-        rule.onNode(hasSetTextAction() and hasText("Password")).performTextInput(password!!)
-        rule.onNode(hasText("Sign in") and hasClickAction()).performClick()
         rule.waitUntilAtLeastOneExists(hasText("Agenda") and hasClickAction(), 60_000)
         // The first sync has to finish: until then the phone does not know the calendars or the events.
         rule.waitUntil(30_000) { rule.onAllNodesWithText("Not updated yet").fetchSemanticsNodes().isEmpty() }

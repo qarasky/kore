@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { addDays, column, createEventViaApi, dayIn, eventBlocks, freshOwner, login, minutesIn, minutesWithin, occurrences, openWeek, today, weekOf, clockIn } from "./helpers";
 
 /** Grid positions are fractions of a day; two minutes of slack covers pixel rounding. */

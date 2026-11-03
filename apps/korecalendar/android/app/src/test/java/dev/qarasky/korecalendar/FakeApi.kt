@@ -5,7 +5,6 @@ import dev.qarasky.korecalendar.data.Calendar
 import dev.qarasky.korecalendar.data.ChangeSet
 import dev.qarasky.korecalendar.data.Event
 import dev.qarasky.korecalendar.data.Occurrence
-import dev.qarasky.korecalendar.data.Session
 import dev.qarasky.korecalendar.data.TokenCreated
 import dev.qarasky.korecalendar.data.User
 import dev.qarasky.korecalendar.data.WriteRequest
@@ -14,7 +13,6 @@ import java.time.Instant
 
 /** A scriptable [CalendarApi]: set the lambdas, read the call logs. */
 class FakeApi : CalendarApi {
-    var onLogin: (String, String) -> Session = { _, _ -> error("login not scripted") }
     var onCreateToken: (String) -> TokenCreated = { error("createToken not scripted") }
     var onLogout: () -> Unit = {}
     var onMe: () -> User = { error("me not scripted") }
@@ -34,7 +32,8 @@ class FakeApi : CalendarApi {
     val occurrenceRequests = mutableListOf<Pair<Instant, Instant>>()
     val changeRequests = mutableListOf<Long>()
 
-    override suspend fun login(email: String, password: String): Session { calls += "login"; return onLogin(email, password) }
+    var onAuthConfig: () -> dev.qarasky.korecalendar.data.AuthConfig = { dev.qarasky.korecalendar.data.AuthConfig() }
+    override suspend fun authConfig(): dev.qarasky.korecalendar.data.AuthConfig { calls += "authConfig"; return onAuthConfig() }
     override suspend fun createToken(name: String): TokenCreated { calls += "createToken:$name"; return onCreateToken(name) }
     override suspend fun logout() { calls += "logout"; onLogout() }
     override suspend fun me(): User { calls += "me"; return onMe() }

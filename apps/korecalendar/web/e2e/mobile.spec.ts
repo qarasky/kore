@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { addDays, column, createEventViaApi, editor, freshOwner, login, today, weekOf } from "./helpers";
 
 const [, , wed] = weekOf(today("UTC"));

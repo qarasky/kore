@@ -1,5 +1,7 @@
 package dev.qarasky.korecalendar.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -22,30 +24,34 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.qarasky.korecalendar.R
+import dev.qarasky.korecalendar.data.KoreIdRedirects
 import dev.qarasky.korecalendar.data.SignInResult
 import dev.qarasky.korecalendar.data.normalizeServerUrl
 import dev.qarasky.korecalendar.ui.theme.Palette
 import kotlinx.coroutines.launch
 
 @Composable
-fun SignInScreen(state: AppState.SignedOut, onSignIn: suspend (url: String, email: String, password: String) -> SignInResult) {
+fun SignInScreen(
+    state: AppState.SignedOut,
+    onKoreId: suspend (url: String, browse: suspend (String) -> String) -> SignInResult,
+) {
+    val context = LocalContext.current
     var url by rememberSaveable(state.server) { mutableStateOf(state.server) }
-    var email by rememberSaveable(state.email) { mutableStateOf(state.email) }
-    var password by remember { mutableStateOf("") } // never saved: it must not survive a configuration change
     var working by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     val badUrl = stringResource(R.string.err_bad_url)
-    val badCredentials = stringResource(R.string.err_bad_credentials)
     val offline = stringResource(R.string.err_offline)
     val rateLimited = stringResource(R.string.err_rate_limited, "%s")
     val failed = stringResource(R.string.err_failed, "%s")
+    val noKoreId = stringResource(R.string.err_no_koreid)
+    val koreIdCancelled = stringResource(R.string.err_koreid_cancelled)
     val cleartext = normalizeServerUrl(url)?.cleartext == true
 
     Column(
@@ -65,39 +71,33 @@ fun SignInScreen(state: AppState.SignedOut, onSignIn: suspend (url: String, emai
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
         )
         if (cleartext) Text(stringResource(R.string.cleartext_warning), color = Palette.warning, style = MaterialTheme.typography.bodySmall)
-        OutlinedTextField(
-            value = email, onValueChange = { email = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-            label = { Text(stringResource(R.string.email)) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-        )
-        OutlinedTextField(
-            value = password, onValueChange = { password = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-            label = { Text(stringResource(R.string.password)) },
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-        )
-        Text(stringResource(R.string.password_not_kept), color = Palette.muted, style = MaterialTheme.typography.bodySmall)
         error?.let { Text(it, color = Palette.danger) }
         Button(
-            enabled = !working && url.isNotBlank() && email.isNotBlank() && password.isNotEmpty(),
+            shape = MaterialTheme.shapes.small,
+            enabled = !working && url.isNotBlank(),
             onClick = {
                 working = true
                 error = null
                 scope.launch {
-                    val r = onSignIn(url, email, password)
+                    val r = onKoreId(url) { authUrl ->
+                        // The system browser signs the person in; MainActivity hands the redirect back (KoreIdRedirects).
+                        val back = KoreIdRedirects.expect()
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(authUrl)))
+                        back.await()
+                    }
                     working = false
                     error = when (r) {
                         is SignInResult.Ok -> null
                         SignInResult.BadUrl -> badUrl
-                        SignInResult.BadCredentials -> badCredentials
                         is SignInResult.RateLimited -> rateLimited.replace("%s", r.message)
                         SignInResult.Offline -> offline
                         is SignInResult.Failed -> failed.replace("%s", r.message)
+                        SignInResult.NoKoreId -> noKoreId
+                        SignInResult.Cancelled -> koreIdCancelled
                     }
-                    if (r is SignInResult.Ok) password = ""
                 }
             },
             modifier = Modifier.fillMaxWidth().height(48.dp),
-        ) { Text(stringResource(if (working) R.string.signing_in else R.string.sign_in)) }
+        ) { Text(stringResource(if (working) R.string.signing_in else R.string.sign_in_koreid)) }
     }
 }

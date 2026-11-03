@@ -7,7 +7,7 @@ on:
   pull_request:
     paths:
       - android/**
-      - web/app/globals.css
+      - web/package.json
       - web/app/icon.svg
       - scripts/*android*
       - .github/workflows/android-*.yml
@@ -38,6 +38,13 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
       - name: Version code tests
         run: bash scripts/test-android-version.sh
+      # PaletteTest compares the app's colours with kore-ui's theme.css at the version web/package.json pins.
+      - name: Fetch the kore-ui theme
+        run: |
+          url=$(sed -n 's/.*"@qarasky\/kore-ui": "\([^"]*\)".*/\1/p' web/package.json)
+          mkdir -p "$RUNNER_TEMP/kore-ui"
+          curl -fsSL "$url" | tar -xz -C "$RUNNER_TEMP/kore-ui" --strip-components=1 --wildcards '*/theme.css'
+          echo "KORE_UI_THEME=$RUNNER_TEMP/kore-ui/theme.css" >> "$GITHUB_ENV"
       - name: Lint, unit and contract tests, debug build
         working-directory: android
         run: ./gradlew --no-daemon lintDebug testDebugUnitTest assembleDebug

@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import {
   addDays,
   chooseScope,
@@ -121,7 +122,7 @@ test.describe.serial("drag and keyboard", () => {
     await page.mouse.up();
     await page.waitForTimeout(500);
     expect(await startOf("Deep work")).toBe(before);
-    await expect(page.locator("dialog[open]")).toHaveCount(0);
+    await expect(page.locator("[role=dialog], [role=alertdialog]")).toHaveCount(0);
     await expect(page.getByTestId("event-popover")).toHaveCount(0);
   });
 
