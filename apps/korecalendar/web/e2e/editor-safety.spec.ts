@@ -81,20 +81,21 @@ test.describe.serial("what an editor save must not do", () => {
   });
 
   test("the grid keeps its scroll position after a save", async ({ page }) => {
+    // An event in the middle of the day, so it is on screen from either scroll position below (the test must not have to scroll to reach it).
+    await createEventViaApi(token, { title: "Midday", start: `${wed}T12:00:00`, end: `${wed}T13:00:00` });
     await openWeek(page, wed);
     const grid = page.getByTestId("time-grid");
-    // Anywhere but where the grid opens by itself (which depends on the time of day), so a
-    // reset to the opening position cannot pass by coincidence.
+    // Well away from where the grid opens by itself (which depends on the time of day), so a reset to the
+    // opening position cannot pass by coincidence.
     const opening = await grid.evaluate((el) => el.scrollTop);
-    // Two targets, both reachable and both well away from the opening position wherever it is.
-    await grid.evaluate((el, target) => (el.scrollTop = target), opening < 280 ? 520 : 120);
+    await grid.evaluate((el, target) => (el.scrollTop = target), opening < 220 ? 380 : 60);
     const before = await grid.evaluate((el) => el.scrollTop);
     expect(Math.abs(before - opening)).toBeGreaterThan(100);
-    const dialog = await openEditor(page, eventBlocks(page, "Late"));
-    await fillEditor(dialog, { title: "Late (renamed)" });
+    const dialog = await openEditor(page, eventBlocks(page, "Midday"));
+    await fillEditor(dialog, { title: "Midday (renamed)" });
     await saveEditor(dialog);
     await expect(toast(page, "Event saved")).toBeVisible();
-    await expect(eventBlocks(page, "Late (renamed)")).toHaveCount(1);
+    await expect(eventBlocks(page, "Midday (renamed)")).toHaveCount(1);
     await page.waitForTimeout(300);
     expect(Math.abs((await grid.evaluate((el) => el.scrollTop)) - before)).toBeLessThan(3);
   });
