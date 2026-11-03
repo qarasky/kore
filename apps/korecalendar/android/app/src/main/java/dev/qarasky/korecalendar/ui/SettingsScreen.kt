@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import dev.qarasky.korecalendar.BuildConfig
 import dev.qarasky.korecalendar.R
 import dev.qarasky.korecalendar.ui.theme.Palette
@@ -45,10 +46,13 @@ fun SettingsScreen(
     onClock24: (Boolean) -> Unit,
     onToggleCalendar: (String) -> Unit,
     onWeekStart: (dev.qarasky.korecalendar.views.WeekStart) -> Unit,
+    controller: AppController,
     onSignOut: () -> Unit,
 ) {
     BackHandler(onBack = onBack)
     var confirm by remember { mutableStateOf(false) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     Scaffold(
         containerColor = Palette.bg,
@@ -90,6 +94,25 @@ fun SettingsScreen(
                 }
             }
 
+            Heading(stringResource(R.string.reminders))
+            RemindersSection(state, controller)
+
+            Heading(stringResource(R.string.update_check))
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(value = state.updateCheck, role = Role.Switch, onValueChange = { v -> scope.launch { controller.setUpdateCheck(v) } }),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.update_check), Modifier.weight(1f))
+                Switch(checked = state.updateCheck, onCheckedChange = null)
+            }
+            Text(stringResource(R.string.update_check_hint), color = Palette.muted, style = MaterialTheme.typography.bodySmall)
+            state.update?.let { u ->
+                Text(stringResource(R.string.update_available, u.version), color = Palette.accent)
+                TextButton(onClick = { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(u.url))) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text(stringResource(R.string.update_download))
+                }
+            }
+
             HorizontalDivider(Modifier.padding(vertical = 8.dp), color = Palette.border)
             TextButton(onClick = { confirm = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.sign_out), color = Palette.danger) }
             Text(stringResource(R.string.version, BuildConfig.VERSION_NAME), color = Palette.muted, style = MaterialTheme.typography.bodySmall)
@@ -118,4 +141,33 @@ private fun ClockChoice(label: String, selected: Boolean, onSelect: () -> Unit) 
         RadioButton(selected = selected, onClick = null)
         Text(label, Modifier.padding(start = 12.dp))
     }
+}
+
+/** What the reminders are doing, and the fix when something stops them: a reminder that silently does not fire is the failure to avoid. */
+@Composable
+private fun RemindersSection(state: AppState.Ready, controller: AppController) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var resumed by remember { mutableStateOf(0) }
+    // Coming back from the system's settings re-reads the state.
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        resumed++
+        onPauseOrDispose {}
+    }
+    val status by androidx.compose.runtime.produceState<dev.qarasky.korecalendar.reminders.ReminderStatus?>(null, resumed, state.revision) { value = controller.reminderStatus() }
+    val s = status
+    val (text, fix) = when (s) {
+        null -> "" to null
+        dev.qarasky.korecalendar.reminders.ReminderStatus.NotificationsOff -> stringResource(R.string.reminders_notifications_off) to android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+        dev.qarasky.korecalendar.reminders.ReminderStatus.ExactAlarmsOff -> stringResource(R.string.reminders_exact_off) to android.content.Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:" + context.packageName))
+        dev.qarasky.korecalendar.reminders.ReminderStatus.BatteryRestricted -> stringResource(R.string.reminders_battery) to android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:" + context.packageName))
+        dev.qarasky.korecalendar.reminders.ReminderStatus.NoneScheduled -> stringResource(R.string.reminders_none) to null
+        is dev.qarasky.korecalendar.reminders.ReminderStatus.Ok -> {
+            val at = s.next.atZone(state.zone)
+            stringResource(R.string.reminders_ok, dev.qarasky.korecalendar.edit.dateText(at.toLocalDate()) + " " + dev.qarasky.korecalendar.agenda.timeLabel(at.toLocalTime(), state.clock24)) to null
+        }
+    }
+    val problem = s is dev.qarasky.korecalendar.reminders.ReminderStatus.NotificationsOff || s is dev.qarasky.korecalendar.reminders.ReminderStatus.ExactAlarmsOff || s is dev.qarasky.korecalendar.reminders.ReminderStatus.BatteryRestricted
+    Text(text, color = if (problem) Palette.warning else Palette.text)
+    if (fix != null) TextButton(onClick = { context.startActivity(fix) }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.reminders_fix)) }
+    Text(stringResource(R.string.reminders_hint), color = Palette.muted, style = MaterialTheme.typography.bodySmall)
 }

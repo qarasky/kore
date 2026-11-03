@@ -105,3 +105,15 @@ class UpdateChecker(private val fetch: suspend () -> String, private val kv: Key
         const val URL = "update.url"
     }
 }
+
+private const val RELEASES_URL = "https://api.github.com/repos/qarasky/korecalendar/releases?per_page=30"
+
+/** GitHub's release list for this repository: the app's only request to a host other than the owner's server, with no identifier. */
+suspend fun fetchReleases(): String = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    val client = okhttp3.OkHttpClient.Builder().connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS).readTimeout(20, java.util.concurrent.TimeUnit.SECONDS).build()
+    val request = okhttp3.Request.Builder().url(RELEASES_URL).header("Accept", "application/vnd.github+json").header("User-Agent", "KoreCalendar").build()
+    client.newCall(request).execute().use { r ->
+        if (!r.isSuccessful) throw java.io.IOException("GitHub answered ${r.code}")
+        r.body.string()
+    }
+}

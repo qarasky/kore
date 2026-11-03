@@ -111,6 +111,7 @@ fun StatusLine(state: AppState.Ready) {
         agenda.offline -> stringResource(R.string.offline_note)
         agenda.neverSynced -> stringResource(R.string.never_synced)
         agenda.staleHours != null -> stringResource(R.string.updated_hours_ago, agenda.staleHours.toInt())
+        state.update != null -> stringResource(R.string.update_available, state.update.version)
         else -> null
     }
     if (text != null) {

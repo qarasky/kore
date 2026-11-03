@@ -68,6 +68,20 @@ fun AppRoot(controller: AppController, pendingOpen: StateFlow<Pair<String, Strin
         }
     }
 
+    // The notification permission is asked once, when the app is first usable; Settings shows the state after that.
+    val askNotifications = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) {
+        scope.launch { controller.remindersChanged() }
+    }
+    val signedIn = state is AppState.Ready
+    LaunchedEffect(signedIn) {
+        if (signedIn && !controller.notificationsAsked() &&
+            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            controller.markNotificationsAsked()
+            askNotifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
     // A short message after a write; a delete offers Undo.
     LaunchedEffect(notice) {
         val n = notice ?: return@LaunchedEffect
@@ -113,6 +127,7 @@ fun AppRoot(controller: AppController, pendingOpen: StateFlow<Pair<String, Strin
                 onClock24 = { scope.launch { controller.setClock24(it) } },
                 onToggleCalendar = { scope.launch { controller.toggleCalendar(it) } },
                 onWeekStart = { scope.launch { controller.setWeekStart(it) } },
+                controller = controller,
                 onSignOut = { screen = Screen.Agenda; scope.launch { controller.signOut() } },
             )
         }

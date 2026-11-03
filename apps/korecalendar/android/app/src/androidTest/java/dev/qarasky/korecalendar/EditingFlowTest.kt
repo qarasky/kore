@@ -50,6 +50,9 @@ class EditingFlowTest {
 
     @Before fun setUp() {
         Assume.assumeTrue("no server given: skipping the UI flows", server != null && email != null && password != null)
+        // The system's notification permission dialog would cover the app: the tests grant it up front.
+        val target = InstrumentationRegistry.getInstrumentation().targetContext
+        InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(target.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
         runBlocking { graph.controller.signOut() }
     }
 

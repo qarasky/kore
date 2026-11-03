@@ -34,6 +34,9 @@ class AppHolder(app: Application) : AndroidViewModel(app) {
 
     /** The app came to the foreground: bring the copy up to date. */
     fun onForeground() {
-        viewModelScope.launch { controller.refresh() }
+        viewModelScope.launch {
+            controller.refresh()
+            controller.checkForUpdate()
+        }
     }
 }

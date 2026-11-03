@@ -37,6 +37,11 @@ interface Background {
     fun scheduleSync()
     fun cancelSync()
     suspend fun refreshWidgets()
+
+    /** Sets the next reminder alarm from the local copy (and shows reminders that came due); cancels them when signed out. */
+    suspend fun syncReminders()
+
+    suspend fun reminderStatus(): dev.qarasky.korecalendar.reminders.ReminderStatus
 }
 
 /** A short message after a write, with the id to bring back when it was a delete. */
@@ -67,6 +72,9 @@ sealed interface AppState {
         val lastSync: Instant? = null,
         /** Counts finished refreshes (also failed ones): views reload their data when it changes. */
         val revision: Int = 0,
+        /** A newer app release on GitHub, when the daily update check is on and has found one. */
+        val update: dev.qarasky.korecalendar.update.UpdateInfo? = null,
+        val updateCheck: Boolean = true,
     ) : AppState
 }
 
@@ -84,6 +92,8 @@ class AppController(
     private val apiFor: (ServerUrl, String?) -> CalendarApi,
     private val background: Background,
     private val messages: Messages = Messages { key, _ -> key },
+    private val updates: dev.qarasky.korecalendar.update.UpdateChecker? = null,
+    private val installedVersion: String = "0.0.0",
     private val now: () -> Instant,
 ) {
     private val _state = MutableStateFlow<AppState>(AppState.Loading)
@@ -117,7 +127,33 @@ class AppController(
         publish()
         // Idempotent: keeps the periodic sync running after an app update or a reboot.
         if (accounts.load() != null && !accounts.isRevoked()) background.scheduleSync()
+        background.syncReminders()
     }
+
+    /** Once a day while the app is used: is there a newer app release? (Off with the switch in Settings.) */
+    suspend fun checkForUpdate() {
+        if (!prefs.updateCheck || updates == null) return
+        updates.checkIfDue(installedVersion)
+        publish()
+    }
+
+    suspend fun setUpdateCheck(on: Boolean) {
+        prefs.updateCheck = on
+        publish()
+        if (on) checkForUpdate()
+    }
+
+    suspend fun reminderStatus() = background.reminderStatus()
+
+    /** The notification permission was asked about once; the app does not ask again (Settings shows the state and how to fix it). */
+    fun notificationsAsked(): Boolean = prefs.notificationsAsked
+
+    fun markNotificationsAsked() {
+        prefs.notificationsAsked = true
+    }
+
+    /** The permission answer or a setting changed: set the alarms again. */
+    suspend fun remindersChanged() = background.syncReminders()
 
     suspend fun signIn(rawUrl: String, email: String, password: String): SignInResult {
         val r = signInFlow.signIn(rawUrl, email, password)
@@ -147,6 +183,7 @@ class AppController(
         }
         publish()
         background.refreshWidgets()
+        background.syncReminders()
         result
     }
 
@@ -175,6 +212,7 @@ class AppController(
         syncState = SyncState.Idle
         publish()
         background.refreshWidgets()
+        background.syncReminders()
     }
 
     /** An editor for one editing session; a successful write syncs, so the screens and the widget agree. Null when signed out. */
@@ -355,6 +393,8 @@ class AppController(
             weekStart = prefs.weekStart,
             lastSync = snapshot.lastSyncAt,
             revision = revision,
+            update = if (prefs.updateCheck) updates?.known(installedVersion) else null,
+            updateCheck = prefs.updateCheck,
         )
     }
 }

@@ -223,4 +223,20 @@
     <string name="day_cell_description">%1$s, events: %2$d</string>
     <string name="new_event_here">New event here</string>
     <string name="grid_slot_description">%1$s, time zone %2$s: tap an empty slot for a new event</string>
+
+    <!-- Reminders and updates -->
+    <string name="reminders_channel">Reminders</string>
+    <string name="reminders_channel_description">Event reminders, set on this phone.</string>
+    <string name="reminders">Reminders</string>
+    <string name="reminders_ok">Next reminder: %1$s</string>
+    <string name="reminders_none">No reminders are set for the next 7 days.</string>
+    <string name="reminders_notifications_off">Notifications are off, so reminders cannot show.</string>
+    <string name="reminders_exact_off">The phone does not let this app set exact alarms, so reminders may come late.</string>
+    <string name="reminders_battery">Battery use is restricted for this app, so reminders may not fire.</string>
+    <string name="reminders_fix">Fix</string>
+    <string name="reminders_hint">Reminders are set on the phone from the copy it keeps, so they work without a connection. An event added elsewhere a few minutes before it starts may remind late until the app syncs.</string>
+    <string name="update_available">Version %1$s is available</string>
+    <string name="update_download">Download</string>
+    <string name="update_check">Check for new versions once a day</string>
+    <string name="update_check_hint">Asks GitHub for the newest release of this app. Nothing else is sent. Installing is up to you.</string>
 </resources>

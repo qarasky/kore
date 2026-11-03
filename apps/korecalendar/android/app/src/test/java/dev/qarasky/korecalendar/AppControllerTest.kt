@@ -28,9 +28,12 @@ class AppControllerTest {
         var scheduled = 0
         var cancelled = 0
         var widgetRefreshes = 0
+        var reminderSyncs = 0
         override fun scheduleSync() { scheduled++ }
         override fun cancelSync() { cancelled++ }
         override suspend fun refreshWidgets() { widgetRefreshes++ }
+        override suspend fun syncReminders() { reminderSyncs++ }
+        override suspend fun reminderStatus(): dev.qarasky.korecalendar.reminders.ReminderStatus = dev.qarasky.korecalendar.reminders.ReminderStatus.NoneScheduled
     }
 
     private val kv = MapKeyValue()
@@ -340,5 +343,34 @@ class AppControllerTest {
         assertEquals(java.time.LocalDate.parse("2026-11-09"), f.startDay)
         assertEquals(java.time.LocalTime.of(14, 30), f.startTime)
         assertEquals(java.time.LocalTime.of(15, 30), f.endTime)
+    }
+
+    // --- reminders and updates
+
+    @Test fun everyRefreshResetsTheAlarmsAndSigningOutDoesToo() = runTest {
+        signedIn()
+        val after = background.reminderSyncs
+        assertTrue(after >= 1)
+        controller.refresh()
+        assertTrue(background.reminderSyncs > after)
+        val before = background.reminderSyncs
+        controller.signOut()
+        assertTrue(background.reminderSyncs > before)
+    }
+
+    @Test fun anAvailableUpdateIsShownUntilTheSwitchIsOff() = runTest {
+        val kv2 = MapKeyValue()
+        val checker = dev.qarasky.korecalendar.update.UpdateChecker(
+            { """[{"tag_name":"android-v0.9.0","html_url":"https://example.test/r","prerelease":false,"draft":false}]""" }, kv2,
+        ) { now }
+        val c = AppController(accounts, prefs, store, repo, signIn, { _, _ -> api }, background, TestMessages, checker, "0.1.0") { now }
+        serverWith("u1", occ("gym"))
+        c.start()
+        c.signIn("https://cal.example.com", "me@example.com", "pw-pw-pw-pw")
+        c.checkForUpdate()
+        assertEquals(dev.qarasky.korecalendar.update.UpdateInfo("0.9.0", "https://example.test/r"), (c.state.value as AppState.Ready).update)
+        c.setUpdateCheck(false)
+        assertEquals(null, (c.state.value as AppState.Ready).update)
+        assertEquals(false, (c.state.value as AppState.Ready).updateCheck)
     }
 }

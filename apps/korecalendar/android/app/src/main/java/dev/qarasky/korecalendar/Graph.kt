@@ -26,6 +26,8 @@ class Graph private constructor(app: Application) {
     val store = RoomStore(AppDatabase.open(app))
     val repo = Repository(store)
     private val apiFor: (ServerUrl, String?) -> CalendarApi = { url, token -> HttpApi(url, token) }
+    val reminders = dev.qarasky.korecalendar.reminders.ReminderRunner(app, this)
+    private val updates = dev.qarasky.korecalendar.update.UpdateChecker({ dev.qarasky.korecalendar.update.fetchReleases() }, kv) { Instant.now() }
     val controller = AppController(
         accounts = accounts,
         prefs = prefs,
@@ -35,6 +37,8 @@ class Graph private constructor(app: Application) {
         apiFor = apiFor,
         background = AndroidBackground(app),
         messages = dev.qarasky.korecalendar.ui.ResourceMessages(app),
+        updates = updates,
+        installedVersion = dev.qarasky.korecalendar.BuildConfig.VERSION_NAME,
         now = { Instant.now() },
     )
 

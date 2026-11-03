@@ -124,7 +124,19 @@ class Prefs(private val kv: KeyValue) {
         get() = dev.qarasky.korecalendar.views.WeekStart.parse(kv.get(WEEK_START)) ?: dev.qarasky.korecalendar.views.WeekStart.Mon
         set(v) = kv.put(WEEK_START, v.wire)
 
+    /** The daily check for a newer app release (on by default). */
+    var updateCheck: Boolean
+        get() = kv.get(UPDATE_CHECK) != "off"
+        set(v) = kv.put(UPDATE_CHECK, if (v) "on" else "off")
+
+    /** The notification permission has been asked once: the app does not nag, Settings shows the state. */
+    var notificationsAsked: Boolean
+        get() = kv.get(NOTIF_ASKED) == "1"
+        set(v) = kv.put(NOTIF_ASKED, if (v) "1" else null)
+
     private companion object {
+        const val UPDATE_CHECK = "prefs.updatecheck"
+        const val NOTIF_ASKED = "prefs.notifasked"
         const val VIEW = "prefs.view"
         const val WEEK_START = "prefs.weekstart"
         const val CLOCK = "prefs.clock"

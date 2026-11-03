@@ -29,6 +29,10 @@ class AndroidBackground(private val context: Context) : Background {
     }
 
     override suspend fun refreshWidgets() = WidgetUpdater.updateAll(context)
+
+    override suspend fun syncReminders() = Graph.get(context).reminders.sync()
+
+    override suspend fun reminderStatus() = Graph.get(context).reminders.status()
 }
 
 /** Brings the local copy up to date in the background, then redraws the widget. Never fails the schedule. */
