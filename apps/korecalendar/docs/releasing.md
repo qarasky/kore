@@ -72,7 +72,7 @@ rc 1 to 98.) `bash scripts/test-android-version.sh` checks the scheme.
 
 ### Cutting an Android release
 
-1. Be on an up-to-date, clean `main` whose last [android-ci](../.github/workflows/android-ci.yml) run is green.
+1. Be on an up-to-date, clean `main`. [android-ci](../.github/workflows/android-ci.yml) runs on pull requests (lint, JVM and contract tests, and the emulator UI flows) and again on the tag before anything is signed (without the emulator job); the PR that went in must have been green.
 2. `scripts/release-android.sh 0.2.0` writes `android/version.properties`, commits `android release: v0.2.0` and creates the annotated tag `android-v0.2.0`. It refuses a dirty tree, a branch other than `main`,
    a `main` that differs from `origin/main`, a malformed version or an existing tag.
 3. `git push origin main android-v0.2.0`.
