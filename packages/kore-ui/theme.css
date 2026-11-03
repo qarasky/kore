@@ -58,6 +58,7 @@
   --spacing-topbar: 60px;
   --spacing-header: 52px;
   --spacing-sidebar: 256px;
+  --spacing-sidebar-collapsed: 64px;
   --spacing-settings-nav: 200px;
 
   /* Content widths (max-w-form, max-w-reading, max-w-content). */
@@ -89,6 +90,7 @@
   --animate-kore-drawer-out: kore-drawer-out 180ms var(--ease-exit) forwards;
   --animate-kore-toast-in: kore-toast-in 220ms var(--ease-standard);
   --animate-kore-toast-out: kore-fade-out 120ms var(--ease-exit) forwards;
+  --animate-kore-indeterminate: kore-indeterminate 1.2s var(--ease-standard) infinite;
 
   --font-sans:
     "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
@@ -137,6 +139,14 @@
   @keyframes kore-drawer-out {
     to {
       transform: translateX(-100%);
+    }
+  }
+  @keyframes kore-indeterminate {
+    from {
+      left: -33%;
+    }
+    to {
+      left: 100%;
     }
   }
   @keyframes kore-toast-in {
