@@ -5,6 +5,7 @@ import { Dialog as RadixDialog } from "radix-ui";
 import type { ComponentProps, ReactNode } from "react";
 import { cn } from "../lib/cn";
 import { CaptureOpener, useReturnFocus } from "../lib/focus";
+import { withToastGuard } from "../lib/overlay";
 
 /** Root: `open` / `onOpenChange` (controlled) or `defaultOpen`. Focus is trapped inside and returns to the opener on close. */
 export const Dialog = RadixDialog.Root;
@@ -41,6 +42,8 @@ export function DialogContent({
   className,
   children,
   onCloseAutoFocus,
+  onPointerDownOutside,
+  onInteractOutside,
   ...props
 }: DialogContentProps) {
   const focus = useReturnFocus(onCloseAutoFocus);
@@ -57,6 +60,8 @@ export function DialogContent({
           className,
         )}
         onCloseAutoFocus={focus.onCloseAutoFocus}
+        onPointerDownOutside={withToastGuard(onPointerDownOutside)}
+        onInteractOutside={withToastGuard(onInteractOutside)}
         {...props}
       >
         <CaptureOpener onMount={focus.capture} />
