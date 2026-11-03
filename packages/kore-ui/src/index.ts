@@ -131,3 +131,35 @@ export {
   type ProgressProps,
 } from "./components/Meter";
 export { SidebarToggle, type SidebarToggleProps } from "./layout/AppShell";
+
+// 0.2.0
+export {
+  CommandPalette,
+  CommandGroup,
+  CommandItem,
+  CommandSeparator,
+  useCommandShortcut,
+  type CommandPaletteProps,
+  type CommandGroupProps,
+  type CommandItemProps,
+  type CommandData,
+  type CommandGroupData,
+  type CommandShortcutOptions,
+} from "./components/CommandPalette";
+export { Sheet, SheetTrigger, SheetClose, SheetContent, SheetBody, SheetFooter, type SheetContentProps } from "./components/Sheet";
+export { PasswordInput, minLengthRule, type PasswordInputProps, type PasswordRule } from "./components/PasswordInput";
+export { ColorSwatchPicker, type ColorSwatchPickerProps, type ColorSwatch } from "./components/ColorSwatchPicker";
+export { isHexColor, normalizeHex, readableOn } from "./components/color";
+export {
+  ContextMenuSub,
+  ContextMenuSubTrigger,
+  ContextMenuSubContent,
+  ContextMenuCheckboxItem,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
+  PointMenu,
+  pointFromEvent,
+  type PointMenuProps,
+  type PointMenuCloseReason,
+  type MenuPoint,
+} from "./components/Menu";
