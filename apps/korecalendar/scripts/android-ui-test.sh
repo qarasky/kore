@@ -16,7 +16,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-port="${KORECAL_UI_TEST_PORT:-18765}"
+port="${KORECAL_UI_TEST_PORT:-$(python3 -c 'import socket; s = socket.socket(); s.bind(("", 0)); print(s.getsockname()[1])')}"
 email="owner@korecal.test"
 password="owner-password-123"
 
