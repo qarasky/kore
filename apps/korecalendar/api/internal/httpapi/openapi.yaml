@@ -114,11 +114,11 @@ paths:
   /api/auth/config:
     get:
       summary: Which sign-in methods this server offers
-      description: "`password_login` is false when the operator turned passwords off. `oidc` is null unless Kore ID sign-in is configured; then it has `name`, `issuer`, `client_id`, `login_url` (a browser path to open), `account_url` (the Kore ID account page) and `apps` (Kore app key -> address, for an app switcher; always has `korecalendar`)."
+      description: "`password_login` is false when the operator turned passwords off. `first_user_sso` is true when Kore ID is configured with an owner email: the first sign-in with that verified email becomes the administrator. `oidc` is null unless Kore ID sign-in is configured; then it has `name`, `issuer`, `client_id`, `login_url` (a browser path to open), `account_url` (the Kore ID account page) and `apps` (Kore app key -> address, for an app switcher; always has `korecalendar`)."
       x-access: public
       security: []
       responses:
-        "200": { description: The sign-in methods., content: { application/json: { schema: { type: object, properties: { password_login: { type: boolean }, oidc: { type: [object, "null"] } } } } } }
+        "200": { description: The sign-in methods., content: { application/json: { schema: { type: object, properties: { password_login: { type: boolean }, first_user_sso: { type: boolean }, oidc: { type: [object, "null"] } } } } } }
   /api/auth/oidc/login:
     get:
       summary: Start sign-in with Kore ID (browser redirect)

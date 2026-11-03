@@ -19,5 +19,5 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   if (!status.setup_required) {
     redirect(`/login?next=${encodeURIComponent(next)}`);
   }
-  return <SetupAccount next={next} />;
+  return <SetupAccount next={next} config={config} />;
 }

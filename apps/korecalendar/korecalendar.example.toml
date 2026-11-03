@@ -34,6 +34,7 @@ data_dir = "./data"
 # scopes = ["openid", "profile", "email"]
 # extra_audiences = ["korecalendar-android"]  # more client ids whose access tokens the API accepts
 # admin_subs = ["00000000-0000-4000-8000-000000000000"]  # Kore ID subjects that are administrators here
+# owner_email = "owner@example.com"         # first Kore ID sign-in with this verified email becomes the admin (fresh install)
 # auto_provision = true                     # create a local account on first sign-in
 # link_by_email = "verified"                # verified (default) | off | trusted (see docs/deploy.md)
 # apps = { kore = "https://kore.example", koremind = "https://mind.example", flatline = "https://mon.example" }

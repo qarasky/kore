@@ -27,6 +27,7 @@ const en = {
   "auth.createAccount": "Create your account",
   "auth.creating": "Creating…",
   "auth.setupIntro": "This is a new calendar. The first account becomes the administrator.",
+  "auth.setupIntroSso": "This is a new calendar. The first sign-in with the owner's email address becomes the administrator.",
   "auth.signOut": "Sign out",
   "auth.ssoSignIn": "Continue with {name}",
   "auth.or": "or",

@@ -4,6 +4,8 @@
 /** `GET /api/auth/config`: which sign-in methods the server offers. */
 export type AuthConfig = {
   password_login: boolean;
+  /** Kore ID and an owner email are configured: the first Kore ID sign-in with that email becomes the administrator. */
+  first_user_sso: boolean;
   oidc: {
     name: string;
     issuer: string;

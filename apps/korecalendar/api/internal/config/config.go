@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net"
+	"net/mail"
 	"net/url"
 	"os"
 	"slices"
@@ -49,7 +50,11 @@ type OIDC struct {
 	// sign in first on an empty install). Who may use KoreCalendar at all is
 	// decided by Kore ID (per-user access to the app "korecalendar").
 	AdminSubs []string `toml:"admin_subs"`
-	Name      string   `toml:"name"` // button label (default "Kore ID")
+	// OwnerEmail names the first administrator on a fresh install: the first
+	// Kore ID sign-in whose verified email matches becomes an admin, so the
+	// install can start without a local password account.
+	OwnerEmail string `toml:"owner_email"`
+	Name       string `toml:"name"` // button label (default "Kore ID")
 	// Apps are the other Kore apps' addresses for the web app switcher, keyed
 	// kore, koremind, korecalendar, flatline. korecalendar defaults to public_url.
 	Apps map[string]string `toml:"apps"`
@@ -145,6 +150,7 @@ func (c *Config) loadOIDCEnv() error {
 		"KORECAL_OIDC_CLIENT_SECRET":      &c.OIDC.ClientSecret,
 		"KORECAL_OIDC_CLIENT_SECRET_FILE": &c.OIDC.ClientSecretFile,
 		"KORECAL_OIDC_LINK_BY_EMAIL":      &c.OIDC.LinkByEmail,
+		"KORECAL_OIDC_OWNER_EMAIL":        &c.OIDC.OwnerEmail,
 		"KORECAL_OIDC_NAME":               &c.OIDC.Name,
 	} {
 		if v := os.Getenv(env); v != "" {
@@ -175,6 +181,12 @@ func (c *Config) loadOIDCEnv() error {
 
 func (c *Config) validateOIDC() error {
 	o := &c.OIDC
+	o.OwnerEmail = strings.ToLower(strings.TrimSpace(o.OwnerEmail))
+	if o.OwnerEmail != "" {
+		if a, err := mail.ParseAddress(o.OwnerEmail); err != nil || a.Address != o.OwnerEmail || len(o.OwnerEmail) > 254 {
+			return fmt.Errorf("invalid oidc owner_email %q", o.OwnerEmail)
+		}
+	}
 	if !o.Enabled() {
 		if !c.PasswordLogin {
 			return errors.New("password_login is off but no [oidc] issuer is set: nobody could sign in")

@@ -130,6 +130,7 @@ unless you pass `--build-arg VERSION=...`.
 | `KORECAL_OIDC_CLIENT_SECRET` | empty | the client secret Kore ID printed for it (keep `.env` private) |
 | `KORECAL_OIDC_EXTRA_AUDIENCES` | empty | more client ids (comma separated) whose Kore ID access tokens the API accepts, e.g. `korecalendar-android` |
 | `KORECAL_OIDC_ADMIN_SUBS` | empty | Kore ID subjects (comma separated) that are administrators here (who may sign in at all is set in Kore ID) |
+| `KORECAL_OIDC_OWNER_EMAIL` | empty | on a fresh install, the first Kore ID sign-in whose verified email equals this address becomes the administrator (`owner_email` in TOML) |
 | `KORECAL_OIDC_AUTO_PROVISION` | `true` | create a local account on a first Kore ID sign-in |
 | `KORECAL_OIDC_LINK_BY_EMAIL` | `verified` | `verified`, `off` or `trusted`: link a Kore ID login to a local account with the same email |
 | `KORECAL_KORE_APPS` | empty | the other Kore apps for the account menu's app switcher, `kore=https://…,koremind=https://…,flatline=https://…` (`korecalendar` defaults to `KORECAL_PUBLIC_URL`) |
@@ -149,7 +150,9 @@ It is optional; with nothing set, nothing changes.
    `backchannelLogoutUri` `"https://calendar.example.com/api/auth/oidc/backchannel-logout"` and `homeUrl` `"https://calendar.example.com/"`
    (your `KORECAL_PUBLIC_URL`). The Android app is the public client `korecalendar-android` (same `"app": "korecalendar"`, redirect
    `dev.qarasky.korecalendar:/oauth2redirect`); set `KORECAL_OIDC_EXTRA_AUDIENCES=korecalendar-android`. The API logs these URIs at start.
-2. In `.env` set `KORECAL_PUBLIC_URL`, `KORECAL_OIDC_ISSUER` and `KORECAL_OIDC_CLIENT_SECRET`, then `docker compose up -d`.
+2. In `.env` set `KORECAL_PUBLIC_URL`, `KORECAL_OIDC_ISSUER` and `KORECAL_OIDC_CLIENT_SECRET`, then `docker compose up -d`. On a fresh install, also set
+   `KORECAL_OIDC_OWNER_EMAIL` to the first administrator's Kore ID email (or register their subject in `KORECAL_OIDC_ADMIN_SUBS`) so that sign-in can create the
+   first account.
    The api container must reach the issuer (it is on the `egress` network); the browser must reach it too, at the same address.
 3. The sign-in page now shows "Sign in with Kore ID". The browser goes to Kore ID with PKCE, a `state` and a `nonce`; the API checks the state against a cookie
    and a one-time server-side record, exchanges the code, verifies the id token's EdDSA signature against Kore ID's JWKS (issuer, audience, expiry, nonce)
@@ -166,9 +169,11 @@ It is optional; with nothing set, nothing changes.
 **Who is who.** An account is keyed on the token's `sub` (the same UUID in every Kore app). The first sign-in creates an account (`KORECAL_OIDC_AUTO_PROVISION`)
 with its default calendar. The email is copied once and is not kept in sync.
 
-**Administrators.** Auto-created accounts are normal users, except subjects in `KORECAL_OIDC_ADMIN_SUBS`. On a fresh install with no account yet, a Kore ID sign-in
-is refused unless the subject is listed there (so the first person Kore ID lets in does not become the administrator by accident); or create the first account
-with a password as usual. This only decides the role inside KoreCalendar; access to the app is granted in Kore ID.
+**Administrators.** Auto-created accounts are normal users, except subjects in `KORECAL_OIDC_ADMIN_SUBS` and, on a fresh install, the first Kore ID sign-in whose
+verified email equals `KORECAL_OIDC_OWNER_EMAIL` (or `owner_email` in the TOML file). That owner email is the way to start with Kore ID alone, without creating a
+throwaway local password account. On a fresh install with no account yet, a Kore ID sign-in is otherwise refused unless the subject is in `KORECAL_OIDC_ADMIN_SUBS`
+(so the first person Kore ID lets in does not become the administrator by accident); or create the first account with a password as usual. Once an account exists,
+`owner_email` does not promote anyone else: it only names the first administrator. This decides the role inside KoreCalendar; access to the app is granted in Kore ID.
 
 **Existing accounts (migration).** Kore ID accounts are created by its administrator, so their email addresses are trusted and tokens carry
 `email_verified: true`. With the default `KORECAL_OIDC_LINK_BY_EMAIL=verified`, the first Kore ID sign-in of someone who already has a local account with the same

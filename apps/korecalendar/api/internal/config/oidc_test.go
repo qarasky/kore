@@ -20,6 +20,7 @@ func TestOIDCFromFileAndEnv(t *testing.T) {
 	t.Setenv("KORECAL_OIDC_CLIENT_SECRET", "from-env")
 	t.Setenv("KORECAL_OIDC_ADMIN_SUBS", "a, b")
 	t.Setenv("KORECAL_OIDC_EXTRA_AUDIENCES", "korecalendar-android")
+	t.Setenv("KORECAL_OIDC_OWNER_EMAIL", "  Ada@Example.COM ")
 	t.Setenv("KORECAL_PASSWORD_LOGIN", "false")
 	c, err := Load(write(t, "data_dir = \"/d\"\npublic_url = \"https://cal.example.com\"\n[oidc]\nissuer = \"https://id.example.com\"\n"))
 	if err != nil {
@@ -27,7 +28,8 @@ func TestOIDCFromFileAndEnv(t *testing.T) {
 	}
 	o := c.OIDC
 	if !o.Enabled() || o.ClientID != "korecalendar" || o.ClientSecret != "from-env" || o.LinkByEmail != "verified" || !o.AutoProvision ||
-		len(o.AdminSubs) != 2 || o.AdminSubs[1] != "b" || o.ExtraAudiences[0] != "korecalendar-android" || c.PasswordLogin || o.Name != "Kore ID" {
+		len(o.AdminSubs) != 2 || o.AdminSubs[1] != "b" || o.ExtraAudiences[0] != "korecalendar-android" || c.PasswordLogin || o.Name != "Kore ID" ||
+		o.OwnerEmail != "ada@example.com" {
 		t.Fatalf("%+v", c)
 	}
 	if got := c.OIDCRedirectURL(); got != "https://cal.example.com/api/auth/oidc/callback" {
@@ -71,6 +73,13 @@ func TestKoreApps(t *testing.T) {
 	}
 }
 
+func TestOIDCOwnerEmailFromFile(t *testing.T) {
+	c, err := Load(write(t, "data_dir = \"/d\"\npublic_url = \"https://c.example\"\n[oidc]\nissuer = \"https://id.example.com\"\nowner_email = \"  Owner@Example.com \"\n"))
+	if err != nil || c.OIDC.OwnerEmail != "owner@example.com" {
+		t.Fatalf("%+v %v", c.OIDC, err)
+	}
+}
+
 func TestOIDCSecretFile(t *testing.T) {
 	f := filepath.Join(t.TempDir(), "secret")
 	os.WriteFile(f, []byte("  filesecret\n"), 0o600)
@@ -87,6 +96,7 @@ func TestOIDCValidation(t *testing.T) {
 		"oidc without public_url":    base + "[oidc]\nissuer = \"https://id.example.com\"\n",
 		"public_url with a path":     base + "public_url = \"https://c.example/cal\"\n[oidc]\nissuer = \"https://id.example.com\"\n",
 		"bad link_by_email":          base + "public_url = \"https://c.example\"\n[oidc]\nissuer = \"https://id.example.com\"\nlink_by_email = \"yes\"\n",
+		"bad owner_email":            base + "public_url = \"https://c.example\"\n[oidc]\nissuer = \"https://id.example.com\"\nowner_email = \"not an address\"\n",
 		"passwords off, no provider": base + "password_login = false\n",
 	} {
 		if _, err := Load(write(t, body)); err == nil {

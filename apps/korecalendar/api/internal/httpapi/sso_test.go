@@ -197,6 +197,60 @@ func TestOIDCFirstUserNeedsToBeNamedAdmin(t *testing.T) {
 	}
 }
 
+func TestOIDCOwnerEmailCanCreateTheFirstAdministrator(t *testing.T) {
+	t.Run("owner email, verified, fresh database", func(t *testing.T) {
+		e := newSSO(t, func(c *config.OIDC) { c.OwnerEmail = "ada@example.com" }, true)
+		b := newBrowser(t)
+		if loc := b.signIn(e, "/"); loc != "/" {
+			t.Fatalf("redirected to %q", loc)
+		}
+		var me struct{ Email, Role string }
+		b.me(e).Decode(t, &me)
+		if me.Email != "ada@example.com" || me.Role != "admin" {
+			t.Fatalf("me: %+v", me)
+		}
+		var n int
+		e.db.QueryRow(`SELECT count(*) FROM users`).Scan(&n)
+		if n != 1 {
+			t.Fatalf("%d users", n)
+		}
+	})
+	t.Run("a different email is still refused", func(t *testing.T) {
+		e := newSSO(t, func(c *config.OIDC) { c.OwnerEmail = "owner@example.com" }, true)
+		if loc := newBrowser(t).signIn(e, "/"); loc != "/login?error=no_admin" {
+			t.Fatalf("%q", loc)
+		}
+		var n int
+		e.db.QueryRow(`SELECT count(*) FROM users`).Scan(&n)
+		if n != 0 {
+			t.Fatalf("%d users", n)
+		}
+	})
+	t.Run("the owner email must be verified", func(t *testing.T) {
+		e := newSSO(t, func(c *config.OIDC) { c.OwnerEmail = "ada@example.com" }, true)
+		e.kore.User["email_verified"] = false
+		if loc := newBrowser(t).signIn(e, "/"); loc != "/login?error=no_admin" {
+			t.Fatalf("%q", loc)
+		}
+		var n int
+		e.db.QueryRow(`SELECT count(*) FROM users`).Scan(&n)
+		if n != 0 {
+			t.Fatalf("%d users", n)
+		}
+	})
+	t.Run("no promotion once an account exists", func(t *testing.T) {
+		e := newSSO(t, func(c *config.OIDC) { c.OwnerEmail = "ada@example.com" }, true)
+		testsrv.Do(t, e.srv, "", "POST", "/api/setup", map[string]string{"email": testsrv.AdminEmail, "password": testsrv.AdminPassword})
+		b := newBrowser(t)
+		b.signIn(e, "/")
+		var me struct{ Role string }
+		b.me(e).Decode(t, &me)
+		if me.Role != "user" {
+			t.Fatalf("role %q", me.Role)
+		}
+	})
+}
+
 func TestOIDCAutoProvisionOff(t *testing.T) {
 	e := newSSO(t, func(c *config.OIDC) { c.AutoProvision = false }, true)
 	testsrv.Do(t, e.srv, "", "POST", "/api/setup", map[string]string{"email": testsrv.AdminEmail, "password": testsrv.AdminPassword})
@@ -334,10 +388,23 @@ func TestPasswordLoginCanBeDisabled(t *testing.T) {
 	}
 }
 
+func TestAuthConfigFirstUserSSO(t *testing.T) {
+	var cfg struct {
+		FirstUserSSO bool `json:"first_user_sso"`
+	}
+	for name, owner := range map[string]string{"unset": "", "set": "ada@example.com"} {
+		e := newSSO(t, func(c *config.OIDC) { c.OwnerEmail = owner }, true)
+		testsrv.Do(t, e.srv, "", "GET", "/api/auth/config", nil).Decode(t, &cfg)
+		if cfg.FirstUserSSO != (owner != "") {
+			t.Errorf("%s: first_user_sso = %v", name, cfg.FirstUserSSO)
+		}
+	}
+}
+
 func TestAuthConfigWithoutSSO(t *testing.T) {
 	srv, _ := testsrv.New(t)
 	r := testsrv.Do(t, srv, "", "GET", "/api/auth/config", nil)
-	if r.Status != 200 || string(r.Body) != "{\"oidc\":null,\"password_login\":true}\n" {
+	if r.Status != 200 || string(r.Body) != "{\"first_user_sso\":false,\"oidc\":null,\"password_login\":true}\n" {
 		t.Fatalf("%d %q", r.Status, r.Body)
 	}
 	if r := testsrv.Do(t, srv, "", "GET", "/api/auth/oidc/login", nil); r.Status != 404 {

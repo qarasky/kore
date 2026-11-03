@@ -56,11 +56,12 @@ export function SignIn({ config, next, expired, initialError }: { config: AuthCo
   );
 }
 
-/** First run: create the administrator account (email + password) on kore-ui's AuthScreen. */
-export function SetupAccount({ next }: { next: string }) {
+/** First run: create the administrator account on kore-ui's AuthScreen, with Kore ID when it owns the first account. */
+export function SetupAccount({ next, config }: { next: string; config: AuthConfig }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sso = config.first_user_sso ? config.oidc : null;
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -78,7 +79,13 @@ export function SetupAccount({ next }: { next: string }) {
   }
 
   return (
-    <AuthScreen app="korecalendar" title={t("auth.createAccount")} description={t("auth.setupIntro")} error={error}>
+    <AuthScreen
+      app="korecalendar"
+      title={t("auth.createAccount")}
+      description={t(sso ? "auth.setupIntroSso" : "auth.setupIntro")}
+      sso={sso ? { href: `${sso.login_url}?next=${encodeURIComponent(next)}`, label: t("auth.ssoSignIn", { name: sso.name }) } : undefined}
+      error={error}
+    >
       <form onSubmit={submit} className="flex flex-col gap-4">
         <Field label={t("auth.email")}>
           <Input name="email" type="email" autoComplete="username" required autoFocus />
