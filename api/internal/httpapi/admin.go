@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/mail"
 	"strings"
-	"time"
 
 	"github.com/qarasky/kore/api/internal/auth"
 	"github.com/qarasky/kore/api/internal/nodes"
@@ -17,26 +16,18 @@ import (
 	"github.com/qarasky/kore/api/internal/users"
 )
 
-const (
-	minPasswordLen = 8
-	maxPasswordLen = 1024
-)
-
 func errJSON(w http.ResponseWriter, code int, msg string) {
 	writeJSON(w, code, map[string]string{"error": msg})
 }
 
 func (s *server) registerAdmin(mux *http.ServeMux) {
 	mux.Handle("GET /api/admin/users", auth.RequireAdmin(http.HandlerFunc(s.listUsers)))
-	mux.Handle("POST /api/admin/users", auth.RequireAdmin(http.HandlerFunc(s.createUser)))
 	mux.Handle("PATCH /api/admin/users/{id}", auth.RequireAdmin(http.HandlerFunc(s.patchUser)))
-	mux.Handle("POST /api/admin/users/{id}/password", auth.RequireAdmin(http.HandlerFunc(s.resetPassword)))
 	mux.Handle("DELETE /api/admin/users/{id}", auth.RequireAdmin(http.HandlerFunc(s.deleteUser)))
 	mux.Handle("GET /api/admin/settings", auth.RequireAdmin(http.HandlerFunc(s.getSettings)))
 	mux.Handle("PATCH /api/admin/settings", auth.RequireAdmin(http.HandlerFunc(s.patchSettings)))
 	mux.Handle("GET /api/admin/usage", auth.RequireAdmin(http.HandlerFunc(s.usage)))
 	mux.Handle("GET /api/admin/disk", auth.RequireAdmin(http.HandlerFunc(s.adminDisk)))
-	mux.Handle("POST /api/me/password", auth.RequireUser(http.HandlerFunc(s.changeOwnPassword)))
 }
 
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {
@@ -85,58 +76,6 @@ func (s *server) listUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, out)
-}
-
-func (s *server) createUser(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		Email      string `json:"email"`
-		Password   string `json:"password"`
-		Role       string `json:"role"`
-		QuotaBytes *int64 `json:"quota_bytes"`
-	}
-	if !decode(w, r, &in) {
-		return
-	}
-	in.Email = strings.TrimSpace(in.Email)
-	if in.Role == "" {
-		in.Role = "user"
-	}
-	switch {
-	case !validEmail(in.Email):
-		errJSON(w, 400, "invalid_email")
-		return
-	case len(in.Password) < minPasswordLen:
-		errJSON(w, 400, "password_too_short")
-		return
-	case len(in.Password) > maxPasswordLen:
-		errJSON(w, 400, "password_too_long")
-		return
-	case in.Role != "admin" && in.Role != "user":
-		errJSON(w, 400, "invalid_role")
-		return
-	case in.QuotaBytes != nil && *in.QuotaBytes < 0:
-		errJSON(w, 400, "invalid_quota")
-		return
-	}
-	quota := settings.DefaultQuotaBytes(r.Context(), s.db)
-	if in.QuotaBytes != nil {
-		quota = *in.QuotaBytes
-	}
-	hash, err := auth.HashPassword(in.Password)
-	if err != nil {
-		hashErr(w, err)
-		return
-	}
-	u, err := users.Create(r.Context(), s.db, in.Email, hash, in.Role, quota)
-	if errors.Is(err, users.ErrExists) {
-		errJSON(w, 409, "email_in_use")
-		return
-	}
-	if err != nil {
-		errJSON(w, 500, "internal")
-		return
-	}
-	writeJSON(w, 201, u)
 }
 
 var errLastAdmin = errors.New("last admin")
@@ -229,125 +168,6 @@ func (s *server) patchUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, u)
-}
-
-func (s *server) setPassword(ctx context.Context, id, pw string) (bool, error) {
-	hash, err := auth.HashPassword(pw)
-	if err != nil {
-		return false, err
-	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return false, err
-	}
-	defer tx.Rollback()
-	res, err := tx.ExecContext(ctx, `UPDATE users SET pw_hash=? WHERE id=?`, hash, id)
-	if err != nil {
-		return false, err
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return false, nil
-	}
-	// Invalidate existing sessions after a credential change.
-	if _, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE user_id=?`, id); err != nil {
-		return false, err
-	}
-	return true, tx.Commit()
-}
-
-func (s *server) resetPassword(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		NewPassword string `json:"new_password"`
-	}
-	if !decode(w, r, &in) {
-		return
-	}
-	if len(in.NewPassword) < minPasswordLen {
-		errJSON(w, 400, "password_too_short")
-		return
-	}
-	if len(in.NewPassword) > maxPasswordLen {
-		errJSON(w, 400, "password_too_long")
-		return
-	}
-	ok, err := s.setPassword(r.Context(), r.PathValue("id"), in.NewPassword)
-	if err != nil {
-		hashErr(w, err)
-		return
-	}
-	if !ok {
-		errJSON(w, 404, "not_found")
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// changeOwnPassword checks the current password (rate-limited like login,
-// per user and client IP, so a stolen session can't be used to guess it),
-// sets the new one, revokes every session and issues a fresh cookie.
-func (s *server) changeOwnPassword(w http.ResponseWriter, r *http.Request) {
-	me, ok := auth.FromContext(r.Context())
-	if !ok {
-		errJSON(w, 401, "unauthorized")
-		return
-	}
-	var in struct {
-		Current string `json:"current_password"`
-		New     string `json:"new_password"`
-	}
-	if !decode(w, r, &in) {
-		return
-	}
-	key := "pw|" + me.ID + "|" + limitKey(r)
-	if !s.limiter.Attempt(key) {
-		w.Header().Set("Retry-After", "900")
-		errJSON(w, 429, "too_many_attempts")
-		return
-	}
-	_, hash, err := users.GetByEmail(r.Context(), s.db, me.Email)
-	if err != nil {
-		errJSON(w, 500, "internal")
-		return
-	}
-	match, err := auth.VerifyPassword(hash, in.Current)
-	if err != nil {
-		hashErr(w, err)
-		return
-	}
-	if !match {
-		errJSON(w, 403, "wrong_password")
-		return
-	}
-	s.limiter.Reset(key)
-	if len(in.New) < minPasswordLen {
-		errJSON(w, 400, "password_too_short")
-		return
-	}
-	if len(in.New) > maxPasswordLen {
-		errJSON(w, 400, "password_too_long")
-		return
-	}
-	ok, err = s.setPassword(r.Context(), me.ID, in.New)
-	if err != nil {
-		hashErr(w, err)
-		return
-	}
-	if !ok {
-		errJSON(w, 404, "not_found")
-		return
-	}
-	// All sessions were revoked; keep the caller signed in with a fresh one.
-	tok, err := auth.NewSession(r.Context(), s.db, me.ID, sessionTTL)
-	if err != nil {
-		errJSON(w, 500, "internal")
-		return
-	}
-	http.SetCookie(w, &http.Cookie{
-		Name: auth.CookieName, Value: tok, Path: "/", HttpOnly: true,
-		SameSite: http.SameSiteLaxMode, Secure: auth.IsHTTPS(r),
-		Expires: time.Now().Add(sessionTTL),
-	})
-	w.WriteHeader(http.StatusNoContent)
 }
 
 // deleteUser removes an account. A user who still has files (anything in

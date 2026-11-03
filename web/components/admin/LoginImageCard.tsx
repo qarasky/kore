@@ -1,12 +1,11 @@
 "use client";
 
+import { Button, useToast } from "@qarasky/kore-ui";
 import { useRef, useState, type ChangeEvent } from "react";
 import { api } from "@/lib/api";
 import { checkLoginImageFile, LOGIN_IMAGE_TYPES, loginImageError, loginImageSrc, type Branding } from "@/lib/branding";
 import { t } from "@/lib/i18n";
 import { LoginArt } from "../LoginArt";
-import { useToast } from "../Toast";
-import { primaryButton, secondaryButton } from "./fields";
 
 /** Admin Settings: the picture next to the login form (upload / reset). */
 export function LoginImageCard({ initial }: { initial: Branding | null }) {
@@ -51,7 +50,7 @@ export function LoginImageCard({ initial }: { initial: Branding | null }) {
   }
 
   return (
-    <section aria-labelledby="login-image-heading" data-testid="login-image-card" className="mx-auto max-w-[640px] px-6 pb-8">
+    <section aria-labelledby="login-image-heading" data-testid="login-image-card" className="mx-auto max-w-form px-4 pb-8 md:px-6">
       <div className="space-y-4 border-t border-border pt-6">
         <div>
           <h2 id="login-image-heading" className="text-title font-semibold tracking-[-0.01em]">
@@ -86,19 +85,18 @@ export function LoginImageCard({ initial }: { initial: Branding | null }) {
             className="hidden"
             data-testid="login-image-input"
           />
-          <button
-            type="button"
+          <Button
+            variant="primary"
             disabled={pending !== null}
-            aria-busy={pending === "upload" || undefined}
+            loading={pending === "upload"}
             onClick={() => inputRef.current?.click()}
-            className={primaryButton}
           >
             {pending === "upload" ? t("branding.uploading") : t("branding.upload")}
-          </button>
+          </Button>
           {src && (
-            <button type="button" disabled={pending !== null} onClick={reset} className={secondaryButton}>
+            <Button disabled={pending !== null} loading={pending === "reset"} onClick={reset}>
               {t("branding.reset")}
-            </button>
+            </Button>
           )}
         </div>
       </div>

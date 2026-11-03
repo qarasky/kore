@@ -75,11 +75,11 @@ export function DropZone({ target, children }: { target: UploadTarget; children:
           aria-hidden="true"
           data-testid="drop-overlay"
           className={
-            "pointer-events-none absolute inset-0 z-20 flex items-end justify-center rounded-b-[8px] pb-8 " +
+            "pointer-events-none absolute inset-0 z-20 flex items-end justify-center rounded-b-overlay pb-8 " +
             (over.folder ? "" : "bg-accent/[0.06] ring-2 ring-accent/70 ring-inset")
           }
         >
-          <div className="rounded-ui border border-accent/50 bg-raised px-4 py-2 font-medium shadow-[0_12px_32px_-8px_rgba(0,0,0,0.7)]">
+          <div className="rounded-ui border border-accent/50 bg-raised px-4 py-2 font-medium shadow-overlay">
             {over.folder ? t("drop.overlayInto", { name: over.folder }) : t("drop.overlay")}
           </div>
         </div>

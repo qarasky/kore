@@ -1,8 +1,11 @@
 "use client";
 
+import { Button, Checkbox, Dialog, DialogBody, DialogContent, Field, Input, PasswordInput, Select, useToast } from "@qarasky/kore-ui";
+import { Link2, Lock } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { api } from "@/lib/api";
 import { t, type MessageKey } from "@/lib/i18n";
+import { PASSWORD_INPUT_LABELS } from "@/lib/password";
 import {
   defaultChoice,
   EXPIRY_CHOICES,
@@ -18,11 +21,7 @@ import {
   type Share,
   type ShareSettings,
 } from "@/lib/shares";
-import { CloseIcon, LinkIcon, LockIcon, NodeIcon } from "./icons";
-import { Modal } from "./Modal";
-import { Select } from "./Select";
-import { PasswordInput } from "./share/PasswordInput";
-import { useToast } from "./Toast";
+import { NodeIcon } from "./NodeIcon";
 
 type Target = { id: string; name: string; is_dir: boolean };
 type Phase =
@@ -30,13 +29,6 @@ type Phase =
   | { kind: "error"; message: MessageKey }
   | { kind: "create"; settings: ShareSettings }
   | { kind: "link"; share: Share };
-
-const primary =
-  "rounded-ui bg-accent px-3.5 py-1.5 font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60";
-const secondary = "rounded-ui border border-border-strong px-3 py-1.5 font-medium hover:bg-white/5 disabled:opacity-60";
-const small =
-  "rounded-ui border border-border px-2 py-1 text-[12px] font-medium text-muted transition-colors hover:border-border-strong hover:text-text disabled:opacity-60";
-
 
 /** The expiry choice an existing link's remaining time is closest to (for the editor). */
 function choiceFor(s: Share): ExpiryChoice {
@@ -60,7 +52,8 @@ async function copyText(text: string, input: HTMLInputElement | null): Promise<b
  * "Share link" for one file or folder: create a public link (expiry and an
  * optional password), then copy it, change its expiry, set or clear its
  * password, or revoke it. With `initial` (the Shared links page) it edits
- * that link directly. A modal: focus trapped, Escape closes.
+ * that link directly. A modal: focus trapped, Escape closes; focus returns
+ * to the opener, or to `returnFocus()` when given.
  */
 export function ShareDialog({
   target,
@@ -76,9 +69,11 @@ export function ShareDialog({
   onChanged?: () => void;
   returnFocus?: () => HTMLElement | null | undefined;
 }) {
-  const titleId = useId();
   const id = useId();
   const toast = useToast();
+  // Feedback while the dialog is open is shown in it, not as a toast: a toast
+  // is the top layer, so Escape would dismiss it instead of the dialog.
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [phase, setPhase] = useState<Phase>(initial ? { kind: "link", share: initial } : { kind: "loading" });
   const [attempt, setAttempt] = useState(0);
 
@@ -109,71 +104,91 @@ export function ShareDialog({
   };
 
   return (
-    <Modal labelledBy={titleId} onClose={onClose} returnFocus={returnFocus} className="w-[min(500px,calc(100vw-32px))]">
-      <div className="p-5" data-testid="share-dialog">
-        <div className="flex items-center gap-2.5">
-          <NodeIcon kind={target.is_dir ? "folder" : "file"} />
-          <h2 id={titleId} className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-[-0.01em]">
-            {t("share.title", { name: target.name })}
-          </h2>
-          <button type="button" onClick={onClose} aria-label={t("share.close")} className="rounded-ui p-1 text-muted hover:bg-white/5 hover:text-text">
-            <CloseIcon />
-          </button>
-        </div>
-
-        {phase.kind === "loading" && (
-          <p role="status" className="mt-6 mb-2 text-muted">
-            {t("share.loading")}
-          </p>
-        )}
-        {phase.kind === "error" && (
-          <div role="alert" className="mt-5 space-y-3">
-            <p>{t(phase.message)}</p>
-            {phase.message !== "share.error.disabled" && (
-              <button
-                type="button"
-                className={secondary}
-                onClick={() => {
+    <Dialog
+      open
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
+      <DialogContent
+        title={
+          <span className="flex min-w-0 items-center gap-2.5">
+            <NodeIcon kind={target.is_dir ? "folder" : "file"} />
+            <span className="truncate">{t("share.title", { name: target.name })}</span>
+          </span>
+        }
+        closeLabel={t("share.close")}
+        onCloseAutoFocus={(e) => {
+          const el = returnFocus?.();
+          if (el?.isConnected) {
+            e.preventDefault();
+            el.focus();
+          }
+        }}
+      >
+        <DialogBody data-testid="share-dialog" className="pt-2">
+          {phase.kind === "loading" && (
+            <p role="status" className="mt-4 mb-2 text-muted">
+              {t("share.loading")}
+            </p>
+          )}
+          {phase.kind === "error" && (
+            <div role="alert" className="mt-3 space-y-3">
+              <p>{t(phase.message)}</p>
+              {phase.message !== "share.error.disabled" && (
+                <Button
+                  onClick={() => {
+                    setPhase({ kind: "loading" });
+                    setAttempt((a) => a + 1);
+                  }}
+                >
+                  {t("share.retry")}
+                </Button>
+              )}
+            </div>
+          )}
+          {phase.kind === "create" && (
+            <CreateForm
+              id={id}
+              nodeId={target.id}
+              settings={phase.settings}
+              onCreated={(s) => {
+                changed(s);
+                void copyText(shareUrl(window.location.origin, s.token), null).then(
+                  (ok) => ok && setNotice({ message: t("share.createdCopied") }),
+                );
+              }}
+            />
+          )}
+          {phase.kind === "link" && (
+            <LinkView
+              id={id}
+              share={phase.share}
+              onChanged={changed}
+              notify={setNotice}
+              onRevoked={() => {
+                onChanged?.();
+                if (initial) {
+                  onClose();
+                  toast.show({ message: t("share.revoked") });
+                } else {
+                  setNotice({ message: t("share.revoked") });
                   setPhase({ kind: "loading" });
                   setAttempt((a) => a + 1);
-                }}
-              >
-                {t("share.retry")}
-              </button>
-            )}
-          </div>
-        )}
-        {phase.kind === "create" && (
-          <CreateForm
-            id={id}
-            nodeId={target.id}
-            settings={phase.settings}
-            onCreated={(s) => {
-              changed(s);
-              void copyText(shareUrl(window.location.origin, s.token), null).then(
-                (ok) => ok && toast.show({ message: t("share.createdCopied") }),
-              );
-            }}
-          />
-        )}
-        {phase.kind === "link" && (
-          <LinkView
-            id={id}
-            share={phase.share}
-            onChanged={changed}
-            onRevoked={() => {
-              onChanged?.();
-              toast.show({ message: t("share.revoked") });
-              if (initial) onClose();
-              else {
-                setPhase({ kind: "loading" });
-                setAttempt((a) => a + 1);
-              }
-            }}
-          />
-        )}
-      </div>
-    </Modal>
+                }
+              }}
+            />
+          )}
+          <p
+            role="status"
+            data-testid="share-notice"
+            className={notice ? `mt-3 text-meta ${notice.tone === "error" ? "text-danger" : "text-muted"}` : undefined}
+          >
+            {notice?.message}
+          </p>
+        </DialogBody>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -217,66 +232,71 @@ function CreateForm({
   }
 
   return (
-    <form onSubmit={submit} className="mt-4 space-y-4" noValidate>
+    <form onSubmit={submit} className="space-y-4" noValidate>
       <p className="text-muted">{t("share.intro")}</p>
-      <div className="space-y-1.5">
-        <span id={`${id}-exp`} className="block font-medium">
-          {t("share.expiryLabel")}
-        </span>
+      <Field label={t("share.expiryLabel")}>
         <Select
-          aria-labelledby={`${id}-exp`}
           value={expiry}
           options={EXPIRY_CHOICES.map((c) => ({ value: c, label: expiryLabel(c) }))}
-          onChange={setExpiry}
+          onValueChange={setExpiry}
           className="w-[180px]"
         />
-      </div>
+      </Field>
       <div className="space-y-2">
-        <label className="flex w-fit items-center gap-2">
-          <input
-            type="checkbox"
-            checked={usePassword}
-            onChange={(e) => setUsePassword(e.target.checked)}
-            className="size-3.5 accent-[var(--color-accent)]"
-          />
-          {t("share.requirePassword")}
-        </label>
+        <Checkbox
+          label={t("share.requirePassword")}
+          checked={usePassword}
+          onCheckedChange={(c) => setUsePassword(c === true)}
+          className="w-fit"
+        />
         {usePassword && (
           <div className="space-y-1">
             <label htmlFor={`${id}-pw`} className="sr-only">
               {t("share.passwordLabel")}
             </label>
-            <PasswordInput id={`${id}-pw`} value={password} onChange={setPassword} autoFocus invalid={tooShort} placeholder={t("share.passwordPlaceholder")} />
-            <p className="text-[12px] text-muted">{t("share.passwordHint")}</p>
+            <PasswordInput
+              {...PASSWORD_INPUT_LABELS}
+              id={`${id}-pw`}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoFocus
+              aria-invalid={tooShort || undefined}
+              autoComplete="new-password"
+              placeholder={t("share.passwordPlaceholder")}
+            />
+            <p className="text-meta text-muted">{t("share.passwordHint")}</p>
           </div>
         )}
       </div>
       {error && (
-        <p role="alert" className="text-[12px] text-danger">
+        <p role="alert" className="text-meta text-danger">
           {t(error)}
         </p>
       )}
       <div className="flex justify-end">
-        <button type="submit" disabled={pending} aria-busy={pending || undefined} className={primary}>
+        <Button type="submit" variant="primary" loading={pending}>
           {pending ? t("share.creating") : t("share.create")}
-        </button>
+        </Button>
       </div>
     </form>
   );
 }
+
+type Notice = { message: string; tone?: "error" };
 
 function LinkView({
   id,
   share,
   onChanged,
   onRevoked,
+  notify,
 }: {
   id: string;
   share: Share;
   onChanged: (s: Share) => void;
   onRevoked: () => void;
+  notify: (n: Notice) => void;
 }) {
-  const toast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   // Only rendered in the browser (the dialog opens on a click).
   const url = shareUrl(window.location.origin, share.token);
@@ -291,7 +311,7 @@ function LinkView({
     try {
       const s = await api<Share>(`/api/shares/${encodeURIComponent(share.id)}`, { method: "PATCH", body: JSON.stringify(body) });
       onChanged(s);
-      if (done) toast.show({ message: done });
+      if (done) notify({ message: done });
       return true;
     } catch (err) {
       setError(shareErrorKey(err));
@@ -328,34 +348,33 @@ function LinkView({
   const active = share.status === "active";
 
   return (
-    <div className="mt-4 space-y-4">
+    <div className="space-y-4">
       <div className="space-y-1.5">
-        <label htmlFor={`${id}-url`} className="block font-medium">
-          {t("share.linkLabel")}
-        </label>
-        <div className="flex gap-2">
-          <input
-            ref={inputRef}
-            id={`${id}-url`}
-            readOnly
-            value={url}
-            data-testid="share-url"
-            onFocus={(e) => e.currentTarget.select()}
-            className="block w-full min-w-0 rounded-ui border border-border bg-bg/60 px-3 py-1.5 font-mono text-[12px] text-text outline-none focus:border-accent"
-          />
-          <button
-            type="button"
-            className={primary + " inline-flex shrink-0 items-center gap-1.5"}
-            onClick={async () => {
-              const ok = await copyText(url, inputRef.current);
-              toast.show(ok ? { message: t("share.copied") } : { message: t("share.copyFailed"), tone: "error" });
-            }}
-          >
-            <LinkIcon />
-            {t("share.copy")}
-          </button>
-        </div>
-        <p className="flex flex-wrap items-center gap-x-2 text-[12px] text-muted" data-testid="share-status">
+        <Field label={t("share.linkLabel")}>
+          <div className="flex gap-2">
+            <Input
+              ref={inputRef}
+              readOnly
+              value={url}
+              data-testid="share-url"
+              onFocus={(e) => e.currentTarget.select()}
+              className="font-mono text-meta"
+            />
+            {/* Not kore-ui's CopyButton: on failure the link is selected and the
+                notice explains the manual copy, which a 2s button label can't. */}
+            <Button
+              variant="primary"
+              onClick={async () => {
+                const ok = await copyText(url, inputRef.current);
+                notify(ok ? { message: t("share.copied") } : { message: t("share.copyFailed"), tone: "error" });
+              }}
+            >
+              <Link2 />
+              {t("share.copy")}
+            </Button>
+          </div>
+        </Field>
+        <p className="flex flex-wrap items-center gap-x-2 text-meta text-muted" data-testid="share-status">
           <span className={active ? "text-text" : "text-warning"}>{statusLabel(share.status)}</span>
           <span aria-hidden="true">·</span>
           <span>{expiryText(share.expires_at, nowSeconds())}</span>
@@ -363,7 +382,7 @@ function LinkView({
             <>
               <span aria-hidden="true">·</span>
               <span className="inline-flex items-center gap-1">
-                <LockIcon className="size-3" />
+                <Lock aria-hidden="true" className="size-3" />
                 {t("share.protected")}
               </span>
             </>
@@ -371,64 +390,66 @@ function LinkView({
         </p>
       </div>
 
-      <div className="space-y-1.5">
-        <span id={`${id}-exp2`} className="block font-medium">
-          {t("share.changeExpiry")}
-        </span>
+      <Field label={t("share.changeExpiry")} hint={t("share.changeExpiryHint")} disabled={pending}>
         <Select
-          aria-labelledby={`${id}-exp2`}
           value={choiceFor(share)}
           options={EXPIRY_CHOICES.map((c) => ({ value: c, label: expiryLabel(c) }))}
-          onChange={(c) => void patch({ expires_in_days: expiryDays(c) }, t("share.expiryChanged"))}
-          disabled={pending}
+          onValueChange={(c) => void patch({ expires_in_days: expiryDays(c) }, t("share.expiryChanged"))}
           className="w-[180px]"
         />
-        <p className="text-[12px] text-muted">{t("share.changeExpiryHint")}</p>
-      </div>
+      </Field>
 
-      <div className="space-y-2">
-        <span className="block font-medium">{t("share.passwordLabel")}</span>
+      <div className="space-y-1.5">
+        <span className="block text-meta font-medium text-muted">{t("share.passwordLabel")}</span>
         {editingPw ? (
           <form onSubmit={savePassword} className="space-y-2" noValidate>
             <label htmlFor={`${id}-newpw`} className="sr-only">
               {t("share.newPassword")}
             </label>
-            <PasswordInput id={`${id}-newpw`} value={password} onChange={setPassword} autoFocus placeholder={t("share.passwordPlaceholder")} />
+            <PasswordInput
+              {...PASSWORD_INPUT_LABELS}
+              id={`${id}-newpw`}
+              newPassword
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoFocus
+              placeholder={t("share.passwordPlaceholder")}
+            />
             <div className="flex gap-2">
-              <button type="submit" disabled={pending} className={small}>
+              <Button type="submit" size="sm" disabled={pending}>
                 {t("share.savePassword")}
-              </button>
-              <button type="button" onClick={() => setEditingPw(false)} className={small}>
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setEditingPw(false)}>
                 {t("dialog.cancel")}
-              </button>
+              </Button>
             </div>
           </form>
         ) : (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-muted">{share.has_password ? t("share.passwordOn") : t("share.passwordOff")}</span>
-            <button type="button" disabled={pending} onClick={() => setEditingPw(true)} className={small}>
+            <Button size="sm" disabled={pending} onClick={() => setEditingPw(true)}>
               {share.has_password ? t("share.changePassword") : t("share.addPassword")}
-            </button>
+            </Button>
             {share.has_password && (
-              <button type="button" disabled={pending} onClick={() => void patch({ password: null }, t("share.passwordRemoved"))} className={small}>
+              <Button size="sm" disabled={pending} onClick={() => void patch({ password: null }, t("share.passwordRemoved"))}>
                 {t("share.removePassword")}
-              </button>
+              </Button>
             )}
           </div>
         )}
       </div>
 
       {error && (
-        <p role="alert" className="text-[12px] text-danger">
+        <p role="alert" className="text-meta text-danger">
           {t(error)}
         </p>
       )}
 
       {share.status !== "revoked" && (
         <div className="flex justify-between gap-2 border-t border-border pt-4">
-          <button type="button" disabled={pending} onClick={() => void revoke()} className="rounded-ui px-2 py-1.5 font-medium text-danger hover:bg-danger/10 disabled:opacity-60">
+          <Button variant="danger-outline" size="sm" disabled={pending} onClick={() => void revoke()}>
             {t("share.revoke")}
-          </button>
+          </Button>
         </div>
       )}
     </div>

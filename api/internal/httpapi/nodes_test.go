@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/qarasky/kore/api/internal/auth"
 	"github.com/qarasky/kore/api/internal/nodes"
 	"github.com/qarasky/kore/api/internal/users"
 )
@@ -114,8 +113,7 @@ func TestPatchIsAtomicAndSpaceChecks(t *testing.T) {
 func TestMoveIntoPersonalChargesMover(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
-	ph, _ := auth.HashPassword("password-1")
-	b, err := users.Create(ctx, e.db, "b@x.io", ph, "user", 1<<20)
+	b, err := users.Create(ctx, e.db, "b@x.io", "user", 1<<20)
 	if err != nil {
 		t.Fatal(err)
 	}

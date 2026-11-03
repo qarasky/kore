@@ -1,7 +1,7 @@
 "use client";
 
+import { useToast } from "@qarasky/kore-ui";
 import { useRouter } from "next/navigation";
-import { useToast } from "@/components/Toast";
 import { api } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import { isNoopMove, moveErrorKey, type MoveDest, type MovePayload } from "@/lib/moveDrag";
@@ -44,7 +44,7 @@ export function useMoveNodes() {
     const failed = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
     const action =
       moved.length > 0
-        ? { label: t("toast.undo"), run: () => undo(moved, { space: p.space, parentId: p.parentId }) }
+        ? { label: t("toast.undo"), onClick: () => undo(moved, { space: p.space, parentId: p.parentId }) }
         : undefined;
     if (failed.length === 0) {
       toast.show({ message: moveDoneMessage(moved, p.names, opts.destLabel), action });

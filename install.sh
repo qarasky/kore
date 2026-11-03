@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
-# Kore installer: sets up Kore with Docker Compose in one go.
+# KoreDrive installer: sets up KoreDrive with Docker Compose in one go.
 #
 #   curl -fsSL https://raw.githubusercontent.com/qarasky/kore/main/install.sh | bash
 #
 # It asks a few questions (or takes the defaults), writes .env, creates and
-# initializes the data directory, pulls the images and starts Kore. Safe to
+# initializes the data directory, pulls the images and starts KoreDrive. Safe to
 # re-run: an existing install is left alone. Read it before you run it; it
 # is short.
 #
 # Non-interactive use: set any of these (and it will not ask):
 #   KORE_DIR=~/kore            where the compose files and .env go
 #   KORE_DATA_DIR=<dir>/data   where files and the database live
-#   KORE_ADMIN_EMAIL=...       KORE_ADMIN_PASSWORD=... (random if unset)
+#   KORE_PUBLIC_URL=...        public address, e.g. https://kore.example.com
+#   KORE_OIDC_ISSUER=...       Kore ID issuer (required: it is the only sign-in)
+#   KORE_OIDC_OWNER_EMAIL=...  first administrator's Kore ID email (required on a fresh install)
+#   KORE_OIDC_CLIENT_ID=kore   KORE_OIDC_CLIENT_SECRET=...
 #   KORE_BIND=127.0.0.1|0.0.0.0   KORE_PORT=8080
 #   KORE_VERSION=latest        image tag
 #   KORE_REF=main              git ref the compose files are fetched from
@@ -52,14 +55,6 @@ confirm() { # confirm "Question" -> 0 for yes (default yes); no when not interac
   case "$ans" in [nN]*) return 1 ;; *) return 0 ;; esac
 }
 
-random_password() {
-  if command -v openssl >/dev/null 2>&1; then
-    openssl rand -base64 36 | tr -dc 'A-Za-z0-9' | head -c 20 || true
-  else
-    LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20 || true
-  fi
-}
-
 fetch() { # fetch FILE DEST
   if [ -n "${KORE_SOURCE_DIR:-}" ]; then
     cp "${KORE_SOURCE_DIR}/$1" "$2"
@@ -81,32 +76,36 @@ docker info >/dev/null 2>&1 || die "Cannot talk to the Docker daemon. Is it runn
 # --- Already installed? ---------------------------------------------------
 KORE_DIR="${KORE_DIR:-$HOME/kore}"
 if [ -f "$KORE_DIR/.env" ]; then
-  say "Kore is already installed in $KORE_DIR (found .env); leaving it alone."
+  say "KoreDrive is already installed in $KORE_DIR (found .env); leaving it alone."
   say "To update:  cd $KORE_DIR && docker compose pull && docker compose up -d"
   exit 0
 fi
 
 # --- Questions ------------------------------------------------------------
-step "Configuring Kore"
+step "Configuring KoreDrive"
 ask KORE_DIR "Install directory (compose files and .env)" "$KORE_DIR"
 ask KORE_DATA_DIR "Data directory (files and database)" "$KORE_DIR/data"
-ask KORE_ADMIN_EMAIL "Admin email" "admin@example.com"
-GENERATED=0
-if [ -z "${KORE_ADMIN_PASSWORD:-}" ]; then
-  if [ "$INTERACTIVE" = 1 ]; then
-    printf 'Admin password (at least 8 characters, empty = generate one): ' >/dev/tty
-    IFS= read -r -s KORE_ADMIN_PASSWORD </dev/tty || true
-    printf '\n' >/dev/tty
-  fi
-  if [ -z "${KORE_ADMIN_PASSWORD:-}" ]; then KORE_ADMIN_PASSWORD="$(random_password)"; GENERATED=1; fi
-fi
 ask KORE_BIND "Listen on (127.0.0.1 = this machine only, 0.0.0.0 = LAN/Tailscale too)" "127.0.0.1"
 ask KORE_PORT "Port" "8080"
+ask KORE_PUBLIC_URL "Public URL of KoreDrive (where people open it)" "http://127.0.0.1:${KORE_PORT}"
+ask KORE_OIDC_ISSUER "Kore ID issuer URL (Kore ID is the only sign-in)" "https://id.example.com"
+ask KORE_OIDC_CLIENT_ID "Kore ID client id" "kore"
+if [ -z "${KORE_OIDC_CLIENT_SECRET:-}" ] && [ "$INTERACTIVE" = 1 ]; then
+  printf 'Kore ID client secret (leave empty if the client is public): ' >/dev/tty
+  IFS= read -r -s KORE_OIDC_CLIENT_SECRET </dev/tty || true
+  printf '\n' >/dev/tty
+fi
+ask KORE_OIDC_OWNER_EMAIL "Owner email (the first administrator becomes admin on first Kore ID sign-in)" ""
 
-[ "${#KORE_ADMIN_PASSWORD}" -ge 8 ] || die "the admin password must be at least 8 characters"
-case "$KORE_ADMIN_PASSWORD" in *\'*|*$'\n'*) die "the admin password must not contain a single quote or a newline" ;; esac
-[ "$KORE_ADMIN_PASSWORD" != "change-me" ] || die "pick a real admin password"
 case "$KORE_PORT" in ''|*[!0-9]*) die "the port must be a number" ;; esac
+[ -n "$KORE_OIDC_ISSUER" ] || die "Kore ID is required: set KORE_OIDC_ISSUER"
+[ -n "$KORE_OIDC_OWNER_EMAIL" ] || die "set KORE_OIDC_OWNER_EMAIL: the first Kore ID sign-in with it becomes the administrator"
+case "$KORE_OIDC_OWNER_EMAIL" in *@*.*) ;; *) die "KORE_OIDC_OWNER_EMAIL must be an email address" ;; esac
+case "$KORE_PUBLIC_URL" in http://*|https://*) ;; *) die "KORE_PUBLIC_URL must start with http:// or https://" ;; esac
+case "$KORE_OIDC_ISSUER" in http://*|https://*) ;; *) die "KORE_OIDC_ISSUER must start with http:// or https://" ;; esac
+for v in KORE_PUBLIC_URL KORE_OIDC_ISSUER KORE_OIDC_CLIENT_ID KORE_OIDC_CLIENT_SECRET KORE_OIDC_OWNER_EMAIL; do
+  case "${!v}" in *\'*|*$'\n'*) die "$v must not contain a single quote or a newline" ;; esac
+done
 
 KORE_DIR="${KORE_DIR/#\~/$HOME}"
 KORE_DATA_DIR="${KORE_DATA_DIR/#\~/$HOME}"
@@ -127,9 +126,9 @@ fi
 HAVE_VOLUME=0
 if [ -f "$KORE_DATA_DIR/.kore-volume" ]; then
   HAVE_VOLUME=1
-  say "Found an existing Kore data volume there; reusing it."
+  say "Found an existing KoreDrive data volume there; reusing it."
 elif [ -n "$(ls -A "$KORE_DATA_DIR" 2>/dev/null)" ]; then
-  die "$KORE_DATA_DIR is not empty and is not a Kore data volume; refusing to use it. Pick an empty directory."
+  die "$KORE_DATA_DIR is not empty and is not a KoreDrive data volume; refusing to use it. Pick an empty directory."
 fi
 [ -w "$KORE_DATA_DIR" ] || die "$KORE_DATA_DIR is not writable by you ($(id -un)). Fix its owner (chown $KORE_UID:$KORE_GID) and run again."
 
@@ -141,8 +140,11 @@ fetch Caddyfile "$KORE_DIR/Caddyfile"
 umask 077
 cat >"$KORE_DIR/.env" <<EOF
 # Written by install.sh. See .env.example in the repository for every option.
-KORE_ADMIN_EMAIL='${KORE_ADMIN_EMAIL}'
-KORE_ADMIN_PASSWORD='${KORE_ADMIN_PASSWORD}'
+KORE_PUBLIC_URL='${KORE_PUBLIC_URL}'
+KORE_OIDC_ISSUER='${KORE_OIDC_ISSUER}'
+KORE_OIDC_CLIENT_ID='${KORE_OIDC_CLIENT_ID}'
+KORE_OIDC_CLIENT_SECRET='${KORE_OIDC_CLIENT_SECRET:-}'
+KORE_OIDC_OWNER_EMAIL='${KORE_OIDC_OWNER_EMAIL}'
 KORE_DATA_DIR='${KORE_DATA_DIR}'
 KORE_BIND=${KORE_BIND}
 KORE_PORT=${KORE_PORT}
@@ -164,10 +166,10 @@ if [ "$HAVE_VOLUME" = 0 ]; then
   # -T and </dev/null: when the script comes from a pipe, docker must not read it from stdin.
   docker compose run --rm -T api kore init </dev/null
 fi
-step "Starting Kore"
+step "Starting KoreDrive"
 docker compose up -d </dev/null
 
-printf 'Waiting for Kore to come up'
+printf 'Waiting for KoreDrive to come up'
 UP=0
 for _ in $(seq 1 60); do
   if (command -v curl >/dev/null 2>&1 && curl -fsS -o /dev/null "http://127.0.0.1:${KORE_PORT}/api/healthz" 2>/dev/null) ||
@@ -175,7 +177,7 @@ for _ in $(seq 1 60); do
   printf '.'; sleep 2
 done
 printf '\n'
-[ "$UP" = 1 ] || die "Kore did not become healthy. See: cd $KORE_DIR && docker compose ps && docker compose logs"
+[ "$UP" = 1 ] || die "KoreDrive did not become healthy. See: cd $KORE_DIR && docker compose ps && docker compose logs"
 
 # --- Reboot safety: make Docker wait for the data disk ---------------------
 if command -v findmnt >/dev/null 2>&1 && command -v systemctl >/dev/null 2>&1 && [ -d /etc/systemd/system ]; then
@@ -183,7 +185,7 @@ if command -v findmnt >/dev/null 2>&1 && command -v systemctl >/dev/null 2>&1 &&
   if [ -n "$MNT" ] && [ "$MNT" != "/" ] && [ ! -f /etc/systemd/system/docker.service.d/wait-for-kore-data.conf ]; then
     say
     say "The data directory is on its own mount ($MNT). If Docker starts before that disk"
-    say "is mounted after a reboot, Kore stays down until you restart it."
+    say "is mounted after a reboot, KoreDrive stays down until you restart it."
     if command -v sudo >/dev/null 2>&1 && confirm "Make Docker wait for $MNT at boot?"; then
       sudo mkdir -p /etc/systemd/system/docker.service.d
       printf '[Unit]\nRequiresMountsFor=%s\n' "$MNT" | sudo tee /etc/systemd/system/docker.service.d/wait-for-kore-data.conf >/dev/null
@@ -197,17 +199,11 @@ if command -v findmnt >/dev/null 2>&1 && command -v systemctl >/dev/null 2>&1 &&
 fi
 
 # --- Done -----------------------------------------------------------------
-HOST="127.0.0.1"
-if [ "$KORE_BIND" = "0.0.0.0" ]; then
-  HOST="$(hostname -I 2>/dev/null | awk '{print $1}')"; HOST="${HOST:-this-server}"
-elif [ "$KORE_BIND" != "127.0.0.1" ]; then
-  HOST="$KORE_BIND"
-fi
 say
 printf '%sKore is running.%s\n' "$G" "$N"
-say "  Open:      http://${HOST}:${KORE_PORT}"
-say "  Sign in:   ${KORE_ADMIN_EMAIL}"
-if [ "$GENERATED" = 1 ]; then say "  Password:  ${KORE_ADMIN_PASSWORD}   (generated; change it under Account after signing in)"; else say "  Password:  the one you chose"; fi
+say "  Open:      ${KORE_PUBLIC_URL}"
+say "  Sign in:   Continue with Kore ID (first admin: ${KORE_OIDC_OWNER_EMAIL})"
+say "  Kore ID:   ${KORE_OIDC_ISSUER}"
 say "  Files:     $KORE_DIR   (docker-compose.yml, .env)"
 say "  Data:      $KORE_DATA_DIR"
 say

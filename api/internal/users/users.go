@@ -34,8 +34,10 @@ func NewID() string {
 	return hex.EncodeToString(b)
 }
 
-// Create inserts a user with an already-hashed password.
-func Create(ctx context.Context, db *sql.DB, email, pwHash, role string, quotaBytes int64) (User, error) {
+// Create inserts a user. Accounts come from Kore ID; pw_hash is a legacy
+// column kept NOT NULL for existing databases, so it is written empty and
+// never read.
+func Create(ctx context.Context, db *sql.DB, email, role string, quotaBytes int64) (User, error) {
 	email = strings.TrimSpace(email)
 	if email == "" {
 		return User{}, errors.New("email is required")
@@ -45,8 +47,8 @@ func Create(ctx context.Context, db *sql.DB, email, pwHash, role string, quotaBy
 	}
 	u := User{ID: NewID(), Email: email, Role: role, QuotaBytes: quotaBytes}
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO users(id,email,pw_hash,role,quota_bytes,created_at) VALUES(?,?,?,?,?,?)`,
-		u.ID, u.Email, pwHash, u.Role, u.QuotaBytes, time.Now().Unix())
+		`INSERT INTO users(id,email,pw_hash,role,quota_bytes,created_at) VALUES(?,?,'',?,?,?)`,
+		u.ID, u.Email, u.Role, u.QuotaBytes, time.Now().Unix())
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") {
 			return User{}, ErrExists
@@ -56,17 +58,16 @@ func Create(ctx context.Context, db *sql.DB, email, pwHash, role string, quotaBy
 	return u, nil
 }
 
-// GetByEmail returns the user and stored password hash (email is case-insensitive).
-func GetByEmail(ctx context.Context, db *sql.DB, email string) (User, string, error) {
+// GetByEmail returns the user with that email (case-insensitive).
+func GetByEmail(ctx context.Context, db *sql.DB, email string) (User, error) {
 	var u User
-	var h string
 	err := db.QueryRowContext(ctx,
-		`SELECT id,email,role,quota_bytes,pw_hash FROM users WHERE email=?`, strings.TrimSpace(email)).
-		Scan(&u.ID, &u.Email, &u.Role, &u.QuotaBytes, &h)
+		`SELECT id,email,role,quota_bytes FROM users WHERE email=?`, strings.TrimSpace(email)).
+		Scan(&u.ID, &u.Email, &u.Role, &u.QuotaBytes)
 	if errors.Is(err, sql.ErrNoRows) {
-		return User{}, "", ErrNotFound
+		return User{}, ErrNotFound
 	}
-	return u, h, err
+	return u, err
 }
 
 // Count returns the number of users.

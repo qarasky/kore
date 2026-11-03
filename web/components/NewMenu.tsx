@@ -1,19 +1,22 @@
 "use client";
 
+import { Button, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@qarasky/kore-ui";
+import { FileUp, FolderPlus, FolderUp, Plus } from "lucide-react";
 import { useRef, type ChangeEvent } from "react";
 import { collectInputFiles } from "@/lib/dropEntries";
 import { t } from "@/lib/i18n";
 import { useBrowserHandle } from "./BrowserContext";
-import { FileUploadIcon, FolderPlusIcon, FolderUploadIcon, PlusIcon } from "./icons";
-import { Dropdown, type MenuAction } from "./Menu";
 import { useUploads } from "./UploadContext";
 
-/** The sidebar's "+ New" button. Entries act on the folder currently shown. */
+/** The sidebar's "+ New" button (kore-ui Menu). Entries act on the folder currently shown. */
 export function NewMenu() {
   const browser = useBrowserHandle();
   const uploads = useUploads();
   const fileInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
+  // "New folder" runs once the menu has closed: the open menu traps focus, so
+  // the inline name field would lose it, and closing would move it back to "New".
+  const afterClose = useRef<(() => void) | null>(null);
 
   function onPicked(e: ChangeEvent<HTMLInputElement>) {
     const input = e.currentTarget;
@@ -23,44 +26,39 @@ export function NewMenu() {
     void uploads.upload(collectInputFiles(files), { space: browser.space, parent: browser.parentId });
   }
 
-  const items: MenuAction[] = [
-    {
-      id: "folder",
-      label: t("new.folder"),
-      icon: <FolderPlusIcon />,
-      disabled: !browser,
-      onSelect: () => browser?.newFolder(),
-    },
-    {
-      id: "file-upload",
-      label: t("new.fileUpload"),
-      icon: <FileUploadIcon />,
-      disabled: !browser,
-      separated: true,
-      onSelect: () => fileInput.current?.click(),
-    },
-    {
-      id: "folder-upload",
-      label: t("new.folderUpload"),
-      icon: <FolderUploadIcon />,
-      disabled: !browser,
-      onSelect: () => folderInput.current?.click(),
-    },
-  ];
-
   return (
     <>
-      <Dropdown
-        label={t("new.menu")}
-        items={items}
-        buttonClassName={
-          "flex min-h-11 items-center gap-2.5 rounded-ui bg-accent pr-5 pl-4 font-medium text-white " +
-          "shadow-[0_1px_0_rgba(255,255,255,0.12)_inset] transition-colors hover:bg-accent-hover"
-        }
-      >
-        <PlusIcon />
-        {t("new.button")}
-      </Dropdown>
+      <Menu>
+        <MenuTrigger asChild>
+          <Button variant="primary" className="pr-5 pl-4">
+            <Plus />
+            {t("new.button")}
+          </Button>
+        </MenuTrigger>
+        <MenuContent
+          aria-label={t("new.menu")}
+          onCloseAutoFocus={(e) => {
+            const run = afterClose.current;
+            afterClose.current = null;
+            if (!run) return;
+            e.preventDefault();
+            run();
+          }}
+        >
+          <MenuItem icon={<FolderPlus />} disabled={!browser} onSelect={() => {
+              afterClose.current = () => browser?.newFolder();
+            }}>
+            {t("new.folder")}
+          </MenuItem>
+          <MenuSeparator />
+          <MenuItem icon={<FileUp />} disabled={!browser} onSelect={() => fileInput.current?.click()}>
+            {t("new.fileUpload")}
+          </MenuItem>
+          <MenuItem icon={<FolderUp />} disabled={!browser} onSelect={() => folderInput.current?.click()}>
+            {t("new.folderUpload")}
+          </MenuItem>
+        </MenuContent>
+      </Menu>
       <input ref={fileInput} type="file" multiple hidden tabIndex={-1} data-testid="upload-file-input" onChange={onPicked} />
       <input
         ref={(el) => {

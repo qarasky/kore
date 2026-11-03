@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useTransition, type KeyboardEvent } from "react";
@@ -9,7 +10,6 @@ import { formatBytes } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { isPreviewable } from "@/lib/preview";
 import { locationHref, resultHref, type SearchHit } from "@/lib/search";
-import { ChevronRightIcon } from "./icons";
 import { NodeThumb } from "./NodeThumb";
 import { RelativeTime } from "./RelativeTime";
 import { UploaderCell, UploaderHeader } from "./UploaderCell";
@@ -130,7 +130,7 @@ export function SearchResults({ hits }: { hits: SearchHit[] }) {
               className={
                 `${grid} h-row cursor-default border-b border-border/60 select-none outline-none ` +
                 "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset " +
-                (selected ? "bg-accent/15 text-text" : "hover:bg-white/[0.03]")
+                (selected ? "bg-accent/10 text-text" : "hover:bg-white/[0.03]")
               }
             >
               <div className="flex min-w-0 items-center gap-2.5">
@@ -162,7 +162,7 @@ export function SearchResults({ hits }: { hits: SearchHit[] }) {
               >
                 {crumbs.map((c, i) => (
                   <span key={i} className="flex min-w-0 items-center gap-0.5">
-                    {i > 0 && <ChevronRightIcon className="size-3" />}
+                    {i > 0 && <ChevronRight aria-hidden="true" className="size-3 shrink-0" />}
                     <span className="truncate">{c}</span>
                   </span>
                 ))}

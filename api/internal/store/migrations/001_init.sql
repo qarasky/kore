@@ -1,6 +1,8 @@
 CREATE TABLE users (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  -- Legacy column from password login. Never read or written with a hash
+  -- now that Kore ID is the only sign-in; kept so old databases keep working.
   pw_hash TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('admin','user')),
   quota_bytes INTEGER NOT NULL DEFAULT 0,

@@ -1,24 +1,16 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { Button, Dialog, DialogContent, EmptyState, IconButton, Spinner } from "@qarasky/kore-ui";
+import { ChevronLeft, ChevronRight, Download, ListOrdered, Maximize2, WrapText } from "lucide-react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { apiText, isApiError } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { fileKind, type ApiNode } from "@/lib/nodes";
 import { defaultLineNumbers, isMarkdown, nodeUrls, PREVIEW_MAX_BYTES, previewKind, type PreviewUrls } from "@/lib/preview";
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  CloseIcon,
-  DownloadIcon,
-  ExpandIcon,
-  ListNumbersIcon,
-  NodeIcon,
-  WrapIcon,
-} from "./icons";
 import { MarkdownView } from "./MarkdownView";
 import { ImageView, PdfView } from "./MediaView";
-import { Modal } from "./Modal";
+import { NodeIcon } from "./NodeIcon";
 import { TextView } from "./TextView";
 
 type Loaded =
@@ -30,9 +22,12 @@ type Loaded =
 /** Keys that keep their own meaning on these elements (Space presses a button). */
 const isControl = (el: EventTarget) => (el as Element).closest?.("button, a, input, textarea, select") != null;
 
+/** A pressed-state toolbar toggle (Wrap lines, Line numbers, Actual size). */
+const toggleClass = "text-muted hover:text-text aria-pressed:bg-accent/15 aria-pressed:text-text";
+
 /**
- * Quick-look preview in a modal: name, size, Download, Close (Escape or
- * Space), and ←/→ through `items` (the previewable siblings: text, images
+ * Quick-look preview in a kore-ui Dialog: name, size, Download, Close (Escape
+ * or Space), and ←/→ through `items` (the previewable siblings: text, images
  * and PDFs alike). Text comes from `GET /api/nodes/{id}/preview`; images
  * (fit or actual size: click or Z) and PDFs (the browser's viewer in a
  * frame) from `GET /api/nodes/{id}/view`. A 415 means the server disagrees
@@ -61,7 +56,6 @@ export function PreviewPane({
   urls?: PreviewUrls;
 }) {
   const node = items[index];
-  const titleId = useId();
   const bodyRef = useRef<HTMLDivElement>(null);
   const [wrap, setWrap] = useState(false);
   const [numbers, setNumbers] = useState<Record<string, boolean>>({});
@@ -84,7 +78,7 @@ export function PreviewPane({
     bodyRef.current?.focus();
   }
 
-  function onKeyDown(e: KeyboardEvent<HTMLDialogElement>) {
+  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.altKey || e.ctrlKey || e.metaKey) return;
     if (e.key === " " && !isControl(e.target)) {
       e.preventDefault();
@@ -101,78 +95,87 @@ export function PreviewPane({
     }
   }
 
-  const toolButton =
-    "inline-flex items-center gap-1.5 rounded-ui px-2 py-1 text-muted hover:bg-white/5 hover:text-text " +
-    "disabled:pointer-events-none disabled:opacity-40 aria-pressed:bg-accent/15 aria-pressed:text-text";
+  const meta =
+    items.length > 1
+      ? `${formatBytes(node.size)} · ${t("preview.position", { index: index + 1, count: items.length })}`
+      : formatBytes(node.size);
 
   return (
-    <Modal
-      labelledBy={titleId}
-      onClose={onClose}
-      initialFocus={bodyRef}
-      returnFocus={returnFocus}
-      onKeyDown={onKeyDown}
-      className="h-[min(88vh,960px)] w-[min(1100px,calc(100vw-48px))] max-w-none"
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
     >
-      <div data-testid="preview" data-node-id={node.id} className="flex h-full flex-col">
-        <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border pr-2 pl-4">
-          <NodeIcon kind={fileKind(node)} />
-          <div className="flex min-w-0 flex-1 items-baseline gap-2.5">
-            <h2 id={titleId} className="truncate text-heading font-semibold" title={node.name}>
-              {node.name}
-            </h2>
-            <span className="shrink-0 text-muted tabular-nums">{formatBytes(node.size)}</span>
-            {items.length > 1 && (
-              <span className="shrink-0 text-meta text-muted tabular-nums">
-                {t("preview.position", { index: index + 1, count: items.length })}
-              </span>
-            )}
-          </div>
+      <DialogContent
+        data-testid="preview"
+        data-node-id={node.id}
+        title={
+          <span className="flex min-w-0 items-center gap-2.5" title={node.name}>
+            <NodeIcon kind={fileKind(node)} />
+            <span className="truncate">{node.name}</span>
+          </span>
+        }
+        description={<span className="tabular-nums">{meta}</span>}
+        closeLabel={t("preview.close")}
+        className="h-[min(88vh,960px)] w-[min(1100px,calc(100vw-48px))]"
+        onKeyDown={onKeyDown}
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          bodyRef.current?.focus();
+        }}
+        onCloseAutoFocus={(e) => {
+          const target = returnFocus?.();
+          if (target?.isConnected) {
+            e.preventDefault();
+            target.focus();
+          }
+        }}
+      >
+        <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border px-3 pt-2 pb-2.5">
           {items.length > 1 && (
-            <div className="flex items-center">
-              <button type="button" className={toolButton} onClick={() => go(-1)} disabled={!hasPrev} aria-label={t("preview.prev")} title={t("preview.prev")}>
-                <ChevronLeftIcon />
-              </button>
-              <button type="button" className={toolButton} onClick={() => go(1)} disabled={!hasNext} aria-label={t("preview.next")} title={t("preview.next")}>
-                <ChevronRightIcon />
-              </button>
-            </div>
+            <>
+              <IconButton label={t("preview.prev")} icon={<ChevronLeft />} onClick={() => go(-1)} disabled={!hasPrev} />
+              <IconButton label={t("preview.next")} icon={<ChevronRight />} onClick={() => go(1)} disabled={!hasNext} />
+            </>
           )}
           {kind === "image" && (
-            <button type="button" className={toolButton} aria-pressed={actual} aria-keyshortcuts="Z" title={t("preview.zoomHint")} onClick={toggleZoom}>
-              <ExpandIcon />
+            <Button
+              variant="ghost"
+              size="sm"
+              className={toggleClass}
+              aria-pressed={actual}
+              aria-keyshortcuts="Z"
+              title={t("preview.zoomHint")}
+              onClick={toggleZoom}
+            >
+              <Maximize2 aria-hidden="true" />
               {t("preview.actualSize")}
-            </button>
+            </Button>
           )}
           {kind === "text" && !markdown && (
-            <div className="flex items-center gap-0.5">
-              <button type="button" className={toolButton} aria-pressed={wrap} onClick={() => setWrap((w) => !w)}>
-                <WrapIcon />
+            <>
+              <Button variant="ghost" size="sm" className={toggleClass} aria-pressed={wrap} onClick={() => setWrap((w) => !w)}>
+                <WrapText aria-hidden="true" />
                 {t("preview.wrap")}
-              </button>
-              <button
-                type="button"
-                className={toolButton}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={toggleClass}
                 aria-pressed={lineNumbers}
                 onClick={() => setNumbers((m) => ({ ...m, [node.id]: !lineNumbers }))}
               >
-                <ListNumbersIcon />
+                <ListOrdered aria-hidden="true" />
                 {t("preview.lineNumbers")}
-              </button>
-            </div>
+              </Button>
+            </>
           )}
-          <button
-            type="button"
-            onClick={() => onDownload(node)}
-            className="inline-flex items-center gap-1.5 rounded-ui border border-border-strong px-2.5 py-1 font-medium hover:bg-white/5"
-          >
-            <DownloadIcon />
+          <Button size="sm" className="ml-auto" onClick={() => onDownload(node)}>
+            <Download aria-hidden="true" />
             {t("preview.download")}
-          </button>
-          <button type="button" onClick={onClose} aria-label={t("preview.close")} title={t("preview.close")} className={toolButton}>
-            <CloseIcon />
-          </button>
-        </header>
+          </Button>
+        </div>
         <div
           ref={bodyRef}
           tabIndex={0}
@@ -208,8 +211,8 @@ export function PreviewPane({
             />
           )}
         </div>
-      </div>
-    </Modal>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -255,27 +258,30 @@ export function PreviewBody({
   if (loaded.status === "loading") {
     return (
       <div role="status" className="flex h-full items-center justify-center gap-2 text-muted">
-        <span aria-hidden="true" className="size-3.5 animate-spin rounded-full border-[1.5px] border-muted border-t-transparent" />
+        <Spinner size={14} />
         {t("preview.loading")}
       </div>
     );
   }
   if (loaded.status !== "ok") {
     return (
-      <div role="alert" className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-        <p>{loaded.status === "notFound" ? t("preview.notFound") : t("preview.error")}</p>
-        {loaded.status === "error" && (
-          <button
-            type="button"
-            onClick={() => {
-              setLoaded({ status: "loading" });
-              setAttempt((a) => a + 1);
-            }}
-            className="rounded-ui border border-border-strong px-3 py-1.5 font-medium hover:bg-white/5"
-          >
-            {t("preview.retry")}
-          </button>
-        )}
+      <div role="alert" className="flex h-full items-center justify-center">
+        <EmptyState
+          title={loaded.status === "notFound" ? t("preview.notFound") : t("preview.error")}
+          action={
+            loaded.status === "error" ? (
+              <Button
+                size="sm"
+                onClick={() => {
+                  setLoaded({ status: "loading" });
+                  setAttempt((a) => a + 1);
+                }}
+              >
+                {t("preview.retry")}
+              </Button>
+            ) : undefined
+          }
+        />
       </div>
     );
   }
@@ -287,9 +293,9 @@ export function PreviewBody({
           className="sticky top-0 left-0 z-10 flex items-center gap-2 border-b border-border bg-raised px-4 py-2 text-meta"
         >
           <span>{t("preview.truncated", { size: formatBytes(PREVIEW_MAX_BYTES) })}</span>
-          <button type="button" onClick={() => onDownload(node)} className="font-medium text-accent hover:underline">
+          <Button variant="link" className="text-meta" onClick={() => onDownload(node)}>
             {t("preview.truncatedDownload")}
-          </button>
+          </Button>
         </div>
       )}
       {loaded.text === "" ? (
