@@ -1,0 +1,116 @@
+package dev.qarasky.korecalendar.data
+
+import android.content.SharedPreferences
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import java.security.KeyStore
+import java.util.Base64
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
+
+/** Small string storage: SharedPreferences on the phone, a map in tests. */
+interface KeyValue {
+    fun get(k: String): String?
+    fun put(k: String, v: String?)
+}
+
+class SharedPrefsKeyValue(private val prefs: SharedPreferences) : KeyValue {
+    override fun get(k: String): String? = prefs.getString(k, null)
+    override fun put(k: String, v: String?) {
+        prefs.edit().apply { if (v == null) remove(k) else putString(k, v) }.apply()
+    }
+}
+
+/** Seals a secret so that only this app on this phone can open it. */
+interface SecretBox {
+    fun seal(plain: ByteArray): ByteArray
+    fun open(sealed: ByteArray): ByteArray
+}
+
+/** AES-256-GCM with a key that lives in the Android Keystore and never leaves it. */
+class KeystoreSecretBox(private val alias: String = "korecal-token") : SecretBox {
+    private fun key(): SecretKey {
+        val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        (ks.getKey(alias, null) as? SecretKey)?.let { return it }
+        val gen = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        gen.init(
+            KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setKeySize(256)
+                .build(),
+        )
+        return gen.generateKey()
+    }
+
+    override fun seal(plain: ByteArray): ByteArray {
+        val c = Cipher.getInstance("AES/GCM/NoPadding")
+        c.init(Cipher.ENCRYPT_MODE, key())
+        return c.iv + c.doFinal(plain)
+    }
+
+    override fun open(sealed: ByteArray): ByteArray {
+        require(sealed.size > IV_BYTES) { "too short" }
+        val c = Cipher.getInstance("AES/GCM/NoPadding")
+        c.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, sealed, 0, IV_BYTES))
+        return c.doFinal(sealed, IV_BYTES, sealed.size - IV_BYTES)
+    }
+
+    private companion object {
+        const val IV_BYTES = 12
+    }
+}
+
+/** Who is signed in, and the app's access token (sealed). The password is never kept. */
+data class Account(val serverUrl: String, val userId: String, val email: String, val timezone: String, val token: String)
+
+class AccountStore(private val kv: KeyValue, private val box: SecretBox) {
+    fun save(a: Account) {
+        kv.put(SERVER, a.serverUrl)
+        kv.put(USER, a.userId)
+        kv.put(EMAIL, a.email)
+        kv.put(TZ, a.timezone)
+        kv.put(TOKEN, Base64.getEncoder().encodeToString(box.seal(a.token.toByteArray())))
+    }
+
+    /** The account, or null when none is saved or its token can no longer be opened (then it is forgotten). */
+    fun load(): Account? {
+        val server = kv.get(SERVER) ?: return null
+        val sealed = kv.get(TOKEN) ?: return null
+        val token = try {
+            String(box.open(Base64.getDecoder().decode(sealed)))
+        } catch (_: Exception) {
+            clear()
+            return null
+        }
+        return Account(server, kv.get(USER) ?: "", kv.get(EMAIL) ?: "", kv.get(TZ) ?: "UTC", token)
+    }
+
+    fun clear() = listOf(SERVER, USER, EMAIL, TZ, TOKEN).forEach { kv.put(it, null) }
+
+    private companion object {
+        const val SERVER = "account.server"
+        const val USER = "account.userId"
+        const val EMAIL = "account.email"
+        const val TZ = "account.timezone"
+        const val TOKEN = "account.token"
+    }
+}
+
+/** Display choices kept on the phone (like the web app's cookies). */
+class Prefs(private val kv: KeyValue) {
+    var clock24: Boolean
+        get() = kv.get(CLOCK) != "12"
+        set(v) = kv.put(CLOCK, if (v) "24" else "12")
+
+    var hiddenCalendars: Set<String>
+        get() = kv.get(HIDDEN)?.split(',')?.filter { it.isNotEmpty() }?.toSet() ?: emptySet()
+        set(v) = kv.put(HIDDEN, v.sorted().joinToString(","))
+
+    private companion object {
+        const val CLOCK = "prefs.clock"
+        const val HIDDEN = "prefs.hidden"
+    }
+}
