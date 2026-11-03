@@ -91,6 +91,7 @@ fun SignInScreen(
         Text(stringResource(R.string.password_not_kept), color = Palette.muted, style = MaterialTheme.typography.bodySmall)
         error?.let { Text(it, color = Palette.danger) }
         Button(
+            shape = MaterialTheme.shapes.small,
             enabled = !working && url.isNotBlank() && email.isNotBlank() && password.isNotEmpty(),
             onClick = {
                 working = true
@@ -114,6 +115,7 @@ fun SignInScreen(
             modifier = Modifier.fillMaxWidth().height(48.dp),
         ) { Text(stringResource(if (working) R.string.signing_in else R.string.sign_in)) }
         OutlinedButton(
+            shape = MaterialTheme.shapes.small,
             enabled = !working && url.isNotBlank(),
             onClick = {
                 working = true
