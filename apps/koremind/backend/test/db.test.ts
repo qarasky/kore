@@ -37,6 +37,9 @@ test("notes belong to a chat and go with it; messages default to no activity", (
 });
 
 test("loadConfig defaults", () => {
-  expect(loadConfig({})).toEqual({ port: 8787, dataDir: "./data", host: "0.0.0.0", passwordLogin: true, oidc: null });
-  expect(loadConfig({ KOREMIND_PORT: "9000", KOREMIND_DATA_DIR: "/x" })).toEqual({ port: 9000, dataDir: "/x", host: "0.0.0.0", passwordLogin: true, oidc: null });
+  expect(loadConfig({})).toEqual({ port: 8787, dataDir: "./data", host: "0.0.0.0", passwordLogin: true, oidc: null, apps: {} });
+  expect(loadConfig({ KOREMIND_PORT: "9000", KOREMIND_DATA_DIR: "/x" })).toEqual({ port: 9000, dataDir: "/x", host: "0.0.0.0", passwordLogin: true, oidc: null, apps: {} });
+  expect(loadConfig({ KOREMIND_KORE_APPS: " kore=https://files.example.com , KoreCalendar=https://cal.example.com/?a=b" }).apps).toEqual({ kore: "https://files.example.com", korecalendar: "https://cal.example.com/?a=b" });
+  expect(() => loadConfig({ KOREMIND_KORE_APPS: "nope=https://x.example" })).toThrow();
+  expect(() => loadConfig({ KOREMIND_KORE_APPS: "kore=files.example.com" })).toThrow();
 });

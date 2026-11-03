@@ -37,7 +37,7 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
     const path = url.pathname;
     const m = req.method;
     if (m === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
-    if (m === "GET" && path === "/health") return json(200, { name: "koremind", version: s.version, setupRequired: s.auth.setupRequired(), sso: !!s.sso, passwordLogin: s.auth.passwordLogin });
+    if (m === "GET" && path === "/health") return json(200, { name: "koremind", version: s.version, setupRequired: s.auth.setupRequired(), sso: !!s.sso, passwordLogin: s.auth.passwordLogin, ...(s.koreId ? { koreId: s.koreId } : {}), ...(Object.keys(s.apps).length ? { apps: s.apps } : {}) });
 
     // A tunnel (cloudflared, tailscale serve) on this machine arrives from loopback: believe its forwarded address, nobody else's.
     const ip = (opts.trustProxy || isLoopback(socketIp) ? req.headers.get("x-forwarded-for")?.split(",")[0].trim() : undefined) ?? socketIp ?? "unknown";

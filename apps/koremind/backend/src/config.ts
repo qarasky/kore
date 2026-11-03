@@ -37,6 +37,8 @@ export type Config = {
   passwordLogin: boolean;
   /** Null when Kore ID is not configured (KOREMIND_OIDC_ISSUER unset). */
   oidc: OidcConfig | null;
+  /** Other Kore apps for the web UI's app switcher, from KOREMIND_KORE_APPS (`kore=https://…,korecalendar=https://…`). */
+  apps: Partial<Record<"kore" | "koremind" | "korecalendar" | "flatline", string>>;
 };
 
 export const BACKCHANNEL_LOGOUT_PATH = "/auth/backchannel-logout";
@@ -68,5 +70,14 @@ export function loadConfig(env: Record<string, string | undefined>, readFile: (p
   }
   // Turning password login off without a working alternative would lock everyone out, so it needs Kore ID.
   const passwordLogin = oidc ? flag(env.KOREMIND_PASSWORD_LOGIN, true) : true;
-  return { port, dataDir: env.KOREMIND_DATA_DIR ?? "./data", host: "0.0.0.0", passwordLogin, oidc };
+  const apps: Config["apps"] = {};
+  for (const pair of (env.KOREMIND_KORE_APPS ?? "").split(",")) {
+    const [k, ...rest] = pair.split("=");
+    const key = k?.trim().toLowerCase(), url = rest.join("=").trim();
+    if (!key || !url) continue;
+    if (!["kore", "koremind", "korecalendar", "flatline"].includes(key)) throw new Error(`KOREMIND_KORE_APPS: unknown app "${key}" (kore, koremind, korecalendar, flatline)`);
+    if (!/^https?:\/\//.test(url)) throw new Error(`KOREMIND_KORE_APPS: ${key} needs an http(s) URL`);
+    apps[key as keyof Config["apps"]] = url;
+  }
+  return { port, dataDir: env.KOREMIND_DATA_DIR ?? "./data", host: "0.0.0.0", passwordLogin, oidc, apps };
 }

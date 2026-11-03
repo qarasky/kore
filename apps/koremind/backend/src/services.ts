@@ -15,7 +15,7 @@ import { createSettings } from "./settings";
 import { createUploads } from "./uploads";
 
 export type ServiceOptions = { db: Database; dataDir: string; engine: Engine; version: string; maxUploadBytes?: number; /** Shared secret the local engine presents on /mcp. */ mcpSecret?: string; approvalTimeoutMs?: number; /** Backend addresses a phone can use, best first. */ addresses?: () => string[];
-  /** Kore ID sign-in; null/undefined = off. */ oidc?: OidcConfig | null; /** Test seam: a ready-made OIDC client. */ oidcClient?: Oidc; /** false = turn email + password sign-in off (needs oidc). */ passwordLogin?: boolean };
+  /** Kore ID sign-in; null/undefined = off. */ oidc?: OidcConfig | null; /** Other Kore apps, for the web UI's app switcher. */ apps?: Record<string, string>; /** Test seam: a ready-made OIDC client. */ oidcClient?: Oidc; /** false = turn email + password sign-in off (needs oidc). */ passwordLogin?: boolean };
 
 export function createServices(o: ServiceOptions) {
   const auth = createAuth(o.db, Date.now, { passwordLogin: o.oidc || o.oidcClient ? o.passwordLogin ?? true : true, ssoOwnerOnly: !!o.oidc?.ownerEmail });
@@ -35,6 +35,7 @@ export function createServices(o: ServiceOptions) {
     onTurnEnd: (chatId) => approvals.endTurn(chatId),
   });
   const addresses = o.addresses ?? (() => ["http://localhost:8787"]);
-  return { db: o.db, engine: o.engine, version: o.version, addresses, approvals, notes, mcp, mcpSecret, auth, sso, settings, memory, uploads, models, chats };
+  const koreId = o.oidc ? { issuer: o.oidc.issuer, accountUrl: `${o.oidc.issuer}/account` } : undefined;
+  return { db: o.db, engine: o.engine, version: o.version, koreId, apps: o.apps ?? {}, addresses, approvals, notes, mcp, mcpSecret, auth, sso, settings, memory, uploads, models, chats };
 }
 export type Services = ReturnType<typeof createServices>;

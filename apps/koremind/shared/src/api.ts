@@ -4,8 +4,17 @@ import { z } from "zod";
 export const User = z.object({ id: z.string(), email: z.string(), isOwner: z.boolean(), ssoLinked: z.boolean().optional() });
 export type User = z.infer<typeof User>;
 
-/** `sso` = Kore ID sign-in is configured; `passwordLogin` = email + password still works. Older servers omit both. */
-export const Health = z.object({ name: z.literal("koremind"), version: z.string(), setupRequired: z.boolean(), sso: z.boolean().default(false), passwordLogin: z.boolean().default(true) });
+/** The Kore apps the web UI's app switcher links to (keys are Kore ID app keys). */
+export const KoreApps = z.object({ kore: z.string(), koremind: z.string(), korecalendar: z.string(), flatline: z.string() }).partial();
+export type KoreApps = z.infer<typeof KoreApps>;
+/**
+ * `sso` = Kore ID sign-in is configured; `passwordLogin` = email + password still works. Older servers omit both.
+ * `koreId.accountUrl` = the Kore ID account page (only with Kore ID); `apps` = other Kore apps for the app switcher (KOREMIND_KORE_APPS).
+ */
+export const Health = z.object({
+  name: z.literal("koremind"), version: z.string(), setupRequired: z.boolean(), sso: z.boolean().default(false), passwordLogin: z.boolean().default(true),
+  koreId: z.object({ issuer: z.string(), accountUrl: z.string() }).optional(), apps: KoreApps.optional(),
+});
 export type Health = z.infer<typeof Health>;
 
 export const AuthRequest = z.object({ email: z.string().email(), password: z.string().min(8) });

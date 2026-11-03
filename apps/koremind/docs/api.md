@@ -6,7 +6,7 @@ Source of truth: `shared/src/api.ts` (zod). All bodies are JSON unless noted. Au
 
 | Route | Auth | Request | Response |
 | --- | --- | --- | --- |
-| `GET /health` | no | | `{name:"koremind",version,setupRequired}` |
+| `GET /health` | no | | `{name:"koremind",version,setupRequired,sso,passwordLogin,koreId?:{issuer,accountUrl},apps?}`; `koreId` only with Kore ID, `apps` = `KOREMIND_KORE_APPS` (the web UI's app switcher) |
 | `POST /auth/register` | only while no users exist, afterwards owner token | `{email,password(min 8)}` | `{token,user}` |
 | `POST /auth/login` | no | `{email,password}` | `{token,user}`; 401 `bad_credentials`; 429 `rate_limited` with `retryAfterSec` |
 | `POST /auth/logout` | yes | | `{ok:true, logoutUrl?}`; `logoutUrl` (Kore ID sessions) is where the client sends the browser to end the Kore ID session too |

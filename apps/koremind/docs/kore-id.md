@@ -67,6 +67,8 @@ KoreMind can sign people in with **Kore ID**, the OpenID Connect provider shared
    | `KOREMIND_OIDC_EMAIL_LINK` | **on** | Link a first Kore ID sign-in to the existing local account with the same email **when the token says `email_verified: true`**. `0` = link by hand only. Old name `KOREMIND_OIDC_TRUST_EMAIL_LINK` is still read (the new name wins); unlike before, it never links an unverified email. |
    | `KOREMIND_PASSWORD_LOGIN` | on | `0` = email + password sign-in and registration off. Ignored (stays on) unless Kore ID is configured, so you cannot lock yourself out by accident. |
 
+   Optional: `KOREMIND_KORE_APPS=kore=https://…,korecalendar=https://…,flatline=https://…` fills the web UI's app switcher and the account menu's "Switch app" list. The account menu's **Kore ID account** item opens `<issuer>/account`.
+
 3. Restart. `GET /health` shows `"sso": true`; the web and Android login screens show **Continue with Kore ID**.
 
 ## Who gets an account

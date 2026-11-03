@@ -34,7 +34,7 @@ const engine = process.env.KOREMIND_FAKE_ENGINE
 const version = (await Bun.file(join(import.meta.dir, "../package.json")).json()).version ?? "0.1.0";
 let servicePort = config.port;
 // eslint-disable-next-line prefer-const
-const services = createServices({ db: openDb(join(config.dataDir, "koremind.sqlite")), dataDir: config.dataDir, engine, version, mcpSecret, oidc: config.oidc, passwordLogin: config.passwordLogin, addresses: () => listAddresses(networkInterfaces(), servicePort, process.env).map((a) => a.url) });
+const services = createServices({ db: openDb(join(config.dataDir, "koremind.sqlite")), dataDir: config.dataDir, engine, version, mcpSecret, oidc: config.oidc, passwordLogin: config.passwordLogin, apps: config.apps, addresses: () => listAddresses(networkInterfaces(), servicePort, process.env).map((a) => a.url) });
 const app = createApp(services, { trustProxy: process.env.KOREMIND_TRUST_PROXY === "1" });
 
 const server = Bun.serve({

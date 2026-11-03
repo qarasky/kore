@@ -290,7 +290,7 @@ describe("password login switch", () => {
   });
   test("passwordLogin=false refuses register and login but SSO and /health still work", async () => {
     const t = setup({ passwordLogin: false });
-    expect(await (await t.call("GET", "/health")).json()).toMatchObject({ sso: true, passwordLogin: false });
+    expect(await (await t.call("GET", "/health")).json()).toMatchObject({ sso: true, passwordLogin: false, koreId: { issuer: ISSUER, accountUrl: `${ISSUER}/account` } });
     expect((await t.call("POST", "/auth/register", { body: { email: "a@b.co", password: "correct horse" } })).status).toBe(403);
     expect((await t.call("POST", "/auth/login", { body: { email: "a@b.co", password: "correct horse" } })).status).toBe(403);
     expect((await t.exchange(t.ticketOf((await t.browserLogin(alice)).loc))).status).toBe(200);
