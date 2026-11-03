@@ -1,6 +1,6 @@
 "use client";
 
-import { m } from "motion/react";
+import { m, useReducedMotionConfig } from "motion/react";
 import { useEffect, useState } from "react";
 import { COMPACT_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
 import { duration, ease, pushDirection, viewEnter } from "@/lib/motion";
@@ -26,7 +26,10 @@ export function CalendarView(props: { view: View; day: string; days: string[]; o
 
 function Screen(props: { view: View; day: string; days: string[]; occurrences: Occurrence[] }) {
   const { view, day } = props;
-  const [enter] = useState(() => (lastShown ? viewEnter(pushDirection(lastShown, { view, day })) : null));
+  // Reduced motion (the system's or Settings): fade only. Leaving the offset out of the start
+  // state also removes the one frame that would otherwise carry it before Motion strips it.
+  const reduced = useReducedMotionConfig();
+  const [enter] = useState(() => (lastShown ? viewEnter(reduced ? 0 : pushDirection(lastShown, { view, day })) : null));
   useEffect(() => {
     lastShown = { view, day };
   }, [view, day]);

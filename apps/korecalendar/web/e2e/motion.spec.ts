@@ -4,9 +4,6 @@ import { addDays, chooseOption, createEventViaApi, editor, eventBlocks, fillEdit
 const [, , wed] = weekOf(today("UTC"));
 const FRAMES_MS = 700;
 
-/** Frames in which anything is actually visible (a frame at opacity ~0 may carry the start offset; nobody sees it). */
-const visible = (frames: { x: number; opacity: number }[]) => frames.filter((f) => f.opacity > 0.1);
-
 /** Per animation frame: the view wrapper's translateX and opacity, for FRAMES_MS. Started before the action it observes. */
 function sampleView(page: Page) {
   return page.evaluate(
@@ -110,7 +107,7 @@ test.describe.serial("motion", () => {
     await page.getByRole("link", { name: "Next" }).click();
     const frames = await samples;
     await expect(page).toHaveURL(new RegExp(`date=${addDays(wed, 7)}`));
-    expect(visible(frames).every((f) => Math.abs(f.x) < 0.5)).toBe(true);
+    expect(frames.every((f) => Math.abs(f.x) < 0.5)).toBe(true); // no frame at all carries an offset, even an invisible one
     expect(frames.some((f) => f.opacity > 0.1 && f.opacity < 0.9)).toBe(true); // the fade remains
     expect(frames[frames.length - 1].opacity).toBe(1);
     await ctx.close();
@@ -125,7 +122,7 @@ test.describe.serial("motion", () => {
     await openWeek(page, wed);
     const samples = sampleView(page);
     await page.getByRole("link", { name: "Next" }).click();
-    expect(visible(await samples).every((f) => Math.abs(f.x) < 0.5)).toBe(true);
+    expect((await samples).every((f) => Math.abs(f.x) < 0.5)).toBe(true);
 
     const ctx = await browser.newContext({ reducedMotion: "reduce", viewport: { width: 1280, height: 860 } });
     const p2 = await ctx.newPage();
