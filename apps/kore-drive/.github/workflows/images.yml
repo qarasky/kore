@@ -199,4 +199,4 @@ jobs:
             echo
             cat generated.md
           } > notes.md
-          gh release create "${GITHUB_REF_NAME}" --verify-tag --title "Kore ${v}" --notes-file notes.md $pre
+          gh release create "${GITHUB_REF_NAME}" --verify-tag --title "KoreDrive ${v}" --notes-file notes.md $pre

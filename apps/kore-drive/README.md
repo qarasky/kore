@@ -1,6 +1,6 @@
 <img src="assets/kore-icon.svg" width="64" height="64" alt="">
 
-# Kore
+# KoreDrive
 
 A small self-hosted file server for an office: personal spaces and a shared
 space, drag-and-drop uploads (chunked and resumable, so large files work
@@ -55,7 +55,7 @@ so a missing mount never turns into an empty fresh install.
 
 One command. It asks a few questions (or takes the defaults), writes the
 config, creates and initializes the data directory, pulls the images and
-starts Kore:
+starts KoreDrive:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/qarasky/kore/main/install.sh | bash
@@ -88,7 +88,7 @@ docker compose up -d
 
 In `.env` set:
 
-- `KORE_PUBLIC_URL` (the address people use to reach Kore),
+- `KORE_PUBLIC_URL` (the address people use to reach KoreDrive),
   `KORE_OIDC_ISSUER` (Kore ID) and `KORE_OIDC_OWNER_EMAIL` (the first
   administrator's verified Kore ID email). Register
   `KORE_PUBLIC_URL/api/auth/oidc/callback` as the client's redirect URI (see
@@ -109,7 +109,7 @@ Check health with `docker compose ps` (all three `healthy`) or
 `curl -s localhost:8080/api/healthz`. To build the images from source instead
 of pulling them, clone the repository and run `docker compose build`.
 
-Kore itself (the Go binary) reads `KORE_PUBLIC_URL`, the `KORE_OIDC_*`
+KoreDrive itself (the Go binary) reads `KORE_PUBLIC_URL`, the `KORE_OIDC_*`
 settings, `KORE_DATA_DIR`, `KORE_BIND` and `KORE_PORT` from the environment,
 which is how the container is configured. `kore.example.toml` is the
 equivalent config file for running the binary without Docker
@@ -118,14 +118,14 @@ equivalent config file for running the binary without Docker
 ## LAN / Tailscale
 
 By default Caddy is published on `127.0.0.1` only (for a tunnel running on the
-same host). To reach Kore from the LAN or Tailscale, set in `.env`:
+same host). To reach KoreDrive from the LAN or Tailscale, set in `.env`:
 
 ```sh
 KORE_BIND=0.0.0.0     # or one address, e.g. the Tailscale IP
 ```
 
-and run `docker compose up -d`. Kore is then at `http://<server>:8080`. This is
-plain HTTP; use it only on networks you trust.
+and run `docker compose up -d`. KoreDrive is then at `http://<server>:8080`.
+This is plain HTTP; use it only on networks you trust.
 
 With `KORE_BIND=0.0.0.0`, check what Docker actually published:
 
@@ -169,8 +169,8 @@ host.
 
 This model only holds when LAN clients really reach Caddy with their own
 address. In these setups every client arrives from the gateway or another
-trusted address and is therefore trusted, so do not expose Kore to the LAN
-with them (or put your own proxy in front that strips those headers):
+trusted address and is therefore trusted, so do not expose KoreDrive to the
+LAN with them (or put your own proxy in front that strips those headers):
 
 - IPv6 published by Docker's userland proxy (see "LAN / Tailscale" above).
 - Rootless Docker (its port forwarder, RootlessKit/slirp4netns, hides the
@@ -229,15 +229,15 @@ sqlite3 /mnt/mirror/kore/kore.db ".backup '/backup/kore/kore.db'"
 ```
 
 The order matters. A file uploaded between the two steps then exists only as
-an extra blob that the snapshot does not know about, and Kore removes such
-orphans by itself. The other order could give a snapshot that points at a
+an extra blob that the snapshot does not know about, and KoreDrive removes
+such orphans by itself. The other order could give a snapshot that points at a
 blob the backup does not contain. Without `--delete`, blobs of files purged
 since the last run stay in the backup until you prune it (e.g. with a
 stop-the-API backup).
 
-Do not copy `kore.db` alone with `cp` while Kore is running. To restore, stop
-the stack, put `kore.db`, `blobs/` and an empty `.kore-volume` into the data
-dir (owned by `KORE_UID:KORE_GID`), and start it.
+Do not copy `kore.db` alone with `cp` while KoreDrive is running. To restore,
+stop the stack, put `kore.db`, `blobs/` and an empty `.kore-volume` into the
+data dir (owned by `KORE_UID:KORE_GID`), and start it.
 
 ## Upgrading
 
@@ -266,8 +266,8 @@ secret.
 
 ## Kore ID (the only way to sign in)
 
-Kore signs people in with Kore ID, the OpenID Connect provider shared by the
-Kore apps. It is required: the API refuses to start without
+KoreDrive signs people in with Kore ID, the OpenID Connect provider shared by
+the Kore apps. It is required: the API refuses to start without
 `KORE_OIDC_ISSUER` and `KORE_PUBLIC_URL`, and the login page offers nothing
 else.
 
@@ -281,15 +281,15 @@ backchannelLogoutUri:   https://kore.example.com/api/auth/oidc/backchannel-logou
 ```
 
 Caddy sends every `/api/*` request straight to the Go API, so these public
-URLs reach it (Kore ID must be able to reach Kore's public address for the
-back-channel call).
+URLs reach it (Kore ID must be able to reach KoreDrive's public address for
+the back-channel call).
 
 Then in `.env` (or `kore.toml`, see `kore.example.toml`):
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `KORE_OIDC_ISSUER` | | Kore ID's base URL (required); endpoints and keys come from its discovery document |
-| `KORE_PUBLIC_URL` | | Kore's public address (required) |
+| `KORE_PUBLIC_URL` | | KoreDrive's public address (required) |
 | `KORE_OIDC_CLIENT_ID` | `kore` | |
 | `KORE_OIDC_CLIENT_SECRET` | empty | the client secret (basic/post; `post` is used) |
 | `KORE_OIDC_OWNER_EMAIL` | empty | on a fresh install, the first Kore ID sign-in whose verified email equals this address becomes the administrator (`owner_email` in TOML); set it before the first start |
@@ -308,33 +308,33 @@ the token's `sub` (the same UUID in every Kore app) to a local user in
 `users.sub`. A normal `kore_session` cookie is then issued, so everything
 else (quotas, roles, share links, uploads) is unchanged. Sessions created this
 way redeem their refresh token every ten minutes: if the person signed out
-everywhere at Kore ID or the account is gone there, the Kore session ends too
-(a Kore ID outage does not log anyone out). Signing out of Kore also ends the
-Kore ID session (RP-initiated logout). The other direction uses OIDC
+everywhere at Kore ID or the account is gone there, the KoreDrive session ends
+too (a Kore ID outage does not log anyone out). Signing out of KoreDrive also
+ends the Kore ID session (RP-initiated logout). The other direction uses OIDC
 Back-Channel Logout: when a Kore ID session ends (sign-out, admin disable,
 "sign out everywhere", account disable), Kore ID POSTs a signed `logout_token`
-to `/api/auth/oidc/backchannel-logout`, and Kore deletes every session created
-from that Kore ID session (the id token's `sid`, stored on the session), or,
-for a token without `sid`, every session of the user linked to its `sub`. The
-token is verified against the JWKS (issuer, audience `kore`, `typ: logout+jwt`,
-`iat`/`exp`/`jti`, the back-channel `events` claim, no `nonce`); used `jti`s
-are remembered in memory until they expire, which assumes a single API
-instance (the default). The API also accepts
+to `/api/auth/oidc/backchannel-logout`, and KoreDrive deletes every session
+created from that Kore ID session (the id token's `sid`, stored on the
+session), or, for a token without `sid`, every session of the user linked to
+its `sub`. The token is verified against the JWKS (issuer, audience `kore`,
+`typ: logout+jwt`, `iat`/`exp`/`jti`, the back-channel `events` claim, no
+`nonce`); used `jti`s are remembered in memory until they expire, which
+assumes a single API instance (the default). The API also accepts
 `Authorization: Bearer <Kore ID access token>` (audience `kore`, header
 `typ: at+jwt`; id tokens are refused) alongside the cookie, mapped to the same
-users; Kore has no other API tokens.
+users; KoreDrive has no other API tokens.
 
-**Who may sign in** is decided by Kore ID (its per-app access rules); Kore has
-no SSO allowlist of its own. `KORE_OIDC_AUTO_PROVISION=false` is the only
-extra local filter: then only people who already have a (linked or
-email-matching) Kore account get in.
+**Who may sign in** is decided by Kore ID (its per-app access rules);
+KoreDrive has no SSO allowlist of its own. `KORE_OIDC_AUTO_PROVISION=false`
+is the only extra local filter: then only people who already have a (linked or
+email-matching) KoreDrive account get in.
 
 **Administrators on a fresh install.** Auto-created accounts are normal users.
 If there are no users yet, a Kore ID sign-in is refused (`sso_no_admin`) unless
 its verified email equals `KORE_OIDC_OWNER_EMAIL` (or `owner_email` in the TOML
 file); that first sign-in creates the administrator. This only names the first
 administrator: once any account exists, the owner email promotes nobody else.
-The role is set inside Kore; access to the app is granted in Kore ID.
+The role is set inside KoreDrive; access to the app is granted in Kore ID.
 
 **Existing accounts.** Accounts made before Kore ID only keep their row (files,
 quota, role). Their passwords no longer work; the first Kore ID sign-in whose

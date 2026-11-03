@@ -7,9 +7,9 @@
  * same keys: type it as `Messages` from `./index`.
  */
 const en = {
-  "app.name": "Kore",
+  "app.name": "KoreDrive",
   "app.description": "Files for the office",
-  "app.titleTemplate": "%s · Kore",
+  "app.titleTemplate": "%s · KoreDrive",
 
   "login.title": "Sign in",
   "login.sso": "Continue with Kore ID",
@@ -20,7 +20,7 @@ const en = {
   "login.sso.error.unavailable": "Kore ID is not responding. Try again in a moment.",
   "login.sso.error.emailInUse": "An account with your Kore ID email already exists here but is not linked to it. Ask an admin to link it, or use the account page once signed in.",
   "login.sso.error.noEmail": "Kore ID did not share an email address, so no account could be created.",
-  "login.sso.error.noAdmin": "This Kore has no administrator yet. Sign in with the configured owner's Kore ID email.",
+  "login.sso.error.noAdmin": "This KoreDrive has no administrator yet. Sign in with the configured owner's Kore ID email.",
   "login.sso.error.notProvisioned": "You have no account here yet. Ask an admin to create one.",
   "login.expired": "Your session has ended. Please sign in again.",
 
@@ -286,14 +286,14 @@ const en = {
   "admin.usage.bar": "Storage used by {email}",
   "admin.usage.over": "Over quota",
   "admin.disk.title": "Disk",
-  "admin.disk.where": "Where Kore stores files: {label}",
+  "admin.disk.where": "Where KoreDrive stores files: {label}",
   "admin.disk.total": "Total",
   "admin.disk.used": "Used",
   "admin.disk.free": "Free",
   "admin.disk.percent": "{percent}%",
   "admin.disk.percentLabel": "used",
   "admin.disk.valuetext": "{used} of {total} used ({percent}%)",
-  "admin.disk.legendKore": "Kore",
+  "admin.disk.legendKore": "KoreDrive",
   "admin.disk.legendOther": "Other data on this disk",
   "admin.disk.legendFree": "Free",
   "admin.disk.reserved": "{size} is reserved by the system and is neither used nor free.",
@@ -515,7 +515,7 @@ const en = {
   "sharedLinks.deleted": "Link deleted",
 
   "publicShare.title": "Shared with you",
-  "publicShare.footer": "Shared through Kore",
+  "publicShare.footer": "Shared through KoreDrive",
   "publicShare.goneTitle": "This link is unavailable",
   "publicShare.gone": "The link may be mistyped, or what it pointed to is no longer shared.",
   "publicShare.expiredTitle": "This link has expired",
