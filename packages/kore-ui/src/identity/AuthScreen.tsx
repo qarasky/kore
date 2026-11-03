@@ -5,6 +5,7 @@ import { cn } from "../lib/cn";
 import { Button } from "../components/Button";
 import { Field } from "../components/Field";
 import { Input } from "../components/Input";
+import { PasswordInput, type PasswordRule } from "../components/PasswordInput";
 import { type AppNames, type ProductId } from "./apps";
 import { AppMark, Wordmark } from "./AppMark";
 
@@ -14,9 +15,13 @@ export type PasswordSignIn = {
   /** Mark both fields invalid (wrong email or password). */
   invalid?: boolean;
   defaultEmail?: string;
+  /** Show the email but don't let it be edited (a setup link for a known account). */
+  emailReadOnly?: boolean;
+  /** Requirements, shown as a live checklist under the password in `set-password` mode. */
+  rules?: PasswordRule[];
   /** Under the password field, e.g. "Forgot it? Ask your admin for a reset link." */
   hint?: ReactNode;
-  labels?: Partial<{ email: string; password: string; submit: string; pending: string }>;
+  labels?: Partial<{ email: string; password: string; submit: string; pending: string; show: string; hide: string }>;
 };
 
 export type KoreIdSignIn = {
@@ -42,6 +47,12 @@ export type AuthScreenProps = {
   sso?: KoreIdSignIn;
   /** The optional email + password form. */
   password?: PasswordSignIn;
+  /**
+   * `sign-in` (default): the password is the current one (`autoComplete="current-password"`).
+   * `set-password`: first account, setup link or reset: a new password (`new-password`, so browsers
+   * offer to generate and save it), "Set password" defaults and the `rules` checklist.
+   */
+  mode?: "sign-in" | "set-password";
   /** Error slot: what went wrong and what to do (announced). */
   error?: ReactNode;
   /** Neutral notice slot, e.g. "Your session expired. Sign in again." */
@@ -64,7 +75,8 @@ export type AuthScreenProps = {
 export function AuthScreen({
   app = "kore-id",
   names,
-  title = "Sign in",
+  mode = "sign-in",
+  title = mode === "set-password" ? "Set your password" : "Sign in",
   description,
   sso,
   password,
@@ -115,6 +127,7 @@ export function AuthScreen({
               {password ? (
                 <PasswordForm
                   password={password}
+                  mode={mode}
                   primary={!sso}
                   describedBy={hasError ? messageId : undefined}
                 />
@@ -173,9 +186,28 @@ function SsoButton({ sso, primary }: { sso: KoreIdSignIn; primary: boolean }) {
   );
 }
 
-function PasswordForm({ password, primary, describedBy }: { password: PasswordSignIn; primary: boolean; describedBy?: string }) {
+function PasswordForm({
+  password,
+  mode,
+  primary,
+  describedBy,
+}: {
+  password: PasswordSignIn;
+  mode: "sign-in" | "set-password";
+  primary: boolean;
+  describedBy?: string;
+}) {
   const [pending, setPending] = useState(false);
-  const l = { email: "Email", password: "Password", submit: "Sign in", pending: "Signing in…", ...password.labels };
+  const setting = mode === "set-password";
+  const l = {
+    email: "Email",
+    password: setting ? "New password" : "Password",
+    submit: setting ? "Set password" : "Sign in",
+    pending: setting ? "Saving…" : "Signing in…",
+    show: "Show password",
+    hide: "Hide password",
+    ...password.labels,
+  };
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -199,16 +231,19 @@ function PasswordForm({ password, primary, describedBy }: { password: PasswordSi
           type="email"
           autoComplete="username"
           defaultValue={password.defaultEmail}
+          readOnly={password.emailReadOnly}
           required
           aria-invalid={password.invalid || undefined}
           aria-describedby={describedBy}
         />
       </Field>
       <Field label={l.password} hint={password.hint}>
-        <Input
+        <PasswordInput
           name="password"
-          type="password"
-          autoComplete="current-password"
+          newPassword={setting}
+          rules={setting ? password.rules : undefined}
+          showLabel={l.show}
+          hideLabel={l.hide}
           required
           aria-invalid={password.invalid || undefined}
           aria-describedby={describedBy}
