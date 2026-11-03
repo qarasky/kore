@@ -1,7 +1,7 @@
 import { crc32, deflateSync } from "node:zlib";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import en from "../lib/i18n/en";
-import { ADMIN, loginAs } from "./helpers";
+import { ADMIN, loginAs, toasts } from "./helpers";
 
 /** A real w×h RGB PNG (solid colour), so the browser can decode it. */
 function png(w: number, h: number, rgb: [number, number, number]): Buffer {
@@ -28,7 +28,7 @@ function png(w: number, h: number, rgb: [number, number, number]): Buffer {
   ]);
 }
 
-const toast = (page: Page) => page.getByRole("status");
+const toast = (page: Page) => toasts(page);
 
 /** The login page as a logged-out visitor sees it. */
 async function anonLogin(browser: Browser, width: number) {

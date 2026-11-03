@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import en from "../lib/i18n/en";
-import { apiAs, createUser, loginAs, uploadFile } from "./helpers";
+import { apiAs, createUser, loginAs, uploadFile, toasts } from "./helpers";
 
 const fill = (key: keyof typeof en, vars: Record<string, string | number>) =>
   en[key].replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
@@ -176,7 +176,7 @@ test("SVG and files that only pretend to be images download instead", async ({ p
   for (const name of ["fake.png", "fake.pdf"]) {
     const [dl] = await Promise.all([page.waitForEvent("download"), row(page, name).dblclick()]);
     expect(dl.suggestedFilename()).toBe(name);
-    await expect(page.getByRole("status").filter({ hasText: name })).toContainText(fill("preview.notText", { name }));
+    await expect(toasts(page).filter({ hasText: name })).toContainText(fill("preview.notText", { name }));
     await expect(pane(page)).toHaveCount(0);
   }
   expect(await page.evaluate(() => (window as unknown as { __svg?: number; __fake?: number }).__svg ?? null)).toBeNull();

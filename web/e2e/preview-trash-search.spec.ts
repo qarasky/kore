@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import en from "../lib/i18n/en";
 import { E2E } from "./harness/env";
-import { apiAs, createFolder, createUser, loginAs, uploadFile, type CreatedUser } from "./helpers";
+import { apiAs, createFolder, createUser, loginAs, uploadFile, type CreatedUser, toasts } from "./helpers";
 
 declare global {
   interface Window {
@@ -189,7 +189,7 @@ test.describe("preview", () => {
     const [download] = await Promise.all([page.waitForEvent("download"), row(page, "binary.txt").dblclick()]);
     expect(download.suggestedFilename()).toBe("binary.txt");
     await expect(preview(page)).toHaveCount(0);
-    await expect(page.getByRole("status").filter({ hasText: "binary.txt" })).toContainText(
+    await expect(toasts(page).filter({ hasText: "binary.txt" })).toContainText(
       fill("preview.notText", { name: "binary.txt" }),
     );
   });
@@ -266,7 +266,7 @@ test.describe("trash", () => {
     // Restore: toast names the folder and links to it.
     await trashRow(page, "report.txt").hover();
     await page.getByRole("button", { name: fill("trash.restoreItem", { name: "report.txt" }) }).click();
-    const toast = page.getByRole("status");
+    const toast = toasts(page);
     await expect(toast).toContainText(fill("trash.restoredTo", { folder: "Docs" }));
     await expect(trashRow(page, "report.txt")).toHaveCount(0);
     await expect(page.getByTestId("trash-empty")).toBeVisible();
@@ -292,7 +292,7 @@ test.describe("trash", () => {
     await dialog.getByRole("button", { name: en["trash.deleteForever"] }).click();
     await expect(dialog).toBeHidden();
     await expect(trashRow(page, "report.txt")).toHaveCount(0);
-    await expect(page.getByRole("status")).toContainText(fill("trash.deletedOne", { name: "report.txt" }));
+    await expect(toasts(page)).toContainText(fill("trash.deletedOne", { name: "report.txt" }));
     await expect(page.getByTestId("trash-section")).toBeFocused(); // nothing left: the section keeps focus
     expect((await page.request.get(`/api/nodes/${id}/download`)).status()).toBe(404);
 
@@ -309,7 +309,7 @@ test.describe("trash", () => {
     await expect(empty).toContainText("permanently");
     await empty.getByRole("button", { name: en["trash.empty"] }).click();
     await expect(page.getByTestId("trash-empty")).toBeVisible();
-    await expect(page.getByRole("status")).toContainText(en["trash.emptied"]);
+    await expect(toasts(page)).toContainText(en["trash.emptied"]);
     await expect(page.getByTestId("trash-section")).toBeFocused();
     const left = await api.get("/api/trash?space=personal");
     expect(await left.json()).toEqual([]);
@@ -339,7 +339,7 @@ test.describe("trash", () => {
     await rows.nth(1).click({ modifiers: ["Shift"] });
     await expect(page.getByText(fill("list.selectedCount", { count: 2 }))).toBeVisible();
     await page.getByRole("button", { name: en["trash.restore"], exact: true }).click();
-    await expect(page.getByRole("status")).toContainText(fill("trash.restoredMany", { count: 2 }));
+    await expect(toasts(page)).toContainText(fill("trash.restoredMany", { count: 2 }));
     await expect(rows).toHaveCount(1);
     const live = (await (await api.get("/api/nodes?space=personal")).json()) as { name: string }[];
     expect(live).toHaveLength(2);
@@ -365,7 +365,7 @@ test.describe("trash", () => {
 
     await trashRow(page, name).hover();
     await page.getByRole("button", { name: fill("trash.restoreItem", { name }) }).click();
-    await expect(page.getByRole("status")).toContainText(fill("trash.restoredTo", { folder: en["nav.shared"] }));
+    await expect(toasts(page)).toContainText(fill("trash.restoredTo", { folder: en["nav.shared"] }));
   });
 });
 
@@ -396,13 +396,16 @@ test("empty shared trash purges exactly the items its dialog listed", async ({ p
   await expect(dialog).toContainText(fill("trash.emptyMessageMany", { count, section: en["trash.shared"] }));
   const confirm = dialog.getByRole("button", { name: en["trash.empty"] });
   await expect(confirm).toBeEnabled();
-  await expect(trashRow(page, `before-${tag}.txt`)).toBeVisible(); // the list refreshed too
+  // The list refreshed too (behind the dialog, so hidden from the a11y tree).
+  await expect(
+    page.getByRole("option", { name: `before-${tag}.txt`, exact: true, includeHidden: true }),
+  ).toBeVisible();
 
   // Trashed while the dialog is open: never listed, so it must survive.
   await trash(bApi, `after-${tag}.txt`);
   await confirm.click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole("status")).toContainText(en["trash.emptied"]);
+  await expect(toasts(page)).toContainText(en["trash.emptied"]);
 
   expect(await sharedTrash()).toEqual([`after-${tag}.txt`]);
   await expect(trashRow(page, `after-${tag}.txt`)).toBeVisible();

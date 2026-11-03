@@ -16,7 +16,7 @@ import { serve } from "./proc.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const apiDir = path.resolve(here, "../../../api");
-const root = path.join(tmpdir(), "kore-e2e");
+const root = path.join(tmpdir(), `kore-e2e-${E2E.apiPort}`);
 const bin = path.join(root, "kore");
 const dataDir = path.join(root, "data");
 const config = path.join(root, "kore.toml");
@@ -37,6 +37,16 @@ writeFileSync(
     `data_dir = ${JSON.stringify(dataDir)}`,
     `admin_email = ${JSON.stringify(E2E.admin.email)}`,
     `admin_password = ${JSON.stringify(E2E.admin.password)}`,
+    // E2E_OIDC_ISSUER turns on "Continue with Kore ID" (discovery is lazy, so
+    // any URL works until someone clicks it). Used for screenshots.
+    ...(process.env.E2E_OIDC_ISSUER
+      ? [
+          `public_url = ${JSON.stringify(E2E.webUrl)}`,
+          "[oidc]",
+          `issuer = ${JSON.stringify(process.env.E2E_OIDC_ISSUER)}`,
+          `apps = { koremind = "https://mind.example.com", korecalendar = "https://cal.example.com" }`,
+        ]
+      : []),
     "",
   ].join("\n"),
 );
