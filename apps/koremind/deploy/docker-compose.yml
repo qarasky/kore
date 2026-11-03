@@ -1,0 +1,29 @@
+# KoreMind with Docker Compose.
+#   cp deploy/docker-compose.yml compose.yml   (or use it in place)
+#   KOREMIND_VERSION=0.1.0 docker compose up -d
+# Pin KOREMIND_VERSION to a release (0.1.0), a minor line (0.1) or "latest". "edge" follows main.
+name: koremind
+
+services:
+  backend:
+    image: ghcr.io/qarasky/koremind-backend:${KOREMIND_VERSION:-latest}
+    restart: unless-stopped
+    ports:
+      - "${KOREMIND_PORT:-8787}:8787"
+    volumes:
+      # Chats, accounts, notes, uploads and the OpenCode engine state (provider keys!). Back this up.
+      - koremind-data:/data
+    environment:
+      # Set when KoreMind is reachable at a public address; it goes into the phone-pairing QR codes.
+      KOREMIND_PUBLIC_URL: ${KOREMIND_PUBLIC_URL:-}
+      # Only when a proxy on ANOTHER machine terminates TLS in front of KoreMind.
+      KOREMIND_TRUST_PROXY: ${KOREMIND_TRUST_PROXY:-}
+
+  web:
+    image: ghcr.io/qarasky/koremind-web:${KOREMIND_VERSION:-latest}
+    restart: unless-stopped
+    ports:
+      - "${KOREMIND_WEB_PORT:-3210}:3210"
+
+volumes:
+  koremind-data:
