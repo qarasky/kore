@@ -15,11 +15,11 @@ Pin a release tag:
 ```jsonc
 // package.json
 "dependencies": {
-  "@qarasky/kore-ui": "https://codeload.github.com/qarasky/kore-ui/tar.gz/refs/tags/v0.1.1"
+  "@qarasky/kore-ui": "https://codeload.github.com/qarasky/kore-ui/tar.gz/refs/tags/v0.2.0"
 }
 ```
 
-Peer dependencies: `react` and `react-dom` ^19, `tailwindcss` ^4. Radix, lucide-react, clsx, tailwind-merge,
+Peer dependencies: `react` and `react-dom` ^19, `tailwindcss` ^4. Radix, cmdk, lucide-react, clsx, tailwind-merge,
 class-variance-authority and the Inter font (`@fontsource-variable/inter`) are regular dependencies. Add
 `lucide-react` to your own dependencies too if you import icons yourself.
 
@@ -137,8 +137,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
 ## Components
 
-Primitives: Button, IconButton, Input, Textarea, Field, Select, Combobox, Checkbox, Switch, RadioGroup, Dialog,
-ConfirmDialog, Menu, ContextMenu, Popover, Tooltip, Tabs, NavTabs, Toast (`useToast`), Table, Badge, StatusDot,
+Primitives: Button, IconButton, Input, PasswordInput, Textarea, Field, Select, Combobox, ColorSwatchPicker, Checkbox, Switch, RadioGroup, Dialog,
+ConfirmDialog, Sheet, CommandPalette, Menu, ContextMenu, PointMenu, Popover, Tooltip, Tabs, NavTabs, Toast (`useToast`), Table, Badge, StatusDot,
 Avatar, Meter, Progress, EmptyState, Spinner, Skeleton, Kbd, CopyButton, Card. Layout: AppShell (optionally
 `collapsible`), SidebarToggle, TopBar, Sidebar, SidebarNav, SidebarItem, PageHeader, PageBody, SectionHeader, SettingsLayout, SettingsSection. Identity: AccountMenu,
 AppSwitcher, AppGrid, AuthScreen, AppMark, Wordmark, KoreLogo. Utilities: `cn`, `KoreProvider`.

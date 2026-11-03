@@ -50,6 +50,7 @@ All tokens are Tailwind v4 theme variables in `theme.css`, so each is a utility 
 | `status-down` | `#e5484d` | Down (status only; UI errors use `danger`) |
 | `status-maint` | `#a371f7` | Maintenance (violet so it never reads as the blue accent) |
 | `status-off` | `#5b616d` | Paused, not connected, disabled |
+| `status-down-muted` | `#8a3a3d` | An acknowledged (muted) outage: still the down diamond, dimmed |
 
 Hover and pressed tints are white overlays, not new colours: `hover:bg-white/5` on transparent controls,
 `hover:bg-white/[0.04]` on nav items, `bg-accent/15` for accent pills, `bg-accent/10` for selected rows.
@@ -107,7 +108,7 @@ Minimum hit target is 32px; primary controls are 40px.
 | feedback | 100–150ms | Hover, press, switch thumb, colour changes (`transition-colors`) |
 | pop | 140ms in / 100ms out | Menus, popovers, selects, tooltips: scale 0.96 → 1 from the trigger side |
 | dialog | 220ms in / 140ms out | Dialogs: fade + 8px rise; overlay fades 160/120ms |
-| drawer | 250ms in / 180ms out | Mobile navigation drawer slides from the left |
+| drawer, sheet | 250ms in / 180ms out | Mobile navigation drawer and Sheets slide in from their edge |
 | toast | 220ms in / 120ms out | Rise 8px + fade |
 | sidebar | 200ms | Width change when the sidebar collapses/expands |
 | indeterminate | 1.2s loop | Progress without a value (static 40% bar under reduced motion) |
@@ -228,6 +229,23 @@ options, Combobox beyond that or for remote data.
   right (settings rows).
 - **RadioGroup**: 2–5 visible options, each with label and optional description; arrows move.
 - All take `label` + `description`; clicking the label toggles; a disabled one dims the whole row to 50%.
+- **Checkbox `color`**: for things that carry their own colour (a calendar, a label). The box border is the colour,
+  the fill when checked; the check turns black on light colours. Only for that use: everything else stays accent.
+
+### PasswordInput
+An Input with a show/hide toggle inside its right edge: a real button named "Show password" / "Hide password"
+with `aria-pressed`. Autocomplete is `current-password`; `newPassword` switches to `new-password` (sign-up, setup
+link, reset, change password), so browsers offer to generate and save one and never fill an old one in. `rules`
+(e.g. `minLengthRule(10)`) render a live checklist under the field (check when met, "done"/"not yet" for screen
+readers), referenced by `aria-describedby` next to the Field hint. Put it in a Field; errors come from the Field.
+Don't block paste; don't add a second "confirm password" field when the toggle is there.
+
+### ColorSwatchPicker
+A row of round colour swatches (32px; `size="sm"` 24px) as a radio group: Tab enters at the selected one, arrow
+keys move and select, the selected swatch has a check (black or white, whichever reads) and a ring. Each swatch
+needs a name (`{ value, label }`, "Blue"); bare hex strings are named by their hex. `allowCustom` adds a hex field
+(accepts #rgb/#rrggbb, flags anything else as invalid, never rewrites what is being typed). For colours of user
+things (calendars, labels, groups), not for theming the UI.
 
 ### Dialog
 Radix Dialog. Centred, `raised`, strong hairline, 8px radius, `shadow-dialog`, black/60 overlay. Widths `sm` 420,
@@ -249,6 +267,32 @@ icons, optional shortcut on the right, `MenuLabel` for a heading, `MenuSeparator
 submenus. Destructive items (`danger`) are red and last, after a separator. Navigation items use `asChild` with a
 link. Keyboard: Enter/Space/ArrowDown open, arrows move (disabled items skipped), type-ahead, Enter selects,
 Escape closes and returns focus. A context menu is a shortcut: the same actions must exist in a visible menu.
+- **ContextMenu** opens on right-click and long-press, and from the keyboard (the Menu key or Shift+F10) at the
+  focused element inside the trigger, the first item focused. Same parts as Menu: `ContextMenuItem` (icon,
+  shortcut, `danger`), separators, labels, checkbox/radio items, `ContextMenuSub` + `SubTrigger`/`SubContent`.
+- **PointMenu** is a Menu opened at a point (`point={{ x, y }}`, `null` = closed) for surfaces that handle
+  right-click themselves (a canvas like KoreMonitor's superboard): `onContextMenu={(e) => { e.preventDefault();
+  setPoint(pointFromEvent(e)); }}`. `pointFromEvent` uses the cursor, or the target's position for a keyboard
+  event. `onClose(reason)` says why ("select", "escape", "outside"); focus stays where it was unless
+  `returnFocus` names an element. Children are the normal Menu items. Non-modal, so an item can open a dialog.
+
+### Sheet
+A side panel over the page (Radix Dialog: modal, focus trapped, Escape and the overlay close it, focus returns
+to the opener) for details and secondary tasks that keep the page's context: a monitor's peek, a file's
+details, filters. Slides from the `right` (default) or `left` edge, full height, widths `sm` 360, `md` 480, `lg`
+640, `xl` 880. Below 640px it is a bottom sheet (max 85% tall, with a grab handle). `SheetContent` needs a
+`title` (`hideTitle` keeps it for screen readers when the content has its own heading); `SheetBody` scrolls,
+`SheetFooter` pins actions to the bottom. Use a Dialog for a focused task with one outcome; a Sheet when the user
+reads or edits something alongside the list it came from.
+
+### CommandPalette
+⌘K / Ctrl+K anywhere (text fields included, never over another dialog) opens a dialog near the top of the screen:
+a search field, results in titled groups (icon, label, muted description, shortcut hint as Kbd), "No results"
+when nothing matches, and a hint row (↑↓ move · ↵ select · Esc close). Arrows move (wrapping), Enter runs the
+command and closes the palette, Escape closes it and returns focus. Commands come as `groups` data or composed
+`CommandGroup`/`CommandItem` children; search matches labels and `keywords`. `shortcut` sets the letter (default
+"k") or `false` to wire it yourself with `useCommandShortcut`. Built on cmdk. Put every top-level place and the
+main actions in it; it complements, never replaces, visible navigation.
 
 ### Popover
 A small non-modal panel anchored to a trigger (event details, pickers). 320px default, 16px padding (`flush`
@@ -264,11 +308,14 @@ information that exists nowhere else, never interactive content.
 **underline** (sections inside a page: user detail Profile / Apps / Security).
 
 ### Toast
-Bottom centre, one at a time (a new one replaces the current one), in a polite live region (F8 jumps to it).
-Tones: info, success (green dot), error (red border and text, stays 10s instead of 6s). One optional action
-(Undo) that shows a spinner while it runs. Hover/focus pause the timer; × dismisses; swipe down on touch. Use for
-results of actions that have no other visible effect. Don't use for errors that belong next to a field.
-`useToast().show({ message, tone, action })`.
+Bottom centre, one at a time (a new one replaces the current one), in a polite live region. Tones: info, success
+(green dot), error (red border and text, stays 10s instead of 6s). One optional action (Undo) that shows a spinner
+while it runs. Hover/focus pause the timer; × dismisses. Use for results of actions that have no other visible
+effect. Don't use for errors that belong next to a field. `useToast().show({ message, tone, action })`.
+- The region never blocks the page: it is `pointer-events: none`; only the toast itself takes clicks.
+- A toast never takes Escape from the page: Escape dismisses a toast only when focus is on it (F8 moves focus to
+  it). With a dialog open, Escape closes the dialog. Clicking a toast (its Undo) never counts as clicking outside
+  an open Dialog, Sheet or palette.
 
 ### Table
 Hairline frame with 8px radius (`framed={false}` inside a panel), header row 40px with 13px muted labels, body
@@ -284,8 +331,10 @@ words, sentence case.
 
 ### StatusDot
 8px indicator + the state in words: up (green), warn (yellow), down (red **diamond**, so it reads without
-colour), maint (violet ring), off (grey ring), accent (connected). `pulse` for live states. Without a `label` it
-is decorative; then the state must be written next to it.
+colour), maint (violet ring), off (grey ring), accent (connected). `pulse` for live states. `size`: `sm` 6px (dense
+rows, chips), `md` 8px (default), `lg` 10px (headers). `muted` marks an acknowledged problem: the same shape in a
+dim colour (`status-down-muted` for down) with a muted label, so a known outage stops shouting but still reads
+as down. Without a `label` it is decorative; then the state must be written next to it.
 
 ### Avatar
 Round, 24/32/40px. Image if given, else initials (first + last word of the name, else the email's first letter)
@@ -328,14 +377,20 @@ See §3. `SectionHeader` is the in-page heading with a muted line and actions ("
   highlighted and `aria-current`. Optional "Kore ID account" footer link. `AppGrid` is the same grid on its own
   (Kore ID's "Your apps").
 - **AccountMenu.** Avatar + name (from `sm`) in the top bar (or a sidebar footer with `side="top"`). Menu: user
-  header (avatar, name, email), **Kore ID account** (link to Kore ID), app-specific items (children: Settings,
-  Keyboard shortcuts), **Switch app** (the other apps), separator, **Sign out**. Sign out must end the Kore ID
-  session too (follow the app's end-session redirect).
+  header (avatar, name, email), **Kore ID account** (only when `accountUrl` is given), app-specific items
+  (children: Settings, Change password, Keyboard shortcuts), **Switch app** (the other apps, when `apps` is
+  given), separator, **Sign out**. With Kore ID off, omit `accountUrl`: the menu has no Kore ID item or mark and
+  shows only what the app passes. Sign out must end the Kore ID session too when there is one (follow the app's
+  end-session redirect).
 - **AuthScreen.** Wordmark, card title ("Sign in"), one-line description, `notice` and `error` slots, **Continue
   with Kore ID** (primary, first), an "or" divider, the optional email + password form (submit becomes secondary
   when Kore ID is offered; primary when it isn't), `children` for other screens (set password, "You don't have
   access to KoreMind", sign-out confirmation), `footer` links, optional `aside` art. The password form manages its
-  own pending state ("Signing in…") while `onSubmit` runs; the app passes `error` and `invalid` back.
+  own pending state ("Signing in…") while `onSubmit` runs; the app passes `error` and `invalid` back. The
+  password is a PasswordInput (show/hide). `mode="set-password"` is for first-account setup, setup links and
+  resets: title "Set your password", a "New password" field with `new-password` autocomplete and the `rules`
+  checklist, "Set password"/"Saving…"; `emailReadOnly` shows a known email without letting it be edited (it
+  stays in the form so password managers save it against the right account).
 
 ## 5. Voice and copy
 
@@ -406,7 +461,15 @@ One line each, so migrations know what changes.
 - **Collapsible sidebar: opt-in icon rail with tooltips, state owned by the app** (Flatline's shadcn sidebar
   persisted itself in a cookie and had a ⌘B shortcut; kore-ui has neither, so apps decide).
 - **Meter thresholds 80% / 90%** (Kore turned its storage bar red only above 90%; warning is new).
-- **Toasts: one at a time, bottom centre** (Kore, KoreCalendar), on Radix Toast.
+- **Toasts: one at a time, bottom centre** (Kore, KoreCalendar). Since 0.2 a small custom live region instead of
+  Radix Toast, whose layers took Escape from open dialogs; no swipe-to-dismiss.
+- **Command palette on cmdk** (Flatline's), restyled as a kore-ui dialog near the top; ⌘K never opens over
+  another dialog (Flatline's rule).
+- **Sheets: modal, from the right by default, bottom sheet on phones** (Flatline's peek panel, made a component).
+- **Password fields show a toggle, not a confirm field** (Kore's PasswordInput); new passwords always use
+  `new-password` autocomplete (KoreMind's request for first-account setup).
+- **Colour swatches are a radio group with a check** (KoreCalendar's ColorPicker), named swatches preferred.
+- **Kore ID item only when the app passes its URL** (all four apps hid it locally when SSO is off).
 - **Settings: 200px section nav + one 576px column, pill row on phones** (KoreMind's proportions,
   KoreCalendar's bordered nav inside the panel).
 - **Auth: Kore's centred card with optional art; Kore ID first and primary**, password form second (all apps
@@ -426,7 +489,7 @@ One line each, so migrations know what changes.
 ```jsonc
 // package.json
 "dependencies": {
-  "@qarasky/kore-ui": "https://codeload.github.com/qarasky/kore-ui/tar.gz/refs/tags/v0.1.1",
+  "@qarasky/kore-ui": "https://codeload.github.com/qarasky/kore-ui/tar.gz/refs/tags/v0.2.0",
   "lucide-react": "^1.67.0" // if the app imports icons itself
 }
 ```
@@ -523,13 +586,12 @@ interactive parts are client components), but event handlers can only be passed 
 
 ### KoreMonitor / Flatline (`qarasky/flatline`, apps/web)
 
-- Delete: `components/ui/*` except `command.tsx` (Badge, Button, Checkbox, ContextMenu, Dialog, DropdownMenu,
+- Delete: `components/ui/*` (Badge, Button, Checkbox, Command → `CommandPalette`, ContextMenu, Dialog, DropdownMenu,
   Input, Label, NativeSelect, Popover, Separator, Sheet, Sidebar, Skeleton, Textarea, Tooltip → kore-ui
-  equivalents; `Label` → `Field`; `Sheet` → AppShell drawer or `Dialog`; `Separator` → a `border-t
+  equivalents; `Label` → `Field`; `Sheet` → kore-ui `Sheet`; `Separator` → a `border-t
   border-border` or `MenuSeparator`), `components/legacy-ui/*` (→ kore-ui), `lib/utils.ts` `cn` (→ kore-ui `cn`),
   the shadcn variable block and `@theme inline` mapping in `globals.css`, `tw-animate-css`, and the
-  `@fontsource-variable/inter` import in `app/layout.tsx`. Keep `cmdk` for the command palette, restyled with
-  kore-ui tokens (`raised`, `border-strong`, `shadow-overlay`).
+  `@fontsource-variable/inter` import in `app/layout.tsx`. The command palette is kore-ui's `CommandPalette`.
 - Replace: `app-sidebar.tsx` → `AppShell` + `Sidebar` (sections as `SidebarItem`s, the attention count as
   `trailing`, search as a TopBar button with `<Kbd>⌘K</Kbd>`; `collapsible` replaces `collapsible="icon"`, with
   the app reading/writing its `sidebar_state` cookie through `sidebarCollapsed`/`onSidebarCollapsedChange`, and
@@ -543,6 +605,29 @@ interactive parts are client components), but event handlers can only be passed 
   `status-maint`, `rounded-md` → `rounded-ui`. The board CSS keeps its own variables but reads kore-ui's.
 - Visual changes: base text 14 → 15px, controls 32 → 40px (shadcn `h-9` at a 14px root), menu items ~28 →
   40px.
+
+### Upgrading to 0.2.0: local workarounds to delete
+
+0.2.0 is additive except toasts (no swipe-to-dismiss; F8 still focuses them) and an optional `accountUrl`.
+
+- **Kore:** delete `components/PointMenu.tsx` → `PointMenu` (same idea: `point`, `label`, `onClose(reason)`; use
+  `pointFromEvent` for the row's keyboard position) or a `ContextMenu` around the row; delete
+  `components/PasswordInput.tsx` → `PasswordInput` (`current` → default, otherwise `newPassword`; the strength hints
+  → `rules`; keep the "Generate" button as an app-side Button next to it); drop the workaround that passed a
+  dummy/hidden account link to AccountMenu when Kore ID is off.
+- **KoreMind:** first-account setup on the login page → `AuthScreen mode="set-password"` (new-password
+  autocomplete, `rules` for the length hint) instead of the local Field; AccountMenu without `accountUrl` when the
+  server has SSO off.
+- **KoreCalendar:** delete `components/ColorPicker.tsx` → `ColorSwatchPicker colors={CALENDAR_COLORS}
+  allowCustom`; in `CalendarList.tsx` the hand-drawn coloured checkboxes → `Checkbox color={calendar.color}`;
+  AccountMenu without `accountUrl` when SSO is off.
+- **KoreMonitor / Flatline:** delete `components/ui/command.tsx` and the cmdk markup in `command-palette.tsx` →
+  `CommandPalette` with `groups` built by `buildCommands` (the `OPEN_PALETTE_EVENT` button can set `open`);
+  `monitors/peek-panel.tsx`'s Dialog pinned to the edge → `Sheet` + `SheetContent title="Monitor details"
+  hideTitle size="lg"` (keep the wide-screen `<aside>`); `superboard/server-menu.tsx`'s zero-size Menu anchor →
+  `PointMenu` with `pointFromEvent`; `monitors/status-dot.tsx`'s `muted` class override and ignored `size` →
+  `StatusDot muted size`, and drop the local `--status-muted` colour for `status-down-muted`; drop the
+  `cmdk` dependency (kore-ui brings it).
 
 ### Kore ID (`qarasky/kore-id`, web/)
 

@@ -1,6 +1,6 @@
 {
   "name": "@qarasky/kore-ui",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Kore design system: tokens, theme and React components shared by every Kore web UI.",
   "license": "UNLICENSED",
   "private": true,
