@@ -9,9 +9,17 @@ import { CALENDAR_COLORS } from "@/lib/colors";
 import { t } from "@/lib/i18n";
 import { createCalendar, deleteCalendar, restoreCalendar, updateCalendar } from "@/lib/mutations";
 import type { Calendar } from "@/lib/types";
-import { Button, ConfirmDialog, Field, IconButton, Input, SettingsSection, useToast } from "@qarasky/kore-ui";
+import {
+  Button,
+  ColorSwatchPicker,
+  ConfirmDialog,
+  Field,
+  IconButton,
+  Input,
+  SettingsSection,
+  useToast,
+} from "@qarasky/kore-ui";
 import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
-import { ColorPicker } from "../ColorPicker";
 import { useShell } from "../ShellContext";
 
 function Swatch({ color }: { color: string }) {
@@ -95,7 +103,14 @@ export function CalendarsManager() {
                   <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={100} autoFocus />
                 </Field>
                 <Field label={t("cal.color")}>
-                  <ColorPicker value={color} onChange={setColor} />
+                  <ColorSwatchPicker
+                    value={color}
+                    onValueChange={setColor}
+                    colors={CALENDAR_COLORS}
+                    allowCustom
+                    customLabel={t("color.custom")}
+                    customPlaceholder={t("color.customHint")}
+                  />
                 </Field>
                 <div className="flex gap-2">
                   <Button variant="primary" size="sm" onClick={() => save(c)} disabled={pending}>
@@ -125,7 +140,14 @@ export function CalendarsManager() {
             <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={100} autoFocus />
           </Field>
           <Field label={t("cal.color")}>
-            <ColorPicker value={color} onChange={setColor} />
+            <ColorSwatchPicker
+              value={color}
+              onValueChange={setColor}
+              colors={CALENDAR_COLORS}
+              allowCustom
+              customLabel={t("color.custom")}
+              customPlaceholder={t("color.customHint")}
+            />
           </Field>
           <div className="flex gap-2">
             <Button variant="primary" size="sm" onClick={add} disabled={pending}>

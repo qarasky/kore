@@ -45,8 +45,8 @@ export function AccountMenu() {
   const router = useRouter();
   const { me, kore } = useShell();
   const urls = useAppUrls();
-  // Without Kore ID there is no account page; the menu's account entry leads to Settings instead.
-  const accountUrl = kore?.account_url ?? (kore ? `${kore.issuer.replace(/\/+$/, "")}/account` : null);
+  // Only when Kore ID is on: otherwise there is no account page, and the menu has no Kore ID item.
+  const accountUrl = kore ? (kore.account_url ?? `${kore.issuer.replace(/\/+$/, "")}/account`) : undefined;
 
   async function onSignOut() {
     let endSession: string | null = null;
@@ -65,26 +65,24 @@ export function AccountMenu() {
   return (
     <KoreAccountMenu
       user={{ email: me.email }}
-      accountUrl={accountUrl ?? "/settings"}
+      accountUrl={accountUrl}
       onSignOut={onSignOut}
       apps={urls ? { urls, current: "korecalendar" } : undefined}
       labels={{
         menu: t("account.menu"),
-        account: accountUrl ? t("account.koreId") : t("nav.settings"),
+        account: t("account.koreId"),
         switchApp: t("account.switchApp"),
         signOut: t("account.signOut"),
       }}
     >
-      {accountUrl ? (
-        <MenuItem asChild>
-          <Link href="/settings">
-            <span aria-hidden="true" className="flex w-4 justify-center text-muted">
-              <Settings />
-            </span>
-            <span className="min-w-0 flex-1 truncate">{t("nav.settings")}</span>
-          </Link>
-        </MenuItem>
-      ) : null}
+      <MenuItem asChild>
+        <Link href="/settings">
+          <span aria-hidden="true" className="flex w-4 justify-center text-muted">
+            <Settings />
+          </span>
+          <span className="min-w-0 flex-1 truncate">{t("nav.settings")}</span>
+        </Link>
+      </MenuItem>
       <MenuItem icon={<Keyboard />} onSelect={() => window.dispatchEvent(new Event(OPEN_SHORTCUTS_EVENT))}>
         {t("account.shortcuts")}
       </MenuItem>
