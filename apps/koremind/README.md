@@ -35,6 +35,10 @@ For the phone: install the app, scan the QR code from the web UI (or type one of
 
 To run it on a server: **[Docker](docs/deployment-docker.md)** (prebuilt images on GHCR, the easy way) or **[a Linux service with systemd](docs/deployment-linux.md)**. Android builds come with each [GitHub Release](https://github.com/qarasky/koremind/releases) as a signed APK.
 
+### Coming from the Zero days
+
+The product used to be called Zero. A `zero.sqlite` database in your data directory is renamed to `koremind.sqlite` automatically at first start. Rename any `ZERO_*` environment variables to `KOREMIND_*` (and `zero.service` to `koremind.service`), and sign in again on the web (the stored session key changed). The Android app is a new app (`dev.qarasky.koremind`); install it next to the old one, then remove the old one.
+
 ### Settings (environment)
 
 | Setting | Default |

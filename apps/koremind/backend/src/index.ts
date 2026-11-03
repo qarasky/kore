@@ -8,9 +8,11 @@ import { FakeEngine } from "./engine/fake";
 import { createOpencodeEngine } from "./engine/opencode";
 import { createApp } from "./http";
 import { createServices } from "./services";
+import { migrateLegacyDb } from "./legacy";
 
 const config = loadConfig(process.env);
 mkdirSync(config.dataDir, { recursive: true });
+migrateLegacyDb(config.dataDir);
 // The local OpenCode engine reaches KoreMind's notes tools over loopback with this per-run secret.
 const mcpSecret = Buffer.from(crypto.getRandomValues(new Uint8Array(24))).toString("base64url");
 const notesServer = { type: "remote", url: `http://127.0.0.1:${config.port}/mcp`, oauth: false, codemode: false, headers: { authorization: `Bearer ${mcpSecret}` }, timeout: { execution: 120_000 } };
