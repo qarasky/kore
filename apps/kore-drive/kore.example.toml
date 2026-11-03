@@ -32,6 +32,9 @@ admin_password = "change-me"
 # auto_provision = true                # create accounts on first login
 # link_by_email = true                 # adopt an unlinked local account with the
 #                                      # same email when email_verified is true
+# # The other Kore apps, for the app switcher (optional; left-out apps are hidden):
+# apps = { koremind = "https://mind.example.com", korecalendar = "https://cal.example.com", flatline = "https://status.example.com" }
 # All of these also exist as KORE_PUBLIC_URL, KORE_LOCAL_LOGIN, KORE_OIDC_ISSUER,
-# KORE_OIDC_CLIENT_ID, KORE_OIDC_CLIENT_SECRET, KORE_OIDC_AUTO_PROVISION and
-# KORE_OIDC_LINK_BY_EMAIL (the environment wins over the file).
+# KORE_OIDC_CLIENT_ID, KORE_OIDC_CLIENT_SECRET, KORE_OIDC_AUTO_PROVISION,
+# KORE_OIDC_LINK_BY_EMAIL and KORE_APP_URLS (app=url,app=url); the environment
+# wins over the file.
