@@ -39,7 +39,7 @@ class FakeApi : CalendarApi {
     override suspend fun logout() { calls += "logout"; onLogout() }
     override suspend fun me(): User { calls += "me"; return onMe() }
     override suspend fun calendars(): List<Calendar> { calls += "calendars"; return onCalendars() }
-    override suspend fun occurrences(from: Instant, to: Instant): List<Occurrence> {
+    override suspend fun occurrences(from: Instant, to: Instant, q: String?): List<Occurrence> {
         calls += "occurrences"
         occurrenceRequests += from to to
         return onOccurrences(from, to)
