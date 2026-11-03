@@ -38,7 +38,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p showcase",
     "test": "vitest run",
     "test:watch": "vitest",
-    "screenshots": "node scripts/screenshots.mjs"
+    "screenshots": "npm --prefix showcase run screenshots"
   },
   "peerDependencies": {
     "react": "^19",

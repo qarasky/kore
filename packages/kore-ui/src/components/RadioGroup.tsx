@@ -34,14 +34,14 @@ export function RadioGroupItem({ label, description, className, id, ...props }: 
   const itemId = id ?? generated;
   const descId = description ? `${itemId}-desc` : undefined;
   return (
-    <div className={cn("flex items-start gap-2.5 py-1", className)}>
+    <div className={cn("flex items-start gap-2.5 py-1 has-disabled:opacity-50 has-disabled:[&_label]:cursor-not-allowed", className)}>
       <span className="flex h-[1.45em] items-center">
         <RadixRadioGroup.Item
           id={itemId}
           aria-describedby={descId}
           className={cn(
             "peer grid size-4 shrink-0 place-items-center rounded-full border border-border-strong bg-bg/60 transition-colors",
-            "hover:border-muted data-[state=checked]:border-accent disabled:cursor-not-allowed disabled:opacity-50",
+            "hover:border-muted data-[state=checked]:border-accent disabled:cursor-not-allowed disabled:hover:border-border-strong",
           )}
           {...props}
         >

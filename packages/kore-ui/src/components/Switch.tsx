@@ -25,8 +25,8 @@ export function Switch({ label, description, labelFirst = false, className, id, 
       aria-describedby={[props["aria-describedby"], descId].filter(Boolean).join(" ") || undefined}
       className={cn(
         "peer relative inline-flex h-5 w-9 shrink-0 items-center rounded-full bg-border-strong p-0.5 transition-colors",
-        "data-[state=checked]:bg-accent disabled:cursor-not-allowed disabled:opacity-50",
-        !label && className,
+        "data-[state=checked]:bg-accent disabled:cursor-not-allowed",
+        !label && ["disabled:opacity-50", className],
       )}
     >
       <RadixSwitch.Thumb
@@ -39,7 +39,7 @@ export function Switch({ label, description, labelFirst = false, className, id, 
   );
   if (!label) return control;
   return (
-    <div className={cn("flex items-start gap-3 py-1", labelFirst && "flex-row-reverse justify-between", className)}>
+    <div className={cn("flex items-start gap-3 py-1 has-disabled:opacity-50 has-disabled:[&_label]:cursor-not-allowed", labelFirst && "flex-row-reverse justify-between", className)}>
       <span className="flex h-[1.45em] items-center">{control}</span>
       <div className="min-w-0">
         <label htmlFor={props.id} className="cursor-pointer">

@@ -26,8 +26,8 @@ export function Checkbox({ label, description, className, id, ...rest }: Checkbo
         "peer grid size-4 shrink-0 place-items-center rounded-[4px] border border-border-strong bg-bg/60 text-white transition-colors",
         "hover:border-muted data-[state=checked]:border-accent data-[state=checked]:bg-accent",
         "data-[state=indeterminate]:border-accent data-[state=indeterminate]:bg-accent",
-        "disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-danger/70",
-        !label && className,
+        "disabled:cursor-not-allowed disabled:hover:border-border-strong aria-invalid:border-danger/70",
+        !label && ["disabled:opacity-50", className],
       )}
     >
       <RadixCheckbox.Indicator className="grid place-items-center">
@@ -41,10 +41,10 @@ export function Checkbox({ label, description, className, id, ...rest }: Checkbo
   );
   if (!label) return box;
   return (
-    <div className={cn("flex items-start gap-2.5 py-1", className)}>
+    <div className={cn("flex items-start gap-2.5 py-1 has-disabled:opacity-50 has-disabled:[&_label]:cursor-not-allowed", className)}>
       <span className="flex h-[1.45em] items-center">{box}</span>
       <div className="min-w-0">
-        <label htmlFor={props.id} className="cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-60">
+        <label htmlFor={props.id} className="cursor-pointer">
           {label}
         </label>
         {description ? (
