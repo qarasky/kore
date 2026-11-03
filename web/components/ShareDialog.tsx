@@ -1,10 +1,11 @@
 "use client";
 
-import { Button, Checkbox, Dialog, DialogBody, DialogContent, Field, Input, Select, useToast } from "@qarasky/kore-ui";
+import { Button, Checkbox, Dialog, DialogBody, DialogContent, Field, Input, PasswordInput, Select, useToast } from "@qarasky/kore-ui";
 import { Link2, Lock } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { api } from "@/lib/api";
 import { t, type MessageKey } from "@/lib/i18n";
+import { PASSWORD_INPUT_LABELS } from "@/lib/password";
 import {
   defaultChoice,
   EXPIRY_CHOICES,
@@ -21,7 +22,6 @@ import {
   type ShareSettings,
 } from "@/lib/shares";
 import { NodeIcon } from "./NodeIcon";
-import { PasswordInput } from "./PasswordInput";
 
 type Target = { id: string; name: string; is_dir: boolean };
 type Phase =
@@ -254,7 +254,16 @@ function CreateForm({
             <label htmlFor={`${id}-pw`} className="sr-only">
               {t("share.passwordLabel")}
             </label>
-            <PasswordInput id={`${id}-pw`} value={password} onChange={setPassword} autoFocus invalid={tooShort} autoComplete="new-password" placeholder={t("share.passwordPlaceholder")} />
+            <PasswordInput
+              {...PASSWORD_INPUT_LABELS}
+              id={`${id}-pw`}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoFocus
+              aria-invalid={tooShort || undefined}
+              autoComplete="new-password"
+              placeholder={t("share.passwordPlaceholder")}
+            />
             <p className="text-meta text-muted">{t("share.passwordHint")}</p>
           </div>
         )}
@@ -397,7 +406,15 @@ function LinkView({
             <label htmlFor={`${id}-newpw`} className="sr-only">
               {t("share.newPassword")}
             </label>
-            <PasswordInput id={`${id}-newpw`} value={password} onChange={setPassword} autoFocus placeholder={t("share.passwordPlaceholder")} />
+            <PasswordInput
+              {...PASSWORD_INPUT_LABELS}
+              id={`${id}-newpw`}
+              newPassword
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoFocus
+              placeholder={t("share.passwordPlaceholder")}
+            />
             <div className="flex gap-2">
               <Button type="submit" size="sm" disabled={pending}>
                 {t("share.savePassword")}

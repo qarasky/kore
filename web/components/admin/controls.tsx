@@ -1,14 +1,47 @@
 "use client";
 
-import { CopyButton, Input, Select } from "@qarasky/kore-ui";
+import { Button, CopyButton, Input, PasswordInput, Select } from "@qarasky/kore-ui";
 import { useId } from "react";
 import { t } from "@/lib/i18n";
+import { generatePassword, PASSWORD_INPUT_LABELS, passwordRules } from "@/lib/password";
 import { SIZE_UNITS, type SizeUnit } from "@/lib/size";
-
-export { PasswordInput } from "../PasswordInput";
 
 // App-specific compositions of kore-ui controls. Put them inside a kore-ui
 // `Field`: the text input picks up its label, hint/error and aria-invalid.
+
+/**
+ * kore-ui PasswordInput for a new password with this app's strength hints, plus
+ * the app's Generate button (kore-ui has no generator). `onChange`'s second
+ * argument says whether the value came from the generator, so the caller can
+ * offer the generated password once after saving.
+ */
+export function GeneratedPasswordInput({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string, generated: boolean) => void;
+}) {
+  return (
+    <div className="flex items-start gap-2">
+      <PasswordInput
+        {...PASSWORD_INPUT_LABELS}
+        newPassword
+        rules={passwordRules()}
+        value={value}
+        onChange={(e) => onChange(e.target.value, false)}
+        className="min-w-0 flex-1"
+      />
+      <Button
+        type="button"
+        aria-label={t("password.generateLabel")}
+        onClick={() => onChange(generatePassword(), true)}
+      >
+        {t("password.generate")}
+      </Button>
+    </div>
+  );
+}
 
 /** A number input plus a unit Select (binary units, labelled like the storage meter). */
 export function SizeInput({

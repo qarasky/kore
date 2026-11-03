@@ -12,7 +12,18 @@ import { activeMove, beginMove, endMove, isFileDrag, isNoopMove, type MoveDest, 
 import { otherSpace, spaceLabel } from "@/lib/moveTo";
 import { folderHref, type ApiNode, type Space } from "@/lib/nodes";
 import { isPreviewable } from "@/lib/preview";
-import { Button, EmptyState, MenuItem, MenuSeparator, Spinner, useToast } from "@qarasky/kore-ui";
+import {
+  Button,
+  EmptyState,
+  MenuItem,
+  MenuSeparator,
+  PointMenu,
+  Spinner,
+  pointFromEvent,
+  useToast,
+  type MenuPoint,
+  type PointMenuCloseReason,
+} from "@qarasky/kore-ui";
 import {
   Download,
   ExternalLink,
@@ -30,14 +41,13 @@ import { DropZone } from "./DropZone";
 import { FileRow, ROW_GRID, ROW_GRID_UPLOADER, type RowHandlers } from "./FileRow";
 import { NodeIcon } from "./NodeIcon";
 import { MoveDialog } from "./MoveDialog";
-import { PointMenu, type PointMenuClose } from "./PointMenu";
 import { ShareDialog } from "./ShareDialog";
 import { NameEditor, type EditEnd } from "./NameEditor";
 import { UploaderHeader } from "./UploaderCell";
 import { useUploads } from "./UploadContext";
 
 type Editing = { kind: "rename"; id: string } | { kind: "new" } | null;
-type MenuState = { x: number; y: number; target: "rows" | "empty" } | null;
+type MenuState = { point: MenuPoint; target: "rows" | "empty" } | null;
 
 const isOnRow = (e: { target: EventTarget }) => (e.target as Element).closest('[role="option"]') !== null;
 
@@ -208,11 +218,11 @@ export function FileList({
     });
   }
 
-  function openMenuAt(x: number, y: number, target: "rows" | "empty") {
-    setMenu({ x, y, target });
+  function openMenuAt(point: MenuPoint, target: "rows" | "empty") {
+    setMenu({ point, target });
   }
 
-  function closeMenu(reason: PointMenuClose) {
+  function closeMenu(reason: PointMenuCloseReason) {
     setMenu(null);
     // Back to the list so arrows keep working; an action that moves focus
     // itself (inline rename's input, navigation) runs after this and wins.
@@ -232,7 +242,7 @@ export function FileList({
       e.stopPropagation();
       if (editing) return;
       if (!sel.isSelected(id)) sel.click(id);
-      openMenuAt(e.clientX, e.clientY, "rows");
+      openMenuAt(pointFromEvent(e), "rows");
     },
     // Dragging a selected row drags the whole selection; any other row drags alone.
     onDragStart: (id, e) => {
@@ -267,7 +277,7 @@ export function FileList({
     if (editing) return;
     sel.clear();
     listRef.current?.focus();
-    openMenuAt(e.clientX, e.clientY, "empty");
+    openMenuAt(pointFromEvent(e), "empty");
   }
 
   function onKeyDown(e: KeyboardEvent) {
@@ -323,12 +333,10 @@ export function FileList({
         if (e.key === "F10" && !e.shiftKey) return;
         e.preventDefault();
         {
-          const rect = (target ? rowEls.current.get(target) : undefined)?.getBoundingClientRect();
-          if (rect) openMenuAt(rect.left + 32, rect.bottom, "rows");
-          else {
-            const area = listRef.current?.getBoundingClientRect();
-            openMenuAt((area?.left ?? 0) + 32, (area?.top ?? 0) + 8, "empty");
-          }
+          const row = target ? rowEls.current.get(target) : undefined;
+          // The list element itself has focus, so point at the row (or the area).
+          const el = row ?? listRef.current;
+          if (el) openMenuAt(pointFromEvent({ target: el }), row ? "rows" : "empty");
         }
         return;
     }
@@ -492,7 +500,7 @@ export function FileList({
         />
       )}
       {menu && (
-        <PointMenu x={menu.x} y={menu.y} label={t("list.contextMenu")} onClose={closeMenu}>
+        <PointMenu point={menu.point} label={t("list.contextMenu")} onClose={closeMenu}>
           {menuItems}
         </PointMenu>
       )}

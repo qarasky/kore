@@ -17,7 +17,7 @@ import { t, type MessageKey } from "@/lib/i18n";
 import { passwordProblem } from "@/lib/password";
 import type { Role } from "@/lib/session";
 import { parseSize, QUOTA_UNITS, splitSize, type SizeUnit } from "@/lib/size";
-import { OneTimePassword, PasswordInput, SizeInput } from "./controls";
+import { GeneratedPasswordInput, OneTimePassword, SizeInput } from "./controls";
 
 type Errors = Partial<Record<"email" | "password" | "quota" | "form", MessageKey>>;
 
@@ -166,14 +166,12 @@ export function UserDialog({
               </Field>
               {mode === "add" && (
                 <Field label={t("admin.form.password")} error={errors.password && t(errors.password)}>
-                  <PasswordInput
+                  <GeneratedPasswordInput
                     value={password}
                     onChange={(v, gen) => {
                       setPassword(v);
                       setGenerated(gen);
                     }}
-                    generate
-                    hints
                   />
                 </Field>
               )}

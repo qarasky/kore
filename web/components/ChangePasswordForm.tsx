@@ -1,13 +1,12 @@
 "use client";
 
-import { Button, Field } from "@qarasky/kore-ui";
+import { Button, Field, PasswordInput } from "@qarasky/kore-ui";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { adminErrorKey } from "@/lib/admin";
 import { api, isApiError } from "@/lib/api";
 import { t, type MessageKey } from "@/lib/i18n";
-import { passwordProblem } from "@/lib/password";
-import { PasswordInput } from "./admin/controls";
+import { PASSWORD_INPUT_LABELS, passwordProblem, passwordRules } from "@/lib/password";
 
 type Errors = Partial<Record<"current" | "next" | "confirm" | "form", MessageKey>>;
 
@@ -58,13 +57,13 @@ export function ChangePasswordForm() {
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
       <Field label={t("account.currentPassword")} error={errors.current && t(errors.current)}>
-        <PasswordInput current value={current} onChange={setCurrent} />
+        <PasswordInput {...PASSWORD_INPUT_LABELS} value={current} onChange={(e) => setCurrent(e.target.value)} />
       </Field>
       <Field label={t("account.newPassword")} error={errors.next && t(errors.next)}>
-        <PasswordInput value={next} onChange={setNext} hints />
+        <PasswordInput {...PASSWORD_INPUT_LABELS} newPassword rules={passwordRules()} value={next} onChange={(e) => setNext(e.target.value)} />
       </Field>
       <Field label={t("account.confirmPassword")} error={errors.confirm && t(errors.confirm)}>
-        <PasswordInput value={confirm} onChange={setConfirm} />
+        <PasswordInput {...PASSWORD_INPUT_LABELS} newPassword value={confirm} onChange={(e) => setConfirm(e.target.value)} />
       </Field>
       {errors.form && (
         <p role="alert" className="text-meta text-danger">

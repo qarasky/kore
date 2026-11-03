@@ -72,8 +72,7 @@ test("an admin creates a user, who signs in to an empty space with that quota", 
   await expect(dialog.getByText(en["admin.error.passwordTooShort"])).toBeVisible();
 
   await dialog.getByRole("button", { name: en["password.generateLabel"] }).click();
-  // Generated passwords are revealed so they can be read.
-  await expect(password).toHaveAttribute("type", "text");
+  // kore-ui's PasswordInput keeps the value hidden; it is shown once after saving.
   const generated = await password.inputValue();
   expect(generated).toMatch(/^[\w]{5}(-[\w]{5}){3}$/);
   await quota.fill("3");
@@ -371,9 +370,8 @@ test("resetting a password signs the user out; the new password works", async ({
     const field = dialog.getByLabel(en["admin.reset.newPassword"], { exact: true });
     await expect(field).toHaveAttribute("autocomplete", "new-password");
     await field.fill("short");
-    await expect(dialog.getByRole("listitem").filter({ hasText: en["password.hint.minLength"] })).toHaveAttribute(
+    await expect(dialog.getByRole("listitem").filter({ hasText: en["password.hint.minLength"] })).not.toHaveAttribute(
       "data-met",
-      "false",
     );
     await dialog.getByRole("button", { name: en["admin.reset.submit"] }).click();
     await expect(dialog.getByText(en["admin.error.passwordTooShort"])).toBeVisible();

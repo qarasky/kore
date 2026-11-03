@@ -4,6 +4,9 @@
  * Nothing here logs or stores a password.
  */
 
+import type { PasswordRule } from "@qarasky/kore-ui";
+import { t } from "./i18n";
+
 export const MIN_PASSWORD_BYTES = 8;
 export const MAX_PASSWORD_BYTES = 1024;
 /** Length from which the "longer" hint counts as met. */
@@ -38,6 +41,23 @@ export function passwordHints(pw: string): PasswordHints {
     mixed: classes >= 2,
   };
 }
+
+/** The strength hints as kore-ui PasswordInput's live checklist. */
+export function passwordRules(): PasswordRule[] {
+  return [
+    { label: t("password.hint.minLength"), test: (pw) => passwordHints(pw).minLength },
+    { label: t("password.hint.long"), test: (pw) => passwordHints(pw).long },
+    { label: t("password.hint.mixed"), test: (pw) => passwordHints(pw).mixed },
+  ];
+}
+
+/** kore-ui PasswordInput's labels, through this app's copy. */
+export const PASSWORD_INPUT_LABELS = {
+  showLabel: t("password.show"),
+  hideLabel: t("password.hide"),
+  ruleMetLabel: t("password.hintMet"),
+  ruleUnmetLabel: t("password.hintUnmet"),
+};
 
 /** No look-alikes (0/O, 1/l/I), so a password read aloud or copied by hand works. */
 export const PASSWORD_ALPHABET = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";

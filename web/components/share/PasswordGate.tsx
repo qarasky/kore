@@ -1,13 +1,13 @@
 "use client";
 
-import { Button, Field } from "@qarasky/kore-ui";
+import { Button, Field, PasswordInput } from "@qarasky/kore-ui";
 import { KeyRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { api } from "@/lib/api";
 import { t, type MessageKey } from "@/lib/i18n";
+import { PASSWORD_INPUT_LABELS } from "@/lib/password";
 import { shareUrls, unlockErrorKey } from "@/lib/shares";
-import { PasswordInput } from "../PasswordInput";
 
 /**
  * Asks for a link's password. A correct one sets the unlock cookie (12 h,
@@ -43,7 +43,13 @@ export function PasswordGate({ token }: { token: string }) {
         <p className="text-muted">{t("publicShare.passwordBody")}</p>
       </div>
       <Field label={t("publicShare.passwordLabel")} error={error && t(error)}>
-        <PasswordInput value={password} onChange={setPassword} autoFocus current autoComplete="off" />
+        <PasswordInput
+          {...PASSWORD_INPUT_LABELS}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoFocus
+          autoComplete="off"
+        />
       </Field>
       <Button type="submit" variant="primary" disabled={password === ""} loading={pending}>
         {pending ? t("publicShare.unlocking") : t("publicShare.unlock")}
