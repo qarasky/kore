@@ -29,7 +29,7 @@ agent ──POST /api/push──▶ caddy   (outbound only, per-monitor push tok
   backend and everything else to the web app, so there is no backend URL to
   configure in the browser. The backend routes are proxied unbuffered (flushed
   as written, no body size limit), so the SSE stream and backup chunk uploads
-  and downloads stream through. `backend-rs/tests/caddy_routes.rs` fails when a
+  and downloads stream through. `backend/tests/caddy_routes.rs` fails when a
   backend route is not matched by Caddy's `@backend` matcher.
 - The web app renders pages on the server, calling the backend directly at
   `API_URL` (`http://backend:3001` in the containers) and forwarding the
@@ -78,7 +78,7 @@ agent ──POST /api/push──▶ caddy   (outbound only, per-monitor push tok
 ## Data
 
 SQLite, opened and migrated at startup (`sqlx::migrate!`, migrations in
-`backend-rs/migrations/`). Backup metadata is stored in the same SQLite
+`backend/migrations/`). Backup metadata is stored in the same SQLite
 database; bundles (plain or encrypted) live under `KOREMONITOR_BACKUP_DIR`, never in the
 application data directory. Both agents update themselves from builds baked
 into the image: the telemetry agent from `KOREMONITOR_AGENT_DIR` (`/agent/*`), the

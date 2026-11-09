@@ -50,9 +50,9 @@ scratch.
 
 ```bash
 # backend
-cargo run --manifest-path backend-rs/Cargo.toml
+cargo run --manifest-path backend/Cargo.toml
 # or a release build
-DATA_DIR=./data cargo run --release --manifest-path backend-rs/Cargo.toml
+DATA_DIR=./data cargo run --release --manifest-path backend/Cargo.toml
 
 # web app (expects a backend on :3001; API_URL overrides that)
 cd apps/web && npm ci && API_URL=http://127.0.0.1:3001 npx next dev --port 3003
@@ -70,7 +70,7 @@ cd superboard && go run . check --verbose
 | What              | Command                                                                                                                                                                                                                                                                     |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Formatting        | `npm run fmt` (write), `npm run fmt:check` (verify). Prettier 3 covers TS/TSX, JS/MJS, CSS, JSON, Markdown and YAML.                                                                                                                                                        |
-| Backend tests     | `cargo test --manifest-path backend-rs/Cargo.toml` (unit tests plus integration tests in `backend-rs/tests/`).                                                                                                                                                              |
+| Backend tests     | `cargo test --manifest-path backend/Cargo.toml` (unit tests plus integration tests in `backend/tests/`).                                                                                                                                                                    |
 | Web app tests     | `npm run test:web` (Vitest over `apps/web/__tests__/`, including the ported modules in `__tests__/ported/`).                                                                                                                                                                |
 | Web app types     | `npm run typecheck:web`                                                                                                                                                                                                                                                     |
 | Web app build     | `npm run build:web` (Next.js standalone output).                                                                                                                                                                                                                            |
@@ -86,22 +86,22 @@ verified with.
 
 ## Repository layout
 
-| Path                       | What                                                                   |
-| -------------------------- | ---------------------------------------------------------------------- |
-| `backend-rs/src/api/`      | HTTP surface: routers, handlers, `openapi.json`.                       |
-| `backend-rs/src/monitors/` | Check engine.                                                          |
-| `backend-rs/src/metrics/`  | Ingest, live cache, archival, rollups, alerts, history.                |
-| `backend-rs/migrations/`   | Ordered SQL migrations.                                                |
-| `backend-rs/tests/`        | Integration tests against a real SQLite database in a temp dir.        |
-| `superboard/`              | The Go agent (`mockagent/` is the dev fleet).                          |
-| `backup-agent/`            | The separate backup agent and its offline/restore tests.               |
-| `apps/web/app/`            | Next.js routes: the admin sections, Superboard, status pages, sign-in. |
-| `apps/web/components/`     | UI components, built from kore-ui (`@qarasky/kore-ui`).                |
-| `apps/web/lib/`            | Pure logic and API clients that the tests cover.                       |
-| `apps/web/__tests__/`      | Vitest tests; `ported/` holds the old dashboard's tests.               |
-| `packages/shared/`         | The status-page client and types the web app uses.                     |
-| `docker/`                  | Dockerfiles, the Caddyfile, the backup compose file.                   |
-| `docs/`                    | These documents.                                                       |
+| Path                    | What                                                                   |
+| ----------------------- | ---------------------------------------------------------------------- |
+| `backend/src/api/`      | HTTP surface: routers, handlers, `openapi.json`.                       |
+| `backend/src/monitors/` | Check engine.                                                          |
+| `backend/src/metrics/`  | Ingest, live cache, archival, rollups, alerts, history.                |
+| `backend/migrations/`   | Ordered SQL migrations.                                                |
+| `backend/tests/`        | Integration tests against a real SQLite database in a temp dir.        |
+| `superboard/`           | The Go agent (`mockagent/` is the dev fleet).                          |
+| `backup-agent/`         | The separate backup agent and its offline/restore tests.               |
+| `apps/web/app/`         | Next.js routes: the admin sections, Superboard, status pages, sign-in. |
+| `apps/web/components/`  | UI components, built from kore-ui (`@qarasky/kore-ui`).                |
+| `apps/web/lib/`         | Pure logic and API clients that the tests cover.                       |
+| `apps/web/__tests__/`   | Vitest tests; `ported/` holds the old dashboard's tests.               |
+| `packages/shared/`      | The status-page client and types the web app uses.                     |
+| `docker/`               | Dockerfiles, the Caddyfile, the backup compose file.                   |
+| `docs/`                 | These documents.                                                       |
 
 ### Web app
 
@@ -138,7 +138,7 @@ one).
 - **Rust**: modules keep their public surface small; functions that talk to the
   database return the API error type rather than panicking; comments explain the
   contract, not the syntax. The tree is rustfmt-formatted: run `cargo fmt` in
-  `backend-rs/` (or `cargo fmt --check`) before committing.
+  `backend/` (or `cargo fmt --check`) before committing.
 - **Go**: `gofmt` clean, one collector per file, best-effort collectors return
   "unavailable" rather than failing a sample.
 - **Markdown, JSON, YAML and CSS** are Prettier-formatted too; `.prettierignore`
@@ -146,16 +146,16 @@ one).
 
 ## Changing things
 
-- **A migration**: add `backend-rs/migrations/NNNN_name.sql`, additive where
+- **A migration**: add `backend/migrations/NNNN_name.sql`, additive where
   possible (`ALTER TABLE … ADD COLUMN` with a default). It is applied
   automatically at startup and recorded in `_sqlx_migrations`; the backend
   refuses to start against a database that contains migrations it does not know,
   which is what makes a rollback need the matching database.
-- **An API route**: register it in `backend-rs/src/api/mod.rs` and document it in
-  `backend-rs/src/api/openapi.json`: that document is served at
+- **An API route**: register it in `backend/src/api/mod.rs` and document it in
+  `backend/src/api/openapi.json`: that document is served at
   `/api/v1/openapi.json` and is the API's contract. A route outside `/api/*`
   and `/agent/*` also needs a place in Caddy's `@backend` matcher
-  (`docker/Caddyfile`); `backend-rs/tests/caddy_routes.rs` fails until it has
+  (`docker/Caddyfile`); `backend/tests/caddy_routes.rs` fails until it has
   one.
 - **The provisioning runbook**: edit `docs/provisioning.md`. It is compiled into
   the binary with `include_str!` and copied to `/docs/provisioning.md` in the

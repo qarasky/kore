@@ -13,7 +13,7 @@ name: images
 on:
   pull_request:
     paths:
-      - backend-rs/**
+      - backend/**
       - apps/web/**
       - packages/shared/**
       - superboard/**

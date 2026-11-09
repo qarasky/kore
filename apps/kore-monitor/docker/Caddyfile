@@ -42,7 +42,7 @@
 		X-Robots-Tag "noindex, nofollow, noarchive, nosnippet"
 	}
 
-	# The backend's own paths. backend-rs/tests/caddy_routes.rs fails when
+	# The backend's own paths. backend/tests/caddy_routes.rs fails when
 	# a route in the backend is not matched here. No body size limit, no
 	# buffering, responses flushed as written: the live stream (SSE) and
 	# backup chunk uploads and downloads pass straight through, uncompressed.

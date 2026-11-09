@@ -11,7 +11,7 @@ document. This file holds only what an agent needs before it opens that index.
 
 | Path               | What                                                                            |
 | ------------------ | ------------------------------------------------------------------------------- |
-| `backend-rs/`      | Rust backend (API, check engine, storage, agent downloads), migrations.         |
+| `backend/`         | Rust backend (API, check engine, storage, agent downloads), migrations.         |
 | `superboard/`      | Go telemetry agent on each host; `superboard/mockagent` for dev.                |
 | `backup-agent/`    | Go backup agent (`flatline-backup`), independent of `superboard`.               |
 | `apps/web/`        | Next.js web app: operator UI, Superboard, status pages.                         |
@@ -26,19 +26,19 @@ Run the ones that cover what you touched before calling work done.
 | Area         | Command                                                               |
 | ------------ | --------------------------------------------------------------------- |
 | Formatting   | `npm run fmt:check` (fix with `npm run fmt`; never hand-format)       |
-| Backend      | `cargo test --manifest-path backend-rs/Cargo.toml`                    |
+| Backend      | `cargo test --manifest-path backend/Cargo.toml`                       |
 | Web app      | `npm run test:web && npm run typecheck:web` (and `npm run build:web`) |
 | Agent        | `cd superboard && gofmt -l . && go vet ./... && go test ./...`        |
 | Backup agent | `cd backup-agent && go vet ./... && go test -race ./...`              |
 | Local stack  | `./dev.sh` (backend `:3001`, web `:3003`, mock fleet), `status`       |
 
-`backend-rs/` is rustfmt-formatted: run `cargo fmt` there (or `cargo fmt --check`) before committing.
+`backend/` is rustfmt-formatted: run `cargo fmt` there (or `cargo fmt --check`) before committing.
 
 ## Rules
 
 - **Docs change with behaviour.** If a change alters what a user, operator or
   agent sees, update the matching file in `docs/` in the same commit.
-- **Migrations are additive and ordered.** Add `backend-rs/migrations/NNNN_*.sql`;
+- **Migrations are additive and ordered.** Add `backend/migrations/NNNN_*.sql`;
   never edit an applied one. The backend refuses a database with migrations it
   does not know, so a rollback needs the matching database backup.
 - **Agent changes need a version bump to ship.** Hosts self-update only to a
@@ -50,8 +50,8 @@ Run the ones that cover what you touched before calling work done.
   whenever backup-agent code changes, or hosts never self-update to it.
 - **New agent config keys** get a default in `superboard/config.go` and a row
   in `docs/agent.md`.
-- **API routes** are registered in `backend-rs/src/api/mod.rs` and documented
-  in `backend-rs/src/api/openapi.json`, the served contract.
+- **API routes** are registered in `backend/src/api/mod.rs` and documented
+  in `backend/src/api/openapi.json`, the served contract.
 - **One level of operator access.** Member accounts (created only by Kore ID)
   and `kmon_op_` operator API tokens are both full-permission operator
   credentials; push tokens only affect their own monitor; backup-agent tokens

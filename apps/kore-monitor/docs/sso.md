@@ -11,7 +11,7 @@ backup-agent tokens and the host agents keep working.
 
 ## Where it lives
 
-The backend (`backend-rs/src/sso.rs`) is the OIDC relying party, not the web
+The backend (`backend/src/sso.rs`) is the OIDC relying party, not the web
 app. It owns accounts, sessions and the `fl_session` cookie, and Caddy sends
 `/api/*` straight to it, so the browser needs a single cookie and there is no
 web-app session store. The web app only shows a **Continue with Kore ID** link
@@ -178,10 +178,10 @@ makes outbound HTTPS requests to the provider (discovery, JWKS, token), so the
 
 ## Tests
 
-`backend-rs/tests/sso.rs` runs the whole flow against an in-process provider
+`backend/tests/sso.rs` runs the whole flow against an in-process provider
 (PKCE, state binding and replay, nonce, audience, signature, provisioning
 and the optional allowlists, verified-email linking, `at+jwt` bearer tokens,
 the stored `sid`, back-channel logout and its refusals, logout URL, and
-Kore-ID-only sign-in); `backend-rs/tests/sso_only.rs` asserts the password,
+Kore-ID-only sign-in); `backend/tests/sso_only.rs` asserts the password,
 setup and operator-token login routes are gone. `apps/web/__tests__/sso.test.ts`
 covers the sign-in helpers.

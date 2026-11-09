@@ -54,13 +54,13 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" \
 FROM rust:1.99-trixie AS build
 WORKDIR /app
 
-COPY backend-rs/Cargo.toml backend-rs/Cargo.lock ./
+COPY backend/Cargo.toml backend/Cargo.lock ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs && echo "" > src/lib.rs \
     && cargo build --release \
     && rm -rf src
 
-COPY backend-rs/src src
-COPY backend-rs/migrations migrations
+COPY backend/src src
+COPY backend/migrations migrations
 # Embedded with include_str! by src/api/provisioning.rs and src/api/openapi.rs.
 # The paths resolve from /app/src/api to the container root, not /app, so the
 # images of these files land at /docs/provisioning.md and /agent-install.sh.

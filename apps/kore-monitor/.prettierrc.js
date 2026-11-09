@@ -4,7 +4,7 @@
  * The whole repository follows this style: `npm run fmt` writes it, and
  * `npm run fmt:check` verifies it without touching anything.
  *
- * Rust and Go are not covered: `backend-rs/` is kept `cargo fmt` clean and Go
+ * Rust and Go are not covered: `backend/` is kept `cargo fmt` clean and Go
  * `gofmt` clean.
  */
 module.exports = {

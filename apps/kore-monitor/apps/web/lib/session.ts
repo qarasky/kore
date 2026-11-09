@@ -1,6 +1,6 @@
 /**
  * Names shared by the sign-in gate, the API client and the pages. The cookie
- * and header names must match the backend (`backend-rs/src/auth.rs`).
+ * and header names must match the backend (`backend/src/auth.rs`).
  */
 
 /** The backend's session cookie; it holds a server-side session id. */

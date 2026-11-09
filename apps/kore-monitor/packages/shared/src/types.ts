@@ -1,7 +1,7 @@
 /**
  * Shapes returned by the KoreMonitor status page API.
  *
- * These mirror what the Rust backend (backend-rs, `/api/status-page/*`) serves.
+ * These mirror what the Rust backend (`backend/`, `/api/status-page/*`) serves.
  * Kept hand-written rather than generated so the web app and its tests can
  * depend on them without a codegen step.
  */

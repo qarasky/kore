@@ -10,7 +10,7 @@ tmp
 dist
 apps/web/.next
 apps/web/next-env.d.ts
-backend-rs/target
+backend/target
 superboard/flatline-superboard
 
 # Generated files: npm owns the lockfile's formatting.

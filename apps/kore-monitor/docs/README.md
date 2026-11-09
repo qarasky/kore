@@ -28,16 +28,16 @@ for the shape of the system, then go to whichever document matches your task.
 
 ## Where things live in the repository
 
-| Path                     | What                                                                                      |
-| ------------------------ | ----------------------------------------------------------------------------------------- |
-| `backend-rs/`            | The Rust backend, its migrations and its integration tests.                               |
-| `backend-rs/migrations/` | Ordered SQL migrations, applied automatically at startup.                                 |
-| `superboard/`            | The Go agent, plus `superboard/mockagent` for local development.                          |
-| `backup-agent/`          | The separate Go backup agent (`flatline-backup`) and its integration tests.               |
-| `apps/web/`              | The Next.js web app (operator UI, Superboard, status pages).                              |
-| `packages/shared/`       | The status-page client and types the web app uses.                                        |
-| `agent-install.sh`       | The installer/updater served at `/agent/install.sh`.                                      |
-| `docs/provisioning.md`   | The runbook served at `/add-push-server.md`.                                              |
-| `docker/`                | Dockerfiles (backend, web app, Caddy), the Caddyfile and the backup-storage compose file. |
-| `compose.yaml`           | The three-container stack for a self-hosted install.                                      |
-| `dev.sh`                 | The local development stack.                                                              |
+| Path                   | What                                                                                      |
+| ---------------------- | ----------------------------------------------------------------------------------------- |
+| `backend/`             | The Rust backend, its migrations and its integration tests.                               |
+| `backend/migrations/`  | Ordered SQL migrations, applied automatically at startup.                                 |
+| `superboard/`          | The Go agent, plus `superboard/mockagent` for local development.                          |
+| `backup-agent/`        | The separate Go backup agent (`flatline-backup`) and its integration tests.               |
+| `apps/web/`            | The Next.js web app (operator UI, Superboard, status pages).                              |
+| `packages/shared/`     | The status-page client and types the web app uses.                                        |
+| `agent-install.sh`     | The installer/updater served at `/agent/install.sh`.                                      |
+| `docs/provisioning.md` | The runbook served at `/add-push-server.md`.                                              |
+| `docker/`              | Dockerfiles (backend, web app, Caddy), the Caddyfile and the backup-storage compose file. |
+| `compose.yaml`         | The three-container stack for a self-hosted install.                                      |
+| `dev.sh`               | The local development stack.                                                              |

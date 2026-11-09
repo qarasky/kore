@@ -3,7 +3,7 @@
 # Start the KoreMonitor dev servers, detached so they survive the shell that
 # launched them.
 #
-# The backend is the Rust service in backend-rs/. The operator UI is the
+# The backend is the Rust service in backend/. The operator UI is the
 # Next.js app in apps/web, which rewrites /api and /agent to the backend (see
 # apps/web/next.config.ts), so the app is same-origin in dev exactly as it is
 # in production (where Caddy does the routing; see docker/Caddyfile).
@@ -108,12 +108,12 @@ if ! command -v cargo >/dev/null 2>&1; then
 fi
 
 echo "  building backend …"
-if ! cargo build --quiet --manifest-path "$ROOT/backend-rs/Cargo.toml" >"$LOGS/backend-build.log" 2>&1; then
+if ! cargo build --quiet --manifest-path "$ROOT/backend/Cargo.toml" >"$LOGS/backend-build.log" 2>&1; then
     echo "  backend build failed; see .dev-logs/backend-build.log"
     tail -n 10 "$LOGS/backend-build.log"
     exit 1
 fi
-BACKEND_BIN="$ROOT/backend-rs/target/debug/koremonitor-backend"
+BACKEND_BIN="$ROOT/backend/target/debug/koremonitor-backend"
 
 # The agent binaries the download endpoints serve, plus the mock agent.
 if command -v go >/dev/null 2>&1; then

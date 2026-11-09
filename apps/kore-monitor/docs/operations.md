@@ -297,6 +297,6 @@ needed.
 ## Repository hygiene
 
 Git-ignored, and never committed: `data/`, `.dev-data/`, `.dev-logs/`, `private/`,
-`tmp/`, `backend-rs/target/`, `node_modules/` and the web app's build output
+`tmp/`, `backend/target/`, `node_modules/` and the web app's build output
 (`apps/web/.next/`). Production credentials live outside the repository, in a
 root-only directory on the server.

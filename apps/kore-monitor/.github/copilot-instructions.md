@@ -14,7 +14,7 @@ behind Caddy.
 
 | Piece                                                 | Language                     | Where              |
 | ----------------------------------------------------- | ---------------------------- | ------------------ |
-| Backend (API, check engine, storage, agent downloads) | Rust                         | `backend-rs/`      |
+| Backend (API, check engine, storage, agent downloads) | Rust                         | `backend/`         |
 | Host agent pushed to each server                      | Go                           | `superboard/`      |
 | Backup agent                                          | Go                           | `backup-agent/`    |
 | Web app: operator UI, Superboard, status pages        | TypeScript + React (Next.js) | `apps/web/`        |
@@ -23,7 +23,7 @@ behind Caddy.
 
 Runtime requirements: `cargo`, `go`, and Node for the web app (its dev server,
 build and production server). Data is SQLite, migrated at startup from
-`backend-rs/migrations/`.
+`backend/migrations/`.
 
 ## What to keep in mind when reviewing
 
@@ -50,7 +50,7 @@ build and production server). Data is SQLite, migrated at startup from
 
 | Task                | Command                                                   |
 | ------------------- | --------------------------------------------------------- |
-| Backend tests       | `cargo test --manifest-path backend-rs/Cargo.toml`        |
+| Backend tests       | `cargo test --manifest-path backend/Cargo.toml`           |
 | Formatting          | `npm run fmt:check`                                       |
 | Web app tests       | `npm run test:web`                                        |
 | Web app types       | `npm run typecheck:web`                                   |

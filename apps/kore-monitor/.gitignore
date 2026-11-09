@@ -38,7 +38,7 @@ packages/*/node_modules
 # Local dev servers (./dev.sh): databases and logs.
 .dev-data
 .dev-logs
-backend-rs/target/
+backend/target/
 
 # Go agent build artifact (go build ./... inside superboard/).
 superboard/flatline-superboard

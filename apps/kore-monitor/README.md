@@ -25,7 +25,7 @@ Four pieces, one origin:
 
 | Piece        | Dir             | What                                                                                                         |
 | ------------ | --------------- | ------------------------------------------------------------------------------------------------------------ |
-| Backend      | `backend-rs/`   | Rust service: the check engine, REST API, storage, alerts and both agents' downloads.                        |
+| Backend      | `backend/`      | Rust service: the check engine, REST API, storage, alerts and both agents' downloads.                        |
 | Web app      | `apps/web/`     | Next.js app: operator UI, Superboard, public status pages.                                                   |
 | Host agent   | `superboard/`   | Single static Go binary pushed to each monitored server; sends telemetry, never accepts connections.         |
 | Backup agent | `backup-agent/` | Separate Go binary on servers whose data you back up: exports Postgres and S3/Garage, uploads to the server. |
@@ -122,7 +122,7 @@ uploads answer 503 and everything else works.
 
 There is no single-binary mode. Run three things:
 
-- the backend: `cargo run --release --manifest-path backend-rs/Cargo.toml`
+- the backend: `cargo run --release --manifest-path backend/Cargo.toml`
   (data is SQLite in `./data`);
 - the web app: `npm run build:web`, then `npx next start` in `apps/web/` (or
   the standalone server `apps/web/server.js` from `.next/standalone/`, laid out
