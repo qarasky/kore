@@ -1,0 +1,24 @@
+# Prettier runs over the whole repository (`prettier --write .`), so this file
+# lists everything it must leave alone. `node_modules` is skipped by default.
+
+# Local state, secrets and build output
+.dev-data
+.dev-logs
+data
+private
+tmp
+dist
+apps/web/.next
+apps/web/next-env.d.ts
+backend-rs/target
+superboard/flatline-superboard
+
+# Generated files: npm owns the lockfile's formatting.
+package-lock.json
+
+# Go backup agent build artifacts.
+backup-agent/flatline-backup
+backup-agent/flatline-backup-*
+
+# Agent execution ledgers are scratch, not repository documentation.
+.superpowers

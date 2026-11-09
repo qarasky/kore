@@ -1,0 +1,43 @@
+# KoreMonitor documentation
+
+KoreMonitor is a self-hosted uptime monitor and fleet-telemetry system: a Rust
+backend, a Next.js web app, a Go host agent and a Go backup agent, deployed as
+one origin behind Caddy. Start with [architecture](architecture.md)
+for the shape of the system, then go to whichever document matches your task.
+
+## Reading guide
+
+| Document                                       | Read it when                                                                                                 |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| [architecture.md](architecture.md)             | Understanding how the pieces fit, how data is stored and retained, and how live updates work.                |
+| [api.md](api.md)                               | Calling KoreMonitor from a script, an integration or an LLM agent.                                           |
+| [agent.md](agent.md)                           | Installing, configuring, updating or debugging the `superboard` host agent.                                  |
+| [backup-agent.md](backup-agent.md)             | Named backup agents (encryption optional): configuration, scheduling, offline verify and restore.            |
+| [superboard.md](superboard.md)                 | Changing or explaining the wall board: card anatomy, scopes, history, links.                                 |
+| [dashboard.md](dashboard.md)                   | Working on the web app (`apps/web/`): routes, sections, sign-in, live updates, adding a section.             |
+| [dashboard-motion.md](dashboard-motion.md)     | Adding or changing animation in the operator UI.                                                             |
+| [sso.md](sso.md)                               | Signing in with Kore ID: flow, who gets an account, bearer tokens, env keys.                                 |
+| [status-pages.md](status-pages.md)             | Publishing, theming or password-gating a public status page.                                                 |
+| [deployment.md](deployment.md)                 | Installing, updating and rolling back: the images, rollout and a fleet of hosts.                             |
+| [operations.md](operations.md)                 | Backing up, restore-testing backup agents, rotating tokens, diagnosing a broken instance.                    |
+| [development.md](development.md)               | Running the stack locally, tests, builds, repository layout.                                                 |
+| [provisioning.md](provisioning.md)             | AI-assisted agent deployment, websites, groups and notification setup. Also served at `/add-push-server.md`. |
+| [roadmap.md](roadmap.md)                       | Checking what is deliberately not implemented.                                                               |
+| [audit-2026-10.md](audit-2026-10.md)           | Reviewing the October 2026 performance and reliability audit and its fix status.                             |
+| [screenshots/README.md](screenshots/README.md) | The sample screenshots and how they were produced.                                                           |
+
+## Where things live in the repository
+
+| Path                     | What                                                                                      |
+| ------------------------ | ----------------------------------------------------------------------------------------- |
+| `backend-rs/`            | The Rust backend, its migrations and its integration tests.                               |
+| `backend-rs/migrations/` | Ordered SQL migrations, applied automatically at startup.                                 |
+| `superboard/`            | The Go agent, plus `superboard/mockagent` for local development.                          |
+| `backup-agent/`          | The separate Go backup agent (`flatline-backup`) and its integration tests.               |
+| `apps/web/`              | The Next.js web app (operator UI, Superboard, status pages).                              |
+| `packages/shared/`       | The status-page client and types the web app uses.                                        |
+| `agent-install.sh`       | The installer/updater served at `/agent/install.sh`.                                      |
+| `docs/provisioning.md`   | The runbook served at `/add-push-server.md`.                                              |
+| `docker/`                | Dockerfiles (backend, web app, Caddy), the Caddyfile and the backup-storage compose file. |
+| `compose.yaml`           | The three-container stack for a self-hosted install.                                      |
+| `dev.sh`                 | The local development stack.                                                              |

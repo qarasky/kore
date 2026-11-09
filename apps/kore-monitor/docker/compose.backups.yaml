@@ -1,0 +1,20 @@
+# Opt-in storage for backup-agent uploads, layered over compose.yaml:
+#
+#   docker compose -f compose.yaml -f docker/compose.backups.yaml up -d
+#
+# Set KOREMONITOR_BACKUP_HOST_DIR (in .env; the pre-rename FLATLINE_BACKUP_HOST_DIR
+# is still read) to an existing directory on the disk that should hold the
+# bundles, ideally a mirrored or otherwise redundant one. Compose never creates
+# it, so a typo fails the start instead of filling the root filesystem. Pass
+# both files on every `up`: with compose.yaml alone the backend loses the mount
+# and uploads answer 503.
+services:
+  backend:
+    environment:
+      KOREMONITOR_BACKUP_DIR: /app/backups
+    volumes:
+      - type: bind
+        source: ${KOREMONITOR_BACKUP_HOST_DIR:-${FLATLINE_BACKUP_HOST_DIR:?set KOREMONITOR_BACKUP_HOST_DIR to the directory that holds backup bundles}}
+        target: /app/backups
+        bind:
+          create_host_path: false

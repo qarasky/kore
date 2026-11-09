@@ -1,0 +1,4105 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "KoreMonitor API",
+        "version": "1.0.0",
+        "description": "Monitoring API for automation and agents. Every response includes an `ok` boolean. Authenticate machine calls with `Authorization: Bearer <token>`. Credential families: `kmon_op_...` operator API token (every /api/v1 call; people sign in to the web app with Kore ID), `kmon_agent_push_...` host agent (only /api/push/{token} and /agent/*), `kmon_agent_backup_...` backup agent (only /api/backup/v1). Using a credential on the wrong surface returns an explicit error code with a `hint`. Failures use `{ ok, error, code, message, hint?, details? }`. A Kore ID access token (a JWT whose audience is this app's client id) is also accepted as `Authorization: Bearer` for an account that has signed in through Kore ID."
+    },
+    "servers": [
+        {
+            "url": "/",
+            "description": "This instance"
+        }
+    ],
+    "components": {
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "description": "Operator API token `kmon_op_...` from the web app's Tokens section. It authenticates /api/v1 as a machine credential; it does not create a browser session (people sign in with Kore ID). Legacy `flatline_...` tokens are still accepted. Agent tokens are rejected here with `agent_token_on_operator_api`."
+            },
+            "cookieAuth": {
+                "type": "apiKey",
+                "in": "cookie",
+                "name": "fl_session",
+                "description": "The web app's session cookie, created only by a successful Kore ID sign-in. It holds a random session id (`fls_...`), never a token; the server stores only its hash. A session belongs to a member account and ends when it is signed out, after 30 idle days, or when the account is removed. A cookie-authenticated request other than GET/HEAD/OPTIONS must send `X-KoreMonitor-CSRF: 1`, or it is refused with 403 `csrf_required`."
+            }
+        },
+        "parameters": {
+            "page": {
+                "name": "page",
+                "in": "query",
+                "required": false,
+                "schema": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": 1
+                },
+                "description": "1-based page number."
+            },
+            "perPage": {
+                "name": "perPage",
+                "in": "query",
+                "required": false,
+                "schema": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 200,
+                    "default": 50
+                },
+                "description": "Rows per page, capped at 200."
+            },
+            "monitorId": {
+                "name": "id",
+                "in": "path",
+                "required": true,
+                "schema": {
+                    "type": "integer"
+                },
+                "description": "Monitor id owned by the token's user."
+            }
+        },
+        "schemas": {
+            "Error": {
+                "type": "object",
+                "required": ["ok", "error", "code", "message"],
+                "properties": {
+                    "ok": {
+                        "type": "boolean",
+                        "const": false
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Stable machine-readable error code. Same value as `code`.",
+                        "examples": [
+                            "bad_request",
+                            "unauthorized",
+                            "agent_token_on_operator_api",
+                            "csrf_required",
+                            "operator_token_on_agent_api",
+                            "agent_monitor_inactive",
+                            "backup_agent_token_on_metric_agent_api",
+                            "push_agent_token_on_backup_agent_api",
+                            "not_found",
+                            "conflict",
+                            "cannot_remove_self",
+                            "email_taken",
+                            "rate_limited",
+                            "unavailable",
+                            "stream_limit",
+                            "timeout",
+                            "busy",
+                            "password_required",
+                            "server_error"
+                        ]
+                    },
+                    "code": {
+                        "type": "string",
+                        "description": "Stable machine-readable error code. Same value as `error`."
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "What went wrong, in one sentence."
+                    },
+                    "hint": {
+                        "type": "string",
+                        "description": "What to do next. Names the fix or the required credential family; present on auth and validation failures."
+                    },
+                    "details": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "Structured context for the error, e.g. the active run id or the conflicting field."
+                    },
+                    "tokenKind": {
+                        "type": "string",
+                        "enum": ["operator", "push_agent", "backup_agent", "legacy", "unknown"],
+                        "description": "Kind of credential that was presented, when the error is about credential kind."
+                    },
+                    "expectedTokenKind": {
+                        "type": "string",
+                        "enum": ["operator", "push_agent", "backup_agent"],
+                        "description": "Kind of credential the endpoint expects."
+                    },
+                    "expectedPrefix": {
+                        "type": "string",
+                        "description": "Prefix to mint the expected credential with."
+                    },
+                    "expectedPrefixes": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "nextActions": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Ordered recovery steps."
+                    },
+                    "retryAfterSeconds": {
+                        "type": "integer",
+                        "description": "Delay to wait before retrying a 429/503."
+                    },
+                    "docs": {
+                        "type": "string",
+                        "description": "Relative link to the LLM/runbook documentation."
+                    }
+                }
+            },
+            "Pagination": {
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "integer"
+                    },
+                    "perPage": {
+                        "type": "integer"
+                    },
+                    "total": {
+                        "type": "integer"
+                    },
+                    "totalPages": {
+                        "type": "integer"
+                    },
+                    "hasMore": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "Monitor": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "integer",
+                        "description": "1 = up, 0 = down, 2 = pending, 3 = maintenance"
+                    },
+                    "ping": {
+                        "type": ["number", "null"]
+                    },
+                    "url": {
+                        "type": ["string", "null"]
+                    },
+                    "interval": {
+                        "type": "integer"
+                    },
+                    "active": {
+                        "type": "boolean"
+                    },
+                    "lastCheck": {
+                        "type": ["string", "null"]
+                    },
+                    "lastMessage": {
+                        "type": ["string", "null"]
+                    },
+                    "uptime24h": {
+                        "type": ["number", "null"]
+                    },
+                    "uptime7d": {
+                        "type": ["number", "null"]
+                    },
+                    "uptime30d": {
+                        "type": ["number", "null"]
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "metricCpuThreshold": {
+                        "type": ["integer", "null"],
+                        "description": "Alert when server-derived CPU stays at or above this percent for 60s. null disables."
+                    },
+                    "metricRamThreshold": {
+                        "type": ["integer", "null"],
+                        "description": "Alert when RAM stays at or above this percent for 60s. null disables."
+                    },
+                    "metricDiskThreshold": {
+                        "type": ["integer", "null"],
+                        "description": "Alert when the fullest reported mount stays at or above this percent for 60s. null disables."
+                    },
+                    "pushFailuresAck": {
+                        "type": "integer",
+                        "description": "Agent `failedPushes` value the operator last acknowledged; the board shows the difference."
+                    },
+                    "samplesDroppedAck": {
+                        "type": "integer",
+                        "description": "Agent `samplesDropped` value the operator last acknowledged; the board shows the difference."
+                    },
+                    "collectorErrorsAck": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "integer"
+                        },
+                        "description": "Acknowledged per-collector `agent.collectorErrors` counts, keyed by collector name."
+                    },
+                    "mute": {
+                        "type": ["object", "null"],
+                        "description": "This monitor's own mute as a subject, or null. `monitors` lists the snapshot monitors still down; `hostMuted` is true when the monitor itself is among them (its own CPU/RAM and backup alerts are then silenced too); `smartFailed` and `fullMounts` are the disk problems present at mute time.",
+                        "properties": {
+                            "mutedAt": {
+                                "type": "string"
+                            },
+                            "monitors": {
+                                "type": "array",
+                                "items": {
+                                    "type": "integer"
+                                }
+                            },
+                            "hostMuted": {
+                                "type": "boolean"
+                            },
+                            "smartFailed": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "fullMounts": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "mutedBy": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "Subjects whose active mute covers this monitor; empty when not muted. A group is covered when it is down and every down monitor inside it is covered."
+                    },
+                    "pushToken": {
+                        "type": ["string", "null"],
+                        "description": "Host-agent push token (`kmon_agent_push_...`). Bearer secret: keep it on the host."
+                    },
+                    "pushTokenKind": {
+                        "type": ["string", "null"],
+                        "const": "push_agent"
+                    },
+                    "pushTokenPrefix": {
+                        "type": ["string", "null"],
+                        "const": "kmon_agent_push_"
+                    }
+                }
+            },
+            "Heartbeat": {
+                "type": "object",
+                "properties": {
+                    "time": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "integer"
+                    },
+                    "ping": {
+                        "type": ["number", "null"]
+                    },
+                    "msg": {
+                        "type": "string"
+                    },
+                    "important": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "MonitorInput": {
+                "type": "object",
+                "required": ["name", "type"],
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "See GET /api/v1/monitor-types"
+                    },
+                    "url": {
+                        "type": "string"
+                    },
+                    "interval": {
+                        "type": "integer",
+                        "minimum": 20
+                    },
+                    "maxretries": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "active": {
+                        "type": "boolean"
+                    },
+                    "notificationIDList": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "boolean"
+                        },
+                        "description": "Map of notification id to enabled."
+                    },
+                    "metricCpuThreshold": {
+                        "type": ["integer", "null"],
+                        "description": "1-100, or null to disable. See the Monitor schema for alert semantics."
+                    },
+                    "metricRamThreshold": {
+                        "type": ["integer", "null"]
+                    },
+                    "metricDiskThreshold": {
+                        "type": ["integer", "null"]
+                    }
+                }
+            },
+            "BackupVerification": {
+                "type": "object",
+                "required": ["runId", "status", "checkedAt", "summary"],
+                "properties": {
+                    "runId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["passed", "failed"]
+                    },
+                    "checkedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "summary": {
+                        "type": "string",
+                        "maxLength": 2048
+                    }
+                }
+            },
+            "BackupRun": {
+                "type": "object",
+                "required": ["id", "agentId", "clientRunId", "status", "exportStartedAt", "createdAt", "receivedBytes"],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "agentId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "clientRunId": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["uploading", "finalizing", "completed", "failed", "expired", "deleting", "pruned"]
+                    },
+                    "exportStartedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "exportFinishedAt": {
+                        "type": ["string", "null"],
+                        "format": "date-time"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "completedAt": {
+                        "type": ["string", "null"],
+                        "format": "date-time"
+                    },
+                    "totalBytes": {
+                        "type": ["integer", "null"],
+                        "minimum": 1,
+                        "maximum": 34359738368
+                    },
+                    "receivedBytes": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "sha256": {
+                        "type": ["string", "null"]
+                    },
+                    "sourceSummary": {
+                        "type": ["object", "null"],
+                        "additionalProperties": true
+                    },
+                    "errorCode": {
+                        "type": ["string", "null"]
+                    },
+                    "archiveVerification": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/BackupVerification"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "restoreVerification": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/BackupVerification"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    }
+                }
+            },
+            "BackupAgent": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "name",
+                    "enabled",
+                    "credentialActive",
+                    "intervalSeconds",
+                    "retentionCount",
+                    "createdAt",
+                    "health"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "monitorId": {
+                        "type": ["integer", "null"]
+                    },
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "credentialActive": {
+                        "type": "boolean"
+                    },
+                    "intervalSeconds": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "retentionCount": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 30
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "health": {
+                        "type": "string",
+                        "enum": ["disabled", "pending", "healthy", "failed", "overdue"]
+                    },
+                    "lastErrorCode": {
+                        "type": ["string", "null"]
+                    },
+                    "latestRun": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/BackupRun"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "lastCompletedRun": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/BackupRun"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "latestArchiveVerification": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/BackupVerification"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "latestRestoreVerification": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/BackupVerification"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "reportedVersion": {
+                        "type": ["string", "null"],
+                        "description": "Backup-agent version last reported by this agent (run start or self-update check-in); null before the first report."
+                    },
+                    "versionReportedAt": {
+                        "type": ["string", "null"],
+                        "format": "date-time"
+                    },
+                    "updateStatus": {
+                        "type": ["string", "null"],
+                        "description": "Outcome of the host's last self-update attempt: `ok` or a code such as `checksum_mismatch`, `downgrade_refused`, `lock_timeout`, `server_mismatch`. Null before the first check-in."
+                    }
+                }
+            },
+            "BackupAgentInput": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Lowercase ASCII letters, digits, hyphens and underscores; 1-64 characters, starting with a letter or digit."
+                    },
+                    "monitorId": {
+                        "type": ["integer", "null"],
+                        "description": "Optional server-monitor link. Removing the monitor unlinks without deleting the agent."
+                    },
+                    "enabled": {
+                        "type": "boolean",
+                        "default": true
+                    },
+                    "intervalSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "default": 86400
+                    },
+                    "retentionCount": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 30,
+                        "default": 7
+                    }
+                }
+            },
+            "BackupRunStart": {
+                "type": "object",
+                "required": ["clientRunId", "exportStartedAt", "exportFinishedAt", "totalBytes", "sha256"],
+                "properties": {
+                    "clientRunId": {
+                        "type": "string",
+                        "maxLength": 128
+                    },
+                    "exportStartedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "exportFinishedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "totalBytes": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 34359738368
+                    },
+                    "sha256": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "sourceSummary": {
+                        "type": "object",
+                        "properties": {
+                            "databaseCount": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "objectCount": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "sourceBytes": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "encrypted": {
+                                "type": "boolean",
+                                "description": "Whether the bundle is age-encrypted. Absent means true (agents before optional encryption always encrypted)."
+                            }
+                        }
+                    },
+                    "agentVersion": {
+                        "type": "string",
+                        "description": "Version of the sending agent (e.g. `0.3.0`). Recorded on the agent; not part of the idempotent same-run comparison, so a retried start may carry a newer version."
+                    }
+                }
+            },
+            "BackupVerificationInput": {
+                "type": "object",
+                "required": ["kind", "status", "checkedAt", "summary"],
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "enum": ["archive", "restore"]
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["passed", "failed"]
+                    },
+                    "checkedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "summary": {
+                        "type": "string",
+                        "maxLength": 2048
+                    }
+                }
+            },
+            "BackupAgentPatch": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "monitorId": {
+                        "type": ["integer", "null"]
+                    },
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "intervalSeconds": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "retentionCount": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 30
+                    }
+                }
+            },
+            "BackupFailureInput": {
+                "type": "object",
+                "required": ["clientRunId", "exportStartedAt", "code"],
+                "properties": {
+                    "clientRunId": {
+                        "type": "string",
+                        "maxLength": 128
+                    },
+                    "exportStartedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "code": {
+                        "type": "string",
+                        "enum": [
+                            "export_failed",
+                            "postgres_dump_failed",
+                            "postgres_query_failed",
+                            "s3_export_failed",
+                            "s3_read_failed",
+                            "spool_limit",
+                            "archive_failed",
+                            "encrypt_failed",
+                            "upload_failed",
+                            "auth_failed",
+                            "config_invalid",
+                            "source_changed",
+                            "bundle_quarantined",
+                            "office_storage_full",
+                            "export_attempts_exhausted",
+                            "unknown"
+                        ]
+                    }
+                }
+            },
+            "BackupCheckIn": {
+                "type": "object",
+                "required": ["version"],
+                "properties": {
+                    "version": {
+                        "type": "string",
+                        "description": "Running backup-agent version, `MAJOR.MINOR.PATCH` with an optional `-pre`/`+build` suffix."
+                    },
+                    "platform": {
+                        "type": ["string", "null"],
+                        "description": "Informational, e.g. `linux-amd64`."
+                    },
+                    "updateStatus": {
+                        "type": ["string", "null"],
+                        "description": "Outcome of the last update attempt (`ok` or a snake_case code). Null keeps the stored value."
+                    }
+                }
+            },
+            "BackupRelease": {
+                "type": "object",
+                "properties": {
+                    "version": {
+                        "type": ["string", "null"],
+                        "description": "Backup-agent version this image ships (VERSION-BACKUP); null when the image ships none."
+                    },
+                    "assets": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "platform": {
+                                    "type": "string"
+                                },
+                                "file": {
+                                    "type": "string"
+                                },
+                                "size": {
+                                    "type": "integer"
+                                },
+                                "sha256": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "User": {
+                "type": "object",
+                "description": "A member account. Every account has full permission, the same as an operator API token. Accounts are provisioned by a Kore ID sign-in; there are no passwords.",
+                "required": ["id", "email", "name", "createdAt"],
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "As entered; unique ignoring case."
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "createdAt": {
+                        "type": "string"
+                    },
+                    "tokenCount": {
+                        "type": "integer",
+                        "description": "Operator tokens this account minted (list and detail only)."
+                    },
+                    "sso": {
+                        "type": "boolean",
+                        "description": "The account is tied to a Kore ID subject."
+                    }
+                }
+            }
+        },
+        "responses": {
+            "Unauthorized": {
+                "description": "Missing, invalid, expired or inactive token.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            },
+            "Forbidden": {
+                "description": "`csrf_required` (a cookie write without `X-KoreMonitor-CSRF: 1`).",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            },
+            "BadRequest": {
+                "description": "Invalid request.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "security": [
+        {
+            "bearerAuth": []
+        },
+        {
+            "cookieAuth": []
+        }
+    ],
+    "paths": {
+        "/api/v1/monitors/{id}/metrics/summary": {
+            "get": {
+                "summary": "Load history charts and percentile statistics",
+                "description": "Requires read scope. Extracts only CPU/RAM/first-GPU/first-VRAM scalars. Windows up to 7 days read raw archived snapshots (normally 30s) with nearest-rank percentiles; longer windows up to 17520 hours (2 years) read hourly rollups (min/max/average per metric), where percentiles describe hourly averages while peak stays the true maximum of the underlying readings. Returns at most 240 chart buckets, stats with count/min/max/mean/p90/p95/p99, coverage timestamps, and capped=true if the newest 50,000-row safety limit truncates the window. GPU/VRAM are null when unavailable. No data is represented as missing, not zero.",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/monitorId"
+                    },
+                    {
+                        "name": "hours",
+                        "in": "query",
+                        "schema": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 17520,
+                            "default": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Window, coverage, percentile statistics, and bucket-average chart series"
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "404": {
+                        "description": "No such monitor"
+                    }
+                }
+            }
+        },
+        "/api/v1/events": {
+            "get": {
+                "summary": "Live monitor and telemetry changes",
+                "description": "Requires read scope and Authorization header (never a URL token). SSE JSON data frames: ready, heartbeat {monitorId,patch}, metrics {monitorId,time,metrics}, invalidate, unauthorized. On ready/invalidate, resnapshot REST before applying buffered deltas. No replay log. Keepalive every 15s; credentials revalidated every 15s; reconnect after 15 minutes. Bounded to 8 streams/key, 128 total, and 256KiB pending output per stream.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "metrics",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": ["0", "1"],
+                            "default": "1"
+                        },
+                        "description": "0 suppresses telemetry for ordinary monitor dashboards."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Live event stream",
+                        "content": {
+                            "text/event-stream": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid/missing token or banned account"
+                    },
+                    "403": {
+                        "description": "Missing read scope"
+                    },
+                    "429": {
+                        "description": "Connection or API rate limit"
+                    }
+                }
+            }
+        },
+        "/api/v1": {
+            "get": {
+                "summary": "API index",
+                "description": "Machine-readable list of endpoints. Requires the `read` scope.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "Endpoint index"
+                    }
+                }
+            }
+        },
+        "/api/v1/openapi.json": {
+            "get": {
+                "summary": "This document",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OpenAPI description"
+                    }
+                }
+            }
+        },
+        "/healthz": {
+            "get": {
+                "summary": "Liveness probe",
+                "description": "No token. 200 only when `SELECT 1` answers within 2 s and the check engine's watchdog ticked within 30 s; used by the container healthcheck.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "Healthy",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "enum": ["ok"]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Unhealthy; `reason` names the failing part",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "status": {
+                                            "type": "string"
+                                        },
+                                        "reason": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/health": {
+            "get": {
+                "summary": "Aggregate health across all monitors",
+                "description": "Requires the `read` scope. Counts up/down/pending/maintenance/paused.",
+                "responses": {
+                    "200": {
+                        "description": "Health summary",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "health": {
+                                            "type": "object",
+                                            "properties": {
+                                                "total": {
+                                                    "type": "integer"
+                                                },
+                                                "up": {
+                                                    "type": "integer"
+                                                },
+                                                "down": {
+                                                    "type": "integer"
+                                                },
+                                                "pending": {
+                                                    "type": "integer"
+                                                },
+                                                "maintenance": {
+                                                    "type": "integer"
+                                                },
+                                                "paused": {
+                                                    "type": "integer"
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": ["up", "down"]
+                                                },
+                                                "downMonitors": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "The database query failed; the summary is unknown, not zero."
+                    }
+                }
+            }
+        },
+        "/api/v1/monitor-types": {
+            "get": {
+                "summary": "Supported monitor types",
+                "description": "Requires the `read` scope. Returns each valid `type`, plus `writableFields`, the allowlist accepted by POST and PATCH.",
+                "responses": {
+                    "200": {
+                        "description": "Type definitions"
+                    }
+                }
+            }
+        },
+        "/api/v1/monitors": {
+            "get": {
+                "summary": "List monitors",
+                "description": "Requires the `read` scope. Scoped to the token's user. Supports `?status=`, `?tag=`, `?active=`, `?q=`, `?page=`, `?perPage=`.",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/page"
+                    },
+                    {
+                        "$ref": "#/components/parameters/perPage"
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": ["up", "down", "pending", "maintenance"]
+                        }
+                    },
+                    {
+                        "name": "tag",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "active",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": ["true", "false"]
+                        }
+                    },
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Substring match on name or url."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated monitors",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "count": {
+                                            "type": "integer"
+                                        },
+                                        "monitors": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Monitor"
+                                            }
+                                        },
+                                        "pagination": {
+                                            "$ref": "#/components/schemas/Pagination"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "summary": "Create a monitor",
+                "description": "Requires the `write` scope. Unknown fields are ignored and returned in `ignoredFields`; `user_id` is never writable. Starts checking immediately unless `active` is false.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/MonitorInput"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "monitor": {
+                                            "$ref": "#/components/schemas/Monitor"
+                                        },
+                                        "ignoredFields": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    }
+                }
+            }
+        },
+        "/api/v1/monitors/{id}": {
+            "get": {
+                "summary": "Get one monitor",
+                "description": "Requires the `read` scope. Beside the list's fields, carries `notificationIds`: the notifications this monitor alerts through (set with `notificationIDList` on create and update), ascending.",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/monitorId"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Monitor",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "monitor": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/Monitor"
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "notificationIds": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "integer"
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No such monitor for this user."
+                    }
+                }
+            },
+            "patch": {
+                "summary": "Update a monitor",
+                "description": "Requires the `write` scope. Only supplied fields change. `type` cannot be changed after creation.",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/monitorId"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Updated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "monitor": {
+                                            "$ref": "#/components/schemas/Monitor"
+                                        },
+                                        "ignoredFields": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "404": {
+                        "description": "No such monitor for this user."
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete a monitor",
+                "description": "Requires the `write` scope. For groups, `?deleteChildren=true` also deletes descendants; otherwise they are unlinked and kept.",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/monitorId"
+                    },
+                    {
+                        "name": "deleteChildren",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": ["true", "false"]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Deleted",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "deleted": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "integer"
+                                            }
+                                        },
+                                        "count": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/monitors/{id}/heartbeats": {
+            "get": {
+                "summary": "Recent heartbeats",
+                "description": "Requires the `read` scope. `?limit` defaults to 100, max 1000.",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/monitorId"
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000,
+                            "default": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Heartbeats, newest first",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "monitorId": {
+                                            "type": "integer"
+                                        },
+                                        "count": {
+                                            "type": "integer"
+                                        },
+                                        "total": {
+                                            "type": "integer"
+                                        },
+                                        "heartbeats": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Heartbeat"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/monitors/{id}/push-failures/clear": {
+            "post": {
+                "summary": "Clear push failures",
+                "description": "Requires the `write` scope. Acknowledges the agent's current `agent.failedPushes` counter: the board shows `failedPushes - pushFailuresAck`. The ack is dropped automatically when the agent restarts and the counter moves backwards, so new failures are never masked.",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/monitorId"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The acknowledged value",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "pushFailuresAck": {
+                                            "type": "integer"
+                                        },
+                                        "reported": {
+                                            "type": ["integer", "null"]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/monitors/{id}/agent-warnings/clear": {
+            "post": {
+                "summary": "Clear agent warnings",
+                "description": "Requires the `write` scope. Acknowledges every agent warning counter at once: `agent.failedPushes`, `agent.samplesDropped` and the per-collector `agent.collectorErrors`. The board shows each reported counter minus its ack, so this clears the whole \"Agent: \u2026\" line on a card. Docker collector errors are acknowledged too, though the card renders them in the container section. The counters reset when the agent restarts and the acks are dropped automatically, so new warnings are never masked.",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/monitorId"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The acknowledged values",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "pushFailuresAck": {
+                                            "type": "integer"
+                                        },
+                                        "samplesDroppedAck": {
+                                            "type": "integer"
+                                        },
+                                        "collectorErrorsAck": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "integer"
+                                            }
+                                        },
+                                        "reported": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/monitors/{id}/mute": {
+            "post": {
+                "summary": "Mute a known outage",
+                "description": "Snapshot what is down on the monitor (itself and the websites linked to it) and the disks its latest sample reports failing or full. The board shows the outage dark red and Telegram stops repeating it. Anything new on the monitor (another linked monitor down, a newly failing or newly full disk) deletes the mute, and so does full recovery. Muting again replaces the snapshot. 400 when nothing on the monitor is down.",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/monitorId"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The new mute",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "mute": {
+                                            "$ref": "#/components/schemas/Monitor/properties/mute"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Nothing on the monitor is down"
+                    },
+                    "404": {
+                        "description": "Unknown monitor"
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Unmute",
+                "description": "Delete the monitor's own mute and every mute covering it; for a group, every mute covering a monitor inside it. Idempotent: `unmuted` is empty when nothing was muted.",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/monitorId"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The subjects whose mute was deleted",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "unmuted": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "integer"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Unknown monitor"
+                    }
+                }
+            }
+        },
+        "/api/v1/notifications": {
+            "get": {
+                "summary": "List notification configs",
+                "description": "Only the `telegram` type exists in this build. Each notification carries `monitorIds`: the monitors that alert through it, ascending. The bot token (`telegramBotToken`) is never returned.",
+                "responses": {
+                    "200": {
+                        "description": "Notifications with secrets redacted"
+                    }
+                }
+            },
+            "post": {
+                "summary": "Create a notification",
+                "description": "Body `{name, type?, active?, isDefault?, config}`; `type` defaults to `telegram`, `active` to true, `isDefault` to false. For Telegram, `config` holds `telegramBotToken`, `telegramChatID` and optionally `telegramMessageThreadID`, `telegramSendSilently` and `telegramProtectContent`.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`{ok, id}`"
+                    },
+                    "400": {
+                        "description": "The body or its `config` is not a JSON object."
+                    }
+                }
+            }
+        },
+        "/api/v1/monitors/{id}/metrics/latest": {
+            "get": {
+                "summary": "Latest metrics sample",
+                "description": "Requires the `read` scope. 404 when the monitor has no samples yet.",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/monitorId"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Most recent sample",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "monitorId": {
+                                            "type": "integer"
+                                        },
+                                        "time": {
+                                            "type": "string"
+                                        },
+                                        "metrics": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No samples yet, or no such monitor."
+                    }
+                }
+            }
+        },
+        "/api/v1/monitors/{id}/metrics": {
+            "get": {
+                "summary": "Windowed metrics history",
+                "description": "Requires the `read` scope. Newest first. `hours` defaults to 24, max 168. At most 1000 rows; `capped` reports truncation.",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/monitorId"
+                    },
+                    {
+                        "name": "hours",
+                        "in": "query",
+                        "schema": {
+                            "type": "number",
+                            "minimum": 0,
+                            "default": 24,
+                            "maximum": 168
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Metrics window",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "monitorId": {
+                                            "type": "integer"
+                                        },
+                                        "count": {
+                                            "type": "integer"
+                                        },
+                                        "capped": {
+                                            "type": "boolean"
+                                        },
+                                        "hours": {
+                                            "type": "number"
+                                        },
+                                        "metrics": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "time": {
+                                                        "type": "string"
+                                                    },
+                                                    "metrics": {
+                                                        "type": "object"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/session": {
+            "delete": {
+                "summary": "Sign a browser out",
+                "description": "Public. Ends the session server-side and clears the `fl_session` cookie; works with a missing or already-ended session. When the session came from Kore ID, the answer also carries `ssoLogoutUrl`: the provider's end-session URL, which the browser should follow to end the Kore ID session too. People sign in only through Kore ID (`GET /api/v1/auth/sso/start`).",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "Signed out; Set-Cookie clears the session"
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/me": {
+            "get": {
+                "summary": "Who is signed in",
+                "description": "Says who the credential acts as: `principal:\"account\"` with `account:{id, email, name, sso}` for a Kore ID session, or `principal:\"token\"` with `token:{id, name}` for a bearer API token. Also states the credential family and capabilities. An agent token answers 401 `agent_token_on_operator_api` with the expected prefix.",
+                "responses": {
+                    "200": {
+                        "description": "The principal, credential kind (`operator`), capabilities and agent-endpoint map.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok", "principal"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        },
+                                        "principal": {
+                                            "type": "string",
+                                            "enum": ["account", "token"]
+                                        },
+                                        "account": {
+                                            "type": "object",
+                                            "required": ["id", "email", "name"],
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "email": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "sso": {
+                                                    "type": "boolean",
+                                                    "description": "The account signs in with Kore ID."
+                                                }
+                                            }
+                                        },
+                                        "token": {
+                                            "type": "object",
+                                            "required": ["id", "name"],
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/monitors/metrics/latest": {
+            "get": {
+                "summary": "Latest metrics samples, batched",
+                "description": "Requires the `read` scope. One query for up to 200 monitors; unknown ids and monitors without samples come back as null entries. Register before /monitors/{id}/metrics/latest so Express does not read \"metrics\" as an id.",
+                "parameters": [
+                    {
+                        "name": "ids",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "example": "4,5,6"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Samples keyed by monitor id, null where missing"
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    }
+                }
+            }
+        },
+        "/api/v1/api-keys": {
+            "get": {
+                "summary": "List operator tokens (metadata only). Each key reports `maker`: `{id, name, removed}` for a key minted by a member (on the Tokens page or by approving a QR sign-in), or `null` for one minted with a bearer token or token session, and every key from before accounts. `removed: true` (and `id: null`) once that member's account is gone.",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "summary": "Mint an API key. The plaintext token is returned exactly once. A member's session records them as the key's `maker`.",
+                "responses": {
+                    "201": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/api-keys/{id}": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "integer"
+                    }
+                }
+            ],
+            "patch": {
+                "summary": "Enable or disable an API key (`active` required).",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Revoke an API key.",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/push/{pushToken}": {
+            "parameters": [
+                {
+                    "name": "pushToken",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "string"
+                    }
+                },
+                {
+                    "name": "msg",
+                    "in": "query",
+                    "schema": {
+                        "type": "string",
+                        "default": "OK"
+                    }
+                },
+                {
+                    "name": "ping",
+                    "in": "query",
+                    "schema": {
+                        "type": "number"
+                    }
+                },
+                {
+                    "name": "status",
+                    "in": "query",
+                    "schema": {
+                        "type": "string",
+                        "enum": ["up", "down"],
+                        "default": "up"
+                    }
+                },
+                {
+                    "name": "telemetry",
+                    "in": "query",
+                    "schema": {
+                        "type": "string",
+                        "enum": ["1"]
+                    },
+                    "description": "POST only: 1Hz telemetry fast path."
+                }
+            ],
+            "get": {
+                "summary": "Legacy push: records a heartbeat.",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Storage failure; transient. Carries `Retry-After` (seconds, 5-30, jittered). Retry the same sample.",
+                        "headers": {
+                            "Retry-After": {
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok", "msg"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": false
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "summary": "Push with an optional `metrics` body. Invalid metrics, or a non-empty body that is not JSON, answer 400 while the heartbeat stays recorded; storage failures answer 503 with `Retry-After`.",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Validation failure (permanent): invalid metrics or a body that is not JSON. The heartbeat, if any, was recorded.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Unknown or paused monitor, or out-of-range ping.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Storage failure; transient. Carries `Retry-After` (seconds, 5-30, jittered). Retry the same sample.",
+                        "headers": {
+                            "Retry-After": {
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok", "msg"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": false
+                                        },
+                                        "msg": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/badge/{id}/status": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "integer"
+                    }
+                }
+            ],
+            "get": {
+                "summary": "Monitor status badge (SVG).",
+                "responses": {
+                    "200": {
+                        "description": "SVG badge.",
+                        "content": {
+                            "image/svg+xml": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/badge/{id}/uptime/{duration}": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "integer"
+                    }
+                }
+            ],
+            "get": {
+                "summary": "Uptime badge (SVG); duration like `24h`, default 24h.",
+                "responses": {
+                    "200": {
+                        "description": "SVG badge.",
+                        "content": {
+                            "image/svg+xml": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/badge/{id}/ping/{duration}": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "integer"
+                    }
+                }
+            ],
+            "get": {
+                "summary": "Average ping badge (SVG); duration like `24h`, default 24h.",
+                "responses": {
+                    "200": {
+                        "description": "SVG badge.",
+                        "content": {
+                            "image/svg+xml": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/badge/{id}/avg-response/{duration}": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "integer"
+                    }
+                }
+            ],
+            "get": {
+                "summary": "Average response badge (SVG); hours, default 24, max 720.",
+                "responses": {
+                    "200": {
+                        "description": "SVG badge.",
+                        "content": {
+                            "image/svg+xml": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/badge/{id}/response": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "integer"
+                    }
+                }
+            ],
+            "get": {
+                "summary": "Latest response badge (SVG).",
+                "responses": {
+                    "200": {
+                        "description": "SVG badge.",
+                        "content": {
+                            "image/svg+xml": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/status-page/resolve-host": {
+            "get": {
+                "summary": "Resolve a hostname to a status page slug (public).",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/status-page/{slug}": {
+            "parameters": [
+                {
+                    "name": "slug",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ],
+            "get": {
+                "summary": "Status page config, pinned incidents and public groups (password gated).",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/status-page/heartbeat/{slug}": {
+            "parameters": [
+                {
+                    "name": "slug",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ],
+            "get": {
+                "summary": "Public heartbeat lists and 24h uptime per monitor (password gated).",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/status-page/{slug}/incident-history": {
+            "parameters": [
+                {
+                    "name": "slug",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "string"
+                    }
+                },
+                {
+                    "name": "cursor",
+                    "in": "query",
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ],
+            "get": {
+                "summary": "Cursor-paginated incident history (password gated).",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/status-pages/unlock/{slug}": {
+            "parameters": [
+                {
+                    "name": "slug",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ],
+            "post": {
+                "summary": "Unlock a password-protected status page; sets the `fl_status_auth` cookie.",
+                "responses": {
+                    "302": {
+                        "description": "Unlocked; redirects back."
+                    },
+                    "401": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/monitors/links": {
+            "get": {
+                "summary": "Linked websites, batched.",
+                "description": "Requires the `read` scope. One query for up to 200 servers; each entry holds the raw stored links and their resolved monitors with current status. Servers without links are absent. Register before /monitors/{id} so the static path wins.",
+                "parameters": [
+                    {
+                        "name": "ids",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "example": "4,5,6"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/monitors/heartbeat-strips": {
+            "get": {
+                "summary": "Bucketed heartbeat status strips.",
+                "description": "Requires the `read` scope. One strip per monitor: `buckets` buckets, oldest first, the last one containing now. Buckets are aligned to multiples of `bucketSeconds` since the Unix epoch (bucket index = floor(epochSeconds / bucketSeconds)), so a client can place a live beat itself; `start` is the UTC start of the first bucket. A bucket is `[worstStatus, beats, failedBeats]` (status 0 down, 1 up, 2 pending, 3 maintenance; worst by severity down > pending > maintenance > up) or `null` when it has no heartbeats. Unknown ids are absent from `strips`; groups are included. Omitting `ids` returns the first 200 monitors by id. `hours * 3600 / buckets` must be a whole number of seconds, at least 60. Cached for about 10 seconds. Register before /monitors/{id} so the static path wins.",
+                "parameters": [
+                    {
+                        "name": "ids",
+                        "in": "query",
+                        "required": false,
+                        "description": "Comma-separated monitor ids, at most 200. Omit for all monitors (first 200).",
+                        "schema": {
+                            "type": "string",
+                            "example": "4,5,6"
+                        }
+                    },
+                    {
+                        "name": "hours",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 168,
+                            "default": 24
+                        }
+                    },
+                    {
+                        "name": "buckets",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 120,
+                            "default": 48
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok", "hours", "buckets", "bucketSeconds", "start", "strips"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        },
+                                        "hours": {
+                                            "type": "integer"
+                                        },
+                                        "buckets": {
+                                            "type": "integer"
+                                        },
+                                        "bucketSeconds": {
+                                            "type": "integer"
+                                        },
+                                        "start": {
+                                            "type": "string",
+                                            "format": "date-time",
+                                            "example": "2026-10-20T11:00:00.000Z"
+                                        },
+                                        "strips": {
+                                            "type": "object",
+                                            "description": "Monitor id -> `buckets` entries, oldest first.",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "oneOf": [
+                                                        {
+                                                            "type": "null"
+                                                        },
+                                                        {
+                                                            "type": "array",
+                                                            "description": "[worstStatus, beats, failedBeats]",
+                                                            "items": {
+                                                                "type": "integer"
+                                                            },
+                                                            "minItems": 3,
+                                                            "maxItems": 3
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Malformed or out-of-range `ids`, `hours` or `buckets`."
+                    }
+                }
+            }
+        },
+        "/api/v1/monitors/{id}/links": {
+            "get": {
+                "summary": "A server's linked websites.",
+                "description": "Requires the `read` scope. `raw` is the stored links (each may be a group); `resolved` expands groups to their non-group descendants, deduplicated, each with current status and the link it came through (`via`).",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "summary": "Replace a server's linked websites.",
+                "description": "Requires the `write` scope. Body `{ linkedMonitorIds: number[] }` (up to 200) becomes the server's links exactly; unknown ids are skipped, self-links and duplicates dropped.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Clear a server's linked websites.",
+                "description": "Requires the `write` scope. Removes every link for the server.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/backup-agents": {
+            "get": {
+                "summary": "List backup agents",
+                "description": "Lists linked and unlinked agents newest-first. Omit `monitorId` for every agent; limit 1-200, cursor is an agent UUID.",
+                "parameters": [
+                    {
+                        "name": "monitorId",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 200,
+                            "default": 50
+                        }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Agents",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "agents": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/BackupAgent"
+                                            }
+                                        },
+                                        "nextCursor": {
+                                            "type": ["string", "null"]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "summary": "Register a backup agent",
+                "description": "Returns the dedicated credential in plaintext exactly once. Only its hash is stored.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/BackupAgentInput"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "agent": {
+                                            "$ref": "#/components/schemas/BackupAgent"
+                                        },
+                                        "token": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid settings.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Monitor not found.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate linked name.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/backup-agents/{id}": {
+            "patch": {
+                "summary": "Update a backup agent",
+                "description": "Accepts name, monitorId (null unlinks), enabled, intervalSeconds and retentionCount.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/BackupAgentPatch"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Updated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "agent": {
+                                            "$ref": "#/components/schemas/BackupAgent"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid settings.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Agent or monitor not found.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate linked name.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/backup-agents/{id}/rotate-token": {
+            "post": {
+                "summary": "Rotate the agent credential",
+                "description": "Returns a replacement credential once and invalidates the previous one.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated agent",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "agent": {
+                                            "$ref": "#/components/schemas/BackupAgent"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Agent not found.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/backup-agents/{id}/revoke-token": {
+            "post": {
+                "summary": "Revoke the agent credential",
+                "description": "The agent and its run history remain; the credential stops authenticating immediately.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated agent",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "agent": {
+                                            "$ref": "#/components/schemas/BackupAgent"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Agent not found.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/backup-agents/{id}/runs": {
+            "get": {
+                "summary": "List runs for an agent",
+                "description": "Newest-first paginated run history. Cursor is a run UUID.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 200,
+                            "default": 20
+                        }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Runs",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "runs": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/BackupRun"
+                                            }
+                                        },
+                                        "nextCursor": {
+                                            "type": ["string", "null"]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Agent not found.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/backup-runs/{id}/verification": {
+            "post": {
+                "summary": "Record archive or restore verification",
+                "description": "Operator only. Archive verification and actual restore verification are separate states; agents cannot self-assert a restore.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/BackupVerificationInput"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Updated run",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "run": {
+                                            "$ref": "#/components/schemas/BackupRun"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid verification.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Run not found.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Run is not completed.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/backup/v1/runs": {
+            "post": {
+                "summary": "Start or replay an upload run",
+                "description": "Agent credential only. `(agentId, clientRunId)` is unique; identical retries return the existing run, conflicting parameters answer 409. One uploading or finalizing run per agent.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/BackupRunStart"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Run metadata with committed offset",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "run": {
+                                            "$ref": "#/components/schemas/BackupRun"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid metadata.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid backup credential.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Machine-readable `error`: `active_run` (another run of this agent is uploading or finalizing; the body adds `activeRunId` and `activeClientRunId` so the agent can resume it with the same clientRunId or abandon it), `params_conflict` (clientRunId exists with different parameters) or `run_terminal` (failed, pruned, deleting or otherwise not reopenable). Only `params_conflict` and `run_terminal` mean the local bundle can never be delivered.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/backup/v1/runs/{id}": {
+            "get": {
+                "summary": "Read an own run",
+                "description": "Agent credential only. Access to another agent run answers 404.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Run",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "run": {
+                                            "$ref": "#/components/schemas/BackupRun"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid backup credential.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Run not found for this agent.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/backup/v1/runs/{id}/chunks/{index}": {
+            "put": {
+                "summary": "Upload one numbered chunk",
+                "description": "Agent credential only. The body is the next sequential byte range; index is offset / 8388608, non-final chunks are exactly 8 MiB. Authenticate before reading the body. Successful replies include the committed offset. Byte-identical retries are idempotent; conflicting bytes or offsets answer 409.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "index",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    },
+                    {
+                        "name": "X-Backup-Offset",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    },
+                    {
+                        "name": "X-Backup-Sha256",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{64}$"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/octet-stream": {
+                            "schema": {
+                                "type": "string",
+                                "format": "binary"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Chunk committed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "run": {
+                                            "$ref": "#/components/schemas/BackupRun"
+                                        },
+                                        "offset": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid index or non-final chunk size."
+                    },
+                    "401": {
+                        "description": "Invalid backup credential."
+                    },
+                    "404": {
+                        "description": "Run not found for this agent."
+                    },
+                    "409": {
+                        "description": "Offset or committed bytes conflict."
+                    },
+                    "413": {
+                        "description": "Chunk exceeds 8 MiB."
+                    },
+                    "422": {
+                        "description": "Chunk sha256 mismatch."
+                    },
+                    "503": {
+                        "description": "Backup storage unavailable."
+                    },
+                    "507": {
+                        "description": "Server storage reserve would be violated."
+                    }
+                }
+            }
+        },
+        "/api/backup/v1/runs/{id}/complete": {
+            "post": {
+                "summary": "Finalize an uploaded bundle",
+                "description": "Idempotent. Full digest and size are verified before the bundle is fsynced and atomically published; a mismatch answers 422 and never becomes completed.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Completed run",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "run": {
+                                            "$ref": "#/components/schemas/BackupRun"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid backup credential."
+                    },
+                    "404": {
+                        "description": "Run not found for this agent."
+                    },
+                    "409": {
+                        "description": "`conflict` when bytes are missing, `run_terminal` when the run is failed, expired or pruned."
+                    },
+                    "503": {
+                        "description": "`busy`: another request holds this run. Retry after `Retry-After` seconds."
+                    },
+                    "422": {
+                        "description": "Full digest mismatch; the run is failed."
+                    }
+                }
+            }
+        },
+        "/api/backup/v1/runs/{id}/abandon": {
+            "post": {
+                "summary": "Abandon an own uploading run",
+                "description": "Agent credential only. Used when the agent no longer holds the bundle of its active run (for example after quarantining it), so a new export can be delivered. The run becomes `failed` with `upload_abandoned`, its capacity reservation is released and maintenance removes its bytes. Idempotent.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Abandoned run",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "run": {
+                                            "$ref": "#/components/schemas/BackupRun"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid backup credential."
+                    },
+                    "404": {
+                        "description": "Run not found for this agent."
+                    },
+                    "409": {
+                        "description": "`conflict` while finalizing, `run_terminal` when already completed or ended."
+                    },
+                    "503": {
+                        "description": "`busy`: a chunk or completion for this run is in flight."
+                    }
+                }
+            }
+        },
+        "/api/backup/v1/failures": {
+            "post": {
+                "summary": "Report a failed export",
+                "description": "Agent credential only. Accepts a bounded safe code even when no bytes were produced; clientRunId is 1-128 characters. Same clientRunId and code is idempotent. An uploading run can be failed; no other state is rewritten.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/BackupFailureInput"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Failed run",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "run": {
+                                            "$ref": "#/components/schemas/BackupRun"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Unknown failure code."
+                    },
+                    "401": {
+                        "description": "Invalid backup credential."
+                    },
+                    "409": {
+                        "description": "`run_terminal` when the run is finalizing, completed, deleting, pruned or expired (only an uploading run can be failed); `conflict` when the clientRunId was already reported with another code."
+                    }
+                }
+            }
+        },
+        "/api/v1/backup-runs/{id}/download-ticket": {
+            "post": {
+                "summary": "Issue a single-use download URL",
+                "description": "Operator only. Returns `{ok, runId, url, expiresAt}`. The URL is bound to this completed run, expires after about two minutes and is consumed by the first GET, so a browser can stream the bundle to disk with a plain navigation; no long-lived credential enters a URL.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Ticket URL"
+                    },
+                    "401": {
+                        "description": "Missing or invalid operator token."
+                    },
+                    "404": {
+                        "description": "Run is not a retained completed run."
+                    },
+                    "503": {
+                        "description": "`busy`: too many outstanding tickets."
+                    }
+                }
+            }
+        },
+        "/api/v1/backup-downloads/{ticket}": {
+            "get": {
+                "summary": "Download a bundle with a ticket",
+                "description": "No Authorization header: the ticket from `download-ticket` is the credential. Streams the bundle like the operator download route, with `Cache-Control: no-store` and `Referrer-Policy: no-referrer`. Unknown, used and expired tickets answer 404.",
+                "security": [],
+                "parameters": [
+                    {
+                        "name": "ticket",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Bundle: age-encrypted (`.age`) or plain tar (`.tar`), per the run's `sourceSummary.encrypted`",
+                        "content": {
+                            "application/octet-stream": {}
+                        }
+                    },
+                    "404": {
+                        "description": "Ticket is unknown, used or expired."
+                    }
+                }
+            }
+        },
+        "/api/v1/backup-runs/{id}/download": {
+            "get": {
+                "summary": "Download a completed bundle",
+                "description": "Operator only. Streams the retained bundle as an attachment with `Cache-Control: no-store`. The URL carries no credential; use the operator Authorization header. Incomplete, failed, expired and pruned runs are not downloadable.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Bundle: age-encrypted (`.age`) or plain tar (`.tar`), per the run's `sourceSummary.encrypted`",
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid operator token."
+                    },
+                    "404": {
+                        "description": "No retained completed bundle."
+                    }
+                }
+            }
+        },
+        "/api/backup/v1/checkin": {
+            "post": {
+                "summary": "Self-update check-in",
+                "description": "Agent credential only. Records the version the agent runs and, when given, the outcome of its host's last self-update attempt, then answers with the backup-agent release this image ships. Run by `flatline-backup self-update` once per instance on the host, whether or not its backups are scheduled.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/BackupCheckIn"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Recorded; the shipped release",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "release": {
+                                            "$ref": "#/components/schemas/BackupRelease"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Malformed version or update status."
+                    },
+                    "401": {
+                        "description": "Invalid backup credential (operator and push tokens are refused)."
+                    }
+                }
+            }
+        },
+        "/api/backup/v1/release/{file}": {
+            "get": {
+                "summary": "Download a backup-agent build",
+                "description": "Agent credential only. Streams `flatline-backup-<os>-<arch>` from the image's backup-agent directory with `Cache-Control: no-store`. Any other name (VERSION-BACKUP, checksums, telemetry builds) is a 404. Verify the bytes against the check-in's `sha256`.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "file",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The build",
+                        "content": {
+                            "application/octet-stream": {}
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid backup credential."
+                    },
+                    "404": {
+                        "description": "No backup-agent build by that name."
+                    }
+                }
+            }
+        },
+        "/api/v1/users": {
+            "get": {
+                "summary": "List member accounts, by name.",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok", "users"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        },
+                                        "count": {
+                                            "type": "integer"
+                                        },
+                                        "users": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/User"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            }
+        },
+        "/api/v1/users/{id}": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "integer"
+                    }
+                }
+            ],
+            "get": {
+                "summary": "One member and the operator tokens they minted.",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok", "user", "tokens"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        },
+                                        "user": {
+                                            "$ref": "#/components/schemas/User"
+                                        },
+                                        "tokens": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "required": ["id", "name", "active"],
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "active": {
+                                                        "type": "boolean"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "404": {
+                        "description": "No such account.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "summary": "Change a member's name and/or email. 409 `email_taken`.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "maxLength": 100
+                                    },
+                                    "email": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok", "user"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        },
+                                        "user": {
+                                            "$ref": "#/components/schemas/User"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Remove a member",
+                "description": "Optional body `{revokeTokenIds: [id, ...]}`: operator tokens this member made (from `GET /api/v1/users/{id}`) to disable in the same step; any other id answers 400 and nothing changes. Tokens not listed keep working and keep the maker's name (`maker.removed: true`). The member's sessions end at once. Removing your own account answers 409 `cannot_remove_self`. Removing the last account is allowed: token sign-in always remains.",
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "revokeTokenIds": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Removed.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ok", "deleted", "revokedTokens"],
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "const": true
+                                        },
+                                        "deleted": {
+                                            "type": "integer"
+                                        },
+                                        "revokedTokens": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "404": {
+                        "description": "No such account.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "`cannot_remove_self`.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/notifications/{id}": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "integer"
+                    }
+                }
+            ],
+            "patch": {
+                "summary": "Update a notification",
+                "description": "Body `{name?, type?, active?, isDefault?, config?}`; only the fields sent change. A `config` replaces the stored one, except that a `config` without `telegramBotToken`, or with it empty, keeps the stored token (the list never returns it, so an edit form cannot send it back). 404 when unknown.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`{ok, id}`"
+                    },
+                    "404": {
+                        "description": "No such notification."
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete a notification",
+                "description": "Its monitor links go with it. 404 when unknown.",
+                "responses": {
+                    "200": {
+                        "description": "`{ok, deleted}`"
+                    },
+                    "404": {
+                        "description": "No such notification."
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/sso/config": {
+            "get": {
+                "summary": "Which sign-in method is configured",
+                "description": "Public. `{ok, sso, provider, accountUrl, apps}`: whether Kore ID sign-in is configured, and (with Kore ID) the Kore ID account page and the other Kore apps' URLs (`KORE_APP_URLS`) for the account menu and app switcher. Kore ID is the only browser sign-in; without it the sign-in page says no method is configured. The sign-in page and the app shell read it.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "Sign-in methods"
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/sso/start": {
+            "get": {
+                "summary": "Start Kore ID sign-in",
+                "description": "Public. Redirects (303) the browser to Kore ID's authorization endpoint with PKCE S256, `state` and `nonce`, and sets the short-lived `fl_sso` cookie that binds the callback to this browser. `next` is a local path to open afterwards (anything else becomes `/`). Without Kore ID configured it redirects to `/sign-in?sso_error=disabled`.",
+                "security": [],
+                "parameters": [
+                    {
+                        "name": "next",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "303": {
+                        "description": "Redirect to Kore ID"
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/sso/backchannel-logout": {
+            "post": {
+                "summary": "Kore ID back-channel logout",
+                "description": "Public; Kore ID calls it server to server (OIDC Back-Channel Logout 1.0) when a Kore ID session ends. Verifies the `logout_token` (EdDSA against the JWKS, `iss`, `aud` = this client id, `iat`, `exp`, header `typ: logout+jwt`, the back-channel logout event in `events`, no `nonce`, a `sid` or `sub`, `jti` not seen before), then deletes every session made from that `sid` (or, without `sid`, every Kore ID session of that `sub`). Register `<public URL>/api/v1/auth/sso/backchannel-logout` as the client's `backchannelLogoutUri`.",
+                "security": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "type": "object",
+                                "required": ["logout_token"],
+                                "properties": {
+                                    "logout_token": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Sessions ended (or none matched)"
+                    },
+                    "400": {
+                        "description": "`invalid_request`: missing or invalid logout token, or Kore ID is not configured"
+                    },
+                    "503": {
+                        "description": "The provider's keys could not be fetched; retry"
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/sso/callback": {
+            "get": {
+                "summary": "Kore ID sign-in callback",
+                "description": "Public; Kore ID returns the browser here with `code` and `state`. Verifies state (one use, bound to the `fl_sso` cookie), exchanges the code with the PKCE verifier, verifies the id token (EdDSA against the provider's JWKS, issuer, audience, expiry, nonce), then signs in the account tied to the token's `sub`. An unknown `sub` gets an account (Kore ID already enforced app access) unless `KORE_ID_AUTO_PROVISION=false`; when `KORE_ID_ALLOWED_SUBS` or `KORE_ID_ALLOWED_EMAILS` is set, only listed identities do. A local account with the same email is linked only when `email_verified` is true. The id token's `sid` is stored on the session for back-channel logout. Success: 303 to `next` with the `fl_session` cookie. Failure: 303 to `/sign-in?sso_error=` one of `state`, `provider`, `token`, `unavailable`, `denied`, `disabled`, with no session.",
+                "security": [],
+                "parameters": [
+                    {
+                        "name": "code",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "state",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "303": {
+                        "description": "Redirect; Set-Cookie carries the session on success"
+                    }
+                }
+            }
+        }
+    }
+}

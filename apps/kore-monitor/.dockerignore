@@ -1,0 +1,45 @@
+# Build context for the KoreMonitor images (docker/rust.dockerfile, web.dockerfile, caddy.dockerfile).
+#
+# The stages copy: packages/shared, apps/web, superboard, backup-agent, backend-rs,
+# docs/provisioning.md, agent-install.sh and docker/entrypoint.sh. Everything below is local state,
+# dependency trees or build output the image never needs.
+
+# Version control and local state
+.git
+.gitignore
+.DS_Store
+.dev-data
+.dev-logs
+.env
+.idea
+.vscode
+private
+tmp
+out
+data
+
+# Installed dependencies and build output
+node_modules
+apps/*/node_modules
+packages/*/node_modules
+apps/*/dist
+apps/*/out
+apps/*/.next
+dist
+dist-ssr
+backend-rs/target
+superboard/flatline-superboard
+
+# Repository metadata the image does not carry
+.github
+LICENSE
+CONTRIBUTING.md
+
+# Paths that must never reach an image context
+kubernetes
+test
+app.json
+CNAME
+install.sh
+yarn.lock
+ecosystem.config.js

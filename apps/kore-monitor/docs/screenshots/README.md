@@ -1,0 +1,48 @@
+# Documentation screenshots
+
+Screenshots of the real web app, rendered against the **mock
+fleet** rather than a production installation: the hosts, websites, container
+names and measurements all come from `superboard/mockagent`. Nothing here is
+hand-drawn, and no production database is opened.
+
+| Image            | Shows                                                                                                                                                                                                                                                                             |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `superboard.png` | The wall board: eight demo servers, per-core CPU squares, RAM/Disk rows, container rows, linked-website chips, update states and agent warnings.                                                                                                                                  |
+| `kiosk.png`      | The wall kiosk (`/superboard/kiosk`): the verdict band, one tile per server sized to fill the screen, problems in words, and the checks strip by group.                                                                                                                           |
+| `dashboard.png`  | The operator board (`/monitors`): the status summary bar and the grouped list, with group health bars and 24 h heartbeat strips. The mock fleet is only minutes old, so a day of demo history (with a few outages) was written into the disposable dev database before capturing. |
+| `history.png`    | The server history dialog on the 1h range: CPU, RAM, GPU and VRAM with mean, peak and p90/p95/p99.                                                                                                                                                                                |
+
+## Regenerating
+
+From the repository root, with the dev stack running:
+
+```sh
+./dev.sh                                    # backend :3001, web app :3003, mock fleet
+npm ci
+npx playwright install chromium
+node docs/screenshots/capture.mjs
+```
+
+`capture.mjs` uses a session cookie from a real Kore ID sign-in: set
+`KOREMONITOR_SESSION` to the `fl_session` value from the dev app's browser. It waits
+for the mock fleet to be painted, and writes the three full-page PNGs
+(`superboard.png`, `kiosk.png`, `dashboard.png`) at 1920×1080 with device scale
+factor 1; `history.png` is a crop of the history dialog. It touches nothing but
+those files.
+
+`kiosk.png` was added with the kiosk redesign (2026-11-09). The other three
+were retaken from the Next.js web app after the Caddy cutover and the
+monitor-list rework (tree guides, group health bars). `superboard.png` and
+`dashboard.png` predate the rename, so their header still shows the old product
+name; retake them when convenient. The capture script hides the Next
+dev server's corner indicator.
+
+Two caveats when regenerating:
+
+- **Let the fleet run for a while before retaking `history.png`.** Archived
+  snapshots arrive every ~30 s, and the 1h chart only looks like a chart once a
+  few minutes of history exist. A fresh `.dev-data/` shows an almost empty
+  chart.
+- **Check the images afterwards** for card fit, readable labels and dialog
+  clipping. Browser and font versions can shift pixels slightly, which is
+  exactly why these are regenerated from the app rather than drawn.

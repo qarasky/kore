@@ -1,0 +1,18 @@
+/**
+ * Names shared by the sign-in gate, the API client and the pages. The cookie
+ * and header names must match the backend (`backend-rs/src/auth.rs`).
+ */
+
+/** The backend's session cookie; it holds a server-side session id. */
+export const SESSION_COOKIE = "fl_session";
+
+/** Header every cookie-authenticated write sends (value `1`). */
+export const CSRF_HEADER = "X-KoreMonitor-CSRF";
+
+/** Where a signed-in operator lands by default. */
+export const HOME_PATH = "/monitors";
+
+export const SIGN_IN_PATH = "/sign-in";
+
+/** Request header `proxy.ts` sets to the page's path and query for server layouts. */
+export const PATH_HEADER = "x-koremonitor-path";

@@ -1,0 +1,511 @@
+"use client";
+
+import {
+    Button,
+    Card,
+    cn,
+    Dialog,
+    DialogBody,
+    DialogContent,
+    DialogFooter,
+    PageBody,
+    SectionHeader,
+} from "@qarasky/kore-ui";
+import { Activity, Pencil } from "lucide-react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { useBoardData } from "@/components/board/board-data";
+import { PausedBanner } from "@/components/board/paused-banner";
+import { BackupAgents } from "@/components/fleet/backup-agents";
+import { ContainerRows } from "@/components/fleet/container-rows";
+import { CoreSquares } from "@/components/fleet/core-squares";
+import { LoadHistory } from "@/components/fleet/load-history";
+import { UsageMeter } from "@/components/fleet/metric-bar";
+import { ProviderLogo } from "@/components/fleet/provider-logo";
+import { LinkPicker } from "@/components/monitors/link-picker";
+import { MonitorForm, type FormInitial } from "@/components/monitors/monitor-form";
+import { StatusDot, statusTone } from "@/components/monitors/status-dot";
+import { useClock } from "@/hooks/use-clock";
+import { backupFileName } from "@/lib/backup-presentation";
+import { STATUS_LABEL } from "@/lib/board-format";
+import { statusKeyOf } from "@/lib/board-model";
+import { downloadBackupRun, fetchBackupAgents, fetchBackupRuns } from "@/lib/backups-api";
+import {
+    ageOf,
+    agentWarnings,
+    formatBytesPair,
+    formatDuration,
+    isSampleStale,
+    percentage,
+    smartWarning,
+    updatesStatus,
+} from "@/lib/fleet-presentation";
+import { buildLinkCandidates, linkStatusLabel, linkTone, sortLinks } from "@/lib/links";
+import type { BackupAgentSummary, BackupRunSummary, MonitorLinks, MonitorSummary } from "@/lib/monitor-types";
+import {
+    clearAgentWarnings,
+    fetchMonitor,
+    fetchMonitorLinks,
+    muteMonitor,
+    replaceMonitorLinks,
+    unmuteMonitor,
+} from "@/lib/monitors-api";
+import { isCovered } from "@/lib/mute";
+import type { ServerSample } from "@/lib/server-row";
+
+import { useFleetMetrics } from "./use-fleet-metrics";
+
+const TONE_TEXT: Record<string, string> = {
+    up: "text-status-up",
+    bad: "text-status-down",
+    pending: "text-status-warn",
+    maintenance: "text-status-maint",
+    neutral: "text-muted",
+    ok: "text-status-up",
+    warn: "text-status-warn",
+    quiet: "text-muted",
+    critical: "text-status-down",
+    reboot: "text-status-warn",
+};
+
+/** One block of the page: a heading, then its content in a Card (or bare, when the content brings its own frames). */
+function Section({
+    title,
+    children,
+    action,
+    framed = true,
+}: {
+    title: string;
+    children: React.ReactNode;
+    action?: React.ReactNode;
+    framed?: boolean;
+}) {
+    return (
+        <section>
+            <SectionHeader title={title} actions={action} className="mb-3" />
+            {framed ? <Card className="p-4">{children}</Card> : children}
+        </section>
+    );
+}
+
+/** Live numbers from the latest sample: CPU with its cores, memory, every disk, GPUs. */
+function LiveMetrics({ sample, interval, now }: { sample: ServerSample | undefined; interval: number; now: number }) {
+    if (!sample) {
+        return <p className="text-muted">No metrics yet. They appear once the agent pushes its first sample.</p>;
+    }
+    const { metrics, time } = sample;
+    const stale = isSampleStale(metrics, time, interval, now);
+    const gpus = metrics.gpu?.gpus?.length ? metrics.gpu.gpus : metrics.gpu?.available ? [metrics.gpu] : [];
+    return (
+        <div className="grid gap-4">
+            <p className={cn("text-meta", stale ? "text-status-warn" : "text-muted")}>
+                {stale ? `Stale: last sample ${ageOf(time, now)} ago` : `Updated ${ageOf(time, now)} ago`}
+                {metrics.host?.hostname ? ` · ${metrics.host.hostname}` : ""}
+                {metrics.load?.avg1 !== undefined ? ` · load ${metrics.load.avg1.toFixed(2)}` : ""}
+            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                    <UsageMeter
+                        label={`CPU${metrics.cpu?.cores ? ` · ${metrics.cpu.cores} cores` : ""}`}
+                        percent={metrics.cpu?.percent}
+                        detail={metrics.cpu?.temp ? `${Math.round(metrics.cpu.temp)}°C` : null}
+                    />
+                    <CoreSquares values={metrics.cpu?.perCore} label="Core" />
+                    {sample.cpuPeak10m ? (
+                        <p className="text-meta text-muted tnum">
+                            Peak in the last 10 minutes: {percentage(sample.cpuPeak10m.percent)}
+                        </p>
+                    ) : null}
+                </div>
+                <div className="grid content-start gap-3">
+                    <UsageMeter
+                        label="Memory"
+                        percent={metrics.mem?.percent}
+                        detail={formatBytesPair(metrics.mem?.used, metrics.mem?.total)}
+                    />
+                    {(metrics.disk ?? []).map((disk) => (
+                        <UsageMeter
+                            key={disk.mount}
+                            label={`Disk ${disk.mount ?? ""}`}
+                            percent={disk.percent}
+                            detail={formatBytesPair(disk.used, disk.total)}
+                        />
+                    ))}
+                    {gpus.map((gpu, i) => (
+                        <UsageMeter
+                            key={`gpu-${i}`}
+                            label={`GPU ${gpu.name ?? i}`}
+                            percent={gpu.util}
+                            detail={formatBytesPair(gpu.memUsed, gpu.memTotal)}
+                        />
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/** The agent's own report: version, host uptime, pending updates, disk health and its warning counters. */
+function AgentReport({
+    monitor,
+    sample,
+    onCleared,
+}: {
+    monitor: MonitorSummary;
+    sample: ServerSample | undefined;
+    onCleared: () => void;
+}) {
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const metrics = sample?.metrics;
+    const warning = agentWarnings(metrics?.agent, monitor);
+    const updates = updatesStatus(metrics?.updates);
+    const smart = smartWarning(metrics?.smart);
+    async function clear() {
+        setBusy(true);
+        setError(null);
+        try {
+            await clearAgentWarnings(monitor.id);
+            onCleared();
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Could not clear the warnings.");
+        } finally {
+            setBusy(false);
+        }
+    }
+    return (
+        <dl className="grid grid-cols-[140px_minmax(0,1fr)] gap-x-4 gap-y-2 text-sub">
+            <dt className="text-muted">Agent</dt>
+            <dd className="tnum">{metrics?.agent?.version ?? "—"}</dd>
+            <dt className="text-muted">Host uptime</dt>
+            <dd className="tnum">{formatDuration(metrics?.host?.uptime) ?? "—"}</dd>
+            <dt className="text-muted">Updates</dt>
+            <dd className={updates ? TONE_TEXT[updates.tone] : "text-muted"} title={updates?.title}>
+                {updates?.label ?? "Unknown"}
+            </dd>
+            {smart ? (
+                <>
+                    <dt className="text-muted">Disk health</dt>
+                    <dd className={TONE_TEXT[smart.tone]} title={smart.title}>
+                        {smart.text}
+                    </dd>
+                </>
+            ) : null}
+            <dt className="text-muted">Warnings</dt>
+            <dd>
+                {warning ? (
+                    <span className="flex flex-wrap items-center gap-2">
+                        <span className="text-status-warn" title={warning.title} data-agent-warning>
+                            {warning.text}
+                        </span>
+                        <Button size="sm" loading={busy} onClick={() => void clear()}>
+                            Clear warnings
+                        </Button>
+                    </span>
+                ) : (
+                    <span className="text-muted">None</span>
+                )}
+                {error ? (
+                    <span role="alert" className="block text-meta text-danger">
+                        {error}
+                    </span>
+                ) : null}
+            </dd>
+        </dl>
+    );
+}
+
+/** The websites this server hosts, with their status, and the picker to change them. */
+function LinkedWebsites({ monitor, monitors }: { monitor: MonitorSummary; monitors: MonitorSummary[] }) {
+    const [links, setLinks] = useState<MonitorLinks | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [editing, setEditing] = useState(false);
+    const [selection, setSelection] = useState<Set<number>>(new Set());
+    const [saving, setSaving] = useState(false);
+    const candidates = useMemo(() => buildLinkCandidates(monitors, monitor.id), [monitors, monitor.id]);
+
+    const load = useCallback(async () => {
+        try {
+            const answer = await fetchMonitorLinks(monitor.id);
+            setLinks(answer);
+            setError(null);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Could not load the linked websites.");
+        }
+    }, [monitor.id]);
+    useEffect(() => {
+        void load();
+    }, [load]);
+
+    async function save() {
+        setSaving(true);
+        try {
+            setLinks(await replaceMonitorLinks(monitor.id, [...selection]));
+            setEditing(false);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Could not save the linked websites.");
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    return (
+        <Section
+            title="Linked websites"
+            action={
+                <Button
+                    size="sm"
+                    disabled={links === null}
+                    onClick={() => {
+                        setSelection(new Set(links?.raw.map((l) => l.linkedMonitorId) ?? []));
+                        setEditing(true);
+                    }}
+                >
+                    <Pencil />
+                    Edit links
+                </Button>
+            }
+        >
+            {error ? (
+                <p role="alert" className="mb-2 text-meta text-danger">
+                    {error}
+                </p>
+            ) : null}
+            {links === null ? null : links.resolved.length === 0 ? (
+                <p className="text-muted">
+                    No websites linked. Their status would show here and on the Superboard card.
+                </p>
+            ) : (
+                <ul className="grid gap-1" aria-label="Linked websites">
+                    {sortLinks(links.resolved).map((link) => (
+                        <li key={link.id} className="flex items-center gap-2">
+                            <StatusDot status={statusKeyOf({ active: true, status: link.status })} />
+                            <Link href={`/monitors/${link.id}`} className="min-w-0 truncate hover:underline">
+                                {link.name}
+                            </Link>
+                            <span className={cn("text-meta", TONE_TEXT[linkTone(link.status)])}>
+                                {linkStatusLabel(link.status)}
+                            </span>
+                        </li>
+                    ))}
+                </ul>
+            )}
+            <Dialog open={editing} onOpenChange={setEditing}>
+                <DialogContent
+                    title="Linked websites"
+                    description={`The websites “${monitor.name}” hosts. A group includes every website inside it.`}
+                    size="lg"
+                >
+                    <DialogBody>
+                        <LinkPicker
+                            candidates={candidates}
+                            selected={selection}
+                            disabled={saving}
+                            onToggle={(id) =>
+                                setSelection((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(id)) {
+                                        next.delete(id);
+                                    } else {
+                                        next.add(id);
+                                    }
+                                    return next;
+                                })
+                            }
+                        />
+                    </DialogBody>
+                    <DialogFooter>
+                        <Button onClick={() => setEditing(false)} disabled={saving}>
+                            Cancel
+                        </Button>
+                        <Button variant="primary" onClick={() => void save()} loading={saving}>
+                            {saving ? "Saving…" : "Save links"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </Section>
+    );
+}
+
+/** The backup agents linked to this server, their last runs, and downloads. */
+function ServerBackups({ monitorId }: { monitorId: number }) {
+    const [agents, setAgents] = useState<BackupAgentSummary[]>([]);
+    const [runs, setRuns] = useState<Record<string, BackupRunSummary[]>>({});
+    const [error, setError] = useState<string | null>(null);
+    useEffect(() => {
+        const controller = new AbortController();
+        (async () => {
+            try {
+                const list = await fetchBackupAgents(monitorId, controller.signal);
+                const histories = await Promise.all(
+                    list.agents.map((agent) =>
+                        fetchBackupRuns(agent.id, controller.signal)
+                            .then((r) => r.runs.slice(0, 5))
+                            .catch(() => [])
+                    )
+                );
+                setAgents(list.agents);
+                setRuns(Object.fromEntries(list.agents.map((agent, i) => [agent.id, histories[i]])));
+            } catch (e) {
+                if (!controller.signal.aborted) {
+                    setError(e instanceof Error ? `Backups unavailable: ${e.message}` : "Backups unavailable.");
+                }
+            }
+        })();
+        return () => controller.abort();
+    }, [monitorId]);
+    if (agents.length === 0 && !error) {
+        return null;
+    }
+    return (
+        <Section title="Backups" framed={false}>
+            <BackupAgents
+                agents={agents}
+                runs={runs}
+                error={error}
+                onDownload={(run) =>
+                    void downloadBackupRun(run.id, backupFileName(run)).catch((e) =>
+                        setError(e instanceof Error ? `Download failed: ${e.message}` : "Download failed.")
+                    )
+                }
+            />
+            <p className="mt-2 text-meta">
+                {agents.map((agent) => (
+                    <Link key={agent.id} href={`/backups/${agent.id}`} className="mr-3 text-accent hover:underline">
+                        Manage {agent.name} →
+                    </Link>
+                ))}
+            </p>
+        </Section>
+    );
+}
+
+/**
+ * One server: live numbers, the agent's report, load history, containers,
+ * linked websites, thresholds and backups. Edit opens the monitor form in place.
+ */
+export function ServerDetail({
+    initial,
+    initialSample,
+}: {
+    initial: MonitorSummary;
+    initialSample: ServerSample | null;
+}) {
+    const { monitors, reload } = useBoardData();
+    // Freshness keeps counting even while Monitors' Pause holds the roster.
+    const now = useClock(1000);
+    const monitor = monitors.find((m) => m.id === initial.id) ?? initial;
+    const live = useFleetMetrics(useMemo(() => [initial.id], [initial.id]));
+    const sample = live.samples.get(initial.id) ?? initialSample ?? undefined;
+    // The full record (with its notification links) the form edits; null when closed.
+    const [editing, setEditing] = useState<FormInitial | null>(null);
+    const [muteError, setMuteError] = useState<string | null>(null);
+    const status = statusKeyOf(monitor);
+    const covered = isCovered(monitor);
+
+    async function toggleMute() {
+        setMuteError(null);
+        try {
+            await (covered ? unmuteMonitor(monitor.id) : muteMonitor(monitor.id));
+            await reload();
+        } catch (e) {
+            setMuteError(e instanceof Error ? e.message : "Mute failed.");
+        }
+    }
+
+    return (
+        <div className="flex min-h-0 flex-1 flex-col">
+            <PausedBanner />
+            <PageBody className="grid gap-6">
+                {live.failed ? (
+                    <p role="status" className="text-meta text-warning">
+                        Couldn&apos;t load the latest metrics; the numbers may be old.
+                    </p>
+                ) : null}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <ProviderLogo provider={monitor.provider} />
+                    <span className={cn("flex items-center gap-2 text-sub font-medium", statusTone(status))}>
+                        <StatusDot status={status} muted={covered} />
+                        {covered && status === "down" ? "Down · muted" : STATUS_LABEL[status]}
+                    </span>
+                    <div className="ml-auto flex items-center gap-2">
+                        <Button variant="ghost" size="sm" asChild>
+                            <Link href={`/monitors/${monitor.id}`}>
+                                <Activity />
+                                Checks
+                            </Link>
+                        </Button>
+                        {covered || monitor.status === 0 ? (
+                            <Button size="sm" onClick={() => void toggleMute()}>
+                                {covered ? "Unmute" : "Mute"}
+                            </Button>
+                        ) : null}
+                        <Button
+                            size="sm"
+                            onClick={() => {
+                                if (editing) {
+                                    setEditing(null);
+                                    return;
+                                }
+                                fetchMonitor(monitor.id)
+                                    .then((answer) => setEditing(answer.monitor))
+                                    .catch((e) =>
+                                        setMuteError(e instanceof Error ? e.message : "Couldn't open the editor.")
+                                    );
+                            }}
+                        >
+                            {editing ? "Close editor" : "Edit"}
+                        </Button>
+                    </div>
+                    {muteError ? (
+                        <p role="alert" className="w-full text-meta text-danger">
+                            {muteError}
+                        </p>
+                    ) : null}
+                </div>
+                {editing ? (
+                    <Card className="p-4">
+                        <MonitorForm
+                            initial={editing}
+                            onCancel={() => setEditing(null)}
+                            onSaved={() => {
+                                setEditing(null);
+                                void reload();
+                            }}
+                        />
+                    </Card>
+                ) : null}
+                <Section title="Now">
+                    <LiveMetrics sample={sample} interval={monitor.interval} now={now} />
+                </Section>
+                <Section title="Agent">
+                    <AgentReport monitor={monitor} sample={sample} onCleared={() => void reload()} />
+                </Section>
+                <Section title="Load history" framed={false}>
+                    <LoadHistory monitorId={monitor.id} />
+                </Section>
+                {sample?.metrics.docker?.length ? (
+                    <Section title={`Containers · ${sample.metrics.docker.length}`}>
+                        <ContainerRows containers={sample.metrics.docker} />
+                    </Section>
+                ) : null}
+                <LinkedWebsites monitor={monitor} monitors={monitors} />
+                <Section title="Alert thresholds">
+                    <dl className="grid grid-cols-[140px_minmax(0,1fr)] gap-x-4 gap-y-1 text-sub tnum">
+                        <dt className="text-muted">CPU</dt>
+                        <dd>{monitor.metricCpuThreshold != null ? `${monitor.metricCpuThreshold}%` : "Off"}</dd>
+                        <dt className="text-muted">RAM</dt>
+                        <dd>{monitor.metricRamThreshold != null ? `${monitor.metricRamThreshold}%` : "Off"}</dd>
+                        <dt className="text-muted">Disk</dt>
+                        <dd>{monitor.metricDiskThreshold != null ? `${monitor.metricDiskThreshold}%` : "Off"}</dd>
+                        <dt className="text-muted">Provider</dt>
+                        <dd>{monitor.provider ?? "—"}</dd>
+                    </dl>
+                </Section>
+                <ServerBackups monitorId={monitor.id} />
+            </PageBody>
+        </div>
+    );
+}
