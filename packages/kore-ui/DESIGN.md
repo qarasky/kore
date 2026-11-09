@@ -369,7 +369,7 @@ See §3. `SectionHeader` is the in-page heading with a muted line and actions ("
 
 ### Identity
 - **AppMark / Wordmark / KoreLogo.** Marks are drawn in the accent with Kore's 1 / 0.6 / 0.3 opacity ramp:
-  Kore 2×2 tiles, KoreMind four arcs, KoreCalendar 3×3 grid, KoreMonitor a heartbeat line, Kore ID a core in a
+  Kore 2×2 tiles, KoreMind four arcs, KoreCalendar 3×3 grid, KoreMonitor a heartbeat whose flat line fades in (0.3) and out (0.6), Kore ID a core in a
   ring. Wordmark = mark + name, semibold, `-0.03em`; size it with `text-brand` (top bar) or `text-display`
   (auth). Don't recolour marks per app or add gradients.
 - **AppSwitcher.** Grid button in the top bar; a popover with a 2×2 grid of app tiles (mark, name, one-word
@@ -479,8 +479,8 @@ One line each, so migrations know what changes.
 - **Motion: KoreCalendar's durations and curves**, KoreMind's 140/220ms map onto them; no motion library in
   kore-ui (CSS only); apps may keep `motion` for app-specific effects.
 - **Icons: lucide** everywhere; Kore's and KoreCalendar's hand-drawn `icons.tsx` go away.
-- **Marks: one family in the accent**; Flatline's cream heartbeat tile becomes the accent heartbeat (the
-  Flatline → KoreMonitor rename itself is out of scope; `names={{ flatline: "Flatline" }}` until then).
+- **Marks: one family in the accent**; KoreMonitor's cream heartbeat tile became the accent heartbeat with the
+  family's opacity ramp (0.2.2). Its app id stays `flatline`.
 
 ## 8. Migrating an app
 

@@ -39,16 +39,13 @@ const MARKS: Record<ProductId, ReactNode> = {
       ))}
     </g>
   ),
-  // KoreMonitor (Flatline): a heartbeat line.
+  // KoreMonitor: a heartbeat, the flat line before it faint and after it half.
   flatline: (
-    <path
-      d="M1 8h3.5L6 4.5v7L7.5 8H10l1.5-3.5v7L13 8h2"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
+    <g fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 8h2.05" opacity="0.3" />
+      <path d="M5.45 8l1.7-4.42 1.7 8.84 1.7-4.42" />
+      <path d="M12.95 8h2.05" opacity="0.6" />
+    </g>
   ),
   // Kore ID: a solid core inside a ring.
   "kore-id": (
