@@ -1,9 +1,9 @@
-# AI-assisted push-agent deployment
+# AI-assisted server onboarding
 
 > **For AI agents and the humans supervising them.** This document is the
 > whole onboarding workflow: analyse a server, install or reuse the host
-> agent, then (with operator access) add website monitors, group them and
-> link them to the host.
+> agent, then (with operator access) add website monitors, group them, link
+> them to the host and set up backup agents for the server's data.
 >
 > Fetch it fresh for every onboarding: it ships with the deployed KoreMonitor
 > backend and the origin, credential, token family and agent version below
@@ -43,8 +43,9 @@ KoreMonitor itself as part of a project onboarding.
 
 ## 1. Understand the request and the server
 
-The human supplies three things: this link, access to the target server,
-and the websites that must be monitored. Establish the rest from evidence
+The human supplies this link, access to the target server, the websites
+that must be monitored and, when backups are wanted, which projects' data to
+back up. Establish the rest from evidence
 before changing anything.
 
 Inspect the target host (do not print secrets):
@@ -314,7 +315,157 @@ a 200 alone does not prove every target was accepted.
 
 ---
 
-## 7. Wait, then verify
+## 7. Back up the server's data (backup agents)
+
+Skip this section when the human did not ask for backups. Otherwise each
+project on the server that owns data (a Postgres database, an S3/MinIO/Garage
+bucket) gets **one named backup agent**: `flatline-backup` is a separate
+program from `superboard`, uses its own `kmon_agent_backup_` token and uploads
+daily bundles to KoreMonitor. Full reference:
+[backup agent](https://github.com/qarasky/kore-monitor/blob/master/docs/backup-agent.md).
+It needs the operator token from §3.
+
+### Decide what to back up
+
+From §1's inspection, list per project: the Postgres server (a container, or
+the host's own server), the database names, and any object-storage buckets
+with their endpoint. Ask the human only which projects are in scope. One
+agent per project keeps restores and alerts separate; several agents may run
+on one host. Names are lowercase letters, digits, `-` and `_`, starting with a
+letter or digit, at most 64 characters (`shop`, `portal-media`).
+
+Check that the agent can read each source **before** registering anything:
+
+- Container Postgres: the container name and a superuser (`postgres`).
+- Host Postgres: the agent runs `psql`/`pg_dump` as that OS user, so the host
+  needs a `postgresql-client` at least as new as the server.
+- Object storage: an access key that can list and read the bucket, and an
+  endpoint that is HTTPS or a literal loopback address (`127.0.0.1:9000`).
+  A Docker-network address over plain HTTP is refused: publish the port on
+  loopback instead.
+
+### Register the agent and install it
+
+```bash
+AGENT=$(curl -fsS -X POST "{{ORIGIN}}/api/v1/backup-agents" \
+  -H "Authorization: Bearer $KOREMONITOR_TOKEN" -H "Content-Type: application/json" \
+  -d "$(jq -n --arg name "$AGENT_NAME" --argjson monitor "$SERVER_ID" \
+        '{name:$name, monitorId:$monitor}')")
+BACKUP_TOKEN=$(printf '%s\n' "$AGENT" | jq -er '.token')   # shown once; never print it
+```
+
+`monitorId` links the agent to the host's push monitor, so its status shows on
+that server's card. The response is the only time the token appears: write it
+straight to the token file below.
+
+Download the build with the **backup** token (the operator token is refused
+there) and check its hash against the release manifest:
+
+```bash
+ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
+FILE="flatline-backup-linux-$ARCH"
+curl -fsS -H "Authorization: Bearer $BACKUP_TOKEN" \
+  -o "/tmp/$FILE" "{{ORIGIN}}/api/backup/v1/release/$FILE"
+WANT=$(curl -fsS -X POST "{{ORIGIN}}/api/backup/v1/checkin" \
+  -H "Authorization: Bearer $BACKUP_TOKEN" -H "Content-Type: application/json" \
+  -d '{"version":"0.0.0"}' | jq -er --arg f "$FILE" '.release.assets[] | select(.file==$f) | .sha256')
+echo "$WANT  /tmp/$FILE" | sha256sum -c -
+sudo install -m 0755 "/tmp/$FILE" /usr/local/bin/flatline-backup
+```
+
+The `0.0.0` check-in only fetches the manifest; the installed agent reports
+its real version on its first run. Never skip a failed checksum.
+
+Write the config, token and (for buckets) credentials with mode 0600, and the
+state directory with mode 0700. The state directory must end with the agent's
+name:
+
+```bash
+sudo install -d -m 0700 /etc/flatline-backup "/var/lib/flatline-backup/$AGENT_NAME"
+printf '%s' "$BACKUP_TOKEN" | sudo tee "/etc/flatline-backup/$AGENT_NAME.token" >/dev/null
+sudo chmod 0600 "/etc/flatline-backup/$AGENT_NAME.token"
+unset BACKUP_TOKEN
+```
+
+```json
+{
+  "version": 1,
+  "name": "shop",
+  "serverUrl": "{{ORIGIN}}",
+  "tokenFile": "/etc/flatline-backup/shop.token",
+  "stateDir": "/var/lib/flatline-backup/shop",
+  "spoolMaxBytes": 8589934592,
+  "postgres": [
+    {
+      "container": "shop-postgres-1",
+      "user": "postgres",
+      "databases": ["shop"],
+      "includeGlobals": false
+    }
+  ],
+  "s3": [
+    {
+      "endpoint": "http://127.0.0.1:9000",
+      "region": "us-east-1",
+      "bucket": "shop-media",
+      "credentialsFile": "/etc/flatline-backup/shop-s3.json"
+    }
+  ]
+}
+```
+
+Use `"local": true` instead of `"container"` for the host's own Postgres.
+Omit `s3` when there is no bucket. Leave out `recipient` unless the human asks
+for encrypted bundles (they then also need an age key pair, kept off this
+host). Raise `spoolMaxBytes` above the largest expected bundle (up to 32 GiB)
+when the data is bigger than 8 GiB, and check the disk has room for two
+spools. `schedule` is optional (a systemd `OnCalendar` value); stagger agents
+on one host so their exports do not overlap.
+
+```bash
+sudo flatline-backup check --config "/etc/flatline-backup/$AGENT_NAME.json"
+sudo flatline-backup install --config "/etc/flatline-backup/$AGENT_NAME.json"
+```
+
+`install` writes the agent's service and timer and the host's self-update
+timer. **It does not enable the daily backup timer yet.**
+
+### Prove a backup and a restore, then enable the timer
+
+1. **Run one backup by hand:**
+   `sudo systemctl start flatline-backup@$AGENT_NAME.service`, then follow
+   `journalctl -u flatline-backup@$AGENT_NAME -f` until it finishes. Large
+   object stores take hours; do not interrupt it.
+2. **Confirm it arrived:**
+   `GET /api/v1/backup-agents/{id}/runs` shows the run `completed` with the
+   expected size.
+3. **Prove a restore** on scratch targets, never on the source. Download the
+   bundle (`GET /api/v1/backup-runs/{runId}/download` with the operator token),
+   start a throwaway Postgres container and, for buckets, a throwaway S3
+   server, then run `flatline-backup verify`, `restore` and `compare` with a
+   `restore-target.json` that maps every source database and bucket to an
+   empty scratch target (see Recovery in the backup-agent reference). Delete
+   the scratch containers and the downloaded bundle afterwards.
+4. **Record the result** so KoreMonitor shows it:
+
+   ```bash
+   curl -fsS -X POST "{{ORIGIN}}/api/v1/backup-runs/$RUN_ID/verification" \
+     -H "Authorization: Bearer $KOREMONITOR_TOKEN" -H "Content-Type: application/json" \
+     -d "$(jq -n --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+           '{kind:"restore", status:"passed", checkedAt:$at,
+             summary:"verify, restore and compare passed on scratch targets"}')"
+   ```
+
+5. **Only then enable the daily timer:**
+   `sudo flatline-backup install --config /etc/flatline-backup/$AGENT_NAME.json --enable-timer`.
+
+If the human cannot wait for the restore test, stop after step 2, leave the
+timer disabled and report the agent as "backed up once, restore not proven,
+timer off". An agent with no completed run in 36 hours is shown as overdue.
+
+---
+
+## 8. Wait, then verify
 
 After the agent is running and the links are saved, **wait two minutes**
 before judging the result: the agent pushes on its interval, website checks
@@ -368,7 +519,7 @@ before treating it as installation delay.
 
 ---
 
-## 8. Report
+## 9. Report
 
 Report, in this order:
 
@@ -378,7 +529,9 @@ Report, in this order:
 - The notification destination(s) chosen and which monitors were assigned
   (state that delivery was requested, not independently observed).
 - The link PUT result (`raw`/`resolved`) for the host card.
-- Verification results from §7, including anything still PENDING.
+- Verification results from §8, including anything still PENDING.
+- Each backup agent: name, sources, first run size, whether a restore was
+  proven and recorded, and whether its daily timer is enabled.
 - Failed checks, unsupported requirements and missing access.
 
 Never include tokens, config contents or private URLs in the report. If
@@ -387,7 +540,7 @@ installation" and do not report it as verified.
 
 ---
 
-## 9. API reference
+## 10. API reference
 
 Operator API success responses are `{"ok":true,...}`. Errors are
 `{"ok":false,"error":"code","code":"code","message":"...","hint":"...",

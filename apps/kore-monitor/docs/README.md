@@ -7,24 +7,24 @@ for the shape of the system, then go to whichever document matches your task.
 
 ## Reading guide
 
-| Document                                       | Read it when                                                                                                 |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| [architecture.md](architecture.md)             | Understanding how the pieces fit, how data is stored and retained, and how live updates work.                |
-| [api.md](api.md)                               | Calling KoreMonitor from a script, an integration or an LLM agent.                                           |
-| [agent.md](agent.md)                           | Installing, configuring, updating or debugging the `superboard` host agent.                                  |
-| [backup-agent.md](backup-agent.md)             | Named backup agents (encryption optional): configuration, scheduling, offline verify and restore.            |
-| [superboard.md](superboard.md)                 | Changing or explaining the wall board: card anatomy, scopes, history, links.                                 |
-| [dashboard.md](dashboard.md)                   | Working on the web app (`apps/web/`): routes, sections, sign-in, live updates, adding a section.             |
-| [dashboard-motion.md](dashboard-motion.md)     | Adding or changing animation in the operator UI.                                                             |
-| [sso.md](sso.md)                               | Signing in with Kore ID: flow, who gets an account, bearer tokens, env keys.                                 |
-| [status-pages.md](status-pages.md)             | Publishing, theming or password-gating a public status page.                                                 |
-| [deployment.md](deployment.md)                 | Installing, updating and rolling back: the images, rollout and a fleet of hosts.                             |
-| [operations.md](operations.md)                 | Backing up, restore-testing backup agents, rotating tokens, diagnosing a broken instance.                    |
-| [development.md](development.md)               | Running the stack locally, tests, builds, repository layout.                                                 |
-| [provisioning.md](provisioning.md)             | AI-assisted agent deployment, websites, groups and notification setup. Also served at `/add-push-server.md`. |
-| [roadmap.md](roadmap.md)                       | Checking what is deliberately not implemented.                                                               |
-| [audit-2026-10.md](audit-2026-10.md)           | Reviewing the October 2026 performance and reliability audit and its fix status.                             |
-| [screenshots/README.md](screenshots/README.md) | The sample screenshots and how they were produced.                                                           |
+| Document                                       | Read it when                                                                                                                        |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| [architecture.md](architecture.md)             | Understanding how the pieces fit, how data is stored and retained, and how live updates work.                                       |
+| [api.md](api.md)                               | Calling KoreMonitor from a script, an integration or an LLM agent.                                                                  |
+| [agent.md](agent.md)                           | Installing, configuring, updating or debugging the `superboard` host agent.                                                         |
+| [backup-agent.md](backup-agent.md)             | Named backup agents (encryption optional): configuration, scheduling, offline verify and restore.                                   |
+| [superboard.md](superboard.md)                 | Changing or explaining the wall board: card anatomy, scopes, history, links.                                                        |
+| [dashboard.md](dashboard.md)                   | Working on the web app (`apps/web/`): routes, sections, sign-in, live updates, adding a section.                                    |
+| [dashboard-motion.md](dashboard-motion.md)     | Adding or changing animation in the operator UI.                                                                                    |
+| [sso.md](sso.md)                               | Signing in with Kore ID: flow, who gets an account, bearer tokens, env keys.                                                        |
+| [status-pages.md](status-pages.md)             | Publishing, theming or password-gating a public status page.                                                                        |
+| [deployment.md](deployment.md)                 | Installing, updating and rolling back: the images, rollout and a fleet of hosts.                                                    |
+| [operations.md](operations.md)                 | Backing up, restore-testing backup agents, rotating tokens, diagnosing a broken instance.                                           |
+| [development.md](development.md)               | Running the stack locally, tests, builds, repository layout.                                                                        |
+| [provisioning.md](provisioning.md)             | AI-assisted server onboarding: host agent, websites, groups, notifications and backup agents. Also served at `/add-push-server.md`. |
+| [roadmap.md](roadmap.md)                       | Checking what is deliberately not implemented.                                                                                      |
+| [audit-2026-10.md](audit-2026-10.md)           | Reviewing the October 2026 performance and reliability audit and its fix status.                                                    |
+| [screenshots/README.md](screenshots/README.md) | The sample screenshots and how they were produced.                                                                                  |
 
 ## Where things live in the repository
 

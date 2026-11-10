@@ -56,7 +56,8 @@ Using a credential on the wrong surface returns an explicit
 
 - [AI-assisted deployment runbook]({{ORIGIN}}/add-push-server.md?token={{TOKEN}}):
   analyse the host, install or reuse the agent, request operator access,
-  add websites and notifications, group and link them, then verify.
+  add websites and notifications, group and link them, set up backup agents,
+  then verify.
 - [OpenAPI document]({{ORIGIN}}/api/v1/openapi.json): the full HTTP API.
 - [Agent downloads]({{ORIGIN}}/agent/version?token={{TOKEN}}): version, checksums and URLs.
 ";
