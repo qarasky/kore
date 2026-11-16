@@ -88,7 +88,7 @@ jobs:
           \`\`\`
           See \`deploy/docker-compose.yml\` and \`docs/deployment-docker.md\`.
 
-          **Android**: download \`koremind-android-${VERSION}.apk\` below and install it. Check it with the \`.sha256\` file.
+          **Android**: download \`koremind-android-${VERSION}.apk\` below and install it. Check it with the \`.sha256\` file. Installed apps update themselves from here (Settings → Account → Updates).
           NOTES
           flags=(--verify-tag --generate-notes --notes-file notes-footer.md --title "KoreMind ${VERSION}")
           [ "$PRERELEASE" = "true" ] && flags+=(--prerelease) || flags+=(--latest)

@@ -83,6 +83,13 @@ jobs:
           out="koremind-android-${version}.apk"
           cp "$src" "dist/$out"
           (cd dist && sha256sum "$out" > "$out.sha256")
+          # The app updates itself from this file: it reads releases/latest/download/koremind-android.json
+          # (full releases only), checks versionCode, downloads the APK and verifies its SHA-256.
+          jq -n --arg version "$version" --argjson versionCode "$code" \
+            --arg apk "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${version}/${out}" \
+            --arg sha256 "$(cut -d' ' -f1 "dist/$out.sha256")" \
+            '{version: $version, versionCode: $versionCode, apk: $apk, sha256: $sha256}' > dist/koremind-android.json
+          cat dist/koremind-android.json
           echo "apk=$out" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v7
         with:

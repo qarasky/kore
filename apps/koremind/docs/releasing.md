@@ -78,6 +78,16 @@ Local release builds use the same variables (`KOREMIND_KEYSTORE_FILE` as a path 
 
 The debug APK from `ci.yml` is signed with a throw-away debug key. It is fine for trying a change, but it cannot be updated by, or replace, a release build.
 
+### In-app updates
+
+Release builds update themselves from GitHub. Every release also uploads `koremind-android.json` (version, `versionCode`, APK link, SHA-256). The app reads `https://github.com/<repo>/releases/latest/download/koremind-android.json` when it starts (at most every 6 hours) and from **Settings → Account → Updates**. If `versionCode` is higher, a banner offers the update. Tapping it downloads the APK, checks the SHA-256 and hands it to Android's installer.
+
+- Only full releases are offered. `releases/latest` skips pre-releases, so `-rc` tags never reach phones this way.
+- The first update asks the user to allow "Install unknown apps" for KoreMind and to confirm. On Android 12 and later, updates after that install without a prompt.
+- Android only installs an APK signed with the same key as the installed app, so the signing key above protects updates too.
+- Debug builds don't check for updates, because they're signed with a different key.
+- The repo comes from `GITHUB_REPOSITORY` at build time (a fork updates from itself). Locally it defaults to `qarasky/koremind`, or set `-PupdateRepo=owner/name`.
+
 ## If a release goes wrong
 
 - **Verification failed before anything was published:** fix, commit, delete the tag (`git push origin :refs/tags/v0.2.0 && git tag -d v0.2.0`), tag again.

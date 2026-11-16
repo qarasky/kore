@@ -82,6 +82,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qarasky.koremind.R
 import dev.qarasky.koremind.ui.AppViewModel
+import dev.qarasky.koremind.ui.UpdateBanner
 import dev.qarasky.koremind.ui.ErrorText
 import dev.qarasky.koremind.ui.model.ModelSheet
 import dev.qarasky.koremind.ui.model.lacksVision
@@ -152,6 +153,7 @@ fun ChatScreen(vm: AppViewModel, onSettings: () -> Unit, onProviders: () -> Unit
                 if (chatId != null && !empty) IconButton(onClick = { chatId?.let(vm::deleteChat) }) { Icon(Icons.Filled.Delete, stringResource(R.string.delete_chat), tint = KoreMindColors.Muted) }
                 else Spacer(Modifier.size(48.dp))
             }
+            UpdateBanner(vm)
             if (empty) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { Appear { Text(stringResource(R.string.home_greeting), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold) } }
             else androidx.compose.runtime.key(listKey) { MessageList(state, Modifier.weight(1f), vm::answerApproval) }
 

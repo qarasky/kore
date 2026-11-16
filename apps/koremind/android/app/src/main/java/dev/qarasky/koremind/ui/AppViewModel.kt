@@ -30,6 +30,11 @@ import dev.qarasky.koremind.data.StreamEvent
 import dev.qarasky.koremind.data.KoreMindApi
 import dev.qarasky.koremind.data.normalizeBackendUrl
 import dev.qarasky.koremind.data.uploadSizeError
+import dev.qarasky.koremind.data.UpdateEvents
+import dev.qarasky.koremind.data.UpdateInfo
+import dev.qarasky.koremind.data.Updater
+import dev.qarasky.koremind.data.isNewer
+import dev.qarasky.koremind.data.updateCheckDue
 import dev.qarasky.koremind.ui.chat.ChatUiState
 import dev.qarasky.koremind.ui.chat.beginTurn
 import dev.qarasky.koremind.ui.chat.dismissApproval
@@ -54,6 +59,23 @@ sealed interface PairUi {
     data object Working : PairUi
     data object Done : PairUi
     data class Failed(@androidx.annotation.StringRes val message: Int) : PairUi
+}
+
+/** Where an app update stands. Shown as a banner over the chat and in Settings → Account. */
+sealed interface UpdateUi {
+    data object Off : UpdateUi
+    data object Idle : UpdateUi
+    data object Checking : UpdateUi
+    data object UpToDate : UpdateUi
+    data class Available(val info: UpdateInfo) : UpdateUi
+    data class Downloading(val info: UpdateInfo, val progress: Float) : UpdateUi
+    data class Installing(val info: UpdateInfo) : UpdateUi
+    data class Failed(val info: UpdateInfo?, val message: String) : UpdateUi
+}
+
+/** The release the banner is about, whatever stage the update is in. */
+val UpdateUi.release: UpdateInfo? get() = when (this) {
+    is UpdateUi.Available -> info; is UpdateUi.Downloading -> info; is UpdateUi.Installing -> info; is UpdateUi.Failed -> info; else -> null
 }
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -91,7 +113,69 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private var streamJob: Job? = null
 
-    init { if (_session.value.signedIn) refreshAll() }
+    // ---- app updates ---------------------------------------------------------
+    private val updater = Updater(app)
+    private val _update = MutableStateFlow<UpdateUi>(if (updater.enabled) UpdateUi.Idle else UpdateUi.Off)
+    val update: StateFlow<UpdateUi> = _update.asStateFlow()
+    private val _dismissedUpdate = MutableStateFlow(prefs.dismissedUpdate)
+    val dismissedUpdate: StateFlow<Long> = _dismissedUpdate.asStateFlow()
+    val appVersion: String get() = updater.installedVersionName
+
+    init {
+        if (_session.value.signedIn) refreshAll()
+        updater.cleanUp()
+        checkForUpdate(force = false)
+        viewModelScope.launch {
+            UpdateEvents.failure.collect { msg ->
+                if (msg == null) return@collect
+                UpdateEvents.failure.value = null
+                val info = _update.value.release
+                // Cancelled on the confirmation screen: offer it again; anything else is an error.
+                _update.value = if (msg.isEmpty() && info != null) UpdateUi.Available(info) else UpdateUi.Failed(info, msg)
+            }
+        }
+    }
+
+
+    /** Looks for a newer release; on its own only every few hours, always when [force]d from Settings. */
+    fun checkForUpdate(force: Boolean) {
+        if (!updater.enabled) return
+        val now = System.currentTimeMillis()
+        if (!force && !updateCheckDue(prefs.lastUpdateCheck, now)) return
+        val cur = _update.value
+        if (cur is UpdateUi.Checking || cur is UpdateUi.Downloading || cur is UpdateUi.Installing) return
+        _update.value = UpdateUi.Checking
+        viewModelScope.launch {
+            _update.value = try {
+                val info = updater.latest()
+                prefs.lastUpdateCheck = now
+                if (info != null && isNewer(info, updater.installedVersionCode)) UpdateUi.Available(info) else UpdateUi.UpToDate
+            } catch (e: Exception) {
+                if (force) UpdateUi.Failed(null, e.message ?: "") else UpdateUi.Idle
+            }
+        }
+    }
+
+    /** Downloads the release, checks it and hands it to Android, which asks to confirm when it has to. */
+    fun installUpdate() {
+        val info = _update.value.release ?: return
+        if (_update.value is UpdateUi.Downloading || _update.value is UpdateUi.Installing) return
+        viewModelScope.launch {
+            try {
+                _update.value = UpdateUi.Downloading(info, 0f)
+                val file = updater.download(info) { p -> _update.value = UpdateUi.Downloading(info, p) }
+                _update.value = UpdateUi.Installing(info)
+                updater.install(file)
+            } catch (e: Exception) { _update.value = UpdateUi.Failed(info, e.message ?: "") }
+        }
+    }
+
+    /** Hides the banner for this release; Settings still offers it. */
+    fun dismissUpdate() {
+        val info = _update.value.release ?: return
+        prefs.dismissedUpdate = info.versionCode
+        _dismissedUpdate.value = info.versionCode
+    }
 
     // ---- session -----------------------------------------------------------
     /** Checks the server answers, then remembers it. */

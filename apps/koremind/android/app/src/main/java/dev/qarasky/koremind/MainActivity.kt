@@ -8,7 +8,13 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import dev.qarasky.koremind.data.UpdateEvents
 import dev.qarasky.koremind.ui.AppViewModel
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.launch
 import dev.qarasky.koremind.ui.KoreMindApp
 import dev.qarasky.koremind.ui.theme.KoreMindTheme
 
@@ -20,6 +26,15 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT), navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT))
         setContent { KoreMindTheme { KoreMindApp(vm) } }
         if (savedInstanceState == null) handleLinks(intent)
+        // Android's "update KoreMind?" screen for a downloaded release, shown while the app is in front.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                UpdateEvents.confirm.filterNotNull().collect { confirm ->
+                    UpdateEvents.confirm.value = null
+                    try { startActivity(confirm) } catch (_: Exception) { UpdateEvents.failure.value = getString(R.string.update_failed) }
+                }
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {

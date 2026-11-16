@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Self-update from GitHub releases (Settings → Account → Updates). Android still asks before installing. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
@@ -33,5 +35,7 @@
                 <data android:scheme="koremind" android:host="sso" />
             </intent-filter>
         </activity>
+        <!-- Receives the result of installing an update; only the system's PackageInstaller sends to it (via a PendingIntent). -->
+        <receiver android:name=".data.UpdateInstallReceiver" android:exported="false" />
     </application>
 </manifest>

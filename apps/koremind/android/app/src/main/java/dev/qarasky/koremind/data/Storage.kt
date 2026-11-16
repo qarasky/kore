@@ -15,6 +15,9 @@ class Prefs(context: Context) {
     var thinking: String? get() = sp.getString("thinking", null); set(v) = sp.edit().putString("thinking", v).apply()
     /** PKCE verifier of a Kore ID sign-in in progress; kept across the browser round trip (the process may be killed meanwhile). */
     var ssoVerifier: String? get() = sp.getString("ssoVerifier", null); set(v) = sp.edit().putString("ssoVerifier", v).apply()
+    var lastUpdateCheck: Long get() = sp.getLong("lastUpdateCheck", 0L); set(v) = sp.edit().putLong("lastUpdateCheck", v).apply()
+    /** The release whose banner was closed; a newer one shows again. */
+    var dismissedUpdate: Long get() = sp.getLong("dismissedUpdate", 0L); set(v) = sp.edit().putLong("dismissedUpdate", v).apply()
     fun signOut() = sp.edit().remove("token").remove("email").apply()
 }
 

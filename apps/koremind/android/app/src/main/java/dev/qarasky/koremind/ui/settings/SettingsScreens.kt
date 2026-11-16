@@ -67,6 +67,9 @@ import dev.qarasky.koremind.data.MemorySummary
 import dev.qarasky.koremind.data.ProviderConnection
 import dev.qarasky.koremind.data.Settings
 import dev.qarasky.koremind.ui.AppViewModel
+import dev.qarasky.koremind.ui.UpdateUi
+import dev.qarasky.koremind.ui.release
+import dev.qarasky.koremind.ui.updateActionText
 import dev.qarasky.koremind.ui.BackBar
 import dev.qarasky.koremind.ui.ErrorText
 import dev.qarasky.koremind.ui.HairlineBorder
@@ -440,6 +443,33 @@ private fun AccountSection(vm: AppViewModel, onChangeServer: () -> Unit) {
             }
         }
         ErrorText(linkError)
+        UpdatesCard(vm)
         KoreMindButton(stringResource(R.string.sign_out), ghost = true, danger = true, onClick = vm::signOut)
     }
+}
+
+/** App version and self-update from GitHub releases. Android only: the web app is updated with the server. */
+@Composable
+private fun UpdatesCard(vm: AppViewModel) {
+    val u by vm.update.collectAsStateWithLifecycle()
+    Column(CardModifier) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.updates), color = KoreMindColors.Muted, style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.app_version, vm.appVersion), style = MaterialTheme.typography.bodyMedium)
+            }
+            val action = updateActionText(u)
+            val (label, enabled, onClick) = when {
+                u is UpdateUi.Off -> Triple(null, false, {})
+                u is UpdateUi.Checking -> Triple(stringResource(R.string.update_checking), false, {})
+                u is UpdateUi.Available || (u is UpdateUi.Failed && u.release != null) -> Triple(stringResource(R.string.update_to, u.release?.version ?: ""), true, vm::installUpdate)
+                action != null -> Triple(action, false, {})
+                u is UpdateUi.UpToDate -> Triple(stringResource(R.string.update_up_to_date), true, { vm.checkForUpdate(force = true) })
+                else -> Triple(stringResource(R.string.update_check), true, { vm.checkForUpdate(force = true) })
+            }
+            if (label != null) Text(label, color = if (enabled) KoreMindColors.Accent else KoreMindColors.Muted, modifier = Modifier.clickable(enabled = enabled, onClick = onClick).padding(8.dp))
+        }
+    }
+    if (u is UpdateUi.Off) Text(stringResource(R.string.update_off), color = KoreMindColors.Muted, style = MaterialTheme.typography.bodySmall)
+    (u as? UpdateUi.Failed)?.let { ErrorText(it.message.ifBlank { stringResource(R.string.update_failed) }) }
 }

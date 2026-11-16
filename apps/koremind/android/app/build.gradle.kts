@@ -23,6 +23,9 @@ android {
         targetSdk = 36
         versionCode = (findProperty("versionCode") as String?)?.toInt() ?: versionProps.getProperty("versionCode").toInt()
         versionName = (findProperty("versionName") as String?) ?: versionProps.getProperty("versionName")
+        // The GitHub repo whose releases the app updates itself from. CI builds from a fork update from that fork.
+        val updateRepo = (findProperty("updateRepo") as String?) ?: System.getenv("GITHUB_REPOSITORY")?.takeIf { it.isNotBlank() } ?: "qarasky/koremind"
+        buildConfigField("String", "UPDATE_REPO", "\"$updateRepo\"")
     }
     signingConfigs {
         if (keystorePath != null) {
@@ -44,7 +47,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     testOptions { unitTests.isReturnDefaultValues = true }
 }
 
