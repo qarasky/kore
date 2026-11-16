@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Card, Checkbox, Field, Input, Select, SectionHeader, useToast, type SelectOption } from "@qarasky/kore-ui";
+import { Button, Card, Checkbox, Field, InlineMessage, Input, Select, SectionHeader, useToast, type SelectOption } from "@qarasky/kore-ui";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { adminErrorKey, parseRetentionDays, type AdminSettings } from "@/lib/admin";
@@ -212,11 +212,7 @@ export function SettingsForm({ settings }: { settings: AdminSettings }) {
           {dirty ? t("settings.unsaved") : ""}
         </p>
       </div>
-      {formError && (
-        <p role="alert" data-testid="form-error" className="text-meta text-danger">
-          {t(formError)}
-        </p>
-      )}
+      {formError && <InlineMessage data-testid="form-error">{t(formError)}</InlineMessage>}
     </form>
   );
 }

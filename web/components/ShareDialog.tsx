@@ -1,6 +1,19 @@
 "use client";
 
-import { Button, Checkbox, Dialog, DialogBody, DialogContent, Field, Input, PasswordInput, Select, useToast } from "@qarasky/kore-ui";
+import {
+  Button,
+  Checkbox,
+  Dialog,
+  DialogBody,
+  DialogContent,
+  Field,
+  InlineMessage,
+  Input,
+  LoadingState,
+  PasswordInput,
+  Select,
+  useToast,
+} from "@qarasky/kore-ui";
 import { Link2, Lock } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { api } from "@/lib/api";
@@ -128,9 +141,7 @@ export function ShareDialog({
       >
         <DialogBody data-testid="share-dialog" className="pt-2">
           {phase.kind === "loading" && (
-            <p role="status" className="mt-4 mb-2 text-muted">
-              {t("share.loading")}
-            </p>
+            <LoadingState label={t("share.loading")} className="justify-start px-0 py-4" />
           )}
           {phase.kind === "error" && (
             <div role="alert" className="mt-3 space-y-3">
@@ -268,11 +279,7 @@ function CreateForm({
           </div>
         )}
       </div>
-      {error && (
-        <p role="alert" className="text-meta text-danger">
-          {t(error)}
-        </p>
-      )}
+      {error && <InlineMessage>{t(error)}</InlineMessage>}
       <div className="flex justify-end">
         <Button type="submit" variant="primary" loading={pending}>
           {pending ? t("share.creating") : t("share.create")}
@@ -439,11 +446,7 @@ function LinkView({
         )}
       </div>
 
-      {error && (
-        <p role="alert" className="text-meta text-danger">
-          {t(error)}
-        </p>
-      )}
+      {error && <InlineMessage>{t(error)}</InlineMessage>}
 
       {share.status !== "revoked" && (
         <div className="flex justify-between gap-2 border-t border-border pt-4">

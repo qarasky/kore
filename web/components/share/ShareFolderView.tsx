@@ -99,7 +99,7 @@ export function ShareFolderView({
           {listing.children.map((c) => {
             const pi = c.is_dir ? -1 : files.findIndex((f) => f.id === c.id);
             return (
-              <li key={c.id} data-name={c.name} className={`${GRID} h-row border-b border-border/60 last:border-b-0 hover:bg-white/[0.03]`}>
+              <li key={c.id} data-name={c.name} className={`${GRID} h-row border-b border-border/60 last:border-b-0 hover:bg-hover-subtle`}>
                 <div className="flex min-w-0 items-center gap-2.5">
                   <NodeIcon kind={fileKind(c)} />
                   {c.is_dir ? (

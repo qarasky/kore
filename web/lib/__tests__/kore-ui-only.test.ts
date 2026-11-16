@@ -27,4 +27,16 @@ describe("kore-ui primitives only", () => {
     const present = gone.filter((name) => files().some((p) => relative(root, p) === join("components", `${name}.tsx`)));
     expect(present).toEqual([]);
   });
+
+  // The login picture is artwork (and the backdrop of an uploaded photo): dark in every theme on purpose.
+  const ARTWORK = [join("components", "LoginArt.tsx"), join("app", "(auth)", "login", "page.tsx"), join("components", "admin", "LoginImageCard.tsx")];
+
+  it("colours come from kore-ui tokens, so every theme follows (no typed hex, white/N or black/N)", () => {
+    const typed = /#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b|\b(?:bg|text|border|ring|fill|stroke)-(?:white|black)\b|\b(?:white|black)\/\[?[\d.]+/;
+    const offenders = files()
+      .filter((p) => !ARTWORK.includes(relative(root, p)))
+      .filter((p) => typed.test(readFileSync(p, "utf8")))
+      .map((p) => relative(root, p));
+    expect(offenders).toEqual([]);
+  });
 });
