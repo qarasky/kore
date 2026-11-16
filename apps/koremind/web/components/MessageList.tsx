@@ -1,7 +1,7 @@
 "use client";
 import { dedupeSources, sourceHost, type Activity, type ChatMessage } from "@koremind/shared";
-import { Alert, Badge, Button, IconButton, badgeVariants, cn } from "@qarasky/kore-ui";
-import { BookOpen, Brain, BrainCircuit, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileText, Globe, Lock, Pencil, RefreshCw, StickyNote, Trash2 } from "lucide-react";
+import { Alert, Badge, Button, CopyButton, IconButton, Textarea, badgeVariants, cn } from "@qarasky/kore-ui";
+import { BookOpen, Brain, BrainCircuit, ChevronDown, ChevronLeft, ChevronRight, FileText, Globe, Lock, Pencil, RefreshCw, StickyNote, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type UIEvent, type WheelEvent } from "react";
 import { Markdown } from "./Markdown";
@@ -110,12 +110,8 @@ export function MessageList({ messages, draft, busy, onApproval, onEdit, onVaria
 /** Your message. Copy and Edit sit under it (on hover, always on touch screens); an edited message can switch between its versions. */
 function UserBubble({ m, api, busy, onEdit, onVariant }: { m: ChatMessage; api: ReturnType<typeof useSession>["api"]; busy: boolean; onEdit(id: string, text: string): void; onVariant(id: string): void }) {
   const [editing, setEditing] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const saved = !m.id.startsWith("local-");
   const position = variantPosition(m);
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(m.text); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* clipboard blocked */ }
-  };
   const submit = () => {
     const text = editing?.trim();
     if (!text || busy) return;
@@ -133,21 +129,21 @@ function UserBubble({ m, api, busy, onEdit, onVariant }: { m: ChatMessage; api: 
       )}
       {editing !== null ? (
         <div className="flex w-full max-w-[85%] flex-col gap-2 rounded-overlay border border-accent bg-raised p-2">
-          <textarea
-            autoFocus value={editing} aria-label={t.editMessage} rows={Math.min(8, Math.max(2, editing.split("\n").length))}
+          <Textarea
+            autoFocus autoGrow maxHeight={200} rows={2} value={editing} aria-label={t.editMessage}
             onChange={(e) => setEditing(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Escape") setEditing(null);
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); }
             }}
-            className="w-full resize-none bg-transparent px-2 py-1 text-text outline-none"
+            className="rounded-none border-0 bg-transparent px-2 hover:border-0 focus:border-0 focus:ring-0"
           />
           <div className="flex justify-end gap-2">
             <Button size="sm" onClick={() => setEditing(null)}>{t.cancel}</Button>
             <Button size="sm" variant="primary" disabled={busy || !editing.trim()} onClick={submit}>{t.send}</Button>
           </div>
         </div>
-      ) : m.text && <div className="max-w-[85%] whitespace-pre-wrap rounded-overlay bg-raised px-4 py-2.5">{m.text}</div>}
+      ) : m.text && <div className="max-w-[85%] whitespace-pre-wrap rounded-overlay border border-border bg-raised px-4 py-2.5">{m.text}</div>}
       {editing === null && (
         <div className="flex items-center gap-0.5 text-muted">
           {position && (
@@ -158,7 +154,7 @@ function UserBubble({ m, api, busy, onEdit, onVariant }: { m: ChatMessage; api: 
             </span>
           )}
           <span className="flex opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
-            {m.text && <IconButton label={copied ? t.copied : t.copy} icon={copied ? <Check /> : <Copy />} tooltip={false} className="size-7" onClick={copy} />}
+            {m.text && <CopyButton value={m.text} iconOnly label={t.copy} copiedLabel={t.copied} failedLabel={t.copyFailed} variant="ghost" className="size-7" />}
             {saved && m.text && <IconButton label={t.editMessage} icon={<Pencil />} tooltip={false} className="size-7" disabled={busy} onClick={() => setEditing(m.text)} />}
           </span>
         </div>
@@ -234,7 +230,7 @@ function Sources({ sources }: { sources: { title: string; url: string }[] }) {
           <motion.ul id={id} initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={quick} className="mt-1 overflow-hidden rounded-ui border border-border">
             {list.map((s) => (
               <li key={s.url} className="border-b border-border last:border-b-0">
-                <a href={s.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 items-baseline gap-2 px-3 py-2 hover:bg-raised">
+                <a href={s.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 items-baseline gap-2 px-3 py-2 hover:bg-hover">
                   <span className="min-w-0 flex-1 truncate">{s.title || sourceHost(s.url)}</span>
                   <span className="shrink-0 text-meta text-muted">{sourceHost(s.url)}</span>
                 </a>

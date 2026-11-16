@@ -1,10 +1,11 @@
 "use client";
 import type { Settings } from "@koremind/shared";
 import { PageHeader, SaveStatus, SettingsLayout } from "@qarasky/kore-ui";
-import { Brain, CircleUser, Cpu, Plug, UserRound, type LucideIcon } from "lucide-react";
+import { Brain, CircleUser, Cpu, Palette, Plug, UserRound, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { AccountSection } from "@/components/settings/Account";
+import { AppearanceSection } from "@/components/settings/Appearance";
 import { MemorySection } from "@/components/settings/Memory";
 import { ModelsSection } from "@/components/settings/Models";
 import { PersonalizationSection } from "@/components/settings/Personalization";
@@ -16,7 +17,7 @@ import { useSession } from "@/lib/session";
 import { t } from "@/lib/strings";
 import { useAutosave } from "@/lib/use-autosave";
 
-const ICONS: Record<SectionId, LucideIcon> = { models: Cpu, providers: Plug, personalization: UserRound, memory: Brain, account: CircleUser };
+const ICONS: Record<SectionId, LucideIcon> = { models: Cpu, providers: Plug, personalization: UserRound, appearance: Palette, memory: Brain, account: CircleUser };
 
 export default function SettingsPage() {
   const { api } = useSession();
@@ -49,6 +50,7 @@ export default function SettingsPage() {
             {section === "models" && <ModelsSection providers={providers} favorites={favorites} toggleFavorite={toggleFavorite} />}
             {section === "providers" && <ProvidersSection settings={settings} onChange={setSettings} />}
             {section === "personalization" && settings && <PersonalizationSection settings={settings} onChange={setSettings} />}
+            {section === "appearance" && <AppearanceSection />}
             {section === "memory" && settings && <MemorySection settings={settings} onChange={setSettings} />}
             {section === "account" && <AccountSection />}
           </motion.div>

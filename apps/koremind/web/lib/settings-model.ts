@@ -1,11 +1,12 @@
 import type { Settings } from "@koremind/shared";
 import { t } from "./strings";
 
-/** Settings stay short: five sections, one visible at a time. */
+/** Settings stay short: six sections, one visible at a time. */
 export const SECTIONS = [
   { id: "models", label: t.sectionModels },
   { id: "providers", label: t.sectionProviders },
   { id: "personalization", label: t.personalization },
+  { id: "appearance", label: t.appearance },
   { id: "memory", label: t.memory },
   { id: "account", label: t.account },
 ] as const;

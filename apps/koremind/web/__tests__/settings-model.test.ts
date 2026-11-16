@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { SECTIONS, TONE_PRESETS, activePreset, providerStatus, togglePreset } from "../lib/settings-model";
 
 test("sections are few and ordered: models, providers, personalization, memory, account", () => {
-  expect(SECTIONS.map((s) => s.id)).toEqual(["models", "providers", "personalization", "memory", "account"]);
+  expect(SECTIONS.map((s) => s.id)).toEqual(["models", "providers", "personalization", "appearance", "memory", "account"]);
 });
 
 test("a preset sets the tone, picking it again clears it, and typed text matches no preset", () => {

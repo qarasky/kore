@@ -13,7 +13,7 @@ const ICONS: Record<ProviderIconKey, { viewBox: string; shapes: Shape[] }> = {
 export function ProviderIcon({ id, name, size = 20 }: { id: string; name: string; size?: number }) {
   const key = providerIconKey(id);
   const icon = key ? ICONS[key] : null;
-  if (!icon) return <span className="grid place-items-center rounded-full bg-raised text-2xs font-semibold uppercase" style={{ width: size, height: size }} aria-hidden>{name.slice(0, 1)}</span>;
+  if (!icon) return <span className="grid place-items-center rounded-full bg-track text-2xs font-semibold uppercase" style={{ width: size, height: size }} aria-hidden>{name.slice(0, 1)}</span>;
   return (
     <svg viewBox={icon.viewBox} width={size} height={size} fill="currentColor" aria-hidden focusable="false">
       {icon.shapes.map((sh, i) => <path key={i} d={sh.d} fillOpacity={sh.opacity} transform={sh.transform} />)}

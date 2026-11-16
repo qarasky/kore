@@ -89,7 +89,7 @@ function ChatItem({ chat, active, onDelete }: { chat: ChatSummary; active: boole
         className={cn(
           "flex min-h-control w-full items-center rounded-ui px-3 pr-10 text-left transition-colors",
           collapsed && "sr-only",
-          active ? "bg-raised font-medium text-text" : "text-muted hover:bg-white/[0.04] hover:text-text",
+          active ? "bg-raised font-medium text-text" : "text-muted hover:bg-hover-subtle hover:text-text",
         )}
       >
         <span className="min-w-0 flex-1 truncate">{chat.title}</span>
