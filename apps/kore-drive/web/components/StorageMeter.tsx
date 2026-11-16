@@ -21,7 +21,7 @@ export function StorageMeter({ usage }: { usage: Usage }) {
         aria-label={`${t("storage.label")}: ${label}. ${t("storage.percentUsed", { percent: Math.round(usagePercent(used, quota)) })}`}
         title={t("storage.details")}
         onClick={() => setOpen(true)}
-        className="block w-full rounded-ui px-3 py-2.5 text-left transition-colors hover:bg-white/[0.04]"
+        className="block w-full rounded-ui px-3 py-2.5 text-left transition-colors hover:bg-hover-subtle"
       >
         <Meter label={t("storage.label")} value={usagePercent(used, quota)} max={100} valueText={label} />
       </button>

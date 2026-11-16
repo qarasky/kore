@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Dialog, DialogBody, DialogContent, DialogFooter, Field, Input, Select } from "@qarasky/kore-ui";
+import { Button, Dialog, DialogBody, DialogContent, DialogFooter, Field, InlineMessage, Input, Select } from "@qarasky/kore-ui";
 import { useRef, useState, type FormEvent } from "react";
 import { adminErrorKey, type AdminUser } from "@/lib/admin";
 import { api, isApiError } from "@/lib/api";
@@ -134,11 +134,7 @@ export function UserDialog({
                 onChange={(value, unit) => setQuota({ value, unit })}
               />
             </Field>
-            {errors.form && (
-              <p role="alert" data-testid="dialog-error" className="text-meta text-danger">
-                {t(errors.form)}
-              </p>
-            )}
+            {errors.form && <InlineMessage data-testid="dialog-error">{t(errors.form)}</InlineMessage>}
           </DialogBody>
           <DialogFooter>
             <Button onClick={onClose} disabled={pending}>

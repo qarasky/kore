@@ -36,7 +36,7 @@ export function PasswordGate({ token }: { token: string }) {
   return (
     <form onSubmit={submit} className="flex flex-col gap-4 px-8 py-10" data-testid="password-gate">
       <div className="flex flex-col items-center gap-2 text-center">
-        <span className="flex size-10 items-center justify-center rounded-full bg-accent/15 text-accent">
+        <span className="flex size-10 items-center justify-center rounded-full bg-accent/15 text-accent-fg">
           <KeyRound aria-hidden className="size-5" />
         </span>
         <h1 className="text-heading font-semibold">{t("publicShare.passwordTitle")}</h1>
