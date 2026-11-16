@@ -31,7 +31,7 @@ export interface Engine {
   createSession(model?: { providerId: string; modelId: string }): Promise<string>;
   deleteSession(id: string): Promise<void>;
   prompt(a: PromptArgs): AsyncIterable<EngineEvent>;
-  /** One-shot completion in a throwaway session (chat titles and background memory extraction). Runs on `model` when given. */
-  complete(a: { kind?: "title" | "memory"; system: string; text: string; model?: ModelRef }): Promise<string>;
+  /** One-shot completion in a throwaway session (chat titles and background memory extraction). Runs on `model` (at `thinking` level) when given. Throws when the model can't answer. */
+  complete(a: { kind?: "title" | "memory"; system: string; text: string; model?: ModelRef; thinking?: string }): Promise<string>;
   close(): void;
 }

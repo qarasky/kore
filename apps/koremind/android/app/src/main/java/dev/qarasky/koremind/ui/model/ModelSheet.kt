@@ -82,7 +82,7 @@ fun ModelSheet(
             Column(Modifier.width(52.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 RailItem(rail == "favorites", stringResource(R.string.favorites), 1f) { rail = "favorites" }
                 Box(Modifier.width(28.dp).size(width = 28.dp, height = 1.dp).background(KoreMindColors.Border))
-                providers.forEach { p -> RailItem(rail == p.id, p.name, railAlpha(p), provider = p) { rail = p.id } }
+                railProviders(providers).forEach { p -> RailItem(rail == p.id, p.name, railAlpha(p), provider = p) { rail = p.id } }
             }
             Box(Modifier.width(1.dp).fillMaxHeight().background(KoreMindColors.Border))
             if (railProvider != null && notice != null) Column(Modifier.weight(1f).padding(horizontal = 16.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.Start) {

@@ -8,7 +8,7 @@ import { ProviderIcon } from "./ProviderIcon";
 import { ToggleChip } from "./ToggleChip";
 import { useModelChoice } from "@/lib/contexts";
 import { spring } from "@/lib/motion";
-import { chipLabel, filterModels, initialRail, railDimmed, railNotice, thinkingLabel } from "@/lib/model-picker";
+import { chipLabel, filterModels, initialRail, railDimmed, railNotice, railProviders, thinkingLabel } from "@/lib/model-picker";
 import { t } from "@/lib/strings";
 
 /** The model chip in the composer and its picker: a kore-ui Popover with a provider rail, search, models and thinking level. */
@@ -57,8 +57,8 @@ export function ModelPicker() {
         <div className="flex w-14 shrink-0 flex-col items-center gap-1 border-r border-border py-2" role="group" aria-label={t.sectionProviders}>
           <RailButton active={rail === "favorites"} label={t.favorites} onClick={() => setRail("favorites")}><Star className="size-[18px]" /></RailButton>
           <div className="my-1 w-8 border-t border-border" />
-          {providers.map((p) => (
-            <RailButton key={p.id} active={rail === p.id} dimmed={railDimmed(p)} label={railDimmed(p) ? `${p.name}, ${p.status === "disabled" ? t.railOff : t.railNotConnected}` : p.name} onClick={() => setRail(p.id)}>
+          {railProviders(providers).map((p) => (
+            <RailButton key={p.id} active={rail === p.id} dimmed={railDimmed(p)} label={railDimmed(p) ? `${p.name}, ${t.railNotConnected}` : p.name} onClick={() => setRail(p.id)}>
               <ProviderIcon id={p.id} name={p.name} size={20} />
             </RailButton>
           ))}

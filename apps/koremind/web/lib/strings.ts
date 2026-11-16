@@ -53,7 +53,6 @@ export const t = {
   providerNeedsConnection: (name: string) => `Connect ${name} in Settings to use its models.`,
   providerDisabled: (name: string) => `${name} is turned off in Settings.`,
   freeTag: "Free",
-  railOff: "turned off",
   railNotConnected: "not connected",
   chooseModel: "Choose a model",
   useInPicker: "Use in model picker",

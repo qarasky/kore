@@ -96,6 +96,27 @@ export function mapModels(providers: { id: string; name: string; recommended?: b
   });
 }
 
+/**
+ * The model's text before and after a tool call arrives as separate runs with nothing between them ("I'll check.**Latest…").
+ * Returns a stateful mapper that puts a blank line between them.
+ */
+export function separateAfterTools(): (e: EngineEvent) => EngineEvent {
+  let tail = "", toolSince = false;
+  return (e) => {
+    if (e.type === "status" && e.state === "searching") { if (tail) toolSince = true; return e; }
+    if (e.type !== "delta" || !e.text) return e;
+    let text = e.text;
+    if (toolSince) {
+      toolSince = false;
+      const have = tail.endsWith("\n\n") ? 2 : tail.endsWith("\n") ? 1 : 0;
+      const lead = text.match(/^\n*/)![0].length;
+      text = "\n".repeat(Math.max(0, 2 - have - lead)) + text;
+    }
+    tail = (tail + text).slice(-2);
+    return { type: "delta", text };
+  };
+}
+
 // OpenCode 2.2 always registers an (inert) `skill` tool that no config can hide, so the model is told plainly what it has.
 export const AGENT_SYSTEM = "You are KoreMind, a concise, friendly personal assistant. Answer directly. Your tools: web search (use it only when you need current facts) and notes (save_note, read_notes, edit_note) for things the user wants written down in this chat. Notes belong to one chat; to look at or change another chat's notes, pass that chat's title in the tool call and the user is asked to approve, so only do that when they ask you to. If it is refused, accept that. Never mention or try other tools. You remember useful things about the user between chats automatically: what you remember is given to you at the start of a chat, so never say you cannot remember.";
 
@@ -234,11 +255,12 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
       const text = first && a.system ? `<context>\n${a.system}\n</context>\n\n${a.text}` : a.text;
       const r = await call("POST", `/api/session/${a.sessionId}/prompt`, { text, ...(a.files.length ? { files: a.files.map((f) => ({ uri: f.dataUrl, name: f.name })) } : {}) });
       if (!r.ok) { yield { type: "error", message: String(r.json?.message ?? `Engine rejected the prompt (${r.status})`) }; return; }
+      const join = separateAfterTools();
       for (;;) {
         const v = await pump.next();
         if (v === CLOSED) return;
         if (v === IDLE) { yield { type: "error", message: "The assistant stopped responding. Try again." }; return; }
-        yield v;
+        yield join(v);
         if (v.type === "done" || v.type === "error") return;
       }
     } finally {
@@ -294,12 +316,12 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
     createSession,
     async deleteSession(id) { listeners.delete(id); sessionModel.delete(id); used.delete(id); await call("DELETE", `/api/session/${id}`); },
     prompt,
-    async complete({ system, text, model }) {
+    async complete({ system, text, model, thinking }) {
       const m = model ?? defaultModel ?? { providerId: "opencode", modelId: "big-pickle" };
       const sid = await createSession(m);
       let out = "";
       try {
-        for await (const e of prompt({ sessionId: sid, system, text, files: [], model: m, signal: new AbortController().signal })) {
+        for await (const e of prompt({ sessionId: sid, system, text, files: [], model: m, thinking, signal: new AbortController().signal })) {
           if (e.type === "delta") out += e.text;
           if (e.type === "error") throw new Error(e.message);
         }

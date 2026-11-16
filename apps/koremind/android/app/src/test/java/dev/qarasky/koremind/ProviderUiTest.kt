@@ -11,6 +11,7 @@ import dev.qarasky.koremind.ui.model.isChoiceAllowed
 import dev.qarasky.koremind.ui.model.providerIconRes
 import dev.qarasky.koremind.ui.model.railAlpha
 import dev.qarasky.koremind.ui.model.railNoticeRes
+import dev.qarasky.koremind.ui.model.railProviders
 import dev.qarasky.koremind.ui.settings.freeOnly
 import dev.qarasky.koremind.ui.settings.providerEnabled
 import dev.qarasky.koremind.ui.settings.providerPrefsChanged
@@ -38,6 +39,11 @@ class ProviderUiTest {
         assertEquals(R.drawable.ic_provider_openrouter, providerIconRes("openrouter"))
         assertEquals(R.drawable.ic_provider_opencode, providerIconRes("opencode-go")) // Go is OpenCode's plan: same mark
         assertNull(providerIconRes("something-else"))
+    }
+
+    @Test fun `a provider that is turned off is not on the rail at all and one that just needs a key stays dimmed`() {
+        assertEquals(listOf("opencode", "openai"), railProviders(all).map { it.id })
+        assertEquals(emptyList<ProviderInfo>(), railProviders(listOf(router)))
     }
 
     @Test fun `only ready providers are full strength and the others explain why`() {

@@ -70,6 +70,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -107,6 +109,9 @@ fun ChatScreen(vm: AppViewModel, onSettings: () -> Unit, onProviders: () -> Unit
     val title = chats.firstOrNull { it.id == chatId }?.title ?: stringResource(R.string.app_name)
     val on = LocalMotion.current
     val listKey = rememberListKey(chatId)
+    val closeKeyboard = rememberCloseKeyboard()
+    // Opening the menu by button or by swipe puts the keyboard away first.
+    LaunchedEffect(drawer.targetValue) { if (drawer.targetValue == DrawerValue.Open) closeKeyboard() }
 
     ModalNavigationDrawer(
         drawerState = drawer,
@@ -126,7 +131,7 @@ fun ChatScreen(vm: AppViewModel, onSettings: () -> Unit, onProviders: () -> Unit
     ) {
         Column(Modifier.fillMaxSize().background(KoreMindColors.Bg).statusBarsPadding().navigationBarsPadding().imePadding()) {
             Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { scope.launch { drawer.open() } }) { Icon(Icons.Filled.Menu, stringResource(R.string.menu)) }
+                IconButton(onClick = { closeKeyboard(); scope.launch { drawer.open() } }) { Icon(Icons.Filled.Menu, stringResource(R.string.menu)) }
                 val shownTitle = if (empty) stringResource(R.string.app_name) else title
                 AnimatedContent(shownTitle, Modifier.weight(1f), label = "title", transitionSpec = { fadeIn(quickSpec(on)) togetherWith fadeOut(quickSpec(on)) }) { t ->
                     Text(t, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
@@ -148,6 +153,14 @@ fun ChatScreen(vm: AppViewModel, onSettings: () -> Unit, onProviders: () -> Unit
             Composer(vm, busy, onProviders)
         }
     }
+}
+
+/** Puts the on-screen keyboard away and takes focus off the message field. Called before a menu or sheet opens. */
+@Composable
+private fun rememberCloseKeyboard(): () -> Unit {
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focus = LocalFocusManager.current
+    return { keyboard?.hide(); focus.clearFocus() }
 }
 
 /** A key that stays the same while a new chat gets its id, but changes when you switch chats, so opened messages don't animate in. */
@@ -185,6 +198,7 @@ private fun Composer(vm: AppViewModel, busy: Boolean, onProviders: () -> Unit) {
     var text by remember { mutableStateOf("") }
     var menu by remember { mutableStateOf(false) }
     var sheet by remember { mutableStateOf(false) }
+    val closeKeyboard = rememberCloseKeyboard()
     val resolver = LocalContext.current.contentResolver
     val on = LocalMotion.current
     val photos = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia()) { uris -> uris.forEach { vm.attach(resolver, it) } }
@@ -214,13 +228,13 @@ private fun Composer(vm: AppViewModel, busy: Boolean, onProviders: () -> Unit) {
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box {
-                    IconButton(onClick = { menu = true }, Modifier.size(36.dp)) { Icon(Icons.Filled.Add, stringResource(R.string.attach), tint = KoreMindColors.Muted) }
+                    IconButton(onClick = { closeKeyboard(); menu = true }, Modifier.size(36.dp)) { Icon(Icons.Filled.Add, stringResource(R.string.attach), tint = KoreMindColors.Muted) }
                     DropdownMenu(menu, { menu = false }, containerColor = KoreMindColors.Raised) {
                         DropdownMenuItem({ Text(stringResource(R.string.attach_photo)) }, { menu = false; photos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) })
                         DropdownMenuItem({ Text(stringResource(R.string.attach_file)) }, { menu = false; files.launch(arrayOf("application/pdf", "text/*", "application/json", "image/*")) })
                     }
                 }
-                if (currentModel != null) Row(Modifier.heightIn(min = 36.dp).clickable { sheet = true }.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (currentModel != null) Row(Modifier.heightIn(min = 36.dp).clickable { closeKeyboard(); sheet = true }.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(currentModel.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge, modifier = Modifier.widthIn(max = 150.dp))
                     choice?.thinking?.let { Text(" ${thinkingLabel(it)}", color = KoreMindColors.Muted, style = MaterialTheme.typography.labelLarge) }
                     Icon(Icons.Filled.KeyboardArrowDown, null, tint = KoreMindColors.Muted, modifier = Modifier.size(18.dp))

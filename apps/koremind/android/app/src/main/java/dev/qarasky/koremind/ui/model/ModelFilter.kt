@@ -35,7 +35,10 @@ fun providerIconRes(id: String): Int? = when (id) {
     else -> null
 }
 
-/** Providers that can't be used right now are dimmed on the rail but still tappable, to explain why. */
+/** A provider turned off in Settings is left off the rail entirely. */
+fun railProviders(providers: List<ProviderInfo>): List<ProviderInfo> = providers.filter { it.status != "disabled" }
+
+/** Providers that can't be used right now (no key yet) are dimmed on the rail but still tappable, to explain why. */
 fun railAlpha(p: ProviderInfo): Float = if (isReady(p)) 1f else 0.4f
 
 /** The explanation shown instead of model rows for a provider that isn't ready; null when it is. Takes the provider name as its argument. */

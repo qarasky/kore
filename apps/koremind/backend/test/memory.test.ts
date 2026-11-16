@@ -111,8 +111,55 @@ test("buildSystem leaves memory out when memory is off and is empty when there i
   expect(s.buildSystem({ memoryEnabled: false, displayName: "Sky", tone: "", about: "" }, [{ id: "a", text: "Likes tea", updatedAt: 1 }])).not.toContain("Likes tea");
 });
 
-test("extraction runs on the model the chat used", async () => {
+const CHAT = { providerId: "openrouter", modelId: "a/b" };
+const failing = (...ids: string[]) => (m?: { providerId: string; modelId: string }) => !!m && ids.includes(`${m.providerId}/${m.modelId}`);
+const setupFailing = (fails: (m?: { providerId: string; modelId: string }) => boolean) => {
+  const engine = new FakeEngine({ completeReply: '{"add":["Likes tea"]}', completeFails: fails });
+  const mem = createMemory(mkdtempSync(join(tmpdir(), "koremind-mem-")), engine, () => true);
+  return { mem, engine };
+};
+const quietly = async (f: () => Promise<void>) => {
+  const seen: string[] = []; const orig = console.error;
+  console.error = (...a: unknown[]) => { seen.push(a.join(" ")); };
+  try { await f(); } finally { console.error = orig; }
+  return seen;
+};
+
+test("memory is extracted by DeepSeek V4.1 Flash at High, whatever model the chat used", async () => {
   const { mem: memory, engine } = setup('{"add":[]}');
-  await memory.extractAfterTurn("u1", "hi", "hello", { providerId: "openrouter", modelId: "a/b" });
-  expect(engine.completes[0]).toMatchObject({ kind: "memory", model: { providerId: "openrouter", modelId: "a/b" } });
+  await memory.extractAfterTurn("u1", "hi", "hello", CHAT);
+  expect(engine.completes).toHaveLength(1);
+  expect(engine.completes[0]).toMatchObject({ kind: "memory", model: { providerId: "opencode-go", modelId: "deepseek-v4.1-flash" }, thinking: "high" });
+});
+
+test("when that model fails, extraction falls back to the model the chat used", async () => {
+  const { mem, engine } = setupFailing(failing("opencode-go/deepseek-v4.1-flash"));
+  const errors = await quietly(() => mem.extractAfterTurn("u1", "I like tea", "Noted", CHAT));
+  expect(engine.completes.map((c) => c.model)).toEqual([{ providerId: "opencode-go", modelId: "deepseek-v4.1-flash" }, CHAT]);
+  expect(engine.completes[1].thinking).toBeUndefined();
+  expect(mem.list("u1").map((e) => e.text)).toEqual(["Likes tea"]);
+  expect(errors).toEqual([]); // the fallback worked, so nothing to report
+});
+
+test("when both fail, the error is reported and nothing is saved, and it never throws", async () => {
+  const { mem, engine } = setupFailing(failing("opencode-go/deepseek-v4.1-flash", "openrouter/a/b"));
+  const errors = await quietly(() => mem.extractAfterTurn("u1", "I like tea", "Noted", CHAT));
+  expect(engine.completes).toHaveLength(2);
+  expect(mem.list("u1")).toEqual([]);
+  expect(errors).toHaveLength(1);
+  expect(errors[0]).toContain("memory");
+});
+
+test("with no chat model to fall back to, a failure of the memory model is reported", async () => {
+  const { mem, engine } = setupFailing(failing("opencode-go/deepseek-v4.1-flash"));
+  const errors = await quietly(() => mem.extractAfterTurn("u1", "I like tea", "Noted"));
+  expect(engine.completes).toHaveLength(1);
+  expect(errors).toHaveLength(1);
+});
+
+test("when the chat itself ran on the memory model, a failure is not retried on the same model", async () => {
+  const same = { providerId: "opencode-go", modelId: "deepseek-v4.1-flash" };
+  const { mem, engine } = setupFailing(failing("opencode-go/deepseek-v4.1-flash"));
+  await quietly(() => mem.extractAfterTurn("u1", "I like tea", "Noted", same));
+  expect(engine.completes).toHaveLength(1);
 });

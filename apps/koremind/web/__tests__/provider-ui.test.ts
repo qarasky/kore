@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { ModelInfo, ProviderInfo, Settings } from "@koremind/shared";
-import { defaultChoice, filterModels, initialRail, isChoiceAllowed, isReady, providerIconKey, railDimmed, railNotice } from "../lib/model-picker";
+import { defaultChoice, filterModels, initialRail, isChoiceAllowed, isReady, providerIconKey, railDimmed, railNotice, railProviders } from "../lib/model-picker";
 import { freeOnly, providerEnabled, toggleInList, withFreeOnly, withProviderEnabled } from "../lib/settings-model";
 
 const m = (id: string, free = false, isDefault = false): ModelInfo => ({ id, name: id.toUpperCase(), vision: false, thinkingLevels: [], isDefault, free });
@@ -25,6 +25,11 @@ test("only ready providers are full strength; the others explain why", () => {
   expect(railNotice(opencode)).toBeNull();
   expect(railNotice(codex)).toBe("Connect Codex in Settings to use its models.");
   expect(railNotice(router)).toBe("OpenRouter is turned off in Settings.");
+});
+
+test("a provider that is turned off is not on the rail at all; one that just needs a key stays, dimmed", () => {
+  expect(railProviders(all).map((p) => p.id)).toEqual(["opencode", "openai"]);
+  expect(railProviders([router])).toEqual([]);
 });
 
 test("favorites and provider rails never list models of a provider that is not ready", () => {

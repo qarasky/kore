@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { FakeEngine } from "../src/engine/fake";
-import { AGENT_SYSTEM, credentialIdsFor, mapConnections, mapEvent, mapModels, parseServerBanner } from "../src/engine/opencode";
+import { AGENT_SYSTEM, credentialIdsFor, mapConnections, mapEvent, mapModels, parseServerBanner, separateAfterTools } from "../src/engine/opencode";
 import type { EngineEvent, PromptArgs } from "../src/engine/types";
 
 const args = (over: Partial<PromptArgs> = {}): PromptArgs => ({
@@ -41,6 +41,17 @@ test("mapEvent maps text delta, success and failure for its own session only", (
     { type: "error", message: "Free usage limit reached", noProvider: true },
   ]);
   expect(mapEvent("s1", { type: "session.execution.failed", data: { sessionID: "s1", error: { type: "unknown", message: "boom" } } })).toEqual([{ type: "error", message: "boom" }]);
+});
+
+test("text written before and after a web search is kept apart by a blank line", () => {
+  const run = (events: EngineEvent[]) => { const f = separateAfterTools(); return events.map(f).filter((e) => e.type === "delta").map((e) => (e as { text: string }).text).join(""); };
+  const search: EngineEvent[] = [{ type: "status", state: "searching" }, { type: "source", title: "t", url: "https://x.test" }];
+  expect(run([{ type: "delta", text: "I'll check." }, ...search, { type: "delta", text: "**Latest" }, { type: "delta", text: " stable**" }])).toBe("I'll check.\n\n**Latest stable**");
+  expect(run([{ type: "delta", text: "Looking.\n" }, ...search, { type: "delta", text: "Done" }])).toBe("Looking.\n\nDone"); // tops up an existing line break
+  expect(run([{ type: "delta", text: "Looking.\n\n" }, ...search, { type: "delta", text: "Done" }])).toBe("Looking.\n\nDone"); // never doubles it
+  expect(run([...search, { type: "delta", text: "Answer" }])).toBe("Answer"); // nothing was said before the search
+  expect(run([{ type: "delta", text: "a" }, { type: "delta", text: "b" }])).toBe("ab"); // no tool, no break
+  expect(run([{ type: "delta", text: "a" }, ...search, { type: "delta", text: "b" }, ...search, { type: "delta", text: "c" }])).toBe("a\n\nb\n\nc");
 });
 
 test("mapEvent shows searching and sources for the web search tool", () => {

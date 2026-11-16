@@ -8,6 +8,8 @@ export type FakeOptions = {
   /** Reply for chat-title requests. Empty (default) means "no title". A function may throw. */
   titleReply?: string | (() => string);
   completeDelayMs?: number;
+  /** Makes complete() throw for the models this returns true for (undefined = the engine default). */
+  completeFails?: (model: ModelRef | undefined) => boolean;
   /** Runs after the first status event, before the scripted reply. Tests use it to act like the model calling tools. */
   during?: (a: PromptArgs) => Promise<void>;
   delayMs?: number;
@@ -18,7 +20,7 @@ export class FakeEngine implements Engine {
   sessions = new Set<string>();
   prompts: PromptArgs[] = [];
   keys = new Map<string, string>();
-  completes: { kind: "title" | "memory"; system: string; text: string; model?: ModelRef }[] = [];
+  completes: { kind: "title" | "memory"; system: string; text: string; model?: ModelRef; thinking?: string }[] = [];
   signIns = new Map<string, { providerId: string; done: boolean }>();
   constructor(private o: FakeOptions = {}) {}
 
@@ -61,9 +63,10 @@ export class FakeEngine implements Engine {
   async removeProviderKey(id: string) { this.keys.delete(id); }
   async createSession() { const id = `fs_${crypto.randomUUID()}`; this.sessions.add(id); return id; }
   async deleteSession(id: string) { this.sessions.delete(id); }
-  async complete(a: { kind?: "title" | "memory"; system: string; text: string; model?: ModelRef }) {
+  async complete(a: { kind?: "title" | "memory"; system: string; text: string; model?: ModelRef; thinking?: string }) {
     const kind = a.kind ?? "memory";
-    this.completes.push({ kind, system: a.system, text: a.text, model: a.model });
+    this.completes.push({ kind, system: a.system, text: a.text, model: a.model, thinking: a.thinking });
+    if (this.o.completeFails?.(a.model)) throw new Error("model unavailable");
     if (this.o.completeDelayMs) await Bun.sleep(this.o.completeDelayMs);
     if (kind === "title") { const r = this.o.titleReply; return typeof r === "function" ? r() : (r ?? ""); }
     return this.o.completeReply ?? '{"add":[]}';
