@@ -1,5 +1,5 @@
 "use client";
-import { Button, Card, SettingsSection, StatusDot } from "@qarasky/kore-ui";
+import { Button, CardList, InlineMessage, ListRow, SettingsSection, StatusDot } from "@qarasky/kore-ui";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ConnectPhone } from "./ConnectPhone";
@@ -24,26 +24,17 @@ export function AccountSection() {
   return (
     <>
       <SettingsSection title={t.account} description={t.accountHint}>
-        <Card>
-          <div className="flex min-h-row items-center justify-between gap-3 border-b border-border px-4">
-            <span className="text-muted">{t.signedInAs}</span>
-            <span className="truncate">{user?.email}</span>
-          </div>
+        <CardList>
+          <ListRow label={t.signedInAs} value={user?.email} />
           {server?.sso && (
-            <div className="flex min-h-row items-center justify-between gap-3 border-b border-border px-4 py-2">
-              <span className="text-muted">{t.koreId}</span>
-              {linked ? <StatusDot status="up" label={t.koreIdLinked} tintLabel={false} /> : <Button size="sm" onClick={() => void link()}>{t.linkKoreId}</Button>}
-            </div>
+            <ListRow
+              label={t.koreId}
+              actions={linked ? <StatusDot status="up" label={t.koreIdLinked} tintLabel={false} /> : <Button size="sm" onClick={() => void link()}>{t.linkKoreId}</Button>}
+            />
           )}
-          <div className="flex min-h-row items-center justify-between gap-3 px-4 py-2">
-            <div className="min-w-0">
-              <p className="text-muted">{t.server}</p>
-              <p className="break-all text-meta">{baseUrl}</p>
-            </div>
-            <Button asChild size="sm"><Link href="/connect">{t.changeServer}</Link></Button>
-          </div>
-        </Card>
-        {note && <p className={note.error ? "text-meta text-danger" : "text-meta text-muted"} role={note.error ? "alert" : "status"}>{note.text}</p>}
+          <ListRow label={t.server} description={baseUrl} actions={<Button asChild size="sm"><Link href="/connect">{t.changeServer}</Link></Button>} />
+        </CardList>
+        {note && <InlineMessage tone={note.error ? "danger" : "muted"}>{note.text}</InlineMessage>}
       </SettingsSection>
       <ConnectPhone />
       <SettingsSection title={t.signOut} description={t.signOutHint} actions={<Button variant="danger-outline" onClick={() => void signOut()}>{t.signOut}</Button>} />

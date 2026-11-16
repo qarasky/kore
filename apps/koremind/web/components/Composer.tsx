@@ -1,11 +1,10 @@
 "use client";
 import type { Attachment } from "@koremind/shared";
-import { IconButton } from "@qarasky/kore-ui";
+import { IconButton, InlineMessage, Textarea } from "@qarasky/kore-ui";
 import { ArrowUp, FileText, Paperclip, Square, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import { ModelPicker } from "./ModelPicker";
-import { InlineError } from "./InlineError";
 import { canSend } from "@/lib/chat-state";
 import { pop, spring } from "@/lib/motion";
 import { useModelChoice } from "@/lib/contexts";
@@ -23,15 +22,6 @@ export function Composer({ busy, onSend, onStop }: { busy: boolean; onSend(text:
   const [uploading, setUploading] = useState(0);
   const [error, setError] = useState("");
   const input = useRef<HTMLInputElement>(null);
-  const field = useRef<HTMLTextAreaElement>(null);
-
-  // Fit the field to its text on every change, including the reset to "" after sending.
-  useLayoutEffect(() => {
-    const el = field.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 200) + "px";
-  }, [text]);
 
   async function pick(list: FileList | null) {
     if (!list || !api) return;
@@ -58,6 +48,8 @@ export function Composer({ busy, onSend, onStop }: { busy: boolean; onSend(text:
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); }
   };
 
+  const notice = error || (!model ? t.noModel : "") || (lacksVision(files, model) ? t.noPhotosWarning : "");
+
   // Chat-specific: a multi-line field styled like a kore-ui input (bg/60, hairline, accent border + ring on focus) that holds
   // the attachments, the model picker and the send button.
   return (
@@ -74,15 +66,16 @@ export function Composer({ busy, onSend, onStop }: { busy: boolean; onSend(text:
             ))}
           </AnimatePresence>
         </div>
-        <textarea
-          ref={field}
+        <Textarea
+          autoGrow
+          maxHeight={200}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKey}
           rows={1}
           placeholder={t.composerPlaceholder}
           aria-label={t.composerPlaceholder}
-          className="block max-h-[200px] w-full resize-none bg-transparent px-2 py-2 text-text outline-none placeholder:text-muted focus-visible:outline-none"
+          className="rounded-none border-0 bg-transparent px-2 hover:border-0 focus:border-0 focus:ring-0"
         />
         <div className="flex items-center gap-1">
           <input ref={input} type="file" multiple accept="image/*,application/pdf,text/*,application/json" hidden onChange={(e) => void pick(e.target.files)} />
@@ -102,9 +95,7 @@ export function Composer({ busy, onSend, onStop }: { busy: boolean; onSend(text:
           </AnimatePresence>
         </div>
       </div>
-      <div className="mt-2 px-2">
-        <InlineError>{error || (!model ? t.noModel : "") || (lacksVision(files, model) ? t.noPhotosWarning : "")}</InlineError>
-      </div>
+      {notice && <InlineMessage className="mt-2 px-2">{notice}</InlineMessage>}
     </div>
   );
 }

@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
-import { barTone, fenceLanguage, hastText, hostOf, numericColumnsPlugin, safeImageSrc, TONE_FILL, TONE_PILL, TONE_TEXT, type HastNode } from "../lib/rich-ui";
+import { barTone, fenceLanguage, hastText, hostOf, numericColumnsPlugin, safeImageSrc, TONE_FILL, TONE_PILL, STAT_TONE, type HastNode } from "../lib/rich-ui";
 
-test("every tone has a text colour, a pill and a bar fill", () => {
+test("every tone has a stat tone, a pill and a bar fill", () => {
   for (const tone of ["neutral", "good", "warn", "bad", "info"] as const) {
-    expect(TONE_TEXT[tone]).toBeTruthy();
+    expect(STAT_TONE[tone]).toBeTruthy();
     expect(TONE_PILL[tone]).toBeTruthy();
     expect(TONE_FILL[tone]).toBeTruthy();
   }

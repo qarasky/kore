@@ -1,9 +1,8 @@
 "use client";
-import { Button, SettingsSection } from "@qarasky/kore-ui";
+import { Button, InlineMessage, KORE_THEME, SettingsSection } from "@qarasky/kore-ui";
 import { AnimatePresence, motion } from "motion/react";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
-import { InlineError } from "@/components/InlineError";
 import { secondsLeft } from "@/lib/pair-timer";
 import { collapse } from "@/lib/motion";
 import { useSession } from "@/lib/session";
@@ -32,7 +31,7 @@ export function ConnectPhone() {
     try {
       const p = await api.startPair();
       // Dark modules on a light tile: scanners read that more reliably than light-on-dark.
-      const svg = await QRCode.toString(p.link, { type: "svg", margin: 1, errorCorrectionLevel: "M", color: { dark: "#16181d", light: "#ffffff" } });
+      const svg = await QRCode.toString(p.link, { type: "svg", margin: 1, errorCorrectionLevel: "M", color: { dark: KORE_THEME.bg, light: "#ffffff" } });
       setCode({ svg, expiresAt: p.expiresAt });
       setNow(Date.now());
     } catch { setError(t.pairError); } finally { setBusy(false); }
@@ -56,7 +55,7 @@ export function ConnectPhone() {
           </motion.div>
         )}
       </AnimatePresence>
-      <InlineError>{error}</InlineError>
+      {error && <InlineMessage>{error}</InlineMessage>}
     </SettingsSection>
   );
 }

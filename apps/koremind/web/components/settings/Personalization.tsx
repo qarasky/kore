@@ -1,7 +1,6 @@
 "use client";
 import type { Settings } from "@koremind/shared";
-import { Field, Input, SettingsSection, Textarea } from "@qarasky/kore-ui";
-import { ToggleChip } from "@/components/ToggleChip";
+import { Field, Input, SettingsSection, Textarea, ToggleButton } from "@qarasky/kore-ui";
 import { TONE_PRESETS, activePreset, togglePreset } from "@/lib/settings-model";
 import { t } from "@/lib/strings";
 
@@ -16,7 +15,7 @@ export function PersonalizationSection({ settings, onChange }: { settings: Setti
         <p className="text-meta font-medium text-muted" id="tone-label">{t.tone}</p>
         <div role="group" aria-labelledby="tone-label" className="flex flex-wrap gap-2">
           {TONE_PRESETS.map((p) => (
-            <ToggleChip key={p.id} pressed={preset === p.id} onClick={() => onChange({ ...settings, tone: togglePreset(settings.tone, p.id) })}>{p.label}</ToggleChip>
+            <ToggleButton key={p.id} pressed={preset === p.id} onPressedChange={() => onChange({ ...settings, tone: togglePreset(settings.tone, p.id) })}>{p.label}</ToggleButton>
           ))}
         </div>
       </div>

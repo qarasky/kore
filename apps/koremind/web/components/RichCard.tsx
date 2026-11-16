@@ -1,7 +1,7 @@
 import type { Card, CardSection } from "@koremind/shared";
 import { isNumericColumn } from "@koremind/shared";
-import { cn } from "@qarasky/kore-ui";
-import { barTone, TONE_FILL, TONE_PILL, TONE_TEXT } from "@/lib/rich-ui";
+import { cn, Skeleton, Stat } from "@qarasky/kore-ui";
+import { barTone, STAT_TONE, TONE_FILL, TONE_PILL } from "@/lib/rich-ui";
 import { t } from "@/lib/strings";
 
 /** A card the assistant asked for (docs/rich-messages.md). Android draws the same card from the same spec. */
@@ -31,14 +31,9 @@ function Section({ s }: { s: CardSection }) {
   switch (s.type) {
     case "stats":
       return (
-        <dl className={cn("grid gap-x-6 gap-y-3", s.items.length === 1 ? "grid-cols-1" : "grid-cols-2")}>
-          {s.items.map((it, i) => (
-            <div key={i}>
-              <dt className="text-meta text-muted">{it.label}</dt>
-              <dd className={cn("text-[1.75rem] font-semibold leading-tight tracking-tight", TONE_TEXT[it.tone ?? "neutral"])}>{it.value}</dd>
-            </div>
-          ))}
-        </dl>
+        <div className={cn("grid gap-3", s.items.length === 1 ? "grid-cols-1" : "grid-cols-2")}>
+          {s.items.map((it, i) => <Stat key={i} label={it.label} value={it.value} tone={STAT_TONE[it.tone ?? "neutral"]} />)}
+        </div>
       );
     case "table":
       return (
@@ -63,7 +58,7 @@ function Section({ s }: { s: CardSection }) {
           {s.items.map((it, i) => (
             <div key={i}>
               <div className="flex items-baseline justify-between gap-3"><span>{it.label}</span><span className="tabular-nums">{it.value}</span></div>
-              <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-raised" role="img" aria-label={`${Math.round(it.share * 100)}%`}>
+              <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-track" role="img" aria-label={`${Math.round(it.share * 100)}%`}>
                 <div className={cn("h-full rounded-full", TONE_FILL[barTone(it.tone, i)])} style={{ width: `${it.share * 100}%` }} />
               </div>
             </div>
@@ -79,9 +74,9 @@ function Section({ s }: { s: CardSection }) {
 export function CardPlaceholder() {
   return (
     <div className="rounded-overlay border border-border bg-surface p-4" role="status" aria-label={t.cardBuilding}>
-      <div className="h-3 w-1/3 rounded-full bg-raised" />
-      <div className="mt-3 h-3 w-2/3 rounded-full bg-raised" />
-      <div className="mt-2 h-3 w-1/2 rounded-full bg-raised" />
+      <Skeleton className="h-3 w-1/3 rounded-full" />
+      <Skeleton className="mt-3 h-3 w-2/3 rounded-full" />
+      <Skeleton className="mt-2 h-3 w-1/2 rounded-full" />
     </div>
   );
 }

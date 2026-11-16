@@ -1,6 +1,6 @@
 "use client";
 import type { Settings } from "@koremind/shared";
-import { PageHeader, SettingsLayout } from "@qarasky/kore-ui";
+import { PageHeader, SaveStatus, SettingsLayout } from "@qarasky/kore-ui";
 import { Brain, CircleUser, Cpu, Plug, UserRound, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
@@ -35,14 +35,10 @@ export default function SettingsPage() {
     return () => window.removeEventListener("hashchange", read);
   }, []);
   const go = (id: SectionId) => { setSection(id); window.history.replaceState(null, "", `#${id}`); };
-  // On phones the section nav is a scrolling pill row: keep the current pill in view (e.g. opened at #account).
-  useEffect(() => {
-    document.querySelector(`nav[aria-label="${t.settingsSections}"] [aria-current="page"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [section]);
 
   return (
     <>
-      <PageHeader title={t.settings} actions={<SaveBadge state={save} />} />
+      <PageHeader title={t.settings} actions={<SaveStatus state={save} labels={{ saving: t.autoSaving, saved: t.autoSaved, error: t.autoError }} />} />
       <SettingsLayout
         navLabel={t.settingsSections}
         current={section}
@@ -59,20 +55,5 @@ export default function SettingsPage() {
         </AnimatePresence>
       </SettingsLayout>
     </>
-  );
-}
-
-/** Autosave status in words ("Saving…" → "Saved"), as kore-ui's DESIGN asks for settings that apply as you go. */
-function SaveBadge({ state }: { state: ReturnType<typeof useAutosave> }) {
-  return (
-    <div className="flex h-control-sm items-center text-meta text-muted" role="status" aria-live="polite">
-      <AnimatePresence mode="wait" initial={false}>
-        {state !== "idle" && (
-          <motion.span key={state} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={quick} className={state === "error" ? "text-danger" : ""}>
-            {state === "saving" ? t.autoSaving : state === "saved" ? t.autoSaved : t.autoError}
-          </motion.span>
-        )}
-      </AnimatePresence>
-    </div>
   );
 }

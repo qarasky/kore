@@ -1,11 +1,10 @@
 "use client";
 import type { ProviderConnection, Settings } from "@koremind/shared";
-import { Badge, Button, Card, Field, Input, SettingsSection, StatusDot, Switch, type Status } from "@qarasky/kore-ui";
+import { Badge, Button, Card, Field, InlineMessage, Input, SettingsSection, StatusDot, Switch, type Status } from "@qarasky/kore-ui";
 import { KeyRound } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { ProviderIcon } from "@/components/ProviderIcon";
-import { InlineError } from "@/components/InlineError";
 import { collapse, fadeUp } from "@/lib/motion";
 import { freeOnly, providerEnabled, providerStatus, withFreeOnly, withProviderEnabled } from "@/lib/settings-model";
 import { useSession } from "@/lib/session";
@@ -117,7 +116,7 @@ export function ProvidersSection({ settings, onChange }: { settings: Settings | 
           );
         })}
       </ul>
-      <InlineError>{error}</InlineError>
+      {error && <InlineMessage>{error}</InlineMessage>}
     </SettingsSection>
   );
 }

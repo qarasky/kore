@@ -1,13 +1,12 @@
 "use client";
 import type { Attachment, StreamEvent } from "@koremind/shared";
-import { Button, Card, IconButton, PageHeader } from "@qarasky/kore-ui";
+import { Alert, Button, IconButton, InlineMessage, PageHeader } from "@qarasky/kore-ui";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { SquarePen } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Composer } from "@/components/Composer";
-import { InlineError } from "@/components/InlineError";
 import { MessageList } from "@/components/MessageList";
 import { applyEvent, beginEdit, beginTurn, emptyChat, needsLoad, reconnecting, restartDraft, withServerMessages, type ChatState } from "@/lib/chat-state";
 import { useChats, useModelChoice } from "@/lib/contexts";
@@ -163,14 +162,12 @@ export default function ChatScreen() {
       )}
       {state.connectProvider && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mx-auto mb-2 w-full max-w-reading px-4">
-          <Card className="border-warning/40 p-4">
-            <p className="font-medium">{t.connectProvider}</p>
-            <p className="mt-1 text-meta text-muted">{t.connectProviderHint}</p>
-            <Button asChild size="sm" className="mt-3"><Link href="/settings#providers">{t.openSettings}</Link></Button>
-          </Card>
+          <Alert tone="warning" title={t.connectProvider} action={<Button asChild size="sm"><Link href="/settings#providers">{t.openSettings}</Link></Button>}>
+            {t.connectProviderHint}
+          </Alert>
         </motion.div>
       )}
-      {state.error && !state.connectProvider && <div className="mx-auto mb-2 w-full max-w-reading px-4"><InlineError>{state.error.message}</InlineError></div>}
+      {state.error && !state.connectProvider && <div className="mx-auto mb-2 w-full max-w-reading px-4"><InlineMessage>{state.error.message}</InlineMessage></div>}
       <Composer busy={busy} onSend={send} onStop={stop} />
     </>
   );
