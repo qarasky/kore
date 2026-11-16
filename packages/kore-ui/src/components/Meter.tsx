@@ -1,24 +1,32 @@
 import type { ReactNode } from "react";
 import { cn } from "../lib/cn";
 
-export type MeterTone = "accent" | "warning" | "danger";
+export type MeterTone = "accent" | "warning" | "danger" | "critical";
 
 export type MeterThresholds = {
   /** Fraction (0–1) from which the bar turns warning-coloured. Default 0.8. */
   warning?: number;
   /** Fraction (0–1) from which the bar turns red. Default 0.9. */
   danger?: number;
+  /** Fraction (0–1) from which the bar turns the deeper `critical` red. Default: never (it stays `danger`). */
+  critical?: number;
 };
 
 /** Which tone a fraction gets for the given thresholds. */
 export function meterTone(fraction: number, thresholds: MeterThresholds = {}): MeterTone {
-  const { warning = 0.8, danger = 0.9 } = thresholds;
+  const { warning = 0.8, danger = 0.9, critical } = thresholds;
+  if (critical !== undefined && fraction >= critical) return "critical";
   if (fraction >= danger) return "danger";
   if (fraction >= warning) return "warning";
   return "accent";
 }
 
-const FILL: Record<MeterTone, string> = { accent: "bg-accent", warning: "bg-warning", danger: "bg-danger" };
+const FILL: Record<MeterTone, string> = {
+  accent: "bg-accent",
+  warning: "bg-warning",
+  danger: "bg-danger",
+  critical: "bg-status-critical",
+};
 
 function clampFraction(value: number, max: number): number {
   if (!(max > 0) || !Number.isFinite(value)) return 0;
@@ -41,12 +49,14 @@ export type MeterProps = {
   tone?: MeterTone;
   /** Hide the label row visually (it stays the accessible name). */
   hideLabel?: boolean;
+  /** md: a 6px bar (default). sm: 4px, for rows of meters (hosts, disks). */
+  size?: "md" | "sm";
   className?: string;
 };
 
 /**
  * A measurement within a known range (storage used, quota): label, a 6px bar, the amount in words.
- * The bar turns warning, then danger past the thresholds. `role="meter"`.
+ * The bar turns warning, then danger past the thresholds (and `critical`, a deeper red, if you set one). `role="meter"`.
  */
 export function Meter({
   label,
@@ -57,6 +67,7 @@ export function Meter({
   thresholds,
   tone,
   hideLabel = false,
+  size = "md",
   className,
 }: MeterProps) {
   const fraction = clampFraction(value, max);
@@ -73,7 +84,7 @@ export function Meter({
         aria-valuenow={Math.min(max, Math.max(0, value))}
         aria-valuetext={valueText}
         data-tone={resolved}
-        className="h-1.5 overflow-hidden rounded-full bg-border"
+        className={cn("overflow-hidden rounded-full bg-border", size === "sm" ? "h-1" : "h-1.5")}
       >
         <div
           className={cn("h-full rounded-full transition-[width] duration-300 ease-[var(--ease-standard)]", FILL[resolved])}
@@ -81,7 +92,7 @@ export function Meter({
         />
       </div>
       {valueText ? (
-        <p className={cn("text-meta", resolved === "danger" ? "text-danger" : "text-muted")}>{valueText}</p>
+        <p className={cn("text-meta", resolved === "danger" || resolved === "critical" ? "text-danger" : "text-muted")}>{valueText}</p>
       ) : null}
     </div>
   );

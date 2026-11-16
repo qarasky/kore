@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentProps, ReactNode } from "react";
+import { useCallback, useLayoutEffect, useRef, type ComponentProps, type ReactNode } from "react";
 import { cn } from "../lib/cn";
 import { useFieldControl } from "./Field";
 
@@ -53,10 +53,45 @@ export function Input({ className, leadingIcon, trailing, size = "md", variant =
   );
 }
 
-export type TextareaProps = ComponentProps<"textarea">;
+export type TextareaProps = ComponentProps<"textarea"> & {
+  /** Grow with the text instead of scrolling, from `rows` up to `maxHeight`, then scroll. Turns manual resize off. */
+  autoGrow?: boolean;
+  /** Tallest an auto-growing textarea gets, in px. Default 240. */
+  maxHeight?: number;
+};
 
-/** Multi-line text. Grows with `rows`; resize is vertical only. */
-export function Textarea({ className, rows = 4, ...rest }: TextareaProps) {
+/** Multi-line text. Grows with `rows` (or, with `autoGrow`, with its content); resize is vertical only. */
+export function Textarea({ className, rows = 4, autoGrow = false, maxHeight = 240, onInput, ref, style, ...rest }: TextareaProps) {
   const props = useFieldControl(rest);
-  return <textarea rows={rows} className={cn(controlClass, "resize-y py-2 leading-[1.5]", className)} {...props} />;
+  const inner = useRef<HTMLTextAreaElement | null>(null);
+
+  const fit = useCallback(() => {
+    const el = inner.current;
+    if (!el || !autoGrow) return;
+    el.style.height = "auto";
+    const next = Math.min(el.scrollHeight, maxHeight);
+    el.style.height = `${next}px`;
+    el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [autoGrow, maxHeight]);
+
+  // Re-fit when the text is set from outside (controlled value, a reset) as well as when typing.
+  useLayoutEffect(fit, [fit, props.value]);
+
+  return (
+    <textarea
+      rows={rows}
+      ref={(node) => {
+        inner.current = node;
+        if (typeof ref === "function") ref(node);
+        else if (ref) ref.current = node;
+      }}
+      onInput={(e) => {
+        fit();
+        onInput?.(e);
+      }}
+      style={style}
+      className={cn(controlClass, autoGrow ? "resize-none" : "resize-y", "py-2 leading-[1.5]", className)}
+      {...props}
+    />
+  );
 }

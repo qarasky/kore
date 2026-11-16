@@ -288,7 +288,7 @@ export function CommandItem({
       }}
       className={cn(
         "flex min-h-control cursor-default items-center gap-3 rounded-ui px-3 select-none",
-        "data-[selected=true]:bg-white/[0.06] data-[disabled=true]:opacity-40",
+        "data-[selected=true]:bg-hover data-[disabled=true]:opacity-40",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,
       )}

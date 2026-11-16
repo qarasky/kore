@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>kore-ui showcase</title>
+    <meta name="theme-color" content="#16181d" />
+    <!-- themeInitScript(): sets data-theme before the first paint so a stored theme never flashes. -->
+    <script>
+      (function(){try{var p=localStorage.getItem("kore-theme")||"color";var t=p;if(p==="system"){t=matchMedia("(prefers-color-scheme: light)").matches?"light":"color"}if(t!=="light"&&t!=="dark"&&t!=="color")t="color";document.documentElement.setAttribute("data-theme",t)}catch(e){document.documentElement.setAttribute("data-theme","color")}})()
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -34,8 +34,8 @@ export function AppGrid({ urls, current, names, label = "Kore apps", className, 
               aria-current={active ? "page" : undefined}
               onClick={onNavigate}
               className={cn(
-                "flex flex-col items-center gap-2 rounded-ui px-2 py-3 text-center transition-colors hover:bg-white/5",
-                active && "bg-white/[0.04]",
+                "flex flex-col items-center gap-2 rounded-ui px-2 py-3 text-center transition-colors hover:bg-hover",
+                active && "bg-hover-subtle",
               )}
             >
               <span
@@ -79,7 +79,7 @@ export function AppSwitcher({ triggerLabel = "Apps", accountUrl, accountLabel = 
           <div className="mt-2 border-t border-border pt-2">
             <a
               href={accountUrl}
-              className="flex min-h-control-sm items-center justify-center gap-2 rounded-ui text-meta text-muted hover:bg-white/5 hover:text-text"
+              className="flex min-h-control-sm items-center justify-center gap-2 rounded-ui text-meta text-muted hover:bg-hover hover:text-text"
             >
               <AppMark app="kore-id" size={14} />
               {accountLabel}

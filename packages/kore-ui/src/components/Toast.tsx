@@ -182,7 +182,7 @@ function ToastView({
           onClick={() => void runAction()}
           disabled={pending}
           aria-busy={pending || undefined}
-          className="inline-flex min-h-control-sm items-center gap-2 rounded-ui px-2.5 font-medium text-accent hover:bg-accent/10 disabled:cursor-wait"
+          className="inline-flex min-h-control-sm items-center gap-2 rounded-ui px-2.5 font-medium text-accent-fg hover:bg-accent/10 disabled:cursor-wait"
         >
           {pending ? <Spinner size={14} /> : null}
           {toast.action.label}
@@ -192,7 +192,7 @@ function ToastView({
         type="button"
         aria-label={dismissLabel}
         onClick={onDismiss}
-        className="grid size-control-sm shrink-0 place-items-center rounded-ui text-muted hover:bg-white/5 hover:text-text"
+        className="grid size-control-sm shrink-0 place-items-center rounded-ui text-muted hover:bg-hover hover:text-text"
       >
         <X aria-hidden className="size-3.5" />
       </button>

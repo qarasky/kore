@@ -60,8 +60,8 @@ export function AccountMenu({
       <MenuTrigger
         aria-label={`${l.menu}: ${display}`}
         className={cn(
-          "flex min-h-control max-w-[280px] items-center gap-2 rounded-ui pr-2 pl-1 text-muted transition-colors hover:bg-white/5 hover:text-text",
-          "data-[state=open]:bg-white/5 data-[state=open]:text-text",
+          "flex min-h-control max-w-[280px] items-center gap-2 rounded-ui pr-2 pl-1 text-muted transition-colors hover:bg-hover hover:text-text",
+          "data-[state=open]:bg-hover data-[state=open]:text-text",
           !showName && "pr-1",
           className,
         )}

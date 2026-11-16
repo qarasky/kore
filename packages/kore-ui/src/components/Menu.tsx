@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronRight, Circle } from "lucide-react";
-import { ContextMenu as RadixContextMenu, DropdownMenu as RadixDropdownMenu } from "radix-ui";
+import { ContextMenu as RadixContextMenu, DropdownMenu as RadixDropdownMenu, Slot } from "radix-ui";
 import { useRef, type ComponentProps, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { cn } from "../lib/cn";
 
@@ -14,7 +14,7 @@ const contentClass =
 
 const itemClass =
   "relative flex min-h-control w-full cursor-default items-center gap-3 px-3.5 text-left outline-none select-none " +
-  "data-[highlighted]:bg-white/5 data-[disabled]:opacity-40 " +
+  "data-[highlighted]:bg-hover data-[disabled]:opacity-40 " +
   "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4";
 
 type ItemExtras = {
@@ -26,16 +26,24 @@ type ItemExtras = {
   shortcut?: string;
 };
 
+function ItemIcon({ icon }: { icon?: ReactNode }) {
+  return icon !== undefined ? (
+    <span aria-hidden="true" className="flex w-4 justify-center text-muted [[data-danger]_&]:text-danger">
+      {icon}
+    </span>
+  ) : null;
+}
+
+function ItemShortcut({ shortcut, className }: { shortcut?: string; className?: string }) {
+  return shortcut ? <span className={cn("ml-4 text-2xs tracking-wide text-muted", className)}>{shortcut}</span> : null;
+}
+
 function ItemInner({ icon, shortcut, children }: ItemExtras & { children?: ReactNode }) {
   return (
     <>
-      {icon !== undefined ? (
-        <span aria-hidden="true" className="flex w-4 justify-center text-muted [[data-danger]_&]:text-danger">
-          {icon}
-        </span>
-      ) : null}
+      <ItemIcon icon={icon} />
       <span className="min-w-0 flex-1 truncate">{children}</span>
-      {shortcut ? <span className="ml-4 text-2xs tracking-wide text-muted">{shortcut}</span> : null}
+      <ItemShortcut shortcut={shortcut} />
     </>
   );
 }
@@ -66,7 +74,7 @@ export function MenuContent({ className, sideOffset = 4, align = "start", ...pro
 
 export type MenuItemProps = ComponentProps<typeof RadixDropdownMenu.Item> & ItemExtras;
 
-/** An action. `onSelect` runs it; use `asChild` with an `<a>`/Link for navigation. */
+/** An action. `onSelect` runs it; use `asChild` with an `<a>`/Link for navigation (`icon` and `shortcut` still render around the link's text). */
 export function MenuItem({ className, icon, danger, shortcut, children, asChild, ...props }: MenuItemProps) {
   return (
     <RadixDropdownMenu.Item
@@ -75,7 +83,9 @@ export function MenuItem({ className, icon, danger, shortcut, children, asChild,
       asChild={asChild}
       {...props}
     >
-      {asChild ? children : <ItemInner icon={icon} shortcut={shortcut}>{children}</ItemInner>}
+      {asChild ? <ItemIcon icon={icon} /> : null}
+      {asChild ? <Slot.Slottable>{children}</Slot.Slottable> : <ItemInner icon={icon} shortcut={shortcut}>{children}</ItemInner>}
+      {asChild ? <ItemShortcut shortcut={shortcut} className="ml-auto" /> : null}
     </RadixDropdownMenu.Item>
   );
 }
@@ -83,7 +93,7 @@ export function MenuItem({ className, icon, danger, shortcut, children, asChild,
 export function MenuCheckboxItem({ className, children, ...props }: ComponentProps<typeof RadixDropdownMenu.CheckboxItem>) {
   return (
     <RadixDropdownMenu.CheckboxItem className={cn(itemClass, "pl-10", className)} {...props}>
-      <RadixDropdownMenu.ItemIndicator className="absolute left-3.5 flex text-accent">
+      <RadixDropdownMenu.ItemIndicator className="absolute left-3.5 flex text-accent-fg">
         <Check aria-hidden className="size-4" />
       </RadixDropdownMenu.ItemIndicator>
       {children}
@@ -94,7 +104,7 @@ export function MenuCheckboxItem({ className, children, ...props }: ComponentPro
 export function MenuRadioItem({ className, children, ...props }: ComponentProps<typeof RadixDropdownMenu.RadioItem>) {
   return (
     <RadixDropdownMenu.RadioItem className={cn(itemClass, "pl-10", className)} {...props}>
-      <RadixDropdownMenu.ItemIndicator className="absolute left-[18px] flex text-accent">
+      <RadixDropdownMenu.ItemIndicator className="absolute left-[18px] flex text-accent-fg">
         <Circle aria-hidden className="size-2 fill-current" />
       </RadixDropdownMenu.ItemIndicator>
       {children}
@@ -113,7 +123,7 @@ export function MenuSeparator({ className, ...props }: ComponentProps<typeof Rad
 
 export function MenuSubTrigger({ className, icon, children, ...props }: ComponentProps<typeof RadixDropdownMenu.SubTrigger> & { icon?: ReactNode }) {
   return (
-    <RadixDropdownMenu.SubTrigger className={cn(itemClass, "data-[state=open]:bg-white/5", className)} {...props}>
+    <RadixDropdownMenu.SubTrigger className={cn(itemClass, "data-[state=open]:bg-hover", className)} {...props}>
       <ItemInner icon={icon}>{children}</ItemInner>
       <ChevronRight aria-hidden className="size-4 text-muted" />
     </RadixDropdownMenu.SubTrigger>
@@ -195,7 +205,9 @@ export function ContextMenuItem({ className, icon, danger, shortcut, children, a
       asChild={asChild}
       {...props}
     >
-      {asChild ? children : <ItemInner icon={icon} shortcut={shortcut}>{children}</ItemInner>}
+      {asChild ? <ItemIcon icon={icon} /> : null}
+      {asChild ? <Slot.Slottable>{children}</Slot.Slottable> : <ItemInner icon={icon} shortcut={shortcut}>{children}</ItemInner>}
+      {asChild ? <ItemShortcut shortcut={shortcut} className="ml-auto" /> : null}
     </RadixContextMenu.Item>
   );
 }
@@ -207,7 +219,7 @@ export function ContextMenuLabel({ className, ...props }: ComponentProps<typeof 
 export function ContextMenuCheckboxItem({ className, children, ...props }: ComponentProps<typeof RadixContextMenu.CheckboxItem>) {
   return (
     <RadixContextMenu.CheckboxItem className={cn(itemClass, "pl-10", className)} {...props}>
-      <RadixContextMenu.ItemIndicator className="absolute left-3.5 flex text-accent">
+      <RadixContextMenu.ItemIndicator className="absolute left-3.5 flex text-accent-fg">
         <Check aria-hidden className="size-4" />
       </RadixContextMenu.ItemIndicator>
       {children}
@@ -218,7 +230,7 @@ export function ContextMenuCheckboxItem({ className, children, ...props }: Compo
 export function ContextMenuRadioItem({ className, children, ...props }: ComponentProps<typeof RadixContextMenu.RadioItem>) {
   return (
     <RadixContextMenu.RadioItem className={cn(itemClass, "pl-10", className)} {...props}>
-      <RadixContextMenu.ItemIndicator className="absolute left-[18px] flex text-accent">
+      <RadixContextMenu.ItemIndicator className="absolute left-[18px] flex text-accent-fg">
         <Circle aria-hidden className="size-2 fill-current" />
       </RadixContextMenu.ItemIndicator>
       {children}
@@ -228,7 +240,7 @@ export function ContextMenuRadioItem({ className, children, ...props }: Componen
 
 export function ContextMenuSubTrigger({ className, icon, children, ...props }: ComponentProps<typeof RadixContextMenu.SubTrigger> & { icon?: ReactNode }) {
   return (
-    <RadixContextMenu.SubTrigger className={cn(itemClass, "data-[state=open]:bg-white/5", className)} {...props}>
+    <RadixContextMenu.SubTrigger className={cn(itemClass, "data-[state=open]:bg-hover", className)} {...props}>
       <ItemInner icon={icon}>{children}</ItemInner>
       <ChevronRight aria-hidden className="size-4 text-muted" />
     </RadixContextMenu.SubTrigger>

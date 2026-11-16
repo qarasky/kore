@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { Children, type ReactNode } from "react";
 import { cn } from "../lib/cn";
 import { useLinkComponent, type LinkComponent } from "../lib/link";
 import { Tooltip } from "../components/Tooltip";
@@ -40,12 +40,14 @@ export type SidebarNavProps = {
   title?: ReactNode;
   /** Next to the title, e.g. an IconButton "Add calendar". */
   action?: ReactNode;
-  children: ReactNode;
+  /** Shown in place of the items when there are none ("No chats yet"). Hidden in the collapsed rail. */
+  empty?: ReactNode;
+  children?: ReactNode;
   className?: string;
 };
 
 /** A group of SidebarItems in a `<nav>` list. */
-export function SidebarNav({ label, title, action, children, className }: SidebarNavProps) {
+export function SidebarNav({ label, title, action, empty, children, className }: SidebarNavProps) {
   const collapsed = !!useAppShell()?.collapsed;
   return (
     <nav aria-label={label} className={className}>
@@ -56,7 +58,13 @@ export function SidebarNav({ label, title, action, children, className }: Sideba
           {action}
         </div>
       ) : null}
-      <ul className="flex flex-col gap-0.5">{children}</ul>
+      <ul className="flex flex-col gap-0.5">
+        {empty && !collapsed && Children.toArray(children).length === 0 ? (
+          <li className="px-3 py-2 text-meta text-muted">{empty}</li>
+        ) : (
+          children
+        )}
+      </ul>
     </nav>
   );
 }
@@ -86,7 +94,7 @@ export function SidebarItem({ href, onClick, icon, active = false, trailing, chi
   const classes = cn(
     "flex min-h-control w-full items-center gap-3 rounded-ui px-3 text-left transition-colors [&_svg:not([class*='size-'])]:size-4",
     collapsed && "justify-center gap-0 px-0",
-    active ? "bg-raised font-medium text-text" : "text-muted hover:bg-white/[0.04] hover:text-text",
+    active ? "bg-raised font-medium text-text" : "text-muted hover:bg-hover-subtle hover:text-text",
     className,
   );
   const handle = () => {
@@ -96,7 +104,7 @@ export function SidebarItem({ href, onClick, icon, active = false, trailing, chi
   const inner = (
     <>
       {icon ? (
-        <span aria-hidden="true" className={cn("flex shrink-0", active && "text-accent")}>
+        <span aria-hidden="true" className={cn("flex shrink-0", active && "text-accent-fg")}>
           {icon}
         </span>
       ) : null}

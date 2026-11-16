@@ -1,7 +1,7 @@
 # @qarasky/kore-ui
 
 The Kore design system: tokens, theme and React components shared by every Kore web UI (Kore, KoreMind,
-KoreCalendar, KoreMonitor and Kore ID). React 19, Tailwind v4, Radix (`radix-ui`), lucide icons. Dark only.
+KoreCalendar, KoreMonitor and Kore ID). React 19, Tailwind v4, Radix (`radix-ui`), lucide icons. Three themes: Color (the original dark look), Light and Dark (pure black).
 
 **[DESIGN.md](DESIGN.md) is the source of truth**: principles, tokens, layout, every component's anatomy and
 rules, voice, accessibility, the decisions behind them, and how to migrate each app.
@@ -15,7 +15,7 @@ Pin a release tag:
 ```jsonc
 // package.json
 "dependencies": {
-  "@qarasky/kore-ui": "https://codeload.github.com/qarasky/kore-ui/tar.gz/refs/tags/v0.2.0"
+  "@qarasky/kore-ui": "https://codeload.github.com/qarasky/kore-ui/tar.gz/refs/tags/v0.3.0"
 }
 ```
 
@@ -36,6 +36,22 @@ In your main stylesheet (e.g. `app/globals.css`):
 
 `theme.css` defines the tokens (`bg-surface`, `text-muted`, `h-row`, `max-w-form`, …), loads Inter, and sets base
 styles (15px root, focus ring, selection, scrollbars, reduced motion). Don't redefine these tokens in the app.
+
+## Themes
+
+Color is the default and changes nothing. `KoreProvider` applies `data-theme` and remembers the user's choice; add the
+no-flash script to `<head>` and a `<ThemeSwitcher />` to settings:
+
+```tsx
+// app/layout.tsx
+import { themeInitScript } from "@qarasky/kore-ui";
+<html lang="en" suppressHydrationWarning>
+  <head><script dangerouslySetInnerHTML={{ __html: themeInitScript() }} /></head>
+  …
+```
+
+`useTheme()` gives `{ theme, preference, setTheme }`; `KORE_THEMES` has each palette as hex for manifests, SVG and canvas.
+See DESIGN.md §2 (Themes) and §8 (Themes in an app).
 
 ## Next.js
 
@@ -139,9 +155,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
 Primitives: Button, IconButton, Input, PasswordInput, Textarea, Field, Select, Combobox, ColorSwatchPicker, Checkbox, Switch, RadioGroup, Dialog,
 ConfirmDialog, Sheet, CommandPalette, Menu, ContextMenu, PointMenu, Popover, Tooltip, Tabs, NavTabs, Toast (`useToast`), Table, Badge, StatusDot,
-Avatar, Meter, Progress, EmptyState, Spinner, Skeleton, Kbd, CopyButton, Card. Layout: AppShell (optionally
+Avatar, Meter, Progress, EmptyState, Spinner, Skeleton, Kbd, CopyButton, Card, Stat, CardList, ListRow,
+Alert, InlineMessage, SaveStatus, ToggleButton, ToggleGroup, TableSkeleton, ThemeSwitcher, Time, CopyField, CodeBlock,
+DescriptionList, LoadingState, FilterBar, SearchButton, SelectionBar, PointTooltip, ColorDot. Layout: AppShell (optionally
 `collapsible`), SidebarToggle, TopBar, Sidebar, SidebarNav, SidebarItem, PageHeader, PageBody, SectionHeader, SettingsLayout, SettingsSection. Identity: AccountMenu,
-AppSwitcher, AppGrid, AuthScreen, AppMark, Wordmark, KoreLogo. Utilities: `cn`, `KoreProvider`.
+AppSwitcher, AppGrid, AuthScreen, AppMark, AppTile, Wordmark, KoreLogo. Utilities: `cn`, `KoreProvider`, `ThemeProvider`,
+`useTheme`, `themeInitScript`, `formatRelativeTime`, `tintOf`
+(and `isHexColor`, `readableOn`), `KORE_THEME` / `KORE_THEME_COLOR` (the theme's hex values for manifests, SVG
+and QR codes), `koreDuration` / `koreEase` (the motion scale for JS animation).
 
 ## Develop
 

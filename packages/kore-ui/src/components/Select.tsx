@@ -116,12 +116,12 @@ export function SelectItem({ className, children, ...props }: ComponentProps<typ
     <RadixSelect.Item
       className={cn(
         "relative flex min-h-control cursor-default items-center gap-2 py-1.5 pr-3 pl-9 outline-none select-none",
-        "data-[highlighted]:bg-white/5 data-[disabled]:opacity-40 data-[state=checked]:font-medium",
+        "data-[highlighted]:bg-hover data-[disabled]:opacity-40 data-[state=checked]:font-medium",
         className,
       )}
       {...props}
     >
-      <RadixSelect.ItemIndicator className="absolute left-3 flex items-center text-accent">
+      <RadixSelect.ItemIndicator className="absolute left-3 flex items-center text-accent-fg">
         <Check aria-hidden className="size-4" />
       </RadixSelect.ItemIndicator>
       <RadixSelect.ItemText>{children}</RadixSelect.ItemText>

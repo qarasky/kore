@@ -78,7 +78,7 @@ export function PasswordInput({
             disabled={disabled}
             onClick={() => setVisible((v) => !v)}
             className={cn(
-              "grid place-items-center rounded-[4px] text-muted transition-colors hover:bg-white/5 hover:text-text disabled:pointer-events-none",
+              "grid place-items-center rounded-[4px] text-muted transition-colors hover:bg-hover hover:text-text disabled:pointer-events-none",
               size === "sm" ? "size-6" : "size-7",
             )}
           >

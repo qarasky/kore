@@ -1,12 +1,16 @@
 import {
   AccountMenu,
+  Alert,
   AppMark,
   AppSwitcher,
   Avatar,
   Badge,
   Button,
   Card,
+  CardList,
   Checkbox,
+  CodeBlock,
+  ColorDot,
   ColorSwatchPicker,
   Combobox,
   CommandPalette,
@@ -21,6 +25,8 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
   CopyButton,
+  CopyField,
+  DescriptionList,
   Dialog,
   DialogBody,
   DialogClose,
@@ -29,9 +35,13 @@ import {
   DialogTrigger,
   EmptyState,
   Field,
+  FilterBar,
   IconButton,
+  InlineMessage,
   Input,
   Kbd,
+  ListRow,
+  LoadingState,
   Menu,
   Meter,
   MenuCheckboxItem,
@@ -47,6 +57,9 @@ import {
   PageHeader,
   PasswordInput,
   PointMenu,
+  PointTooltip,
+  SearchButton,
+  SelectionBar,
   Sheet,
   SheetBody,
   SheetContent,
@@ -60,6 +73,7 @@ import {
   PopoverTrigger,
   Progress,
   RadioGroup,
+  SaveStatus,
   RadioGroupItem,
   SectionHeader,
   Select,
@@ -67,6 +81,7 @@ import {
   SelectItem,
   Skeleton,
   Spinner,
+  Stat,
   StatusDot,
   Switch,
   Table,
@@ -76,14 +91,24 @@ import {
   TableHeader,
   TableRow,
   TableRowHeader,
+  TableSkeleton,
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
   Textarea,
+  ThemeSwitcher,
+  Time,
+  ToggleButton,
+  ToggleGroup,
+  ToggleGroupItem,
   Tooltip,
   Wordmark,
+  AppTile,
   KORE_APP_IDS,
+  useTheme,
+  KORE_THEMES,
+  tintOf,
   useToast,
   type ProductId,
 } from "@qarasky/kore-ui";
@@ -137,6 +162,14 @@ export function Gallery() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [point, setPoint] = useState<MenuPoint | null>(null);
   const [colour, setColour] = useState("#5b8def");
+  const [dismissed, setDismissed] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("saved");
+  const [onlyMine, setOnlyMine] = useState(false);
+  const [range, setRange] = useState("24h");
+  const [days, setDays] = useState<string[]>(["mo", "we", "fr"]);
+  const { theme } = useTheme();
+  const [selected, setSelected] = useState(0);
+  const [beat, setBeat] = useState<{ x: number; y: number } | null>(null);
 
   return (
     <div className="mx-auto max-w-[1100px] px-6 pb-24">
@@ -144,17 +177,17 @@ export function Gallery() {
         <div className="text-brand">
           <Wordmark app="kore" />
         </div>
-        <span className="text-muted">kore-ui 0.2.0</span>
+        <span className="text-muted">kore-ui 0.3.0</span>
         <nav aria-label="Showcase pages" className="ml-auto flex flex-wrap gap-1">
           {PAGES.map((p) => (
-            <a key={p.href} href={p.href} className="rounded-ui px-3 py-1.5 text-sub text-muted hover:bg-white/5 hover:text-text">
+            <a key={p.href} href={p.href} className="rounded-ui px-3 py-1.5 text-sub text-muted hover:bg-hover hover:text-text">
               {p.label}
             </a>
           ))}
         </nav>
       </header>
 
-      <Section id="tokens" title="Tokens" note="Dark only. Surfaces step up from bg to raised; hairlines, one accent.">
+      <Section id="tokens" title="Tokens" note="Three themes (Color, Light, Dark). Surfaces step up from bg to raised; hairlines, one accent.">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
           {[
             ["bg", "bg-bg"],
@@ -776,6 +809,233 @@ export function Gallery() {
             <MenuItem icon={<Settings />}>Settings</MenuItem>
             <MenuItem icon={<KeyRound />}>Change password</MenuItem>
           </AccountMenu>
+        </Row>
+      </Section>
+      <Section id="messages" title="Alert, InlineMessage, SaveStatus" note="Alert stays until the situation changes; danger is announced at once, the rest politely. InlineMessage is one line of 13px feedback. SaveStatus says Saving… / Saved in words.">
+        <div className="flex max-w-[640px] flex-col gap-3">
+          <Alert title="Backups are paused">Nothing has been saved since Monday. Resume them to protect new files.</Alert>
+          <Alert tone="success" title="Calendar imported">42 events were added to Work.</Alert>
+          <Alert tone="warning" title="You are almost out of storage" action={<Button size="sm">Free up space</Button>}>
+            49.5 GB of 50 GB used.
+          </Alert>
+          <Alert tone="danger" title="Couldn't reach the server">Check your connection and try again.</Alert>
+          {dismissed ? (
+            <Button size="sm" variant="ghost" onClick={() => setDismissed(false)} className="self-start">
+              Show the dismissible alert again
+            </Button>
+          ) : (
+            <Alert onDismiss={() => setDismissed(true)}>A new version is ready. Reload to use it.</Alert>
+          )}
+          <div className="overflow-hidden rounded-overlay border border-border">
+            <Alert banner tone="warning" action={<Button size="sm">Resume</Button>}>
+              Monitoring is paused for this group.
+            </Alert>
+            <div className="p-4 text-sub text-muted">A banner sits across the top of a panel.</div>
+          </div>
+        </div>
+        <Row label="InlineMessage">
+          <InlineMessage>Couldn't reach the server. Check your connection and try again.</InlineMessage>
+          <InlineMessage tone="warning">Free tier, no key.</InlineMessage>
+          <InlineMessage tone="success">Link copied</InlineMessage>
+          <InlineMessage tone="muted">Changes apply to new chats.</InlineMessage>
+        </Row>
+        <Row label="SaveStatus">
+          <SaveStatus state={saveState} />
+          {(["idle", "saving", "saved", "error"] as const).map((state) => (
+            <Button key={state} size="sm" variant={saveState === state ? "secondary" : "ghost"} onClick={() => setSaveState(state)}>
+              {state}
+            </Button>
+          ))}
+        </Row>
+      </Section>
+
+      <Section id="toggles" title="ToggleButton, ToggleGroup" note="A button that stays on or off: filters, ranges, weekdays. aria-pressed (or radio, in a single group). 32px by default.">
+        <Row label="ToggleButton">
+          <ToggleButton pressed={onlyMine} onPressedChange={setOnlyMine}>
+            Only mine
+          </ToggleButton>
+          <ToggleButton defaultPressed>Down only</ToggleButton>
+          <ToggleButton size="md">40px</ToggleButton>
+          <ToggleButton disabled>Disabled</ToggleButton>
+        </Row>
+        <Row label="Joined, single">
+          <ToggleGroup type="single" joined aria-label="Time range" value={range} onValueChange={(v) => v && setRange(v)}>
+            {["1h", "24h", "7d", "30d"].map((r) => (
+              <ToggleGroupItem key={r} value={r}>
+                {r}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </Row>
+        <Row label="Round, multiple">
+          <ToggleGroup type="multiple" shape="round" aria-label="Repeat on" value={days} onValueChange={setDays}>
+            {[
+              ["mo", "M", "Monday"],
+              ["tu", "T", "Tuesday"],
+              ["we", "W", "Wednesday"],
+              ["th", "T", "Thursday"],
+              ["fr", "F", "Friday"],
+            ].map(([value, letter, name]) => (
+              <ToggleGroupItem key={value} value={value!} aria-label={name} className="size-control-sm px-0">
+                {letter}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </Row>
+      </Section>
+
+      <Section id="lists" title="Stat, CardList, ListRow, TableSkeleton" note="Headline numbers, hairline rows in a card, and placeholder rows for a table's first load.">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat label="Active users" value="12" hint="of 20 seats" />
+          <Stat label="Uptime, 30 days" value="99.98%" tone="success" hint="1 incident" />
+          <Stat label="Failed sign-ins" value="7" tone="warning" hint="since 06:00" />
+          <Stat label="Open incidents" value="—" loading />
+        </div>
+        <CardList aria-label="Account" className="max-w-[576px]">
+          <ListRow label="Email" value="anna@northwind.example" />
+          <ListRow icon={<KeyRound />} label="Password" description="Last changed 3 months ago" href="#/settings" />
+          <ListRow
+            icon={<HardDrive />}
+            label="Chrome on macOS"
+            description="Almaty · this device"
+            onClick={() => toast.show({ message: "Opened the session" })}
+            actions={<Button size="sm" variant="danger-outline">Sign out</Button>}
+          />
+        </CardList>
+        <Table caption="Users loading" containerClassName="max-w-[640px]">
+          <TableBody>
+            <TableSkeleton columns={["w-40", "w-24", "w-16"]} rows={3} />
+          </TableBody>
+        </Table>
+      </Section>
+
+      <Section id="overlay-tokens" title="Interaction tokens and tintOf" note="Hover, active and track are white tints over any surface. tintOf draws things that carry their own colour.">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            ["bg-hover", "bg-hover"],
+            ["bg-hover-subtle", "bg-hover-subtle"],
+            ["bg-active", "bg-active"],
+            ["bg-track", "bg-track"],
+          ].map(([name, cls]) => (
+            <div key={name} className="rounded-ui border border-border p-3">
+              <div className={`mb-2 h-10 rounded-ui ${cls}`} />
+              <code className="text-meta text-muted">{name}</code>
+            </div>
+          ))}
+        </div>
+        <Row label="tintOf">
+          {["#5b8def", "#7b6cf0", "#4fb286", "#e5a54b"].map((hex) => {
+            const tint = tintOf(hex);
+            return (
+              <span
+                key={hex}
+                className="rounded-[4px] border-l-[3px] px-2 py-1 text-meta"
+                style={{ background: tint.background, borderColor: tint.edge, color: tint.edge }}
+              >
+                Standup 09:30
+              </span>
+            );
+          })}
+        </Row>
+      </Section>
+      <Section id="themes" title="Themes" note="Color is the original look. Light is white with the same accent. Dark is pure black for OLED. The choice is remembered; System follows the device.">
+        <ThemeSwitcher />
+        <p className="text-sub text-muted">
+          In effect: <code className="font-mono">{theme}</code>. Palettes of every theme, drawn from KORE_THEMES (hex), so each shows its own colours:
+        </p>
+        <div className="grid gap-3 md:grid-cols-3">
+          {(["color", "light", "dark"] as const).map((id) => {
+            const p = KORE_THEMES[id];
+            return (
+              <div key={id} className="overflow-hidden rounded-ui border" style={{ background: p.bg, borderColor: p.border, color: p.text }}>
+                <div className="flex flex-wrap gap-1.5 p-3">
+                  {Object.entries(p).map(([name, hex]) => (
+                    <span key={name} title={`${name} ${hex}`} className="size-5 rounded-[4px] border" style={{ background: hex, borderColor: p.borderStrong }} />
+                  ))}
+                </div>
+                <p className="px-3 pb-3 text-meta" style={{ color: p.muted }}>
+                  {id}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+
+      <Section id="extras" title="Time, CopyField, CodeBlock, DescriptionList, and friends" note="The 0.3.0 gaps: relative time, read-only copy fields, code, facts, a floating selection bar, a pointer tooltip, a search button, app tiles.">
+        <Row label="Time">
+          <Time value={new Date()} />
+          <Time value={new Date(Date.now() - 3 * 3600_000)} />
+          <Time value={new Date(Date.now() - 26 * 3600_000)} />
+          <Time value={new Date(2025, 0, 3, 9, 30)} />
+          <Time value={null} />
+        </Row>
+        <div className="grid max-w-[640px] gap-4">
+          <Field label="Setup link" hint="Anyone with this link can set the first password.">
+            <CopyField value="https://id.example.com/setup/Qx7f3kZp9" />
+          </Field>
+          <CodeBlock language="bash" value={"curl -s https://status.example.com/api/health\n  -H 'Authorization: Bearer $TOKEN'"} />
+          <DescriptionList
+            items={[
+              { label: "Issuer", value: "https://id.example.com", mono: true },
+              { label: "Redirect URIs", value: ["https://files.example.com/cb", "https://mind.example.com/cb"], mono: true },
+              { label: "Scopes", value: "openid profile email" },
+            ]}
+          />
+        </div>
+        <Row label="AppTile">
+          <AppTile app="kore" />
+          <AppTile app="flatline" />
+          <AppTile app="acme-cloud" name="Acme Cloud" />
+          <AppTile app="kore-id" size="sm" />
+          <ColorDot color="#4fb286" />
+          <ColorDot color="#e5a54b" shape="square" />
+        </Row>
+        <Row label="SearchButton">
+          <SearchButton label="Search monitors" />
+        </Row>
+        <FilterBar label="Filter users" className="max-w-[640px]">
+          <Input size="sm" leadingIcon={<Search />} placeholder="Search users" aria-label="Search users" className="max-w-[240px]" />
+          <ToggleButton>Admins</ToggleButton>
+          <ToggleButton>Disabled</ToggleButton>
+        </FilterBar>
+        <div className="max-w-[640px] rounded-ui border border-border">
+          <LoadingState label="Loading users…" />
+        </div>
+        <Row label="Meter sm + critical">
+          <div className="grid w-full max-w-[420px] gap-3">
+            <Meter size="sm" label="Disk /data" value={82} thresholds={{ critical: 0.95 }} valueText="82% used" />
+            <Meter size="sm" label="Disk /backup" value={97} thresholds={{ critical: 0.95 }} valueText="97% used. Free up space." />
+          </div>
+        </Row>
+        <Row label="PointTooltip">
+          <div className="flex gap-0.5" onPointerLeave={() => setBeat(null)}>
+            {Array.from({ length: 24 }, (_, i) => (
+              <span
+                key={i}
+                onPointerMove={(e) => setBeat({ x: e.clientX, y: e.clientY })}
+                className={`h-6 w-2 rounded-[2px] ${i % 11 === 7 ? "bg-status-down" : "bg-status-up"}`}
+              />
+            ))}
+          </div>
+          <PointTooltip point={beat}>Up, 120 ms</PointTooltip>
+        </Row>
+        <Row label="SelectionBar">
+          <Button size="sm" onClick={() => setSelected(selected ? 0 : 3)}>
+            {selected ? "Clear selection" : "Select 3 rows"}
+          </Button>
+          <SelectionBar
+            count={selected}
+            actions={
+              <>
+                <Button size="sm">Pause</Button>
+                <Button size="sm" variant="danger-outline">
+                  Delete
+                </Button>
+              </>
+            }
+            onClear={() => setSelected(0)}
+          />
         </Row>
       </Section>
     </div>

@@ -92,7 +92,7 @@ export function SheetContent({
           {showClose ? (
             <RadixDialog.Close
               aria-label={closeLabel}
-              className="-mt-1 -mr-2 grid size-control-sm shrink-0 place-items-center rounded-ui text-muted transition-colors hover:bg-white/5 hover:text-text"
+              className="-mt-1 -mr-2 grid size-control-sm shrink-0 place-items-center rounded-ui text-muted transition-colors hover:bg-hover hover:text-text"
             >
               <X aria-hidden className="size-4" />
             </RadixDialog.Close>

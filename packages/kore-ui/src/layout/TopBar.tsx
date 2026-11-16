@@ -38,7 +38,7 @@ export function TopBar({ brand: brandProp, brandHref: hrefProp, children, action
           aria-label={shell!.menuLabel}
           aria-expanded={shell!.drawerOpen}
           onClick={() => shell!.setDrawerOpen(true)}
-          className="grid size-control place-items-center rounded-ui text-muted hover:bg-white/5 hover:text-text md:hidden"
+          className="grid size-control place-items-center rounded-ui text-muted hover:bg-hover hover:text-text md:hidden"
         >
           <MenuIcon aria-hidden className="size-5" />
         </button>

@@ -1,6 +1,6 @@
 /*
  * Kore theme: design tokens + base styles for every Kore web UI.
- * Dark only. See DESIGN.md for what each token is for.
+ * Three themes (color, light, dark): `data-theme` on <html>. See DESIGN.md for what each token is for.
  *
  * Consumer CSS (path in @source is relative to that CSS file):
  *   @import "tailwindcss";
@@ -11,7 +11,7 @@
 /* Inter (variable), bundled: nothing is fetched from the network at runtime. */
 @import "@fontsource-variable/inter";
 
-@theme {
+@theme static {
   /* Surfaces, darkest to lightest. */
   --color-bg: #16181d;
   --color-surface: #1d2026;
@@ -25,6 +25,9 @@
   /* The one brand colour. */
   --color-accent: #5b8def;
   --color-accent-hover: #7aa3f2;
+  /* Accent as text or a thin line (links, the active nav icon, accent badges). Equals `accent` where that
+   * reads on the surface; the Light theme darkens it to pass AA. Fills and focus rings use `accent`. */
+  --color-accent-fg: #5b8def;
   /* Feedback. `danger` is text/borders; `danger-solid` fills destructive buttons. */
   --color-danger: #f2777a;
   --color-danger-solid: #c94b4f;
@@ -38,6 +41,26 @@
   --color-status-down-muted: #8a3a3d;
   --color-status-maint: #a371f7;
   --color-status-off: #5b616d;
+  /* A severity deeper than `status-down`, for meters and gauges past a critical threshold. Status only. */
+  --color-status-critical: #c0262c;
+
+  /* Text and icons on an accent or danger-solid fill. */
+  --color-on-accent: #ffffff;
+
+  /* Interaction overlays: white tints over whatever surface is below, never new colours.
+   * hover: controls, menu rows, nav pills · hover-subtle: large rows (table rows, nav items, the active
+   * app tile) · active: pressed or current row in a list · track: the empty part of a bar, skeletons,
+   * neutral badges. */
+  --color-hover: rgb(255 255 255 / 0.05);
+  --color-hover-subtle: rgb(255 255 255 / 0.04);
+  --color-active: rgb(255 255 255 / 0.1);
+  --color-track: rgb(255 255 255 / 0.06);
+
+  /* Categorical series for charts (up to four lines or bars). Quiet on purpose; status colours stay for status. */
+  --color-chart-1: #e0d9c9;
+  --color-chart-2: #9eb8cd;
+  --color-chart-3: #b5c8a1;
+  --color-chart-4: #c4acd2;
 
   /* One corner radius for controls and cards; overlays use radius-overlay. */
   --radius-ui: 6px;
@@ -74,10 +97,17 @@
   --breakpoint-lg: 1024px;
   --breakpoint-xl: 1280px;
 
-  /* Elevation: only overlays cast shadows. */
-  --shadow-overlay: 0 12px 32px -8px rgb(0 0 0 / 0.7);
-  --shadow-dialog: 0 24px 64px -12px rgb(0 0 0 / 0.8);
-  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 32px -12px rgb(0 0 0 / 0.6);
+  /* The dim layer behind dialogs, sheets and the mobile drawer. */
+  --color-scrim: rgb(0 0 0 / 0.6);
+
+  /* Elevation: only overlays cast shadows. The colours are variables so each theme sets its own strength. */
+  --shadow-ink-overlay: rgb(0 0 0 / 0.7);
+  --shadow-ink-dialog: rgb(0 0 0 / 0.8);
+  --shadow-ink-card: rgb(0 0 0 / 0.6);
+  --shadow-edge: rgb(255 255 255 / 0.03);
+  --shadow-overlay: 0 12px 32px -8px var(--shadow-ink-overlay);
+  --shadow-dialog: 0 24px 64px -12px var(--shadow-ink-dialog);
+  --shadow-card: 0 1px 0 var(--shadow-edge) inset, 0 12px 32px -12px var(--shadow-ink-card);
 
   /* Motion: enter on the standard curve, leave faster on the exit curve. */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
@@ -186,8 +216,81 @@
 }
 
 @layer base {
-  html {
+  /* ---- Themes ----------------------------------------------------------------------------------------
+   * The tokens above are the Color theme (the default). `data-theme` on <html> (or on any element, to scope
+   * one subtree) swaps the tokens that differ; everything else is shared. The same palettes exist as hex in
+   * src/lib/theme.ts (KORE_THEMES) and a test keeps the two equal.
+   *   color: the original blue-grey dark theme.
+   *   light: white surfaces, the same accent. Semantic colours are darkened so text on white passes AA.
+   *   dark:  pure black for OLED screens, the same accent and semantic colours as Color. */
+  :root {
     color-scheme: dark;
+  }
+
+  [data-theme="light"] {
+    color-scheme: light;
+    --color-bg: #f7f8fa;
+    --color-surface: #ffffff;
+    --color-raised: #ffffff;
+    --color-border: #e2e4ea;
+    --color-border-strong: #c9ccd5;
+    --color-text: #16181d;
+    --color-muted: #5a606c;
+    --color-accent-hover: #4a7ae0;
+    --color-accent-fg: #2c5fc9;
+    --color-danger: #c0262c;
+    --color-danger-solid: #c43d41;
+    --color-danger-solid-hover: #b3282c;
+    --color-warning: #8f5200;
+    --color-status-up: #176f31;
+    --color-status-warn: #8a6100;
+    --color-status-down: #cf222e;
+    --color-status-down-muted: #d9a3a5;
+    --color-status-maint: #7c4bd6;
+    --color-status-off: #8b919c;
+    --color-status-critical: #9b1c2c;
+    --color-hover: rgb(0 0 0 / 0.05);
+    --color-hover-subtle: rgb(0 0 0 / 0.04);
+    --color-active: rgb(0 0 0 / 0.1);
+    --color-track: rgb(0 0 0 / 0.07);
+    --color-chart-1: #6f6550;
+    --color-chart-2: #4a7a9e;
+    --color-chart-3: #5f8a43;
+    --color-chart-4: #8a62a6;
+    --color-scrim: rgb(15 17 23 / 0.45);
+    --shadow-ink-overlay: rgb(16 24 40 / 0.18);
+    --shadow-ink-dialog: rgb(16 24 40 / 0.24);
+    --shadow-ink-card: rgb(16 24 40 / 0.1);
+    --shadow-edge: rgb(255 255 255 / 0.7);
+  }
+
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --color-bg: #000000;
+    --color-surface: #0b0b0d;
+    --color-raised: #161619;
+    --color-border: #232327;
+    --color-border-strong: #36363c;
+    --color-text: #ececf0;
+    --color-muted: #8d929d;
+    --color-scrim: rgb(0 0 0 / 0.75);
+    --shadow-ink-overlay: rgb(0 0 0 / 0.9);
+    --shadow-ink-dialog: rgb(0 0 0 / 0.95);
+    --shadow-ink-card: rgb(0 0 0 / 0.8);
+    --shadow-edge: rgb(255 255 255 / 0.05);
+  }
+
+  /* Stacking order, for app-specific layers that must sit with kore-ui's (`z-(--z-toast)` in Tailwind).
+   * kore-ui's own components use the same numbers. */
+  :root {
+    --z-sticky: 10;
+    --z-drawer: 40;
+    --z-overlay: 50;
+    --z-toast: 60;
+    --z-tooltip: 70;
+  }
+
+  html {
     background-color: var(--color-bg);
     color: var(--color-text);
     font-family: var(--font-sans);

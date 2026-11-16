@@ -2,7 +2,7 @@
 
 import { PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { Dialog as RadixDialog } from "radix-ui";
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { cn } from "../lib/cn";
 import { useLinkComponent, type LinkComponent } from "../lib/link";
 import { Tooltip } from "../components/Tooltip";
@@ -53,6 +53,11 @@ export type AppShellProps = {
   defaultSidebarCollapsed?: boolean;
   /** Called when the user collapses or expands the sidebar. Persist it here (cookie, localStorage, settings). */
   onSidebarCollapsedChange?: (collapsed: boolean) => void;
+  /**
+   * A letter that toggles the sidebar with ⌘ or Ctrl ("b"). Off by default (editors use ⌘B for bold). It does nothing
+   * while a text field has focus, and goes through the same `onSidebarCollapsedChange`, so one handler persists both ways.
+   */
+  collapseShortcut?: string | false;
   /** Controlled drawer state (optional). */
   drawerOpen?: boolean;
   onDrawerOpenChange?: (open: boolean) => void;
@@ -80,6 +85,7 @@ export function AppShell({
   sidebarCollapsed,
   defaultSidebarCollapsed = false,
   onSidebarCollapsedChange,
+  collapseShortcut = false,
   mainClassName,
   LinkComponent,
   children,
@@ -101,6 +107,22 @@ export function AppShell({
     },
     [sidebarCollapsed, onSidebarCollapsedChange],
   );
+  const canCollapse = collapsible && !!sidebar;
+  useEffect(() => {
+    if (!canCollapse || !collapseShortcut) return;
+    const key = collapseShortcut.toLowerCase();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || !(event.metaKey || event.ctrlKey) || event.shiftKey || event.altKey) return;
+      if (event.key.toLowerCase() !== key) return;
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      if (target?.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
+      event.preventDefault();
+      setCollapsed(!collapsed);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [canCollapse, collapseShortcut, collapsed, setCollapsed]);
+
   const [drawerState, setDrawerState] = useState(false);
   const drawerOpen = drawerOpenProp ?? drawerState;
   const setDrawerOpen = useCallback(
@@ -160,7 +182,7 @@ export function AppShell({
       {sidebar ? (
         <RadixDialog.Root open={drawerOpen} onOpenChange={setDrawerOpen}>
           <RadixDialog.Portal>
-            <RadixDialog.Overlay className="fixed inset-0 z-40 bg-black/60 data-[state=open]:animate-kore-fade-in data-[state=closed]:animate-kore-fade-out md:hidden" />
+            <RadixDialog.Overlay className="fixed inset-0 z-40 bg-scrim data-[state=open]:animate-kore-fade-in data-[state=closed]:animate-kore-fade-out md:hidden" />
             <RadixDialog.Content
               aria-describedby={undefined}
               className={cn(
@@ -183,7 +205,7 @@ export function AppShell({
                 )}
                 <RadixDialog.Close
                   aria-label={l.close}
-                  className="grid size-control-sm place-items-center rounded-ui text-muted hover:bg-white/5 hover:text-text"
+                  className="grid size-control-sm place-items-center rounded-ui text-muted hover:bg-hover hover:text-text"
                 >
                   <X aria-hidden className="size-4" />
                 </RadixDialog.Close>
@@ -217,7 +239,7 @@ export function SidebarToggle({ className }: SidebarToggleProps) {
         aria-expanded={!shell.collapsed}
         onClick={() => shell.setCollapsed(!shell.collapsed)}
         className={cn(
-          "hidden size-control shrink-0 place-items-center rounded-ui text-muted hover:bg-white/5 hover:text-text md:grid",
+          "hidden size-control shrink-0 place-items-center rounded-ui text-muted hover:bg-hover hover:text-text md:grid",
           className,
         )}
       >

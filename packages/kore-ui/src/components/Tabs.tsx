@@ -19,7 +19,7 @@ const listClass: Record<Variant, string> = {
 const triggerClass: Record<Variant, string> = {
   pills:
     "flex min-h-control-sm items-center gap-2 rounded-ui px-3 whitespace-nowrap text-muted transition-colors " +
-    "hover:bg-white/[0.04] hover:text-text data-[state=active]:bg-raised data-[state=active]:font-medium data-[state=active]:text-text " +
+    "hover:bg-hover-subtle hover:text-text data-[state=active]:bg-raised data-[state=active]:font-medium data-[state=active]:text-text " +
     "aria-[current=page]:bg-raised aria-[current=page]:font-medium aria-[current=page]:text-text",
   underline:
     "relative -mb-px flex min-h-control items-center gap-2 border-b-2 border-transparent whitespace-nowrap text-muted transition-colors " +

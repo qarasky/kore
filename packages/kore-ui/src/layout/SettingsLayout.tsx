@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "../lib/cn";
 import { useLinkComponent, type LinkComponent } from "../lib/link";
 
@@ -42,9 +42,20 @@ export function SettingsLayout({
   className,
 }: SettingsLayoutProps) {
   const Link = useLinkComponent(LinkComponent);
+  const nav = useRef<HTMLElement>(null);
+
+  // Below md the nav is a row that scrolls sideways: keep the current pill in view when `current` changes.
+  useEffect(() => {
+    const el = nav.current;
+    const pill = el?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!el || !pill || el.scrollWidth <= el.clientWidth) return;
+    el.scrollTo?.({ left: pill.offsetLeft - (el.clientWidth - pill.offsetWidth) / 2, behavior: "smooth" });
+  }, [current]);
+
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col md:flex-row", className)}>
       <nav
+        ref={nav}
         aria-label={navLabel}
         className="flex shrink-0 gap-1 overflow-x-auto border-b border-border p-2 md:w-settings-nav md:flex-col md:overflow-x-visible md:overflow-y-auto md:border-r md:border-b-0 md:p-3"
       >
@@ -53,12 +64,12 @@ export function SettingsLayout({
           const classes = cn(
             "flex min-h-control-sm shrink-0 items-center gap-2.5 rounded-ui px-3 text-left whitespace-nowrap transition-colors md:min-h-control",
             "[&_svg:not([class*='size-'])]:size-4",
-            active ? "bg-raised font-medium text-text" : "text-muted hover:bg-white/[0.04] hover:text-text",
+            active ? "bg-raised font-medium text-text" : "text-muted hover:bg-hover-subtle hover:text-text",
           );
           const inner = (
             <>
               {item.icon ? (
-                <span aria-hidden="true" className={cn("flex", active && "text-accent")}>
+                <span aria-hidden="true" className={cn("flex", active && "text-accent-fg")}>
                   {item.icon}
                 </span>
               ) : null}

@@ -14,18 +14,18 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         /** The one main action of a view, card or dialog. */
-        primary: "bg-accent text-white hover:bg-accent-hover disabled:hover:bg-accent",
+        primary: "bg-accent text-on-accent hover:bg-accent-hover disabled:hover:bg-accent",
         /** Everything else that is a button. */
-        secondary: "border border-border-strong text-text hover:bg-white/5 disabled:hover:bg-transparent",
+        secondary: "border border-border-strong text-text hover:bg-hover disabled:hover:bg-transparent",
         /** Low-emphasis actions in toolbars and rows. */
-        ghost: "text-text hover:bg-white/5 disabled:hover:bg-transparent",
+        ghost: "text-text hover:bg-hover disabled:hover:bg-transparent",
         /** Confirms something destructive (inside a ConfirmDialog). */
-        danger: "bg-danger-solid text-white hover:bg-danger-solid-hover disabled:hover:bg-danger-solid",
+        danger: "bg-danger-solid text-on-accent hover:bg-danger-solid-hover disabled:hover:bg-danger-solid",
         /** Opens a destructive flow (row "Delete"): quiet until hovered. */
         "danger-outline":
           "border border-border-strong text-danger hover:border-danger/60 hover:bg-danger/10 disabled:hover:bg-transparent",
         /** Inline text action. */
-        link: "h-auto! min-h-0! px-0! text-accent underline-offset-2 hover:underline",
+        link: "h-auto! min-h-0! px-0! text-accent-fg underline-offset-2 hover:underline",
       },
       size: {
         md: "min-h-control px-4 text-[15px]",

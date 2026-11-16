@@ -98,7 +98,7 @@ export function ColorSwatchPicker({
               className={cn(
                 "grid shrink-0 place-items-center rounded-full ring-offset-2 ring-offset-raised transition-[box-shadow,transform]",
                 "hover:scale-110 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100",
-                "focus-visible:outline-offset-[3px] data-[state=checked]:ring-2 data-[state=checked]:ring-white/40",
+                "focus-visible:outline-offset-[3px] data-[state=checked]:ring-2 data-[state=checked]:ring-text/50",
                 size === "sm" ? "size-6" : "size-control-sm",
               )}
               style={{ backgroundColor: s.value, color: readableOn(s.value) }}
@@ -127,7 +127,7 @@ export function ColorSwatchPicker({
             setInvalid(v !== "" && !ok);
             if (ok) set(v);
           }}
-          leadingIcon={<span className="block size-3.5 rounded-full border border-white/20" style={{ backgroundColor: isHexColor(text) ? text : "transparent" }} />}
+          leadingIcon={<span className="block size-3.5 rounded-full border border-border-strong" style={{ backgroundColor: isHexColor(text) ? text : "transparent" }} />}
           className="w-[132px] font-mono"
         />
       ) : null}

@@ -16,7 +16,7 @@ const DOT: Record<Status, string> = {
 const TEXT: Record<Status, string> = {
   up: "text-text",
   warn: "text-status-warn",
-  down: "text-status-down",
+  down: "text-danger",
   maint: "text-status-maint",
   off: "text-muted",
   accent: "text-text",

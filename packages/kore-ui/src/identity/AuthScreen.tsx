@@ -154,7 +154,7 @@ function SsoButton({ sso, primary }: { sso: KoreIdSignIn; primary: boolean }) {
   const pending = sso.pending || busy;
   const content = (
     <>
-      <AppMark app="kore-id" size={16} className={primary ? "text-white" : undefined} />
+      <AppMark app="kore-id" size={16} className={primary ? "text-on-accent" : undefined} />
       {label}
     </>
   );

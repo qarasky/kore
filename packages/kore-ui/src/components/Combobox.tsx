@@ -328,11 +328,11 @@ export function Combobox<V extends string = string>({
                       onClick={() => choose(o)}
                       className={cn(
                         "relative flex min-h-control cursor-default items-center gap-3 py-1.5 pr-3 pl-9 select-none",
-                        "data-[highlighted]:bg-white/5 aria-disabled:opacity-40",
+                        "data-[highlighted]:bg-hover aria-disabled:opacity-40",
                         selected && "font-medium",
                       )}
                     >
-                      {selected ? <Check aria-hidden className="absolute left-3 size-4 text-accent" /> : null}
+                      {selected ? <Check aria-hidden className="absolute left-3 size-4 text-accent-fg" /> : null}
                       <span className="min-w-0 flex-1 truncate">{o.label}</span>
                       {o.description ? <span className="shrink-0 text-meta font-normal text-muted">{o.description}</span> : null}
                     </li>

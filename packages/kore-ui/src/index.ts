@@ -163,3 +163,60 @@ export {
   type PointMenuCloseReason,
   type MenuPoint,
 } from "./components/Menu";
+
+// 0.3.0
+export {
+  Alert,
+  InlineMessage,
+  SaveStatus,
+  type AlertProps,
+  type AlertTone,
+  type InlineMessageProps,
+  type InlineMessageTone,
+  type SaveState,
+  type SaveStatusProps,
+} from "./components/Alert";
+export {
+  ToggleButton,
+  ToggleGroup,
+  ToggleGroupItem,
+  toggleVariants,
+  type ToggleButtonProps,
+  type ToggleGroupProps,
+  type ToggleGroupItemProps,
+} from "./components/Toggle";
+export { Stat, type StatProps, type StatTone } from "./components/Stat";
+export { CardList, ListRow, type CardListProps, type ListRowProps } from "./components/CardList";
+export { TableSkeleton, type TableSkeletonProps } from "./components/Table";
+export { tintOf, type Tint } from "./components/color";
+export { koreDuration, koreEase } from "./lib/motion";
+export {
+  KORE_THEME,
+  KORE_THEME_COLOR,
+  KORE_THEMES,
+  THEME_IDS,
+  THEME_STORAGE_KEY,
+  koreThemeColor,
+  themeInitScript,
+  type KoreThemeColor,
+  type ThemeId,
+  type ThemeInitOptions,
+  type ThemePalette,
+  type ThemePreference,
+} from "./lib/theme";
+export { ThemeProvider, useTheme, type ThemeApi, type ThemeProviderProps } from "./lib/ThemeProvider";
+export { ThemeSwitcher, type ThemeSwitcherProps } from "./components/ThemeSwitcher";
+
+// Gaps closed in 0.3.0
+export { Time, formatRelativeTime, type RelativeTimeOptions, type TimeProps } from "./components/Time";
+export { CopyField, type CopyFieldProps } from "./components/CopyField";
+export { DescriptionList, type DescriptionItem, type DescriptionListProps } from "./components/DescriptionList";
+export { CodeBlock, type CodeBlockProps } from "./components/CodeBlock";
+export { LoadingState, type LoadingStateProps } from "./components/LoadingState";
+export { FilterBar, type FilterBarProps } from "./components/FilterBar";
+export { ColorDot, type ColorDotProps } from "./components/ColorDot";
+export { SelectionBar, type SelectionBarProps } from "./components/SelectionBar";
+export { PointTooltip, type PointTooltipProps } from "./components/PointTooltip";
+export { SearchButton, type SearchButtonProps } from "./components/SearchButton";
+export { AppTile, type AppTileProps } from "./identity/AppTile";
+export { type SkeletonProps } from "./components/Skeleton";

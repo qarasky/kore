@@ -30,7 +30,7 @@ export function Avatar({ name, email, src, size = "md", className }: AvatarProps
     <RadixAvatar.Root
       aria-hidden="true"
       className={cn(
-        "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent font-semibold text-white select-none",
+        "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent font-semibold text-on-accent select-none",
         SIZE[size],
         className,
       )}

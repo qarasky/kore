@@ -15,10 +15,12 @@ export type CheckboxProps = Omit<ComponentProps<typeof RadixCheckbox.Root>, "chi
   /** Use this colour (hex) instead of the accent: border always, fill when checked. For things that have a
    *  colour of their own (calendars, labels). The check turns black on light colours. */
   color?: string;
+  /** Keep a long label on one line, cut with an ellipsis, so the row can hold content after it. */
+  truncate?: boolean;
 };
 
 /** A checkbox (Radix): on, off, or `checked="indeterminate"` (e.g. "select all" with some selected). */
-export function Checkbox({ label, description, className, id, color, style, ...rest }: CheckboxProps) {
+export function Checkbox({ label, description, className, id, color, style, truncate = false, ...rest }: CheckboxProps) {
   const generated = useId();
   const props = useFieldControl({ ...rest, id: id ?? (label ? generated : undefined) });
   const descId = description ? `${props.id}-desc` : undefined;
@@ -29,7 +31,7 @@ export function Checkbox({ label, description, className, id, color, style, ...r
       data-color={color ? "" : undefined}
       style={color ? { ...style, borderColor: color, ["--kore-checkbox" as string]: color, color: readableOn(color) } : style}
       className={cn(
-        "peer grid size-4 shrink-0 place-items-center rounded-[4px] border border-border-strong bg-bg/60 text-white transition-colors",
+        "peer grid size-4 shrink-0 place-items-center rounded-[4px] border border-border-strong bg-bg/60 text-on-accent transition-colors",
         color &&
           "border-2 data-[state=checked]:border-[var(--kore-checkbox)] data-[state=checked]:bg-[var(--kore-checkbox)] data-[state=indeterminate]:border-[var(--kore-checkbox)] data-[state=indeterminate]:bg-[var(--kore-checkbox)] hover:brightness-110",
         "hover:border-muted data-[state=checked]:border-accent data-[state=checked]:bg-accent",
@@ -51,8 +53,8 @@ export function Checkbox({ label, description, className, id, color, style, ...r
   return (
     <div className={cn("flex items-start gap-2.5 py-1 has-disabled:opacity-50 has-disabled:[&_label]:cursor-not-allowed", className)}>
       <span className="flex h-[1.45em] items-center">{box}</span>
-      <div className="min-w-0">
-        <label htmlFor={props.id} className="cursor-pointer">
+      <div className="min-w-0 flex-1">
+        <label htmlFor={props.id} className={cn("cursor-pointer", truncate && "block truncate")}>
           {label}
         </label>
         {description ? (

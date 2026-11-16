@@ -17,7 +17,7 @@ export const DialogClose = RadixDialog.Close;
 const WIDTH = { sm: "w-[min(420px,calc(100vw-32px))]", md: "w-[min(520px,calc(100vw-32px))]", lg: "w-[min(680px,calc(100vw-32px))]" };
 
 export const overlayClass =
-  "fixed inset-0 z-50 bg-black/60 data-[state=open]:animate-kore-fade-in data-[state=closed]:animate-kore-fade-out";
+  "fixed inset-0 z-50 bg-scrim data-[state=open]:animate-kore-fade-in data-[state=closed]:animate-kore-fade-out";
 
 export type DialogContentProps = Omit<ComponentProps<typeof RadixDialog.Content>, "title"> & {
   /** Required: names the dialog. Sentence case, says what it is for ("Add user"). */
@@ -75,7 +75,7 @@ export function DialogContent({
           {showClose ? (
             <RadixDialog.Close
               aria-label={closeLabel}
-              className="-mt-1 -mr-2 grid size-control-sm shrink-0 place-items-center rounded-ui text-muted transition-colors hover:bg-white/5 hover:text-text"
+              className="-mt-1 -mr-2 grid size-control-sm shrink-0 place-items-center rounded-ui text-muted transition-colors hover:bg-hover hover:text-text"
             >
               <X aria-hidden className="size-4" />
             </RadixDialog.Close>
