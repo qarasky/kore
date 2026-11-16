@@ -106,7 +106,13 @@ restrictive CSP (`sandbox`). Nothing user-controlled becomes a filesystem path
   primitive locally (a unit test guards the old ones and native
   `<select>`/`<dialog>`); compose app views from kore-ui parts and its tokens
   (`bg-surface`, `text-muted`, `h-row`, `min-h-control`, `size-icon`…), no
-  pixel literals or local colour tokens. No `dangerouslySetInnerHTML`.
+  pixel literals or local colour tokens. No `dangerouslySetInnerHTML`, except
+  the one static `themeInitScript()` in `app/layout.tsx`.
+- Three themes (Color default, Light, Dark; kore-ui 0.3): colours come from
+  tokens only (`bg-surface`, `bg-hover-subtle`, `text-accent-fg`, `var(--color-chart-2)`),
+  never typed hex or `white/N`; a unit test guards this (the login artwork is
+  the one allowed exception). The switcher is on `/account` (Appearance); the
+  choice is stored per browser (`localStorage` `kore-theme`).
 - Data pages are Server Components fetching via `api()` with the session
   cookie; mutations call the API from the client, then `router.refresh()`.
 - Error boundaries: use `retry()` (re-fetches the server payload, Next 16.3+),
