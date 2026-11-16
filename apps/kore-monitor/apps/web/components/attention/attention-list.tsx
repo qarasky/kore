@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import { EmptyState, Spinner, cn } from "@qarasky/kore-ui";
+import { EmptyState, LoadingState, cn } from "@qarasky/kore-ui";
 
 import { useBoardData } from "@/components/board/board-data";
 import { useAttention } from "@/components/board/use-attention";
@@ -65,12 +65,7 @@ export function AttentionList() {
     const muted = items.length - open;
 
     if (!rosterLoaded) {
-        return (
-            <div className="text-muted flex items-center gap-2 p-6">
-                <Spinner />
-                Loading…
-            </div>
-        );
+        return <LoadingState />;
     }
     return (
         <section aria-label="Needs attention" className="flex min-h-0 flex-1 flex-col overflow-y-auto">

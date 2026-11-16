@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, CopyButton, Dialog, DialogBody, DialogContent, DialogFooter, Input } from "@qarasky/kore-ui";
+import { Button, CopyField, Dialog, DialogBody, DialogContent, DialogFooter } from "@qarasky/kore-ui";
 
 /**
  * A freshly issued backup-agent token, shown once. Closing the dialog drops
@@ -19,17 +19,8 @@ export function TokenDialog({ agentName, token, onClose }: { agentName: string; 
                 onEscapeKeyDown={(event) => event.preventDefault()}
             >
                 <DialogBody className="grid gap-2">
-                    <div className="flex items-center gap-2">
-                        <Input
-                            readOnly
-                            value={token}
-                            aria-label="Backup agent token"
-                            className="font-mono text-sub"
-                            onFocus={(e) => e.target.select()}
-                        />
-                        {/* The clipboard API needs a secure origin; on plain http the field is there to select. */}
-                        <CopyButton value={token} label="Copy token" size="md" />
-                    </div>
+                    {/* The clipboard API needs a secure origin; on plain http the field is there to select. */}
+                    <CopyField mono value={token} aria-label="Backup agent token" copy={{ label: "Copy token" }} />
                     <p className="text-meta text-muted">
                         It only opens <code>/api/backup/v1</code>; the operator API and the web app refuse it.
                     </p>

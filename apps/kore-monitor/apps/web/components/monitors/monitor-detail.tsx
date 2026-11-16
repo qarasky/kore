@@ -4,7 +4,7 @@ import { ArrowLeft, Maximize2, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-import { Badge, Button, Card, IconButton, InlineMessage, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, cn } from "@qarasky/kore-ui";
+import { Badge, Button, Card, IconButton, InlineMessage, LoadingState, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, cn } from "@qarasky/kore-ui";
 
 import { useBoardData } from "@/components/board/board-data";
 import { isApiError } from "@/lib/api";
@@ -277,7 +277,7 @@ export function MonitorDetail({
                 {back}
             </div>
         ) : (
-            <p className="text-muted px-4 py-10">Loading…</p>
+            <LoadingState />
         );
     }
 

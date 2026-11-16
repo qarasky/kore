@@ -32,32 +32,28 @@ const FILL: Record<BarTone, string> = {
     muted: "bg-muted",
 };
 
+const METER_TONE: Record<BarTone, MeterTone> = { ok: "accent", warn: "warning", bad: "danger", muted: "accent" };
+
 /**
- * A bare horizontal usage track: label and number belong to the caller.
+ * A bare horizontal usage bar: label and number belong to the caller.
  *
- * Same contract as MetricBar — the number is printed by the caller, the fill
+ * Same contract as MetricBar: the number is printed by the caller, the fill
  * is decoration on top of it, never the only signal. RAM and Disk each render
  * their figure on their own line above one of these.
  */
 export function UsageBar({ percent, tone, label }: { percent: number | undefined; tone?: BarTone; label?: string }) {
     const safe = percent === undefined || !Number.isFinite(percent) ? null : Math.max(0, Math.min(100, percent));
-    const resolved = tone ?? usageTone(percent);
-    const text = safe === null ? "unknown" : `${safe.toFixed(safe < 10 ? 1 : 0)}%`;
-
     return (
-        <div className="fleet-meter-track" role="img" aria-label={label ? `${label}: ${text}` : text} title={text}>
-            <div
-                className={cn(
-                    "fleet-meter-fill transition-[width] duration-300 motion-reduce:transition-none",
-                    FILL[resolved]
-                )}
-                style={{ width: safe === null ? "0%" : `${safe}%` }}
-            />
-        </div>
+        <Meter
+            hideLabel
+            size="sm"
+            label={label ?? "Usage"}
+            value={safe ?? 0}
+            className="mt-1.5"
+            tone={METER_TONE[tone ?? usageTone(percent)]}
+        />
     );
 }
-
-const METER_TONE: Record<BarTone, MeterTone> = { ok: "accent", warn: "warning", bad: "danger", muted: "accent" };
 
 /**
  * A usage percentage as a kore-ui Meter (Servers pages): label above, the

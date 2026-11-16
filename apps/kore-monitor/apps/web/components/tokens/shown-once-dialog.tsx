@@ -1,13 +1,13 @@
 "use client";
 
-import { Button, CopyButton, Dialog, DialogBody, DialogContent, DialogFooter, Input, Textarea } from "@qarasky/kore-ui";
+import { Button, CopyButton, CopyField, Dialog, DialogBody, DialogContent, DialogFooter, Field, Textarea } from "@qarasky/kore-ui";
 import type { ReactNode } from "react";
 
 export interface SecretField {
     /** Visible label above the value. */
     label: string;
     value: string;
-    /** A command or a note: shown in a monospace text area instead of one line. */
+    /** A command or a note: shown in a monospace text area instead of one line (no CopyField: it is an input). */
     multiline?: boolean;
     copyLabel: string;
 }
@@ -41,13 +41,13 @@ export function ShownOnceDialog({
                 onEscapeKeyDown={(event) => event.preventDefault()}
             >
                 <DialogBody className="flex flex-col gap-4">
-                    {fields.map((field) => (
-                        <div key={field.label} className="flex flex-col gap-1.5">
-                            <div className="flex items-center justify-between gap-2">
-                                <span className="text-meta font-medium">{field.label}</span>
-                                <CopyButton value={field.value} label={field.copyLabel} />
-                            </div>
-                            {field.multiline ? (
+                    {fields.map((field) =>
+                        field.multiline ? (
+                            <div key={field.label} className="flex flex-col gap-1.5">
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-meta font-medium">{field.label}</span>
+                                    <CopyButton value={field.value} label={field.copyLabel} />
+                                </div>
                                 <Textarea
                                     readOnly
                                     value={field.value}
@@ -56,17 +56,13 @@ export function ShownOnceDialog({
                                     className="font-mono text-sub"
                                     onFocus={(e) => e.target.select()}
                                 />
-                            ) : (
-                                <Input
-                                    readOnly
-                                    value={field.value}
-                                    aria-label={field.label}
-                                    className="font-mono text-sub"
-                                    onFocus={(e) => e.target.select()}
-                                />
-                            )}
-                        </div>
-                    ))}
+                            </div>
+                        ) : (
+                            <Field key={field.label} label={field.label}>
+                                <CopyField mono value={field.value} copy={{ label: field.copyLabel }} />
+                            </Field>
+                        )
+                    )}
                     {footnote ? <div className="text-meta text-muted">{footnote}</div> : null}
                 </DialogBody>
                 <DialogFooter>

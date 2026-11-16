@@ -1,7 +1,7 @@
 "use client";
 
-import { memo, useState } from "react";
-import { createPortal } from "react-dom";
+import { PointTooltip } from "@qarasky/kore-ui";
+import { memo, useId, useState } from "react";
 
 import { bucketRange, bucketSummary } from "@/lib/board-format";
 import { bucketInfo, type Strip, type StripBucket } from "@/lib/heartbeat-strip";
@@ -34,22 +34,28 @@ function describe(strip: Strip, name: string): string {
     return `${name}, last 24 hours: ${failed} failed check${failed === 1 ? "" : "s"}, worst status ${worst}`;
 }
 
-/** The hovered bucket's time range, check count and failures, above the cell. */
-function StripTooltip({ strip, index, x, y, now }: { strip: Strip; index: number; x: number; y: number; now: number }) {
-    const info = bucketInfo(strip, index);
-    if (!info) {
-        return null;
-    }
-    return createPortal(
-        <div
-            role="tooltip"
-            style={{ position: "fixed", left: x, top: y - 8, translate: "-50% -100%" }}
-            className="bg-raised text-meta shadow-overlay pointer-events-none z-(--z-tooltip) rounded-ui border border-border-strong px-2 py-1"
-        >
-            <div className="text-muted tabular-nums">{bucketRange(info, now)}</div>
-            <div className="mt-0.5 font-medium">{bucketSummary(info)}</div>
-        </div>,
-        document.body
+/** The hovered bucket's time range, check count and failures, next to the pointer. */
+function StripTooltip({
+    id,
+    strip,
+    hover,
+    now,
+}: {
+    id: string;
+    strip: Strip;
+    hover: { index: number; x: number; y: number } | null;
+    now: number;
+}) {
+    const info = hover ? bucketInfo(strip, hover.index) : null;
+    return (
+        <PointTooltip id={id} point={hover && info ? hover : null}>
+            {info ? (
+                <>
+                    <div className="text-muted tabular-nums">{bucketRange(info, now)}</div>
+                    <div className="mt-0.5 font-medium">{bucketSummary(info)}</div>
+                </>
+            ) : null}
+        </PointTooltip>
     );
 }
 
@@ -70,6 +76,7 @@ export const HeartbeatStrip = memo(function HeartbeatStrip({
     calm: boolean;
 }) {
     const [hover, setHover] = useState<{ index: number; x: number; y: number } | null>(null);
+    const tooltipId = useId();
     if (!strip) {
         return <div className="board-strip board-strip-cell" aria-hidden />;
     }
@@ -79,14 +86,14 @@ export const HeartbeatStrip = memo(function HeartbeatStrip({
             className="board-strip board-strip-cell"
             role="img"
             aria-label={describe(strip, name)}
+            aria-describedby={hover ? tooltipId : undefined}
             onPointerMove={(event) => {
                 const rect = event.currentTarget.getBoundingClientRect();
                 const index = Math.min(
                     last,
                     Math.max(0, Math.floor(((event.clientX - rect.left) / rect.width) * strip.cells.length))
                 );
-                const cell = rect.width / strip.cells.length;
-                setHover({ index, x: rect.left + (index + 0.5) * cell, y: rect.top });
+                setHover({ index, x: event.clientX, y: event.clientY });
             }}
             onPointerLeave={() => setHover(null)}
         >
@@ -100,7 +107,7 @@ export const HeartbeatStrip = memo(function HeartbeatStrip({
                 data-s={cellKey(strip.cells[last])}
                 data-fresh={(strip.fresh > 0 && !calm) || undefined}
             />
-            {hover ? <StripTooltip strip={strip} index={hover.index} x={hover.x} y={hover.y} now={now} /> : null}
+            <StripTooltip id={tooltipId} strip={strip} hover={hover} now={now} />
         </div>
     );
 });

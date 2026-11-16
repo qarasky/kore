@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, EmptyState, InlineMessage, PageBody, StatusDot, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableRowHeader } from "@qarasky/kore-ui";
+import { Button, EmptyState, InlineMessage, LoadingState, PageBody, StatusDot, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableRowHeader } from "@qarasky/kore-ui";
 import { Archive } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -92,7 +92,7 @@ export function BackupsList() {
     if (!rosterLoaded) {
         return (
             <PageBody>
-                <p className="text-muted">Loading…</p>
+                <LoadingState />
             </PageBody>
         );
     }

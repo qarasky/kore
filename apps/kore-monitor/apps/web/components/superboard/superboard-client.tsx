@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@qarasky/kore-ui";
 import dynamic from "next/dynamic";
 
 /**
@@ -10,9 +11,5 @@ import dynamic from "next/dynamic";
  */
 export const SuperboardClient = dynamic(() => import("./superboard").then((m) => m.SuperboardApp), {
     ssr: false,
-    loading: () => (
-        <p className="px-4 py-10 text-sub text-muted" role="status">
-            Loading…
-        </p>
-    ),
+    loading: () => <LoadingState />,
 });

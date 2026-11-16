@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Card, Checkbox, ConfirmDialog, CopyButton, Field, InlineMessage, Input, PageBody, SectionHeader, Select, StatusDot, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@qarasky/kore-ui";
+import { Button, Card, Checkbox, CodeBlock, ConfirmDialog, Field, InlineMessage, Input, PageBody, SectionHeader, Select, StatusDot, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@qarasky/kore-ui";
 import { useCallback, useState, type FormEvent } from "react";
 
 import { useBoardData } from "@/components/board/board-data";
@@ -74,14 +74,11 @@ function LatestBackup({
                 </Button>
             </div>
             <div className="grid gap-2">
-                <div className="flex items-center justify-between gap-2">
-                    <span className="text-meta text-muted">
-                        To restore: put <code>{backupFileName(run)}</code> next to the <code>flatline-backup</code>{" "}
-                        binary (any backup host has it in <code>/usr/local/bin</code>), then run
-                    </span>
-                    <CopyButton value={commands} label="Copy restore commands" size="sm" />
-                </div>
-                <pre className="overflow-x-auto rounded-ui border bg-raised p-3 font-mono text-sub">{commands}</pre>
+                <p className="text-meta text-muted">
+                    To restore: put <code>{backupFileName(run)}</code> next to the <code>flatline-backup</code> binary
+                    (any backup host has it in <code>/usr/local/bin</code>), then run
+                </p>
+                <CodeBlock value={commands} language="bash" copy={{ label: "Copy restore commands" }} />
                 <p className="text-meta text-muted">
                     <code>restore-target.json</code> maps each database and bucket to an empty scratch target; restores
                     never touch the live services.{" "}

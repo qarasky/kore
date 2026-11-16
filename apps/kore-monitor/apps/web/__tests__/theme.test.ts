@@ -39,4 +39,15 @@ describe("theme", () => {
     it("lets kore-ui bring Inter", () => {
         expect(layout).not.toContain("@fontsource");
     });
+
+    it("wires the three themes before first paint", () => {
+        expect(layout).toContain("themeInitScript()");
+        expect(layout).toContain("suppressHydrationWarning");
+    });
+
+    it("keeps every colour on a token so the themes can change it", () => {
+        // data-theme swaps the variables: a typed hex, white/N or a mix with `white` ignores it.
+        expect(css).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+        expect(css).not.toMatch(/,\s*(white|black)\)/);
+    });
 });

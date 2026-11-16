@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { SyntheticEvent } from "react";
-import { Button, Checkbox, Dialog, DialogBody, DialogContent, DialogFooter, InlineMessage, Input, Spinner, StatusDot, type Status } from "@qarasky/kore-ui";
+import { Button, Checkbox, Dialog, DialogBody, DialogContent, DialogFooter, InlineMessage, Input, LoadingState, StatusDot, type Status } from "@qarasky/kore-ui";
 import { Search } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import type { MonitorSummary } from "@/lib/monitor-types";
@@ -174,9 +174,7 @@ export function WebsiteLinkDialog({ server, onClose }: { server: MonitorSummary;
                 <form className="flex min-h-0 flex-col" onSubmit={(e) => void save(e)}>
                     <DialogBody>
                         {candidates === null && !error ? (
-                            <p className="flex items-center gap-2 py-6 text-muted" role="status">
-                                <Spinner /> Loading…
-                            </p>
+                            <LoadingState className="py-6" />
                         ) : (
                             <LinkPicker
                                 candidates={candidates ?? []}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Card, Dialog, DialogBody, DialogContent, DialogFooter, InlineMessage, PageBody, SectionHeader, cn } from "@qarasky/kore-ui";
+import { Button, Card, DescriptionList, Dialog, DialogBody, DialogContent, DialogFooter, InlineMessage, PageBody, SectionHeader, cn } from "@qarasky/kore-ui";
 import { Activity, Pencil } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -165,42 +165,53 @@ function AgentReport({
         }
     }
     return (
-        <dl className="grid grid-cols-[140px_minmax(0,1fr)] gap-x-4 gap-y-2 text-sub">
-            <dt className="text-muted">Agent</dt>
-            <dd className="tnum">{metrics?.agent?.version ?? "—"}</dd>
-            <dt className="text-muted">Host uptime</dt>
-            <dd className="tnum">{formatDuration(metrics?.host?.uptime) ?? "—"}</dd>
-            <dt className="text-muted">Updates</dt>
-            <dd className={updates ? TONE_TEXT[updates.tone] : "text-muted"} title={updates?.title}>
-                {updates?.label ?? "Unknown"}
-            </dd>
-            {smart ? (
-                <>
-                    <dt className="text-muted">Disk health</dt>
-                    <dd className={TONE_TEXT[smart.tone]} title={smart.title}>
-                        {smart.text}
-                    </dd>
-                </>
-            ) : null}
-            <dt className="text-muted">Warnings</dt>
-            <dd>
-                {warning ? (
-                    <span className="flex flex-wrap items-center gap-2">
-                        <span className="text-status-warn" title={warning.title} data-agent-warning>
-                            {warning.text}
+        <DescriptionList
+            className="text-sub"
+            items={[
+                { label: "Agent", value: <span className="tnum">{metrics?.agent?.version ?? "—"}</span> },
+                { label: "Host uptime", value: <span className="tnum">{formatDuration(metrics?.host?.uptime) ?? "—"}</span> },
+                {
+                    label: "Updates",
+                    value: (
+                        <span className={updates ? TONE_TEXT[updates.tone] : "text-muted"} title={updates?.title}>
+                            {updates?.label ?? "Unknown"}
                         </span>
-                        <Button size="sm" loading={busy} onClick={() => void clear()}>
-                            Clear warnings
-                        </Button>
-                    </span>
-                ) : (
-                    <span className="text-muted">None</span>
-                )}
-                {error ? (
-                    <InlineMessage className="mt-1">{error}</InlineMessage>
-                ) : null}
-            </dd>
-        </dl>
+                    ),
+                },
+                ...(smart
+                    ? [
+                          {
+                              label: "Disk health",
+                              value: (
+                                  <span className={TONE_TEXT[smart.tone]} title={smart.title}>
+                                      {smart.text}
+                                  </span>
+                              ),
+                          },
+                      ]
+                    : []),
+                {
+                    label: "Warnings",
+                    value: (
+                        <>
+                            {warning ? (
+                                <span className="flex flex-wrap items-center gap-2">
+                                    <span className="text-status-warn" title={warning.title} data-agent-warning>
+                                        {warning.text}
+                                    </span>
+                                    <Button size="sm" loading={busy} onClick={() => void clear()}>
+                                        Clear warnings
+                                    </Button>
+                                </span>
+                            ) : (
+                                <span className="text-muted">None</span>
+                            )}
+                            {error ? <InlineMessage className="mt-1">{error}</InlineMessage> : null}
+                        </>
+                    ),
+                },
+            ]}
+        />
     );
 }
 
@@ -481,16 +492,15 @@ export function ServerDetail({
                 ) : null}
                 <LinkedWebsites monitor={monitor} monitors={monitors} />
                 <Section title="Alert thresholds">
-                    <dl className="grid grid-cols-[140px_minmax(0,1fr)] gap-x-4 gap-y-1 text-sub tnum">
-                        <dt className="text-muted">CPU</dt>
-                        <dd>{monitor.metricCpuThreshold != null ? `${monitor.metricCpuThreshold}%` : "Off"}</dd>
-                        <dt className="text-muted">RAM</dt>
-                        <dd>{monitor.metricRamThreshold != null ? `${monitor.metricRamThreshold}%` : "Off"}</dd>
-                        <dt className="text-muted">Disk</dt>
-                        <dd>{monitor.metricDiskThreshold != null ? `${monitor.metricDiskThreshold}%` : "Off"}</dd>
-                        <dt className="text-muted">Provider</dt>
-                        <dd>{monitor.provider ?? "—"}</dd>
-                    </dl>
+                    <DescriptionList
+                        className="text-sub tnum"
+                        items={[
+                            { label: "CPU", value: monitor.metricCpuThreshold != null ? `${monitor.metricCpuThreshold}%` : "Off" },
+                            { label: "RAM", value: monitor.metricRamThreshold != null ? `${monitor.metricRamThreshold}%` : "Off" },
+                            { label: "Disk", value: monitor.metricDiskThreshold != null ? `${monitor.metricDiskThreshold}%` : "Off" },
+                            { label: "Provider", value: monitor.provider ?? "—" },
+                        ]}
+                    />
                 </Section>
                 <ServerBackups monitorId={monitor.id} />
             </PageBody>
