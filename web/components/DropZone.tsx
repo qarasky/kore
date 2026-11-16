@@ -75,7 +75,7 @@ export function DropZone({ target, children }: { target: UploadTarget; children:
           aria-hidden="true"
           data-testid="drop-overlay"
           className={
-            "pointer-events-none absolute inset-0 z-20 flex items-end justify-center rounded-b-overlay pb-8 " +
+            "pointer-events-none absolute inset-0 z-(--z-sticky) flex items-end justify-center rounded-b-overlay pb-8 " +
             (over.folder ? "" : "bg-accent/[0.06] ring-2 ring-accent/70 ring-inset")
           }
         >

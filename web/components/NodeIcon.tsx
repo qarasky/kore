@@ -11,16 +11,17 @@ import {
 } from "lucide-react";
 import type { FileKind } from "@/lib/nodes";
 
-/* File-kind tints: app-specific (kore-ui has no file icons). Folder uses the accent. */
+/* File-kind tints: app-specific (kore-ui has no file icons), drawn from the theme's tokens so they stay
+   readable in Light and Dark. Folder uses the accent, as text (`accent-fg`). */
 const KIND_COLOR: Record<FileKind, string> = {
-  folder: "text-accent",
-  image: "text-[#e0a85b]",
-  video: "text-[#d77be0]",
-  audio: "text-[#5bc8e0]",
+  folder: "text-accent-fg",
+  image: "text-warning",
+  video: "text-status-maint",
+  audio: "text-chart-4",
   pdf: "text-danger",
-  archive: "text-warning",
-  code: "text-[#7fd18b]",
-  text: "text-[#a9b4c8]",
+  archive: "text-chart-1",
+  code: "text-status-up",
+  text: "text-chart-2",
   file: "text-muted",
 };
 

@@ -69,7 +69,7 @@ function CrumbLink({ space, crumb }: { space: Space; crumb: Crumb }) {
       data-drop-target={drop.active || undefined}
       className={
         "max-w-[220px] truncate rounded-ui px-2 py-1 transition-colors " +
-        (drop.active ? "bg-accent/25 text-text ring-2 ring-accent" : "text-muted hover:bg-white/5 hover:text-text")
+        (drop.active ? "bg-accent/25 text-text ring-2 ring-accent" : "text-muted hover:bg-hover hover:text-text")
       }
     >
       {crumb.name}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, EmptyState, Spinner } from "@qarasky/kore-ui";
+import { Button, EmptyState, LoadingState } from "@qarasky/kore-ui";
 import { Download } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { apiHead, isApiError } from "@/lib/api";
@@ -46,10 +46,7 @@ function useViewCheck(
 
 function Loading() {
   return (
-    <div role="status" className="absolute inset-0 flex items-center justify-center gap-2 text-muted">
-      <Spinner size={14} />
-      {t("preview.loading")}
-    </div>
+    <LoadingState label={t("preview.loading")} className="absolute inset-0 flex-none py-0" />
   );
 }
 

@@ -71,7 +71,7 @@ export function LoginImageCard({ initial }: { initial: Branding | null }) {
           ) : (
             <LoginArt className="absolute inset-0 size-full" />
           )}
-          <figcaption className="absolute bottom-2 left-2 rounded-ui bg-black/60 px-2 py-0.5 text-meta" data-testid="login-image-kind">
+          <figcaption className="absolute bottom-2 left-2 rounded-ui border border-border bg-raised/90 px-2 py-0.5 text-meta text-text" data-testid="login-image-kind">
             {src ? t("branding.custom") : t("branding.default")}
           </figcaption>
         </figure>

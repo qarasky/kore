@@ -94,7 +94,7 @@ export function SearchResults({ hits }: { hits: SearchHit[] }) {
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-auto" aria-busy={navigating || undefined}>
-      <div className={`${grid} sticky top-0 z-10 h-10 shrink-0 border-b border-border bg-surface text-meta font-medium text-muted`}>
+      <div className={`${grid} sticky top-0 z-(--z-sticky) h-10 shrink-0 border-b border-border bg-surface text-meta font-medium text-muted`}>
         <span className="pl-[calc(var(--spacing-icon)+0.625rem)]">{t("list.name")}</span>
         <span>{t("search.location")}</span>
         {showUploader && <UploaderHeader label={t("list.uploadedBy")} />}
@@ -130,7 +130,7 @@ export function SearchResults({ hits }: { hits: SearchHit[] }) {
               className={
                 `${grid} h-row cursor-default border-b border-border/60 select-none outline-none ` +
                 "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset " +
-                (selected ? "bg-accent/10 text-text" : "hover:bg-white/[0.03]")
+                (selected ? "bg-accent/10 text-text" : "hover:bg-hover-subtle")
               }
             >
               <div className="flex min-w-0 items-center gap-2.5">

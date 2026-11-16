@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Dialog, DialogBody, DialogContent, DialogFooter, Field, Input } from "@qarasky/kore-ui";
+import { Button, Dialog, DialogBody, DialogContent, DialogFooter, Field, InlineMessage, Input } from "@qarasky/kore-ui";
 import { useId, useRef, useState } from "react";
 import { adminErrorKey, type AdminUser, type UserHasFiles } from "@/lib/admin";
 import { api, isApiError } from "@/lib/api";
@@ -58,11 +58,7 @@ export function DeleteUserDialog({
     }
   }
 
-  const errorBox = error && (
-    <p role="alert" data-testid="dialog-error" className="text-meta text-danger">
-      {t(error)}
-    </p>
-  );
+  const errorBox = error && <InlineMessage data-testid="dialog-error">{t(error)}</InlineMessage>;
 
   const cancel = (
     <Button ref={cancelRef} onClick={onClose} disabled={pending}>

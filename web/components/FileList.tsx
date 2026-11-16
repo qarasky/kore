@@ -431,7 +431,7 @@ export function FileList({
           onContextMenu={onAreaContextMenu}
         >
           <div
-            className={`${grid} sticky top-0 z-10 h-10 shrink-0 border-b border-border bg-surface text-meta font-medium text-muted`}
+            className={`${grid} sticky top-0 z-(--z-sticky) h-10 shrink-0 border-b border-border bg-surface text-meta font-medium text-muted`}
           >
             <span className="pl-[calc(var(--spacing-icon)+0.625rem)]">{t("list.name")}</span>
             {showUploader && <UploaderHeader label={t("list.uploadedBy")} />}

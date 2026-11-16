@@ -1,4 +1,4 @@
-import { Card } from "@qarasky/kore-ui";
+import { Stat } from "@qarasky/kore-ui";
 import Link from "next/link";
 import { DiskCard } from "@/components/admin/DiskCard";
 import { UsageBar } from "@/components/admin/UsageBar";
@@ -33,22 +33,16 @@ export default async function AdminOverview() {
       <h2 className="sr-only">{t("admin.overview.title")}</h2>
       <DiskCard disk={disk} />
       <div className="grid grid-cols-2 gap-3">
-        <Card className="p-4">
-          <h3 className="text-meta font-medium text-muted">{t("admin.overview.totalUsed")}</h3>
-          <p data-testid="total-used" className="mt-1 text-display font-semibold tracking-[-0.02em]">
-            {formatBytes(used)}
-          </p>
-          <p className="text-meta text-muted">{t("admin.overview.allocated", { quota: formatBytes(quota) })}</p>
-        </Card>
-        <Card className="p-4">
-          <h3 className="text-meta font-medium text-muted">{t("admin.overview.users")}</h3>
-          <p data-testid="user-count" className="mt-1 text-display font-semibold tracking-[-0.02em]">
-            {usage.length}
-          </p>
-          <p className="text-meta text-muted">
-            {admins === 1 ? t("admin.overview.adminsOne") : t("admin.overview.adminsMany", { count: admins })}
-          </p>
-        </Card>
+        <Stat
+          label={t("admin.overview.totalUsed")}
+          value={<span data-testid="total-used">{formatBytes(used)}</span>}
+          hint={t("admin.overview.allocated", { quota: formatBytes(quota) })}
+        />
+        <Stat
+          label={t("admin.overview.users")}
+          value={<span data-testid="user-count">{usage.length}</span>}
+          hint={admins === 1 ? t("admin.overview.adminsOne") : t("admin.overview.adminsMany", { count: admins })}
+        />
       </div>
 
       <section aria-labelledby="usage-heading">
@@ -56,7 +50,7 @@ export default async function AdminOverview() {
           <h3 id="usage-heading" className="text-title font-semibold tracking-[-0.01em]">
             {t("admin.overview.usage")}
           </h3>
-          <Link href="/admin/users" className="text-meta text-accent hover:underline">
+          <Link href="/admin/users" className="text-meta text-accent-fg hover:underline">
             {t("admin.overview.manageUsers")}
           </Link>
         </div>
