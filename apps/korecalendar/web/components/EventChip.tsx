@@ -1,10 +1,10 @@
 "use client";
 
 import { m } from "motion/react";
-import { calendarTint } from "@/lib/colors";
 import { formatTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { duration, ease, layoutKey, spring } from "@/lib/motion";
+import { koreDuration, koreEase, tintOf } from "@qarasky/kore-ui";
+import { layoutKey, spring } from "@/lib/motion";
 import { utcToLocal } from "@/lib/tz";
 import type { Clock, Occurrence } from "@/lib/types";
 import { RepeatIcon } from "lucide-react";
@@ -37,7 +37,7 @@ export function EventChip({
   /** Seconds before it appears: a short stagger for a list that opens all at once. */
   enterDelay?: number;
 }) {
-  const tint = calendarTint(color);
+  const tint = tintOf(color);
   const title = occ.title || t("grid.untitled");
   const start = occ.all_day ? null : utcToLocal(new Date(occ.start_utc), tz);
   const time = start && start.day === day ? formatTime(start.minutes, clock) : null;
@@ -47,8 +47,8 @@ export function EventChip({
       layout={shared ? "position" : false}
       layoutId={shared ? layoutKey(occ) : undefined}
       initial={{ opacity: 0, scale: 0.96 }}
-      animate={{ opacity: dragging ? 0.4 : 1, scale: 1, transition: { duration: duration.enter, ease: ease.standard, delay: enterDelay } }}
-      exit={{ opacity: 0, scale: 0.96, transition: { duration: duration.exit, ease: ease.exit } }}
+      animate={{ opacity: dragging ? 0.4 : 1, scale: 1, transition: { duration: koreDuration.pop.in, ease: koreEase.standard, delay: enterDelay } }}
+      exit={{ opacity: 0, scale: 0.96, transition: { duration: koreDuration.pop.out, ease: koreEase.exit } }}
       transition={{ layout: spring.settle }}
       data-testid="event"
       data-event-id={occ.event_id}
@@ -61,9 +61,9 @@ export function EventChip({
       onPointerDown={onPointerDown}
       className={
         "flex min-h-5 w-full min-w-0 items-center gap-1 rounded-[4px] px-1 text-left text-2xs hover:brightness-125 " +
-        (occ.all_day ? "font-medium text-text" : "hover:bg-white/5")
+        (occ.all_day ? "font-medium text-text" : "hover:bg-hover")
       }
-      style={occ.all_day ? { backgroundColor: tint.bg, boxShadow: `inset 3px 0 0 ${tint.edge}`, paddingLeft: "0.5rem" } : undefined}
+      style={occ.all_day ? { backgroundColor: tint.background, boxShadow: `inset 3px 0 0 ${tint.edge}`, paddingLeft: "0.5rem" } : undefined}
     >
       {occ.all_day ? null : <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: tint.edge }} />}
       {time ? <span className="shrink-0 text-muted">{time}</span> : null}

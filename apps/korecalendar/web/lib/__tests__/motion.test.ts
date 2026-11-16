@@ -1,23 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { duration, ease, pushDirection, reducedMotionFor, spring, staggerDelay, viewEnter } from "@/lib/motion";
+import { pushDirection, reducedMotionFor, spring, staggerDelay, viewEnter } from "@/lib/motion";
 
-describe("the motion scale (docs/superpowers/specs/2026-11-02-web-motion-design.md)", () => {
-  it("keeps every duration within the 100-250 ms band the references allow, entering slower than leaving", () => {
-    for (const d of Object.values(duration).flatMap((v) => (typeof v === "number" ? [v] : [v.in, v.out]))) {
-      expect(d).toBeGreaterThanOrEqual(0.1);
-      expect(d).toBeLessThanOrEqual(0.25);
-    }
-    expect(duration.dialog.in).toBeGreaterThan(duration.dialog.out);
-    expect(duration.drawer.in).toBeGreaterThan(duration.drawer.out);
-    expect(duration.enter).toBeGreaterThan(duration.exit);
-    expect(duration.feedback).toBeLessThanOrEqual(0.1); // NN/g: simple feedback ~100 ms
-  });
-
-  it("uses the Material standard curve to enter and its accelerate curve to leave", () => {
-    expect(ease.standard).toEqual([0.2, 0, 0, 1]);
-    expect(ease.exit).toEqual([0.3, 0, 0.8, 0.15]);
-  });
-
+describe("the motion springs", () => {
   it("never lets a spring overshoot (critically damped: damping >= 2*sqrt(stiffness*mass))", () => {
     expect(spring.settle.damping).toBeGreaterThanOrEqual(2 * Math.sqrt(spring.settle.stiffness * (spring.settle.mass ?? 1)) - 0.5);
   });

@@ -75,13 +75,8 @@ export function AccountMenu() {
         signOut: t("account.signOut"),
       }}
     >
-      <MenuItem asChild>
-        <Link href="/settings">
-          <span aria-hidden="true" className="flex w-4 justify-center text-muted">
-            <Settings />
-          </span>
-          <span className="min-w-0 flex-1 truncate">{t("nav.settings")}</span>
-        </Link>
+      <MenuItem asChild icon={<Settings />}>
+        <Link href="/settings">{t("nav.settings")}</Link>
       </MenuItem>
       <MenuItem icon={<Keyboard />} onSelect={() => window.dispatchEvent(new Event(OPEN_SHORTCUTS_EVENT))}>
         {t("account.shortcuts")}

@@ -1,28 +1,9 @@
 /**
- * The motion scale: durations, easing, springs and the small pure helpers the
- * animated components share. Every number here is argued for in
- * docs/superpowers/specs/2026-11-02-web-motion-design.md. Pure: no React.
+ * The app's own motion: springs and the small pure helpers the animated
+ * components share. Durations and easing come from kore-ui (`koreDuration`,
+ * `koreEase`). Pure: no React.
  */
 import type { MotionPref } from "./prefs";
-
-/** Seconds. Nothing is longer than 250 ms; entering is slower than leaving. */
-export const duration = {
-  /** Hover, press, checkbox, switch, colour: "simple feedback ~100 ms". */
-  feedback: 0.1,
-  /** Popovers, menus, an event block appearing. */
-  enter: 0.16,
-  exit: 0.1,
-  /** A period or view change. */
-  view: 0.2,
-  dialog: { in: 0.22, out: 0.14 },
-  drawer: { in: 0.25, out: 0.18 },
-} as const;
-
-/** Material 3 standard (fast start, long gentle settle) to enter; accelerate to leave. */
-export const ease = {
-  standard: [0.2, 0, 0, 1] as [number, number, number, number],
-  exit: [0.3, 0, 0.8, 0.15] as [number, number, number, number],
-};
 
 /** Critically damped: things settle, they do not bounce. */
 export const spring = {

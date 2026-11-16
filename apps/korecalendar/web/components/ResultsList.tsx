@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { groupByStartDay } from "@/lib/agenda";
-import { calendarTint } from "@/lib/colors";
+import { DEFAULT_CALENDAR_COLOR } from "@/lib/colors";
+import { tintOf } from "@qarasky/kore-ui";
 import { parseDay } from "@/lib/dates";
 import { formatDayShort, formatTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -28,14 +29,14 @@ export function ResultsList({ occurrences }: { occurrences: Occurrence[] }) {
           </h2>
           <ul>
             {items.map((occ) => {
-              const tint = calendarTint(colors.get(occ.calendar_id) ?? "#5b8def");
+              const tint = tintOf(colors.get(occ.calendar_id) ?? DEFAULT_CALENDAR_COLOR);
               const time = occ.all_day ? t("agenda.allDay") : formatTime(utcToLocal(new Date(occ.start_utc), tz).minutes, prefs.clock);
               return (
                 <li key={occ.event_id + occ.key}>
                   <Link
                     href={calendarHref("day", day)}
                     data-testid="result"
-                    className="flex min-h-control items-center gap-3 rounded-ui px-2 hover:bg-white/5"
+                    className="flex min-h-control items-center gap-3 rounded-ui px-2 hover:bg-hover"
                   >
                     <span aria-hidden="true" className="h-5 w-1 shrink-0 rounded-full" style={{ backgroundColor: tint.edge }} />
                     <span className="w-24 shrink-0 text-sub text-muted tabular-nums">{time}</span>
