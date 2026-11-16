@@ -275,3 +275,16 @@ test.skipIf(!Bun.which("opencode"))("a model saves a note through OpenCode and K
     expect(services.chats.get(u, here.id)!.messages.at(-1)!.activity).toHaveLength(2);
   } finally { engine.close(); mock.stop(); koremind.stop(); }
 }, 120_000);
+
+test("the assistant's style rules (tuned against DeepSeek V4.1 Flash at High) are in its prompt", () => {
+  for (const rule of [
+    "lead with the answer or the artefact",
+    "Reply in the language the user writes in",
+    "never invent versions, flags, prices or facts",
+    "do not announce that you are about to search",
+    "give the complete file, not a patch",
+    "Do not pad",
+    "never invent traits or details about them",
+    "a greeting or a casual remark gets a sentence or two of plain prose, never a list",
+  ]) expect(AGENT_SYSTEM).toContain(rule);
+});
