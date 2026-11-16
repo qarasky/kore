@@ -15,7 +15,24 @@ export function parseServerBanner(out: string): { url: string; password: string 
 type Raw = { type: string; data?: any };
 
 /** Maps one raw server event to engine events for the given engine session. Unknown events map to []. */
-export function mapEvent(sessionId: string, raw: Raw): EngineEvent[] {
+/** Pages named by a web search result: OpenCode 2.2 returns Markdown whose results are `## [Title](https://…)` headings. */
+export function searchSources(content: unknown): { title: string; url: string }[] {
+  const text = Array.isArray(content) ? content.map((c: any) => (typeof c?.text === "string" ? c.text : "")).join("\n") : "";
+  const seen = new Set<string>(), out: { title: string; url: string }[] = [];
+  for (const m of text.matchAll(/^#{1,6}\s*\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gm)) {
+    if (seen.has(m[2])) continue;
+    seen.add(m[2]);
+    out.push({ title: m[1].trim(), url: m[2] });
+    if (out.length === 8) break;
+  }
+  return out;
+}
+
+/**
+ * `ctx` remembers which tool the current call is: OpenCode 2.2 names it only on `input.started` (`{name}`), and the later
+ * events of that call (`called`, `success`) carry no name. Older servers put `tool` on every event; both work.
+ */
+export function mapEvent(sessionId: string, raw: Raw, ctx: { tool?: string } = {}): EngineEvent[] {
   const d = raw.data ?? {};
   if (d.sessionID !== sessionId) return [];
   switch (raw.type) {
@@ -28,13 +45,19 @@ export function mapEvent(sessionId: string, raw: Raw): EngineEvent[] {
       const noProvider = typeof err.type === "string" && err.type.startsWith("provider.free-limit");
       return [noProvider ? { type: "error", message: String(err.message ?? "Provider unavailable"), noProvider: true } : { type: "error", message: String(err.message ?? "Engine error") }];
     }
+    case "session.tool.input.started":
+      ctx.tool = typeof d.name === "string" ? d.name : undefined;
+      return ctx.tool === "websearch" ? [{ type: "status", state: "searching" }] : [];
     case "session.tool.called":
     case "session.tool.started":
       return d.tool === "websearch" ? [{ type: "status", state: "searching" }] : [];
     case "session.tool.success": {
+      const tool = d.tool ?? ctx.tool;
+      ctx.tool = undefined;
+      if (tool !== "websearch") return [];
       const results = d.structured?.results;
-      if (d.tool !== "websearch" || !Array.isArray(results)) return [];
-      return results.filter((r: any) => r?.url).map((r: any) => ({ type: "source", title: String(r.title ?? r.url), url: String(r.url) }) as EngineEvent);
+      const found = Array.isArray(results) ? results.filter((r: any) => r?.url).map((r: any) => ({ title: String(r.title ?? r.url), url: String(r.url) })) : searchSources(d.content);
+      return found.map((r) => ({ type: "source", title: r.title, url: r.url }) as EngineEvent);
     }
     default:
       return [];
@@ -244,7 +267,8 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
     pumps.add(pump);
     const set = listeners.get(a.sessionId) ?? new Set();
     listeners.set(a.sessionId, set);
-    const onRaw = (raw: Raw) => { pump.touch(); for (const ev of mapEvent(a.sessionId, raw)) pump.push(ev); };
+    const tool: { tool?: string } = {};
+    const onRaw = (raw: Raw) => { pump.touch(); for (const ev of mapEvent(a.sessionId, raw, tool)) pump.push(ev); };
     set.add(onRaw);
     const onAbort = () => { void call("POST", `/api/session/${a.sessionId}/interrupt`).catch(() => {}); pump.close(); };
     a.signal.addEventListener("abort", onAbort);

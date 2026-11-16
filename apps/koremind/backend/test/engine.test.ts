@@ -61,6 +61,38 @@ test("mapEvent shows searching and sources for the web search tool", () => {
   ).toEqual([{ type: "source", title: "Bun", url: "https://bun.sh" }]);
 });
 
+test("OpenCode 2.2's web search: the tool name arrives on input.started, the results as Markdown links", () => {
+  const ctx: { tool?: string } = {};
+  const ev = (type: string, data: object) => mapEvent("s1", { type, data: { sessionID: "s1", ...data } }, ctx);
+  expect(ev("session.tool.input.started", { name: "websearch" })).toEqual([{ type: "status", state: "searching" }]);
+  expect(ev("session.tool.called", { input: { query: "bun" }, executed: false })).toEqual([]); // already announced
+  expect(ev("session.tool.progress", { metadata: { provider: "parallel" } })).toEqual([]);
+  const md = "## [Releases · oven-sh/bun · GitHub](https://github.com/oven-sh/bun/releases)\n\nMore items [](github.com/oven-sh/bun)\n\n[Tags](github.com/oven-sh/bun/tags)\n\n## [Bun v1.4](https://bun.sh/blog/bun-v1.4)\n\ntext\n\n## [Releases · oven-sh/bun · GitHub](https://github.com/oven-sh/bun/releases)";
+  expect(ev("session.tool.success", { content: [{ type: "text", text: md }], metadata: {} })).toEqual([
+    { type: "source", title: "Releases · oven-sh/bun · GitHub", url: "https://github.com/oven-sh/bun/releases" },
+    { type: "source", title: "Bun v1.4", url: "https://bun.sh/blog/bun-v1.4" },
+  ]); // only full https headings, once each
+  expect(ctx.tool).toBeUndefined(); // the call is over
+});
+
+test("another tool's events (notes) never show as searching or as sources", () => {
+  const ctx: { tool?: string } = {};
+  const ev = (type: string, data: object) => mapEvent("s1", { type, data: { sessionID: "s1", ...data } }, ctx);
+  expect(ev("session.tool.input.started", { name: "koremind_save_note" })).toEqual([]);
+  expect(ev("session.tool.called", { input: {}, executed: false })).toEqual([]);
+  expect(ev("session.tool.success", { content: [{ type: "text", text: "## [Looks like a link](https://x.test)" }] })).toEqual([]);
+});
+
+test("a search result with no links, or more than eight, is handled", () => {
+  const ctx: { tool?: string } = {};
+  const ev = (type: string, data: object) => mapEvent("s1", { type, data: { sessionID: "s1", ...data } }, ctx);
+  ev("session.tool.input.started", { name: "websearch" });
+  expect(ev("session.tool.success", { content: [{ type: "text", text: "nothing useful here" }] })).toEqual([]);
+  ev("session.tool.input.started", { name: "websearch" });
+  const many = Array.from({ length: 12 }, (_, i) => `## [Page ${i}](https://e.test/${i})`).join("\n\n");
+  expect(ev("session.tool.success", { content: [{ type: "text", text: many }] })).toHaveLength(8);
+});
+
 test("mapModels keeps opencode models only, marks vision, variants and one default", () => {
   const providers = mapModels(
     [{ id: "opencode", name: "OpenCode" }],
