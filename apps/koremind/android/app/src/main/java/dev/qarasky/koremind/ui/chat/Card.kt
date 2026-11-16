@@ -107,14 +107,14 @@ fun parseCard(raw: String): Card? {
 
 private val NUMBER = Regex("""^[~≈+\-−(]?\d[\d.,]*(%|[KMBkmb]|[x×])?([–—-][~≈]?\d[\d.,]*(%|[KMBkmb]|[x×])?)?\)?$""")
 private val CURRENCY = Regex("[€$£¥₸₽]")
-private val SPACES = Regex("(?U)\\s+")
 
 /** True when every non-empty cell of column [i] is a number, amount, range or dash: those columns are right-aligned. */
 fun isNumericColumn(rows: List<List<String>>, i: Int): Boolean {
     val cells = rows.mapNotNull { it.getOrNull(i) }.filter { it.trim().isNotEmpty() }
     if (cells.isEmpty()) return false
     return cells.all { c ->
-        val t = c.replace(CURRENCY, "").replace(SPACES, "").trim()
+        // Android's regex engine lacks the Unicode-class flag the JVM has, so whitespace (including no-break spaces, which JS \s also covers) is dropped by hand.
+        val t = c.replace(CURRENCY, "").filterNot { it.isWhitespace() }
         t.length == 1 && t[0] in "—–-" || NUMBER.matches(t)
     }
 }

@@ -104,6 +104,29 @@ fun ListView(items: List<ListItem>) {
 // ---- tables ----
 
 /**
+ * Column widths (dp) for a table that should fit the screen when it can: each column wants its natural width, but they are scaled to
+ * the [available] width, a column never goes below [minWidth], and only when even the minimums don't fit does the table scroll sideways.
+ */
+fun fitColumns(natural: List<Int>, available: Int, minWidth: Int = 88): List<Int> {
+    if (natural.isEmpty()) return emptyList()
+    val fixed = BooleanArray(natural.size)
+    var width = IntArray(natural.size) { 0 }
+    while (true) {
+        val free = available - fixed.indices.filter { fixed[it] }.sumOf { minWidth }
+        val flexNatural = natural.indices.filter { !fixed[it] }.sumOf { natural[it] }
+        if (flexNatural == 0) break
+        var newlyFixed = false
+        for (i in natural.indices) if (!fixed[i]) {
+            width[i] = natural[i] * free / flexNatural
+            if (width[i] < minWidth) { fixed[i] = true; newlyFixed = true }
+        }
+        if (!newlyFixed) break
+    }
+    for (i in natural.indices) if (fixed[i]) width[i] = minWidth
+    return width.toList()
+}
+
+/**
  * A table that scrolls sideways when it is wider than the screen and fills the width when it is not.
  * [explicit] is the alignment written in the Markdown (null = decide: first column left, number columns right).
  */
@@ -116,9 +139,7 @@ fun DataTable(header: List<AnnotatedString>, rows: List<List<AnnotatedString>>, 
     // Width follows the longest cell, roughly: a Text can't be measured before layout, and a table needs equal columns on every row.
     val natural = (0 until cols).map { c -> ((rows.map { cell(it, c).length } + header[c].length).max() * 8 + 28).coerceIn(64, 220) }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val total = natural.sum()
-        val scale = if (total < maxWidth.value) maxWidth.value / total else 1f
-        val widths: List<Dp> = natural.map { (it * scale).dp }
+        val widths: List<Dp> = fitColumns(natural, maxWidth.value.toInt()).map { it.dp }
         Column(Modifier.horizontalScroll(rememberScrollState())) {
             @Composable fun line(cells: List<AnnotatedString>, weight: FontWeight, color: Color) {
                 Row {

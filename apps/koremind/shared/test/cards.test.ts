@@ -20,4 +20,5 @@ test("numeric columns are right-aligned, text columns are not", () => {
   expect(isNumericColumn([["12"], ["n/a"]], 0)).toBe(false);
   expect(isNumericColumn([], 0)).toBe(false);
   expect(isNumericColumn([["12"], []], 0)).toBe(true); // a short row doesn't decide
+  expect(isNumericColumn([["60\u00a0000"], ["€\u202f6 667"]], 0)).toBe(true); // no-break and thin spaces are spaces
 });

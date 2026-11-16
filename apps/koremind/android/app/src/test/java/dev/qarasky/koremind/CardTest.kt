@@ -86,5 +86,15 @@ class CardTest {
         assertFalse(isNumericColumn(listOf(listOf("12"), listOf("n/a")), 0))
         assertFalse(isNumericColumn(emptyList(), 0))
         assertTrue(isNumericColumn(listOf(listOf("12"), emptyList()), 0)) // a short row doesn't decide
+        assertTrue(isNumericColumn(listOf(listOf("60\u00A0000"), listOf("€\u202F6 667")), 0)) // no-break and thin spaces are spaces
+    }
+
+    /** The JVM accepts regex flags that Android's engine rejects at runtime ((?U) crashed the app on first card); keep them out. */
+    @Test fun `no regex flag that Android's engine lacks`() {
+        var dir: File? = File(System.getProperty("user.dir")!!).absoluteFile
+        while (dir != null && !File(dir, "app/src/main").exists() && !File(dir, "android/app/src/main").exists()) dir = dir.parentFile
+        val main = listOf(File(dir, "app/src/main"), File(dir, "android/app/src/main")).first { it.exists() }
+        val bad = main.walkTopDown().filter { it.extension == "kt" }.filter { f -> f.readText().let { "UNICODE_CHARACTER_CLASS" in it || "(?U)" in it } }.map { it.name }.toList()
+        assertEquals(emptyList<String>(), bad)
     }
 }
