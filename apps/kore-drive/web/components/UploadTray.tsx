@@ -33,7 +33,7 @@ export function UploadTray({ queue }: { queue: UploadQueue }) {
       aria-label={t("upload.tray")}
       data-testid="upload-tray"
       className={
-        "fixed right-4 bottom-4 z-50 w-[min(400px,calc(100vw-32px))] overflow-hidden rounded-overlay border border-border-strong bg-raised " +
+        "fixed right-4 bottom-4 z-(--z-overlay) w-[min(400px,calc(100vw-32px))] overflow-hidden rounded-overlay border border-border-strong bg-raised " +
         "shadow-overlay"
       }
     >

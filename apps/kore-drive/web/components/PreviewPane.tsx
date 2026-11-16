@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Dialog, DialogContent, EmptyState, IconButton, Spinner } from "@qarasky/kore-ui";
+import { Button, Dialog, DialogContent, EmptyState, IconButton, LoadingState } from "@qarasky/kore-ui";
 import { ChevronLeft, ChevronRight, Download, ListOrdered, Maximize2, WrapText } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { apiText, isApiError } from "@/lib/api";
@@ -257,10 +257,7 @@ export function PreviewBody({
 
   if (loaded.status === "loading") {
     return (
-      <div role="status" className="flex h-full items-center justify-center gap-2 text-muted">
-        <Spinner size={14} />
-        {t("preview.loading")}
-      </div>
+      <LoadingState label={t("preview.loading")} className="h-full py-0" />
     );
   }
   if (loaded.status !== "ok") {
@@ -290,7 +287,7 @@ export function PreviewBody({
       {loaded.truncated && (
         <div
           data-testid="preview-truncated"
-          className="sticky top-0 left-0 z-10 flex items-center gap-2 border-b border-border bg-raised px-4 py-2 text-meta"
+          className="sticky top-0 left-0 z-(--z-sticky) flex items-center gap-2 border-b border-border bg-raised px-4 py-2 text-meta"
         >
           <span>{t("preview.truncated", { size: formatBytes(PREVIEW_MAX_BYTES) })}</span>
           <Button variant="link" className="text-meta" onClick={() => onDownload(node)}>

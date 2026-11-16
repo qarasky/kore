@@ -146,7 +146,7 @@ export function MoveDialog({
                       <button
                         type="button"
                         onClick={() => go(path.slice(0, i))}
-                        className="truncate rounded-ui px-1.5 py-0.5 text-muted transition-colors hover:bg-white/5 hover:text-text"
+                        className="truncate rounded-ui px-1.5 py-0.5 text-muted transition-colors hover:bg-hover hover:text-text"
                       >
                         {c.name}
                       </button>
@@ -196,7 +196,7 @@ export function MoveDialog({
                         onClick={() => go([...path, { id: f.id, name: f.name }])}
                         className={
                           "flex min-h-control w-full items-center gap-3 px-3.5 text-left outline-none " +
-                          "hover:bg-white/[0.04] focus-visible:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
+                          "hover:bg-hover-subtle focus-visible:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
                         }
                       >
                         <NodeIcon kind="folder" />

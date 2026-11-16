@@ -80,7 +80,7 @@ export function FileRow({
           ? "bg-accent/25 text-text ring-2 ring-accent ring-inset"
           : selected
             ? "bg-accent/10 text-text hover:bg-accent/15"
-            : "hover:bg-white/[0.03]")
+            : "hover:bg-hover-subtle")
       }
     >
       <div className="flex min-w-0 items-center gap-2.5">
@@ -91,7 +91,7 @@ export function FileRow({
           </span>
         )}
         {node.shared && !editor && (
-          <span data-testid="shared-badge" title={t("list.sharedBadge")} className="shrink-0 text-accent">
+          <span data-testid="shared-badge" title={t("list.sharedBadge")} className="shrink-0 text-accent-fg">
             <Link2 aria-hidden="true" className="size-3.5" />
             <span className="sr-only">{t("list.sharedBadge")}</span>
           </span>

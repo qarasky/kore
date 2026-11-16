@@ -49,7 +49,7 @@ function DropLink({ className, ...props }: LinkProps) {
       {...props}
       {...drop?.props}
       data-drop-target={drop?.active || undefined}
-      className={cn(className, drop?.active && "bg-accent/25 text-text ring-2 ring-accent [&>span:first-child]:text-accent")}
+      className={cn(className, drop?.active && "bg-accent/25 text-text ring-2 ring-accent [&>span:first-child]:text-accent-fg")}
     />
   );
 }

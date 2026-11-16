@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Dialog, DialogBody, DialogContent, Spinner } from "@qarasky/kore-ui";
+import { Button, Dialog, DialogBody, DialogContent, LoadingState } from "@qarasky/kore-ui";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
@@ -49,10 +49,7 @@ export function StorageDialog({ onClose }: { onClose: () => void }) {
       >
         <DialogBody className="pb-5">
           {state.status === "loading" ? (
-            <p role="status" className="flex items-center gap-2 text-muted">
-              <Spinner size={14} />
-              {t("storage.loading")}
-            </p>
+            <LoadingState label={t("storage.loading")} className="justify-start p-0" />
           ) : state.status === "error" ? (
             <div role="alert" className="flex flex-col items-start gap-3">
               <p>{t("storage.error")}</p>
@@ -83,7 +80,7 @@ function BreakdownView({ data, onNavigate }: { data: Breakdown; onNavigate: () =
         <p className="text-title font-semibold tabular-nums">
           {t("storage.used", { used: formatBytes(used), quota: formatBytes(data.quota_bytes) })}
         </p>
-        <div aria-hidden="true" className="mt-2 flex h-2 overflow-hidden rounded-full bg-border">
+        <div aria-hidden="true" className="mt-2 flex h-2 overflow-hidden rounded-full bg-track">
           {used > 0 &&
             data.categories.map((c) => (
               <div
@@ -118,7 +115,7 @@ function BreakdownView({ data, onNavigate }: { data: Breakdown; onNavigate: () =
                         {t("storage.percent", { percent: Math.round(share) })}
                       </span>
                     </div>
-                    <div aria-hidden="true" className="mt-1 h-1.5 overflow-hidden rounded-full bg-border">
+                    <div aria-hidden="true" className="mt-1 h-1.5 overflow-hidden rounded-full bg-track">
                       <div className="h-full rounded-full" style={{ width: `${share}%`, background: categoryColor(c.key) }} />
                     </div>
                   </li>
@@ -167,7 +164,7 @@ function BreakdownView({ data, onNavigate }: { data: Breakdown; onNavigate: () =
                     <Link
                       href={largestHref(f)}
                       onClick={onNavigate}
-                      className="flex items-center gap-2.5 rounded-ui px-2 py-1.5 hover:bg-white/[0.04]"
+                      className="flex items-center gap-2.5 rounded-ui px-2 py-1.5 hover:bg-hover-subtle"
                     >
                       <NodeIcon kind={fileKind({ is_dir: false, name: f.name, mime: "" })} />
                       <span className="min-w-0 flex-1 truncate" title={f.name}>

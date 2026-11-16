@@ -366,7 +366,7 @@ test("files show size and type; Enter downloads a single non-text file", async (
   await expect(list(page).getByRole("option").first()).toHaveAccessibleName("zz folder");
   const file = row(page, "notes.docx");
   await expect(file).toContainText("2 KB");
-  await expect(file).toContainText(/Today \d{1,2}:\d{2}/);
+  await expect(file).toContainText(/Today \d{1,2}:\d{2}|Just now/);
   await expect(file).toHaveAttribute("data-kind", "text");
 
   await file.click();

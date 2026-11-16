@@ -20,6 +20,16 @@ describe("storage categories", () => {
     expect(colors.size).toBe(CATEGORY_KEYS.length);
   });
 
+  it("draw from kore-ui theme tokens (so they follow the theme), not typed colours", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const css = await readFile(new URL("../../node_modules/@qarasky/kore-ui/theme.css", import.meta.url), "utf8");
+    for (const k of CATEGORY_KEYS) {
+      const m = /^var\((--color-[\w-]+)\)$/.exec(categoryColor(k));
+      expect(m, k).not.toBeNull();
+      expect(css, k).toContain(`${m?.[1]}:`);
+    }
+  });
+
   it("falls back for an unknown key from a newer server", () => {
     expect(categoryLabelKey("holograms")).toBe(categoryLabelKey("other"));
     expect(categoryColor("holograms")).toBe(categoryColor("other"));

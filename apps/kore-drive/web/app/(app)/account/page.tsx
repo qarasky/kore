@@ -1,4 +1,4 @@
-import { Button, Meter, PageBody, PageHeader, SettingsSection } from "@qarasky/kore-ui";
+import { Button, InlineMessage, Meter, PageBody, PageHeader, SettingsSection, ThemeSwitcher } from "@qarasky/kore-ui";
 import { api } from "@/lib/api";
 import { getAuthConfig } from "@/lib/authConfig";
 import { formatBytes } from "@/lib/format";
@@ -47,12 +47,24 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
           </p>
         </SettingsSection>
 
+        <SettingsSection title={t("appearance.title")} description={t("appearance.hint")}>
+          <ThemeSwitcher
+            aria-label={t("appearance.group")}
+            labels={{
+              color: { name: t("appearance.color.name"), description: t("appearance.color.description") },
+              light: { name: t("appearance.light.name"), description: t("appearance.light.description") },
+              dark: { name: t("appearance.dark.name"), description: t("appearance.dark.description") },
+              system: { name: t("appearance.system.name"), description: t("appearance.system.description") },
+            }}
+          />
+        </SettingsSection>
+
         {auth.oidc ? (
           <SettingsSection title={t("account.sso.title")} description={t("account.sso.hint")}>
             {sso ? (
-              <p role="status" data-testid="account-sso-result" className={`text-meta ${sso.ok ? "text-muted" : "text-danger"}`}>
+              <InlineMessage tone={sso.ok ? "muted" : "danger"} data-testid="account-sso-result">
                 {t(sso.key)}
-              </p>
+              </InlineMessage>
             ) : null}
             <div>
               <Button asChild>

@@ -27,18 +27,19 @@ export type Breakdown = {
 const isKey = (k: string): k is CategoryKey => (CATEGORY_KEYS as readonly string[]).includes(k);
 
 /**
- * One hue per category, spaced around the accent (#5b8def, "images") at a
- * similar lightness, so each bar keeps at least 3:1 contrast against the
- * raised surface (#23262d); "other" is the neutral muted grey.
+ * One theme token per category, as a CSS variable so the bars follow the
+ * theme (the accent for "images", the violet of "maintenance" for video, the
+ * chart series, the warning amber, the neutral muted grey for "other").
+ * Used in inline styles, where Tailwind classes can't be built from the key.
  */
 const COLORS: Record<CategoryKey, string> = {
-  images: "#5b8def",
-  video: "#a77ff0",
-  audio: "#e27bb7",
-  documents: "#4fbfa6",
-  archives: "#e5a54b",
-  code: "#8ec46a",
-  other: "#8a8f9a",
+  images: "var(--color-accent)",
+  video: "var(--color-status-maint)",
+  audio: "var(--color-chart-4)",
+  documents: "var(--color-chart-2)",
+  archives: "var(--color-warning)",
+  code: "var(--color-status-up)",
+  other: "var(--color-muted)",
 };
 
 export function categoryColor(key: string): string {

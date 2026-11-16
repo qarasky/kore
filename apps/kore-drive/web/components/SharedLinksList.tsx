@@ -67,7 +67,7 @@ export function SharedLinksList({ shares }: { shares: Share[] }) {
 
   return (
     <div className="min-h-0 flex-1 overflow-auto">
-      <div className={`${GRID} sticky top-0 z-10 h-10 border-b border-border bg-surface text-meta font-medium text-muted`}>
+      <div className={`${GRID} sticky top-0 z-(--z-sticky) h-10 border-b border-border bg-surface text-meta font-medium text-muted`}>
         <span className="pl-[26px]">{t("sharedLinks.item")}</span>
         <span>{t("sharedLinks.status")}</span>
         <span>{t("sharedLinks.created")}</span>
@@ -91,7 +91,7 @@ export function SharedLinksList({ shares }: { shares: Share[] }) {
                 if (el) rowRefs.current.set(s.id, el);
                 else rowRefs.current.delete(s.id);
               }}
-              className={`${GRID} min-h-row border-b border-border/60 py-1 hover:bg-white/[0.03]`}
+              className={`${GRID} min-h-row border-b border-border/60 py-1 hover:bg-hover-subtle`}
             >
               <div className="flex min-w-0 items-center gap-2.5">
                 <NodeIcon kind={s.is_dir ? "folder" : "file"} />
