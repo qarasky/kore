@@ -1,11 +1,10 @@
 "use client";
-import { Badge, Button, IconButton, Input, Kbd, Popover, PopoverContent, PopoverTrigger, Tooltip, cn } from "@qarasky/kore-ui";
+import { Badge, Button, IconButton, Input, Kbd, Popover, PopoverContent, PopoverTrigger, ToggleButton, Tooltip, cn } from "@qarasky/kore-ui";
 import { Check, ChevronDown, Search, Star } from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { ProviderIcon } from "./ProviderIcon";
-import { ToggleChip } from "./ToggleChip";
 import { useModelChoice } from "@/lib/contexts";
 import { spring } from "@/lib/motion";
 import { chipLabel, filterModels, initialRail, railDimmed, railNotice, railProviders, thinkingLabel } from "@/lib/model-picker";
@@ -43,7 +42,7 @@ export function ModelPicker() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" className="gap-1 px-2 text-meta font-normal text-muted hover:text-text data-[state=open]:bg-white/5" aria-label={chipLabel(name, choice?.thinking)}>
+        <Button variant="ghost" size="sm" className="gap-1 px-2 text-meta font-normal text-muted hover:text-text data-[state=open]:bg-hover" aria-label={chipLabel(name, choice?.thinking)}>
           <span className="max-w-40 truncate text-text">{name}</span>
           {choice?.thinking && <span>{thinkingLabel(choice.thinking)}</span>}
           <ChevronDown aria-hidden className="size-3.5" />
@@ -78,7 +77,7 @@ export function ModelPicker() {
               const fav = favorites.includes(r.key);
               return (
                 <motion.li key={r.key} initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.12, delay: Math.min(i, 8) * 0.012 }}
-                  className={cn("flex min-h-control items-center gap-1 rounded-ui pr-1 transition-colors", active ? "bg-accent/10" : "hover:bg-white/5")}>
+                  className={cn("flex min-h-control items-center gap-1 rounded-ui pr-1 transition-colors", active ? "bg-accent/10" : "hover:bg-hover")}>
                   <button type="button" onClick={() => pick(r.providerId, r.model.id)} aria-current={active || undefined} className="flex min-h-control min-w-0 flex-1 items-center gap-2 rounded-ui px-2 text-left text-sub">
                     <span className="truncate">{r.model.name}</span>
                     {r.model.free && <Badge>{t.freeTag}</Badge>}
@@ -96,7 +95,7 @@ export function ModelPicker() {
               <div id="thinking-level" className="mb-1.5 text-meta font-medium text-muted">{t.thinkingLevel}</div>
               <div className="flex flex-wrap gap-1">
                 {[undefined, ...levels].map((l) => (
-                  <ToggleChip key={l ?? "default"} pressed={choice?.thinking === l} onClick={() => setThinking(l)}>{l ? thinkingLabel(l) : t.thinkingDefault}</ToggleChip>
+                  <ToggleButton key={l ?? "default"} pressed={choice?.thinking === l} onPressedChange={() => setThinking(l)}>{l ? thinkingLabel(l) : t.thinkingDefault}</ToggleButton>
                 ))}
               </div>
             </div>
@@ -111,7 +110,7 @@ function RailButton({ active, dimmed = false, label, onClick, children }: { acti
   return (
     <Tooltip content={label} side="right">
       <button type="button" onClick={onClick} aria-label={label} aria-pressed={active}
-        className={cn("relative grid size-control place-items-center rounded-ui text-text transition-colors hover:bg-white/5", active && "bg-white/5", dimmed && "text-muted opacity-50 hover:opacity-80")}>
+        className={cn("relative grid size-control place-items-center rounded-ui text-text transition-colors", active ? "bg-active" : "hover:bg-hover", dimmed && "text-muted opacity-50 hover:opacity-80")}>
         {children}
         {active && <motion.span layoutId="rail-marker" transition={spring} className="absolute -left-2 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-accent" />}
       </button>

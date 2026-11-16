@@ -50,11 +50,8 @@ export function AppFrame({ children }: { children: ReactNode }) {
                   onSignOut={signOut}
                   labels={{ menu: t.account, account: t.koreIdAccount, switchApp: t.switchApp, signOut: t.signOut }}
                 >
-                  <MenuItem asChild>
-                    <Link href="/settings">
-                      <span aria-hidden="true" className="flex w-4 justify-center text-muted"><Settings /></span>
-                      <span className="min-w-0 flex-1 truncate">{t.settings}</span>
-                    </Link>
+                  <MenuItem asChild icon={<Settings />}>
+                    <Link href="/settings">{t.settings}</Link>
                   </MenuItem>
                 </AccountMenu>
               )}
@@ -64,8 +61,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
       }
       sidebar={
         <Sidebar header={<Button asChild variant="primary"><Link href="/"><Plus aria-hidden />{t.newChat}</Link></Button>}>
-          <SidebarNav label={t.chats} title={t.chats}>
-            {chats.length === 0 && <li className="px-3 py-2 text-meta text-muted">{t.noChats}</li>}
+          <SidebarNav label={t.chats} title={t.chats} empty={t.noChats}>
             {chats.map((c) => <ChatItem key={c.id} chat={c} active={path === `/c/${c.id}`} onDelete={() => setDeleting(c)} />)}
           </SidebarNav>
         </Sidebar>

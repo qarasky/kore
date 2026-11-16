@@ -1,6 +1,6 @@
 "use client";
 import { dedupeSources, sourceHost, type Activity, type ChatMessage } from "@koremind/shared";
-import { Badge, Button, Card, IconButton, cn } from "@qarasky/kore-ui";
+import { Alert, Badge, Button, IconButton, badgeVariants, cn } from "@qarasky/kore-ui";
 import { BookOpen, Brain, BrainCircuit, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileText, Globe, Lock, Pencil, RefreshCw, StickyNote, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type UIEvent, type WheelEvent } from "react";
@@ -184,13 +184,17 @@ function Assistant({ text, sources, status, activity = [], approvals = [], expir
       <AnimatePresence initial={false}>
         {approvals.map((a) => (
           <motion.div key={a.id} layout initial={{ opacity: 0, y: 8, height: 0 }} animate={{ opacity: 1, y: 0, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={quick} className="overflow-hidden" role="alertdialog" aria-label={approvalText(a)}>
-            <Card className="border-warning/40 p-4">
-              <p>{approvalText(a)}</p>
-              <div className="mt-3 flex gap-2">
-                <Button variant="primary" size="sm" onClick={() => onApproval?.(a.id, true)}>{t.approvalAllow}</Button>
-                <Button size="sm" onClick={() => onApproval?.(a.id, false)}>{t.approvalDeny}</Button>
-              </div>
-            </Card>
+            <Alert
+              tone="warning"
+              action={
+                <div className="flex gap-2">
+                  <Button variant="primary" size="sm" onClick={() => onApproval?.(a.id, true)}>{t.approvalAllow}</Button>
+                  <Button size="sm" onClick={() => onApproval?.(a.id, false)}>{t.approvalDeny}</Button>
+                </div>
+              }
+            >
+              {approvalText(a)}
+            </Alert>
           </motion.div>
         ))}
         {expired && approvals.length === 0 && <motion.p key="expired" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={quick} className="text-meta text-muted" role="status">{t.approvalExpired}</motion.p>}
