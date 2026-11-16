@@ -38,7 +38,7 @@ function Screen(props: { view: View; day: string; days: string[]; occurrences: O
     <m.div
       className="h-full"
       initial={enter ? enter.initial : false}
-      animate={enter ? { ...enter.animate, transition: { duration: koreDuration.dialog.in, ease: koreEase.standard } } : undefined}
+      animate={enter ? { ...enter.animate, transition: { duration: koreDuration.view, ease: koreEase.standard } } : undefined}
     >
       <ViewBody {...props} />
     </m.div>

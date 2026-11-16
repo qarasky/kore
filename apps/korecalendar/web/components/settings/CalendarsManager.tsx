@@ -10,6 +10,7 @@ import { createCalendar, deleteCalendar, restoreCalendar, updateCalendar } from 
 import type { Calendar } from "@/lib/types";
 import {
   Button,
+  ColorDot,
   ColorSwatchPicker,
   ConfirmDialog,
   Field,
@@ -22,10 +23,6 @@ import {
 } from "@qarasky/kore-ui";
 import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useShell } from "../ShellContext";
-
-function Swatch({ color }: { color: string }) {
-  return <span aria-hidden="true" className="size-4 shrink-0 rounded-[4px]" style={{ backgroundColor: color }} />;
-}
 
 /** Create, rename, recolour and delete calendars. Deleting is undoable for 30 days. */
 export function CalendarsManager() {
@@ -95,7 +92,7 @@ export function CalendarsManager() {
         {calendars.map((c) => (
           <m.li key={c.id} layout="position"
             initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0, transition: { duration: koreDuration.pop.in, ease: koreEase.standard } }}
+            animate={{ opacity: 1, y: 0, transition: { duration: koreDuration.fade.in, ease: koreEase.standard } }}
             exit={{ opacity: 0, transition: { duration: koreDuration.pop.out, ease: koreEase.exit } }}
             data-testid="calendar-row">
             {editing === c.id ? (
@@ -124,7 +121,7 @@ export function CalendarsManager() {
               </div>
             ) : (
               <div className="flex min-h-row items-center gap-3 px-4">
-                <Swatch color={c.color} />
+                <ColorDot color={c.color} shape="square" />
                 <span className="min-w-0 flex-1 truncate">{c.name}</span>
                 <IconButton label={t("cal.rename", { name: c.name })} icon={<PencilIcon />} onClick={() => startEdit(c)} />
                 <IconButton variant="danger" label={t("cal.delete", { name: c.name })} icon={<Trash2Icon />} onClick={() => remove(c, false)} />

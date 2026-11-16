@@ -37,7 +37,7 @@ export function AllDayRow({
             layoutId={`allday|${layoutKey(p.occ)}`}
             layout="position"
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: { duration: koreDuration.pop.in, ease: koreEase.standard } }}
+            animate={{ opacity: 1, transition: { duration: koreDuration.fade.in, ease: koreEase.standard } }}
             exit={{ opacity: 0, transition: { duration: koreDuration.pop.out, ease: koreEase.exit } }}
             type="button"
             data-testid="event"
