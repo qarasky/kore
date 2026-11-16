@@ -33,6 +33,7 @@ Component that fetches from the Go API with the user's `kore_session` cookie.
 | `lib/size.ts`, `lib/password.ts`, `lib/admin.ts` | Size input parsing/splitting in binary units labelled GB/TB like `formatBytes`; share-link password rules and labels (UTF-8 bytes, as the API counts); admin API types and error-code messages |
 | `lib/download.ts` | Downloads via a hidden form into a hidden iframe (browser streams to disk; errors become a toast) |
 | `lib/format.ts`, `lib/nodes.ts` | Size/date formatting, node types, hrefs, file kinds |
+| `app/layout.tsx`, `app/(app)/account/page.tsx` | Themes (Color default, Light, Dark): kore-ui's `themeInitScript()` in `<head>` sets `data-theme` before paint, `KoreProvider` keeps it, `ThemeSwitcher` (Appearance) is on `/account`; `lib/__tests__/kore-ui-only.test.ts` keeps typed colours out |
 | `app/globals.css` | `@import "@qarasky/kore-ui/theme.css"` + `@source` for kore-ui, then app-only CSS (rendered markdown) |
 | `app/icon.svg` | Favicon (the Kore mark; same as `../assets/kore-icon.svg`), excluded from the `proxy.ts` auth gate |
 | `lib/api.ts` | `api<T>(path, init)`: server calls go to `API_URL` with the cookie, browser calls go to same-origin `/api`; errors throw `ApiError{status, code}`. `apiText()` is the same for `text/plain` endpoints (the preview) and returns `{text, truncated}` |
