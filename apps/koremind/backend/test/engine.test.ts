@@ -290,5 +290,5 @@ test("the assistant's style rules (tuned against DeepSeek V4.1 Flash at High) ar
 });
 
 test("the assistant knows the card format and when not to use it", () => {
-  for (const part of ["a fenced block tagged card", "\"type\": \"stats\"", "\"type\": \"table\"", "\"type\": \"bars\"", "\"type\": \"note\"", "Valid JSON only", "at most two per reply", "never for ordinary answers", "A plain comparison is a Markdown table, not a card"]) expect(AGENT_SYSTEM).toContain(part);
+  for (const part of ["a fenced block tagged card", "\"type\": \"stats\"", "\"type\": \"table\"", "\"type\": \"bars\"", "\"type\": \"note\"", "Valid JSON only", "at most two per reply", "never for ordinary answers", "A plain comparison is a Markdown table, not a card", "never invent one"]) expect(AGENT_SYSTEM).toContain(part);
 });
