@@ -29,7 +29,7 @@ fun isReady(p: ProviderInfo): Boolean = p.status == "ready"
 @androidx.annotation.DrawableRes
 fun providerIconRes(id: String): Int? = when (id) {
     "groq" -> R.drawable.ic_provider_groq
-    "opencode" -> R.drawable.ic_provider_opencode
+    "opencode", "opencode-go" -> R.drawable.ic_provider_opencode // Go is OpenCode's subscription: same mark
     "openai" -> R.drawable.ic_provider_openai
     "openrouter" -> R.drawable.ic_provider_openrouter
     else -> null

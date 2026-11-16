@@ -113,20 +113,23 @@ test("Groq's safety classifiers are not offered as chat models", () => {
   expect(out[0].models.map((x) => x.id)).toEqual(["openai/gpt-oss-120b", "qwen/qwen3.8-27b"]);
 });
 
-test("mapConnections offers Groq, OpenRouter, OpenCode and Codex (recommended first) with their login methods, and nothing else", () => {
+test("mapConnections offers Groq, OpenRouter, OpenCode, OpenCode Go and Codex (recommended first) with their login methods, and nothing else", () => {
   const integrations = [
     { id: "anthropic", name: "Anthropic", methods: [{ type: "key" }], connections: [] },
     { id: "groq", name: "Groq", methods: [{ type: "key" }, { type: "env", names: ["GROQ_API_KEY"] }], connections: [] },
     { id: "opencode", name: "OpenCode", methods: [{ type: "key" }, { id: "go", type: "oauth", label: "OpenCode account" }], connections: [] },
+    { id: "opencode-go", name: "OpenCode Go", methods: [{ type: "key" }, { type: "env", names: ["OPENCODE_API_KEY"] }], connections: [{ id: "c2" }] },
     { id: "openrouter", name: "OpenRouter", methods: [{ type: "key" }, { type: "env", names: ["OPENROUTER_API_KEY"] }], connections: [{ id: "c1" }] },
     { id: "openai", name: "OpenAI", methods: [{ type: "key" }, { id: "chatgpt-token-sharing", type: "oauth", label: "Sign in with ChatGPT" }], connections: [] },
   ];
   const out = mapConnections(integrations);
-  expect(out.map((c) => c.id)).toEqual(["groq", "openrouter", "opencode", "openai"]);
+  expect(out.map((c) => c.id)).toEqual(["groq", "openrouter", "opencode", "opencode-go", "openai"]);
   expect(out.find((c) => c.id === "openai")).toEqual({ id: "openai", name: "Codex", connected: false, methods: ["key", "signin"], recommended: false, supportsFreeFilter: false });
   expect(out.find((c) => c.id === "openrouter")).toEqual({ id: "openrouter", name: "OpenRouter", connected: true, methods: ["key"], recommended: true, supportsFreeFilter: true });
   expect(out.find((c) => c.id === "opencode")?.methods).toEqual(["key"]);
-  expect(out.map((c) => [c.id, c.supportsFreeFilter])).toEqual([["groq", false], ["openrouter", true], ["opencode", true], ["openai", false]]);
+  // OpenCode Go is a subscription: every model is paid for by the plan, so there is no free filter, and it is connected by key.
+  expect(out.find((c) => c.id === "opencode-go")).toEqual({ id: "opencode-go", name: "OpenCode Go", connected: true, methods: ["key"], recommended: false, supportsFreeFilter: false });
+  expect(out.map((c) => [c.id, c.supportsFreeFilter])).toEqual([["groq", false], ["openrouter", true], ["opencode", true], ["opencode-go", false], ["openai", false]]);
   expect(out.find((c) => c.id === "groq")).toEqual({ id: "groq", name: "Groq", connected: false, methods: ["key"], recommended: true, supportsFreeFilter: false });
 });
 

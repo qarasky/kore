@@ -36,6 +36,7 @@ class ProviderUiTest {
         assertEquals(R.drawable.ic_provider_opencode, providerIconRes("opencode"))
         assertEquals(R.drawable.ic_provider_openai, providerIconRes("openai"))
         assertEquals(R.drawable.ic_provider_openrouter, providerIconRes("openrouter"))
+        assertEquals(R.drawable.ic_provider_opencode, providerIconRes("opencode-go")) // Go is OpenCode's plan: same mark
         assertNull(providerIconRes("something-else"))
     }
 

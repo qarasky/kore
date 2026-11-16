@@ -17,5 +17,6 @@ test("a preset sets the tone, picking it again clears it, and typed text matches
 test("provider status line explains the state in plain words", () => {
   expect(providerStatus({ id: "opencode", connected: false })).toBe("free");
   expect(providerStatus({ id: "openai", connected: false })).toBe("off");
+  expect(providerStatus({ id: "opencode-go", connected: false })).toBe("off"); // a subscription: no free tier without a key
   expect(providerStatus({ id: "openrouter", connected: true })).toBe("on");
 });

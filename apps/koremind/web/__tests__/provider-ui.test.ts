@@ -15,6 +15,7 @@ test("each known provider has a real logo key and unknown ones fall back to the 
   expect(providerIconKey("opencode")).toBe("opencode");
   expect(providerIconKey("openai")).toBe("openai"); // Codex runs on OpenAI; there is no separate Codex logo
   expect(providerIconKey("openrouter")).toBe("openrouter");
+  expect(providerIconKey("opencode-go")).toBe("opencode"); // Go is OpenCode's plan: same mark
   expect(providerIconKey("something-else")).toBeNull();
 });
 

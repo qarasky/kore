@@ -43,7 +43,7 @@ test("connect and disconnect forward to the engine", async () => {
 test("every offered provider is listed with a status; only ready ones carry models", async () => {
   const { models } = setup();
   const ps = await models.providers("u1");
-  expect(ps.map((p) => [p.id, p.status, p.models.length > 0])).toEqual([["groq", "needs_connection", false], ["openrouter", "needs_connection", false], ["opencode", "ready", true], ["openai", "needs_connection", false]]);
+  expect(ps.map((p) => [p.id, p.status, p.models.length > 0])).toEqual([["groq", "needs_connection", false], ["openrouter", "needs_connection", false], ["opencode", "ready", true], ["opencode-go", "needs_connection", false], ["openai", "needs_connection", false]]);
   await models.connect("openrouter", "sk-or");
   const after = await models.providers("u1");
   expect(after.find((p) => p.id === "openrouter")).toMatchObject({ status: "ready", connected: true });
@@ -53,7 +53,7 @@ test("every offered provider is listed with a status; only ready ones carry mode
 test("Groq and OpenRouter are the recommended providers and come first", async () => {
   const { models } = setup();
   const ps = await models.providers("u1");
-  expect(ps.map((p) => [p.id, p.recommended])).toEqual([["groq", true], ["openrouter", true], ["opencode", false], ["openai", false]]);
+  expect(ps.map((p) => [p.id, p.recommended])).toEqual([["groq", true], ["openrouter", true], ["opencode", false], ["opencode-go", false], ["openai", false]]);
   await models.connect("groq", "gsk-test");
   const g = (await models.providers("u1")).find((p) => p.id === "groq")!;
   expect(g).toMatchObject({ status: "ready", connected: true });
@@ -94,4 +94,18 @@ test("allowed() refuses paid, disabled and unconnected choices, and favorites fo
   expect(await models.allowed("u1", "openrouter", "acme/free-model:free")).toBe(false);
   await models.setFavorites("u1", ["openrouter/acme/free-model:free", "opencode/fast"]);
   expect(models.favorites("u1")).toEqual(["opencode/fast"]);
+});
+
+test("OpenCode Go has no models until it is connected with a key, then its models are usable and not free-filtered", async () => {
+  const { models, settings } = setup();
+  expect((await models.providers("u1")).find((p) => p.id === "opencode-go")).toMatchObject({ status: "needs_connection", models: [] });
+  expect(await models.allowed("u1", "opencode-go", "deepseek-pro")).toBe(false);
+  await models.connect("opencode-go", "oc_test");
+  const go = (await models.providers("u1")).find((p) => p.id === "opencode-go")!;
+  expect(go).toMatchObject({ status: "ready", connected: true });
+  expect(go.models.map((m) => m.free)).toEqual([false, false]);
+  expect(go.models.filter((m) => m.isDefault)).toHaveLength(1);
+  expect(await models.allowed("u1", "opencode-go", "deepseek-pro")).toBe(true);
+  settings.put("u1", { ...base, disabledProviders: [], freeOnlyProviders: [] });
+  expect((await models.providers("u1")).find((p) => p.id === "opencode-go")!.models).toHaveLength(2);
 });

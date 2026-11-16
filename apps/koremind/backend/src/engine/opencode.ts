@@ -49,6 +49,8 @@ export const OFFERED: { id: string; name: string; recommended: boolean }[] = [
   { id: "groq", name: "Groq", recommended: true },
   { id: "openrouter", name: "OpenRouter", recommended: true },
   { id: "opencode", name: "OpenCode", recommended: false },
+  // The OpenCode Go subscription: its own catalog of paid-by-plan models, connected with the same kind of key.
+  { id: "opencode-go", name: "OpenCode Go", recommended: false },
   { id: "openai", name: "Codex", recommended: false },
 ];
 
@@ -57,7 +59,7 @@ export function mapConnections(integrations: any[]): ProviderConnection[] {
     const i = integrations.find((x) => x?.id === o.id);
     const methods: ProviderConnection["methods"] = [];
     const types = new Set<string>((i?.methods ?? []).map((m: any) => String(m?.type)));
-    if (types.has("key") || o.id === "opencode") methods.push("key");
+    if (types.has("key") || o.id === "opencode" || o.id === "opencode-go") methods.push("key");
     if (o.id === "openai" && types.has("oauth")) methods.push("signin"); // ChatGPT sign-in is for Codex only
     return { id: o.id, name: o.name, connected: Array.isArray(i?.connections) && i.connections.length > 0, methods, recommended: o.recommended, supportsFreeFilter: o.id === "opencode" || o.id === "openrouter" };
   });

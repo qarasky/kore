@@ -24,7 +24,7 @@ export class FakeEngine implements Engine {
 
   async listConnections(): Promise<ProviderConnection[]> {
     const conn = (id: string, name: string, methods: ProviderConnection["methods"], supportsFreeFilter: boolean, recommended = false): ProviderConnection => ({ id, name, connected: this.connected(id), methods, supportsFreeFilter, recommended });
-    return [conn("groq", "Groq", ["key"], false, true), conn("openrouter", "OpenRouter", ["key"], true, true), conn("opencode", "OpenCode", ["key"], true), conn("openai", "Codex", ["key", "signin"], false)];
+    return [conn("groq", "Groq", ["key"], false, true), conn("openrouter", "OpenRouter", ["key"], true, true), conn("opencode", "OpenCode", ["key"], true), conn("opencode-go", "OpenCode Go", ["key"], false), conn("openai", "Codex", ["key", "signin"], false)];
   }
   async startSignIn(providerId: string): Promise<SignInStart> {
     const attemptId = `at_${crypto.randomUUID()}`;
@@ -41,17 +41,19 @@ export class FakeEngine implements Engine {
   private signedIn() { return new Set([...this.signIns.values()].filter((x) => x.done).map((x) => x.providerId)); }
   private connected(id: string) { return this.keys.has(id) || this.signedIn().has(id); }
 
-  /** OpenCode (free tier, always ready), Codex (empty until connected) and OpenRouter (a free and a paid model once connected). */
+  /** OpenCode (free tier, always ready), OpenCode Go and Codex (empty until connected) and OpenRouter (a free and a paid model once connected). */
   async listProviders(): Promise<ProviderInfo[]> {
     if (this.o.providers) return this.o.providers;
     const m = (id: string, name: string, over: Partial<ModelInfo> = {}): ModelInfo => ({ id, name, vision: false, thinkingLevels: [], isDefault: false, free: false, ...over });
     const or = this.connected("openrouter");
     const ai = this.connected("openai");
     const gq = this.connected("groq");
+    const go = this.connected("opencode-go");
     return [
       { id: "groq", name: "Groq", recommended: true, connected: gq, status: gq ? "ready" : "needs_connection", models: gq ? [m("llama-fast", "Llama Fast", { isDefault: true }), m("gpt-oss", "GPT OSS", { thinkingLevels: ["low", "medium", "high"] })] : [] },
       { id: "openrouter", name: "OpenRouter", recommended: true, connected: or, status: or ? "ready" : "needs_connection", models: or ? [m("acme/free-model:free", "Free Model", { free: true, isDefault: true }), m("acme/pro", "Pro")] : [] },
       { id: "opencode", name: "OpenCode", recommended: false, connected: this.connected("opencode"), status: "ready", models: [m("fast", "Fast", { isDefault: true, free: true }), m("vision", "Vision", { vision: true, thinkingLevels: ["low", "high"] })] },
+      { id: "opencode-go", name: "OpenCode Go", recommended: false, connected: go, status: go ? "ready" : "needs_connection", models: go ? [m("deepseek-pro", "DeepSeek Pro", { isDefault: true }), m("glm", "GLM", { thinkingLevels: ["low", "high"] })] : [] },
       { id: "openai", name: "Codex", recommended: false, connected: ai, status: ai ? "ready" : "needs_connection", models: ai ? [m("gpt", "GPT", { isDefault: true })] : [] },
     ];
   }

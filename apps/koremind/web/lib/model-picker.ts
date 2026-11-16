@@ -23,7 +23,12 @@ export const isReady = (p: ProviderInfo) => p.status === "ready";
 /** Which bundled logo a provider uses. Codex runs on OpenAI, so it shares OpenAI's mark. */
 export type ProviderIconKey = "groq" | "opencode" | "openai" | "openrouter";
 const ICON_KEYS: readonly string[] = ["groq", "opencode", "openai", "openrouter"];
-export const providerIconKey = (id: string): ProviderIconKey | null => (ICON_KEYS.includes(id) ? (id as ProviderIconKey) : null);
+/** OpenCode Go is OpenCode's subscription, so it wears the OpenCode mark. */
+const ICON_ALIASES: Record<string, string> = { "opencode-go": "opencode" };
+export const providerIconKey = (id: string): ProviderIconKey | null => {
+  const key = ICON_ALIASES[id] ?? id;
+  return ICON_KEYS.includes(key) ? (key as ProviderIconKey) : null;
+};
 
 /** Providers that can't be used right now stay on the rail but are dimmed. */
 export const railDimmed = (p: ProviderInfo) => !isReady(p);

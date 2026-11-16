@@ -157,7 +157,7 @@ test("provider list shows login methods; sign-in is owner-only and reports progr
   const { call, engine, signIn } = setup();
   const owner = signIn();
   const list = (await (await call("GET", "/providers", { token: owner })).json()) as { id: string; methods: string[]; connected: boolean }[];
-  expect(list.map((p) => p.id)).toEqual(["groq", "openrouter", "opencode", "openai"]);
+  expect(list.map((p) => p.id)).toEqual(["groq", "openrouter", "opencode", "opencode-go", "openai"]);
   expect(list.find((p) => p.id === "openai")?.methods).toEqual(["key", "signin"]);
 
   const start = (await (await call("POST", "/providers/openai/signin", { token: owner })).json()) as { attemptId: string; url: string };
@@ -176,7 +176,7 @@ test("provider settings change what /models returns, and a disallowed model is r
   const token = signIn();
   await call("PUT", "/providers/openrouter/key", { token, body: { key: "sk-or" } });
   const list = async () => (await (await call("GET", "/models", { token })).json()) as { id: string; status: string; models: { id: string; free: boolean }[] }[];
-  expect((await list()).map((p) => p.id)).toEqual(["groq", "openrouter", "opencode", "openai"]);
+  expect((await list()).map((p) => p.id)).toEqual(["groq", "openrouter", "opencode", "opencode-go", "openai"]);
   expect((await list()).find((p) => p.id === "openrouter")!.status).toBe("ready");
 
   const put = (patch: object) => call("PUT", "/settings", { token, body: { memoryEnabled: true, displayName: "", tone: "", about: "", disabledProviders: [], freeOnlyProviders: [], ...patch } });
