@@ -119,6 +119,19 @@ test("sources are saved with the assistant message", async () => {
   expect(chats.get("u1", c.id)!.messages[1].sources).toEqual([{ title: "Bun", url: "https://bun.sh" }]);
 });
 
+test("a source the engine reports twice is sent and saved once", async () => {
+  const { chats } = setup({ reply: () => [
+    { type: "source", title: "Bun", url: "https://bun.sh/" },
+    { type: "source", title: "Bun", url: "https://www.bun.sh?utm_source=x" },
+    { type: "source", title: "Node", url: "https://nodejs.org" },
+    { type: "delta", text: "ok" },
+  ] });
+  const c = chats.create("u1");
+  const evs = await collect(chats.send("u1", c.id, req("news"), new AbortController().signal));
+  expect(evs.filter((e: any) => e.type === "source").map((e: any) => e.url)).toEqual(["https://bun.sh/", "https://nodejs.org"]);
+  expect(chats.get("u1", c.id)!.messages[1].sources.map((s) => s.url)).toEqual(["https://bun.sh/", "https://nodejs.org"]);
+});
+
 test("remove deletes the chat and its engine session", async () => {
   const { chats, engine } = setup();
   const c = chats.create("u1");

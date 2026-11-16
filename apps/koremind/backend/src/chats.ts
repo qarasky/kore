@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import type { Activity, Attachment, ChatMessage, ChatSummary, SendMessageRequest, Source, StreamEvent } from "@koremind/shared";
+import { hasSource } from "@koremind/shared";
 import type { Engine, EngineFile, ModelRef } from "./engine/types";
 import { CLOSED, IDLE, Pump } from "./engine/pump";
 import { TITLE_SYSTEM, cleanTitle, titlePrompt } from "./title";
@@ -159,6 +160,8 @@ export function createChats(db: Database, engine: Engine, deps: ChatsDeps) {
               if (++sinceFlush >= 20) { save(); sinceFlush = 0; }
               yield { type: "delta", text: ev.text };
             } else if (ev.type === "source") {
+              // Engines repeat sources (twice, or with tracking parameters): keep and send each page once.
+              if (hasSource(sources, ev)) continue;
               sources.push({ title: ev.title, url: ev.url });
               yield { type: "source", title: ev.title, url: ev.url };
             } else if (ev.type === "done") {

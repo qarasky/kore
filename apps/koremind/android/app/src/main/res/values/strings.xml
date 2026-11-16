@@ -39,6 +39,7 @@
     <string name="thinking">Thinking</string>
     <string name="searching">Searching the web</string>
     <string name="sources">Sources</string>
+    <string name="sources_count">Sources (%1$d)</string>
     <string name="connect_provider">Connect a provider</string>
     <string name="connect_provider_hint">OpenCode\'s free quota is used up, or no provider is connected. Add a key in Settings to continue.</string>
     <string name="open_settings">Open Settings</string>

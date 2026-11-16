@@ -94,3 +94,13 @@ test("a title event after done changes nothing in the transcript", () => {
   const after = applyEvent(s, { type: "title", title: "Greeting" });
   expect(after).toEqual(s);
 });
+
+test("a source the engine repeats is kept once", () => {
+  const evs: StreamEvent[] = [
+    { type: "source", title: "Runpod pricing", url: "https://runpod.io/pricing" },
+    { type: "source", title: "Runpod pricing", url: "https://www.runpod.io/pricing/?utm_source=x" },
+    { type: "source", title: "Gemini pricing", url: "https://ai.google.dev/pricing" },
+  ];
+  const s = evs.reduce(applyEvent, beginTurn(emptyChat, "q", []));
+  expect(s.draft!.sources.map((x) => x.url)).toEqual(["https://runpod.io/pricing", "https://ai.google.dev/pricing"]);
+});

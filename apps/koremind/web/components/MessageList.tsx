@@ -1,9 +1,9 @@
 "use client";
-import type { Activity, ChatMessage } from "@koremind/shared";
-import { Badge, Button, Card, badgeVariants, cn } from "@qarasky/kore-ui";
-import { BookOpen, Brain, BrainCircuit, FileText, Globe, Lock, Pencil, StickyNote, Trash2 } from "lucide-react";
+import { dedupeSources, sourceHost, type Activity, type ChatMessage } from "@koremind/shared";
+import { Badge, Button, Card, cn } from "@qarasky/kore-ui";
+import { BookOpen, Brain, BrainCircuit, ChevronDown, FileText, Globe, Lock, Pencil, StickyNote, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect, useLayoutEffect, useRef, type KeyboardEvent, type UIEvent, type WheelEvent } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type UIEvent, type WheelEvent } from "react";
 import { Markdown } from "./Markdown";
 import type { Draft } from "@/lib/chat-state";
 import { followStep, nextFollowing } from "@/lib/chat-scroll";
@@ -160,16 +160,37 @@ function Assistant({ text, sources, status, activity = [], approvals = [], expir
         </div>
       )}
       {text && <Markdown text={text} live={live} />}
-      {sources.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          <span className="sr-only">{t.sources}</span>
-          {sources.map((s, i) => (
-            <motion.a key={s.url} initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.04, duration: 0.14 }} href={s.url} target="_blank" rel="noopener noreferrer" className={cn(badgeVariants({ tone: "outline" }), "max-w-60 hover:border-accent/60 hover:text-text")}>
-              <Globe aria-hidden /><span className="truncate">{s.title}</span>
-            </motion.a>
-          ))}
-        </div>
-      )}
+      {sources.length > 0 && <Sources sources={sources} />}
+    </div>
+  );
+}
+
+/** Search sources, folded under one "Sources" row so they never push the answer away. */
+function Sources({ sources }: { sources: { title: string; url: string }[] }) {
+  const list = dedupeSources(sources);
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <div>
+      <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)} className="flex h-control-sm items-center gap-1.5 rounded-ui px-1 text-meta text-muted transition-colors hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
+        <Globe className="size-4" aria-hidden />
+        <span>{t.sourcesCount(list.length)}</span>
+        <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} aria-hidden />
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.ul id={id} initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={quick} className="mt-1 overflow-hidden rounded-ui border border-border">
+            {list.map((s) => (
+              <li key={s.url} className="border-b border-border last:border-b-0">
+                <a href={s.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 items-baseline gap-2 px-3 py-2 hover:bg-raised">
+                  <span className="min-w-0 flex-1 truncate">{s.title || sourceHost(s.url)}</span>
+                  <span className="shrink-0 text-meta text-muted">{sourceHost(s.url)}</span>
+                </a>
+              </li>
+            ))}
+          </motion.ul>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

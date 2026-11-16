@@ -72,6 +72,15 @@ import dev.qarasky.koremind.data.Activity
 import dev.qarasky.koremind.data.Attachment
 import dev.qarasky.koremind.data.ChatMessage
 import dev.qarasky.koremind.data.Source
+import androidx.compose.foundation.layout.heightIn
+import dev.qarasky.koremind.data.sourceHost
+import dev.qarasky.koremind.data.dedupeSources
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.draw.rotate
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import dev.qarasky.koremind.ui.KoreMindButton
 import dev.qarasky.koremind.ui.theme.CodeFont
 import dev.qarasky.koremind.ui.theme.enterExpand
@@ -149,12 +158,38 @@ fun AssistantMessage(
         }
         if (text.isNotEmpty()) MarkdownText(text)
         if (activity.isNotEmpty()) ActivityChips(activity, animateChips)
-        if (sources.isNotEmpty()) {
-            val uri = LocalUriHandler.current
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                sources.forEach { s ->
-                    Text(s.title, maxLines = 1, overflow = TextOverflow.Ellipsis, color = KoreMindColors.Muted, style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.widthIn(max = 220.dp).border(1.dp, KoreMindColors.Border, RoundedCornerShape(6.dp)).clickable { runCatching { uri.openUri(s.url) } }.padding(horizontal = 8.dp, vertical = 5.dp))
+        if (sources.isNotEmpty()) SourcesList(sources)
+    }
+}
+
+/** Search sources, folded under one "Sources (N)" row so they never push the answer away. */
+@Composable
+private fun SourcesList(sources: List<Source>) {
+    val on = LocalMotion.current
+    val list = remember(sources) { dedupeSources(sources) }
+    var open by rememberSaveable { mutableStateOf(false) }
+    val turn by animateFloatAsState(if (open) 180f else 0f, quickSpec(on), label = "chevron")
+    val uri = LocalUriHandler.current
+    val label = stringResource(R.string.sources_count, list.size)
+    Column {
+        Row(
+            Modifier.heightIn(min = 36.dp).clickable { open = !open }.semantics { stateDescription = if (open) "expanded" else "collapsed" }.padding(end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(label, color = KoreMindColors.Muted, style = MaterialTheme.typography.labelMedium)
+            Icon(Icons.Filled.KeyboardArrowDown, null, Modifier.size(18.dp).rotate(turn), tint = KoreMindColors.Muted)
+        }
+        AnimatedVisibility(open, enter = enterExpand(on), exit = exitShrink(on)) {
+            Column(Modifier.fillMaxWidth().border(1.dp, KoreMindColors.Border, RoundedCornerShape(6.dp))) {
+                list.forEachIndexed { i, s ->
+                    if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(KoreMindColors.Border))
+                    Row(
+                        Modifier.fillMaxWidth().clickable { runCatching { uri.openUri(s.url) } }.heightIn(min = 44.dp).padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(s.title.ifBlank { sourceHost(s.url) }, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+                        Text(sourceHost(s.url), color = KoreMindColors.Muted, maxLines = 1, style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
         }

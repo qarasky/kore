@@ -1,4 +1,4 @@
-import type { Activity, Attachment, ChatMessage, Source, StreamEvent } from "@koremind/shared";
+import { addSource, type Activity, type Attachment, type ChatMessage, type Source, type StreamEvent } from "@koremind/shared";
 import type { PendingApproval } from "./notes-ui";
 
 export type Draft = { text: string; sources: Source[]; status: "thinking" | "searching" | null; activity: Activity[]; approvals: PendingApproval[]; expired: boolean };
@@ -31,7 +31,7 @@ export function applyEvent(s: ChatState, ev: StreamEvent): ChatState {
     case "delta":
       return { ...s, draft: { ...d, text: d.text + ev.text, status: null } };
     case "source":
-      return { ...s, draft: { ...d, sources: [...d.sources, { title: ev.title, url: ev.url }] } };
+      return { ...s, draft: { ...d, sources: addSource(d.sources, { title: ev.title, url: ev.url }) } };
     case "activity":
       return { ...s, draft: { ...d, activity: [...d.activity, { kind: ev.kind, title: ev.title, ...(ev.chat ? { chat: ev.chat } : {}) }] } };
     case "approval":

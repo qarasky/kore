@@ -4,6 +4,7 @@ import dev.qarasky.koremind.data.Activity
 import dev.qarasky.koremind.data.Attachment
 import dev.qarasky.koremind.data.ChatMessage
 import dev.qarasky.koremind.data.Source
+import dev.qarasky.koremind.data.addSource
 import dev.qarasky.koremind.data.StreamEvent
 import java.util.UUID
 
@@ -36,7 +37,7 @@ fun reduce(s: ChatUiState, ev: StreamEvent): ChatUiState {
     return when (ev) {
         is StreamEvent.Status -> s.copy(draft = d.copy(status = ev.state))
         is StreamEvent.Delta -> s.copy(draft = d.copy(text = d.text + ev.text, status = null))
-        is StreamEvent.Source -> s.copy(draft = d.copy(sources = d.sources + Source(ev.title, ev.url)))
+        is StreamEvent.Source -> s.copy(draft = d.copy(sources = addSource(d.sources, Source(ev.title, ev.url))))
         is StreamEvent.Title -> s
         is StreamEvent.Noted -> s.copy(draft = d.copy(activity = d.activity + ev.activity))
         is StreamEvent.Approval ->

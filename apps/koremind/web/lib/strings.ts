@@ -27,6 +27,7 @@ export const t = {
   thinking: "Thinking",
   searching: "Searching the web",
   sources: "Sources",
+  sourcesCount: (n: number) => `Sources (${n})`,
   copy: "Copy",
   copied: "Copied",
   cardBuilding: "Building card…",
