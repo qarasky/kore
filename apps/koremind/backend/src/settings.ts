@@ -16,7 +16,10 @@ export function createSettings(db: Database) {
       if (s.displayName) lines.push(`The user's name is ${s.displayName}.`);
       if (s.tone) lines.push(`Talk to them in this style: ${s.tone}.`);
       if (s.about) lines.push(`About the user: ${s.about}`);
-      if (s.memoryEnabled && memory.length) lines.push("What you remember about the user:", ...memory.map((m) => `- ${m.text}`));
+      if (s.memoryEnabled && memory.length) {
+        lines.push("What you remember about the user:", ...memory.map((m) => `- ${m.text}`));
+        lines.push("Use this only when it helps with what they just asked; never bring it up on your own, and never in reply to a greeting.");
+      }
       return lines.join("\n");
     },
   };

@@ -86,6 +86,25 @@ test("buildSystem includes memory entries and personalization", () => {
   expect(text).toContain("Likes tea");
 });
 
+test("buildSystem tells the model to use memory quietly, never to recite it", () => {
+  const s = createSettings(openDb(":memory:"));
+  const text = s.buildSystem({ memoryEnabled: true, displayName: "", tone: "", about: "", disabledProviders: [], freeOnlyProviders: [] }, [{ id: "a", text: "Likes tea", updatedAt: 1 }]);
+  expect(text).toContain("Use this only when it helps with what they just asked");
+  expect(text).toContain("never bring it up on your own, and never in reply to a greeting");
+  // personalization alone has no memory block, so no such rule
+  expect(s.buildSystem({ memoryEnabled: true, displayName: "Sky", tone: "", about: "", disabledProviders: [], freeOnlyProviders: [] }, [])).not.toContain("Use this only");
+});
+
+test("extraction prompt rules out requests, notes and test messages and asks for facts about the user themself", async () => {
+  const { mem: memory, engine } = setup('{"add":[]}');
+  await memory.extractAfterTurn("u1", "make a note called Trip", "Saved.");
+  const system = engine.completes[0].system;
+  expect(system).toContain("Never save a request or an action");
+  expect(system).toContain("notes");
+  expect(system).toContain("testing the app");
+  expect(system).toContain("about the user themself");
+});
+
 test("buildSystem leaves memory out when memory is off and is empty when there is nothing", () => {
   const s = createSettings(openDb(":memory:"));
   expect(s.buildSystem({ memoryEnabled: false, displayName: "", tone: "", about: "" }, [{ id: "a", text: "Likes tea", updatedAt: 1 }])).toBe("");

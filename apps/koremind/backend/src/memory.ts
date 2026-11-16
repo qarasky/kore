@@ -8,7 +8,7 @@ const clean = (t: string) => t.replace(/<!--|-->/g, "").replace(/\s+/g, " ").tri
 const newId = () => crypto.randomUUID().replaceAll("-", "").slice(0, 8);
 
 const EXTRACT_SYSTEM =
-  'You maintain a short memory about the user of a personal assistant. From the latest exchange, extract only durable facts or preferences worth remembering across chats (name, location, tastes, projects, habits). Ignore one-off requests and anything already in memory. Reply with ONLY JSON: {"add": ["short fact", ...]}. If nothing is worth saving reply {"add": []}.';
+  'You maintain a short memory about the user of a personal assistant. From the latest exchange, extract only durable facts or preferences about the user themself that are worth remembering across chats (name, location, tastes, projects, habits). Never save a request or an action (asking for a note, a search, a translation, a summary), anything about notes or their titles and contents, anything that looks like the user testing the app, or anything already in memory. Most exchanges contain nothing worth saving. Reply with ONLY JSON: {"add": ["short fact", ...]}. If nothing is worth saving reply {"add": []}.';
 
 export function createMemory(dir: string, engine: Engine, isEnabled: (userId: string) => boolean) {
   const file = (userId: string) => join(dir, userId.replace(/[^a-zA-Z0-9-]/g, ""), "memory.md");
