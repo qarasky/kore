@@ -1,12 +1,11 @@
 "use client";
 import type { ProviderInfo } from "@koremind/shared";
-import { Card, CardList, EmptyState, IconButton, ListRow, SettingsSection } from "@qarasky/kore-ui";
+import { Card, CardList, EmptyState, IconButton, SettingsSection } from "@qarasky/kore-ui";
 import { Star } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { fadeUp, spring } from "@/lib/motion";
 import { t } from "@/lib/strings";
-
-const MotionRow = motion.create(ListRow);
+import { MotionRow } from "./MotionRow";
 
 export function ModelsSection({ providers, favorites, toggleFavorite }: { providers: ProviderInfo[]; favorites: string[]; toggleFavorite(key: string): Promise<void> | void }) {
   const info = new Map<string, { model: string; provider: string }>(providers.flatMap((p) => p.models.map((m): [string, { model: string; provider: string }] => [`${p.id}/${m.id}`, { model: m.name, provider: p.name }])));

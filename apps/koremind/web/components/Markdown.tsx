@@ -1,7 +1,6 @@
 "use client";
 import { parseCard } from "@koremind/shared";
-import { Check, Copy } from "lucide-react";
-import { useEffect, useState } from "react";
+import { CodeBlock } from "@qarasky/kore-ui";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CardPlaceholder, RichCard } from "./RichCard";
@@ -37,31 +36,7 @@ function Fence({ node, live }: { node: HastNode | undefined; live: boolean }) {
     if (card) return <RichCard card={card} />;
     if (live) return <CardPlaceholder />; // the JSON is still arriving
   }
-  return <CodeBlock lang={lang} code={body} />;
-}
-
-function CodeBlock({ lang, code }: { lang: string; code: string }) {
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    if (!copied) return;
-    const id = setTimeout(() => setCopied(false), 1500);
-    return () => clearTimeout(id);
-  }, [copied]);
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(code); setCopied(true); } catch { /* clipboard blocked: nothing to confirm */ }
-  };
-  return (
-    <div className="overflow-hidden rounded-ui border border-border bg-bg">
-      <div className="flex items-center justify-between border-b border-border px-3 py-1 text-meta text-muted">
-        <span>{lang}</span>
-        <button type="button" onClick={copy} className="flex items-center gap-1 rounded-ui px-1.5 py-0.5 hover:bg-raised hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent" aria-label={copied ? t.copied : t.copy}>
-          {copied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
-          <span aria-live="polite">{copied ? t.copied : t.copy}</span>
-        </button>
-      </div>
-      <pre className="overflow-x-auto p-3"><code>{code}</code></pre>
-    </div>
-  );
+  return <CodeBlock language={lang || undefined} value={body} copy={{ label: t.copy, copiedLabel: t.copied, failedLabel: t.copyFailed }} />;
 }
 
 function Picture({ src, alt }: { src: string | undefined; alt: string }) {

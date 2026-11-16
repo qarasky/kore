@@ -167,7 +167,7 @@ export default function ChatScreen() {
           </Alert>
         </motion.div>
       )}
-      {state.error && !state.connectProvider && <div className="mx-auto mb-2 w-full max-w-reading px-4"><InlineMessage>{state.error.message}</InlineMessage></div>}
+      {state.error && !state.connectProvider && <div className="mx-auto mb-2 w-full max-w-reading px-4"><InlineMessage animated>{state.error.message}</InlineMessage></div>}
       <Composer busy={busy} onSend={send} onStop={stop} />
     </>
   );
