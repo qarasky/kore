@@ -2,12 +2,10 @@ import type { Tone } from "@koremind/shared";
 import type { StatTone } from "@qarasky/kore-ui";
 import { isNumericColumn } from "@koremind/shared";
 
+/** A card tone as kore-ui's `Stat` tone and `Badge` tone. */
+export const STAT_TONE: Record<Tone, StatTone> = { neutral: "default", good: "success", warn: "warning", bad: "danger", info: "accent" };
+export const BADGE_TONE: Record<Tone, "neutral" | "success" | "warning" | "danger" | "accent"> = { neutral: "neutral", good: "success", warn: "warning", bad: "danger", info: "accent" };
 /** Card tones on kore-ui's colour tokens. Written out in full so Tailwind finds every class. */
-/** A card tone as kore-ui's `Stat` tone. `Stat` has no accent tone, so "info" reads as the default colour. */
-export const STAT_TONE: Record<Tone, StatTone> = { neutral: "default", good: "success", warn: "warning", bad: "danger", info: "default" };
-export const TONE_PILL: Record<Tone, string> = {
-  neutral: "bg-raised text-muted", good: "bg-status-up/15 text-status-up", warn: "bg-warning/15 text-warning", bad: "bg-danger/15 text-danger", info: "bg-accent/15 text-accent",
-};
 export const TONE_FILL: Record<Tone, string> = { neutral: "bg-muted", good: "bg-status-up", warn: "bg-warning", bad: "bg-danger", info: "bg-accent" };
 
 const BAR_CYCLE: Tone[] = ["good", "info", "warn"];

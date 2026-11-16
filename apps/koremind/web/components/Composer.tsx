@@ -95,7 +95,7 @@ export function Composer({ busy, onSend, onStop }: { busy: boolean; onSend(text:
           </AnimatePresence>
         </div>
       </div>
-      {notice && <InlineMessage className="mt-2 px-2">{notice}</InlineMessage>}
+      {notice && <InlineMessage animated className="mt-2 px-2">{notice}</InlineMessage>}
     </div>
   );
 }

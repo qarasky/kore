@@ -55,7 +55,7 @@ export function ConnectPhone() {
           </motion.div>
         )}
       </AnimatePresence>
-      {error && <InlineMessage>{error}</InlineMessage>}
+      {error && <InlineMessage animated>{error}</InlineMessage>}
     </SettingsSection>
   );
 }

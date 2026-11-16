@@ -116,7 +116,7 @@ export function ProvidersSection({ settings, onChange }: { settings: Settings | 
           );
         })}
       </ul>
-      {error && <InlineMessage>{error}</InlineMessage>}
+      {error && <InlineMessage animated>{error}</InlineMessage>}
     </SettingsSection>
   );
 }

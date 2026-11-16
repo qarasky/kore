@@ -34,7 +34,7 @@ export function AccountSection() {
           )}
           <ListRow label={t.server} description={baseUrl} actions={<Button asChild size="sm"><Link href="/connect">{t.changeServer}</Link></Button>} />
         </CardList>
-        {note && <InlineMessage tone={note.error ? "danger" : "muted"}>{note.text}</InlineMessage>}
+        {note && <InlineMessage animated tone={note.error ? "danger" : "muted"}>{note.text}</InlineMessage>}
       </SettingsSection>
       <ConnectPhone />
       <SettingsSection title={t.signOut} description={t.signOutHint} actions={<Button variant="danger-outline" onClick={() => void signOut()}>{t.signOut}</Button>} />

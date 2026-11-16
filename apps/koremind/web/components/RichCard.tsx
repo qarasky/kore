@@ -1,12 +1,12 @@
 import type { Card, CardSection } from "@koremind/shared";
 import { isNumericColumn } from "@koremind/shared";
-import { cn, Skeleton, Stat } from "@qarasky/kore-ui";
-import { barTone, STAT_TONE, TONE_FILL, TONE_PILL } from "@/lib/rich-ui";
+import { Badge, cn, Skeleton, Stat } from "@qarasky/kore-ui";
+import { barTone, BADGE_TONE, STAT_TONE, TONE_FILL } from "@/lib/rich-ui";
 import { t } from "@/lib/strings";
 
 /** A card the assistant asked for (docs/rich-messages.md). Android draws the same card from the same spec. */
 export function RichCard({ card }: { card: Card }) {
-  const pill = card.badge && <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-meta font-medium", TONE_PILL[card.badge.tone])}>{card.badge.text}</span>;
+  const pill = card.badge && <Badge size="md" tone={BADGE_TONE[card.badge.tone]}>{card.badge.text}</Badge>;
   // A badge on its own is just the pill, not an empty box.
   if (!card.title && !card.subtitle && card.sections.length === 0) return <div className="not-prose flex">{pill}</div>;
   return (
