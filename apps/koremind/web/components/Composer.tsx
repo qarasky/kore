@@ -3,7 +3,7 @@ import type { Attachment } from "@koremind/shared";
 import { IconButton } from "@qarasky/kore-ui";
 import { ArrowUp, FileText, Paperclip, Square, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { ModelPicker } from "./ModelPicker";
 import { InlineError } from "./InlineError";
 import { canSend } from "@/lib/chat-state";
@@ -23,6 +23,15 @@ export function Composer({ busy, onSend, onStop }: { busy: boolean; onSend(text:
   const [uploading, setUploading] = useState(0);
   const [error, setError] = useState("");
   const input = useRef<HTMLInputElement>(null);
+  const field = useRef<HTMLTextAreaElement>(null);
+
+  // Fit the field to its text on every change, including the reset to "" after sending.
+  useLayoutEffect(() => {
+    const el = field.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 200) + "px";
+  }, [text]);
 
   async function pick(list: FileList | null) {
     if (!list || !api) return;
@@ -66,8 +75,9 @@ export function Composer({ busy, onSend, onStop }: { busy: boolean; onSend(text:
           </AnimatePresence>
         </div>
         <textarea
+          ref={field}
           value={text}
-          onChange={(e) => { setText(e.target.value); e.currentTarget.style.height = "auto"; e.currentTarget.style.height = Math.min(e.currentTarget.scrollHeight, 200) + "px"; }}
+          onChange={(e) => setText(e.target.value)}
           onKeyDown={onKey}
           rows={1}
           placeholder={t.composerPlaceholder}
