@@ -16,7 +16,8 @@ migrateLegacyDb(config.dataDir);
 // The local OpenCode engine reaches KoreMind's notes tools over loopback with this per-run secret.
 const mcpSecret = Buffer.from(crypto.getRandomValues(new Uint8Array(24))).toString("base64url");
 const notesServer = { type: "remote", url: `http://127.0.0.1:${config.port}/mcp`, oauth: false, codemode: false, headers: { authorization: `Bearer ${mcpSecret}` }, timeout: { execution: 120_000 } };
-// Demo behaviour for the fake engine: "note: buy milk" saves a note, "read <chat title>" reads another chat's notes.
+// Demo behaviour for the fake engine: "note: buy milk" saves a note, "read <chat title>" reads another chat's notes,
+// "remember: I like tea" saves a memory and "recall: tea" looks memory up.
 const callTool = (sessionId: string, name: string, args: object) =>
   services.mcp.handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args, _meta: { "ai.opencode/sessionID": sessionId } } });
 const engine = process.env.KOREMIND_FAKE_ENGINE
@@ -27,6 +28,10 @@ const engine = process.env.KOREMIND_FAKE_ENGINE
         if (note) await callTool(a.sessionId, "save_note", { title: note[1].slice(0, 40), body: note[1] });
         const read = /^read\s+(.+)/i.exec(a.text);
         if (read) await callTool(a.sessionId, "read_notes", { chat: read[1] });
+        const remember = /^remember:\s*(.+)/i.exec(a.text);
+        if (remember) await callTool(a.sessionId, "remember", { text: remember[1] });
+        const recall = /^recall:?\s*(.*)/i.exec(a.text);
+        if (recall) await callTool(a.sessionId, "recall_memory", recall[1] ? { query: recall[1] } : {});
       },
     })
   : await createOpencodeEngine({ dataDir: config.dataDir, bin: process.env.KOREMIND_OPENCODE_BIN, config: { mcp: { servers: { koremind: notesServer } } } });

@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qarasky.koremind.R
 import dev.qarasky.koremind.data.MemoryEntry
+import dev.qarasky.koremind.data.MemorySummary
 import dev.qarasky.koremind.data.ProviderConnection
 import dev.qarasky.koremind.data.Settings
 import dev.qarasky.koremind.ui.AppViewModel
@@ -335,9 +336,13 @@ private fun PresetChip(label: String, active: Boolean, onClick: () -> Unit) {
 private fun MemorySection(vm: AppViewModel, settings: Settings?, onChange: (Settings) -> Unit) {
     val scope = rememberCoroutineScope()
     var entries by remember { mutableStateOf<List<MemoryEntry>?>(null) }
+    var summary by remember { mutableStateOf<MemorySummary?>(null) }
     var editing by remember { mutableStateOf<MemoryEntry?>(null) }
     var draft by remember { mutableStateOf("") }
-    suspend fun load() { entries = try { vm.api?.memory() ?: emptyList() } catch (_: Exception) { emptyList() } }
+    suspend fun load() {
+        entries = try { vm.api?.memory() ?: emptyList() } catch (_: Exception) { emptyList() }
+        summary = try { vm.api?.memorySummary() } catch (_: Exception) { null }
+    }
     LaunchedEffect(Unit) { load() }
     val resources = LocalContext.current.resources
 
@@ -353,6 +358,14 @@ private fun MemorySection(vm: AppViewModel, settings: Settings?, onChange: (Sett
             }
         }
         val list = entries ?: emptyList()
+        val profile = summary
+        if (settings?.memoryEnabled == true && profile != null && list.isNotEmpty()) item(key = "profile") {
+            Column(animateRow(LocalMotion.current).then(CardModifier).padding(16.dp)) {
+                Text(stringResource(R.string.memory_profile), fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.memory_profile_hint), color = KoreMindColors.Muted, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+                Text(profile.text, Modifier.padding(top = 12.dp))
+            }
+        }
         items(list, key = { it.id }) { e ->
             Row(animateRow(LocalMotion.current).then(CardModifier).padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(e.text, Modifier.weight(1f).padding(vertical = 12.dp))

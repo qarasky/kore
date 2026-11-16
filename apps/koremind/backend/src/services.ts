@@ -21,17 +21,17 @@ export function createServices(o: ServiceOptions) {
   const auth = createAuth(o.db);
   const sso = o.oidc ? createSso(o.db, auth, o.oidcClient ?? createOidc(o.oidc), o.oidc) : null;
   const settings = createSettings(o.db);
-  const memory = createMemory(join(o.dataDir, "users"), o.engine, (u) => settings.get(u).memoryEnabled);
+  const memory = createMemory(join(o.dataDir, "users"), o.engine, (u) => settings.get(u).memoryEnabled, { emit: (chatId, a) => chats.emit(chatId, { type: "activity", ...a }) });
   const uploads = createUploads(o.db, join(o.dataDir, "uploads"), o.maxUploadBytes);
   const models = createModels(o.db, o.engine, (u) => settings.get(u));
   const approvals = createApprovals({ emit: (chatId, ev) => chats.emit(chatId, ev), timeoutMs: o.approvalTimeoutMs });
   const notes = createNotes(o.db, { ask: (a) => approvals.ask(a), emit: (chatId, a) => chats.emit(chatId, { type: "activity", ...a }) });
-  const mcp = createMcp({ resolveSession: (sid) => chats.bySession(sid), notes });
+  const mcp = createMcp({ resolveSession: (sid) => chats.bySession(sid), notes, memory: memory.tools });
   const mcpSecret = o.mcpSecret ?? Buffer.from(crypto.getRandomValues(new Uint8Array(24))).toString("base64url");
   const chats = createChats(o.db, o.engine, {
-    buildSystem: (u) => settings.buildSystem(settings.get(u), memory.list(u)),
+    buildSystem: (u) => { const s = settings.get(u); return settings.buildSystem(s, s.memoryEnabled ? { summary: memory.currentSummary(u), count: memory.list(u).length } : { summary: "", count: 0 }); },
     readUpload: (id, u) => uploads.read(id, u),
-    onTurnComplete: (u, a, b, model) => { void memory.extractAfterTurn(u, a, b, model); },
+    onTurnComplete: (u, _a, _b, model) => memory.noteModel(u, model),
     onTurnEnd: (chatId) => approvals.endTurn(chatId),
   });
   const addresses = o.addresses ?? (() => ["http://localhost:8787"]);

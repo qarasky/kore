@@ -176,7 +176,7 @@ test("a title the owner typed while it was being generated is not overwritten", 
   expect(chats.get("u1", c.id)!.chat.title).toBe("Mine");
 });
 
-test("memory extraction receives the model the chat used", async () => {
+test("the turn reports the model the chat used (memory falls back to it)", async () => {
   const seen: unknown[] = [];
   const { chats } = setup({}, { onTurnComplete: (_u, _a, _b, m) => { seen.push(m); } });
   const c = chats.create("u1");

@@ -3,120 +3,17 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDb } from "../src/db";
-import { createMemory } from "../src/memory";
+import { createMemory, queryTerms, rankMemory, SUMMARY_SYSTEM } from "../src/memory";
 import { createSettings } from "../src/settings";
 import { FakeEngine } from "../src/engine/fake";
 
-const setup = (completeReply: string, enabled = true) => {
+const CTX = { userId: "u1", chatId: "c1" };
+const setup = (o: { enabled?: boolean; completeReply?: string; fails?: (m?: { providerId: string; modelId: string }) => boolean } = {}) => {
   const dir = mkdtempSync(join(tmpdir(), "koremind-mem-"));
-  const engine = new FakeEngine({ completeReply });
-  let calls = 0;
-  const orig = engine.complete.bind(engine);
-  engine.complete = async (a) => { calls++; return orig(a); };
-  const mem = createMemory(dir, engine, () => enabled);
-  return { mem, engine, calls: () => calls };
-};
-
-test("extraction adds new entries from valid json", async () => {
-  const { mem } = setup('Sure! {"add":["Likes green tea","Lives in Almaty"]}');
-  await mem.extractAfterTurn("u1", "I love green tea, I live in Almaty", "Nice!");
-  expect(mem.list("u1").map((e) => e.text)).toEqual(["Likes green tea", "Lives in Almaty"]);
-});
-
-test("extraction ignores invalid json and never throws", async () => {
-  const { mem } = setup("not json at all");
-  await mem.extractAfterTurn("u1", "hi", "hello");
-  expect(mem.list("u1")).toEqual([]);
-});
-
-test("extraction is skipped when memory is off", async () => {
-  const { mem, calls } = setup('{"add":["x"]}', false);
-  await mem.extractAfterTurn("u1", "hi", "hello");
-  expect(calls()).toBe(0);
-  expect(mem.list("u1")).toEqual([]);
-});
-
-test("extraction does not add duplicates", async () => {
-  const { mem } = setup('{"add":["Likes tea"]}');
-  await mem.extractAfterTurn("u1", "a", "b");
-  await mem.extractAfterTurn("u1", "a", "b");
-  expect(mem.list("u1")).toHaveLength(1);
-});
-
-test("update and remove edit the file by id", async () => {
-  const { mem } = setup('{"add":["One","Two"]}');
-  await mem.extractAfterTurn("u1", "a", "b");
-  const [one, two] = mem.list("u1");
-  mem.update("u1", one.id, "One, edited");
-  mem.remove("u1", two.id);
-  expect(mem.list("u1").map((e) => e.text)).toEqual(["One, edited"]);
-});
-
-test("memory is not shared between users", async () => {
-  const { mem } = setup('{"add":["Secret"]}');
-  await mem.extractAfterTurn("u1", "a", "b");
-  expect(mem.list("u2")).toEqual([]);
-  const id = mem.list("u1")[0].id;
-  mem.remove("u2", id);
-  expect(mem.list("u1")).toHaveLength(1);
-});
-
-test("memory text with newlines cannot forge entries", async () => {
-  const { mem } = setup('{"add":["line one\\n- injected <!--id:evil-->"]}');
-  await mem.extractAfterTurn("u1", "a", "b");
-  expect(mem.list("u1")).toHaveLength(1);
-});
-
-test("settings default, round trip and per-user", () => {
-  const db = openDb(":memory:");
-  for (const u of ["u1", "u2"]) db.run("insert into users(id,email,password_hash,is_owner,created_at) values(?,?,?,0,1)", [u, `${u}@x.co`, "h"]);
-  const s = createSettings(db);
-  expect(s.get("u1")).toEqual({ memoryEnabled: true, displayName: "", tone: "", about: "", disabledProviders: [], freeOnlyProviders: [] });
-  s.put("u1", { memoryEnabled: false, displayName: "Sky", tone: "short", about: "dev", disabledProviders: [], freeOnlyProviders: [] });
-  expect(s.get("u1").displayName).toBe("Sky");
-  expect(s.get("u2").displayName).toBe("");
-});
-
-test("buildSystem includes memory entries and personalization", () => {
-  const s = createSettings(openDb(":memory:"));
-  const text = s.buildSystem({ memoryEnabled: true, displayName: "Sky", tone: "casual", about: "backend dev", disabledProviders: [], freeOnlyProviders: [] }, [{ id: "a", text: "Likes tea", updatedAt: 1 }]);
-  expect(text).toContain("Sky");
-  expect(text).toContain("casual");
-  expect(text).toContain("backend dev");
-  expect(text).toContain("Likes tea");
-});
-
-test("buildSystem tells the model to use memory quietly, never to recite it", () => {
-  const s = createSettings(openDb(":memory:"));
-  const text = s.buildSystem({ memoryEnabled: true, displayName: "", tone: "", about: "", disabledProviders: [], freeOnlyProviders: [] }, [{ id: "a", text: "Likes tea", updatedAt: 1 }]);
-  expect(text).toContain("Use this only when it helps with what they just asked");
-  expect(text).toContain("never bring it up on your own, and never in reply to a greeting");
-  // personalization alone has no memory block, so no such rule
-  expect(s.buildSystem({ memoryEnabled: true, displayName: "Sky", tone: "", about: "", disabledProviders: [], freeOnlyProviders: [] }, [])).not.toContain("Use this only");
-});
-
-test("extraction prompt rules out requests, notes and test messages and asks for facts about the user themself", async () => {
-  const { mem: memory, engine } = setup('{"add":[]}');
-  await memory.extractAfterTurn("u1", "make a note called Trip", "Saved.");
-  const system = engine.completes[0].system;
-  expect(system).toContain("Never save a request or an action");
-  expect(system).toContain("notes");
-  expect(system).toContain("testing the app");
-  expect(system).toContain("about the user themself");
-});
-
-test("buildSystem leaves memory out when memory is off and is empty when there is nothing", () => {
-  const s = createSettings(openDb(":memory:"));
-  expect(s.buildSystem({ memoryEnabled: false, displayName: "", tone: "", about: "" }, [{ id: "a", text: "Likes tea", updatedAt: 1 }])).toBe("");
-  expect(s.buildSystem({ memoryEnabled: false, displayName: "Sky", tone: "", about: "" }, [{ id: "a", text: "Likes tea", updatedAt: 1 }])).not.toContain("Likes tea");
-});
-
-const CHAT = { providerId: "openrouter", modelId: "a/b" };
-const failing = (...ids: string[]) => (m?: { providerId: string; modelId: string }) => !!m && ids.includes(`${m.providerId}/${m.modelId}`);
-const setupFailing = (fails: (m?: { providerId: string; modelId: string }) => boolean) => {
-  const engine = new FakeEngine({ completeReply: '{"add":["Likes tea"]}', completeFails: fails });
-  const mem = createMemory(mkdtempSync(join(tmpdir(), "koremind-mem-")), engine, () => true);
-  return { mem, engine };
+  const engine = new FakeEngine({ completeReply: o.completeReply ?? "Works on web apps; likes tea.", completeFails: o.fails });
+  const emitted: { chatId: string; kind: string; title: string }[] = [];
+  const mem = createMemory(dir, engine, () => o.enabled ?? true, { emit: (chatId, a) => emitted.push({ chatId, ...a }) });
+  return { mem, engine, emitted };
 };
 const quietly = async (f: () => Promise<void>) => {
   const seen: string[] = []; const orig = console.error;
@@ -125,41 +22,184 @@ const quietly = async (f: () => Promise<void>) => {
   return seen;
 };
 
-test("memory is extracted by DeepSeek V4.1 Flash at High, whatever model the chat used", async () => {
-  const { mem: memory, engine } = setup('{"add":[]}');
-  await memory.extractAfterTurn("u1", "hi", "hello", CHAT);
-  expect(engine.completes).toHaveLength(1);
-  expect(engine.completes[0]).toMatchObject({ kind: "memory", model: { providerId: "opencode-go", modelId: "deepseek-v4.1-flash" }, thinking: "high" });
+// ---- Tools the chat model calls ----
+
+test("remember saves a fact, says so in the chat, and skips duplicates", () => {
+  const { mem, emitted } = setup();
+  expect(mem.tools.remember(CTX, { text: "Likes green tea" }).isError).toBeUndefined();
+  expect(mem.tools.remember(CTX, { text: "likes green TEA" }).text).toContain("Already remembered");
+  expect(mem.list("u1").map((e) => e.text)).toEqual(["Likes green tea"]);
+  expect(emitted).toEqual([{ chatId: "c1", kind: "memory_saved", title: "Likes green tea" }]);
 });
 
-test("when that model fails, extraction falls back to the model the chat used", async () => {
-  const { mem, engine } = setupFailing(failing("opencode-go/deepseek-v4.1-flash"));
-  const errors = await quietly(() => mem.extractAfterTurn("u1", "I like tea", "Noted", CHAT));
-  expect(engine.completes.map((c) => c.model)).toEqual([{ providerId: "opencode-go", modelId: "deepseek-v4.1-flash" }, CHAT]);
-  expect(engine.completes[1].thinking).toBeUndefined();
-  expect(mem.list("u1").map((e) => e.text)).toEqual(["Likes tea"]);
-  expect(errors).toEqual([]); // the fallback worked, so nothing to report
+test("remember refuses empty text and text cannot forge entries", () => {
+  const { mem } = setup();
+  expect(mem.tools.remember(CTX, { text: "   " }).isError).toBe(true);
+  mem.tools.remember(CTX, { text: "line one\n- injected <!--id:evil t:1-->" });
+  expect(mem.list("u1")).toHaveLength(1);
 });
 
-test("when both fail, the error is reported and nothing is saved, and it never throws", async () => {
-  const { mem, engine } = setupFailing(failing("opencode-go/deepseek-v4.1-flash", "openrouter/a/b"));
-  const errors = await quietly(() => mem.extractAfterTurn("u1", "I like tea", "Noted", CHAT));
-  expect(engine.completes).toHaveLength(2);
+test("recall without a query lists everything with ids, newest first", async () => {
+  const { mem } = setup();
+  mem.tools.remember(CTX, { text: "Lives in Almaty" });
+  await Bun.sleep(2);
+  mem.tools.remember(CTX, { text: "Drives a Toyota" });
+  const r = mem.tools.recall(CTX, {}).text;
+  expect(r).toContain("All 2 memories");
+  expect(r.indexOf("Toyota")).toBeLessThan(r.indexOf("Almaty"));
+  for (const e of mem.list("u1")) expect(r).toContain(`[${e.id}]`);
+});
+
+test("recall with a query returns only matching entries, and says when nothing matches", () => {
+  const { mem, emitted } = setup();
+  for (const text of ["Lives in Almaty", "Drives a Toyota Camry", "Allergic to peanuts"]) mem.tools.remember(CTX, { text });
+  const r = mem.tools.recall(CTX, { query: "car toyota" }).text;
+  expect(r).toContain("Camry");
+  expect(r).not.toContain("Almaty");
+  expect(mem.tools.recall(CTX, { query: "guitar" }).text).toContain("No memory matches");
+  expect(emitted.filter((e) => e.kind === "memory_read").map((e) => e.title)).toEqual(["car toyota", "guitar"]);
+});
+
+test("search stems long words and ranks by how many words match", () => {
+  expect(queryTerms("Travelling, travelling!")).toEqual(["travel"]);
+  const es = [
+    { id: "a", text: "Travels to Almaty often", updatedAt: 1 },
+    { id: "b", text: "Lives in Алмате", updatedAt: 2 },
+    { id: "c", text: "Plans travelling to Алматы in spring", updatedAt: 3 },
+  ];
+  expect(rankMemory(es, "travelling").map((e) => e.id)).toEqual(["c", "a"]);
+  expect(rankMemory(es, "Алматы travel").map((e) => e.id)).toEqual(["c", "b", "a"]); // a tie goes to the newer entry
+  expect(rankMemory(es, "!!")).toEqual([]);
+});
+
+test("update and forget work by id and report unknown ids", () => {
+  const { mem, emitted } = setup();
+  mem.tools.remember(CTX, { text: "One" });
+  mem.tools.remember(CTX, { text: "Two" });
+  const [one, two] = mem.list("u1");
+  expect(mem.tools.update(CTX, { id: one.id, text: "One, edited" }).isError).toBeUndefined();
+  expect(mem.tools.forget(CTX, { id: two.id }).isError).toBeUndefined();
+  expect(mem.tools.forget(CTX, { id: "nope" }).isError).toBe(true);
+  expect(mem.tools.update(CTX, { id: "nope", text: "x" }).isError).toBe(true);
+  expect(mem.list("u1").map((e) => e.text)).toEqual(["One, edited"]);
+  expect(emitted.map((e) => e.kind)).toEqual(["memory_saved", "memory_saved", "memory_updated", "memory_deleted"]);
+});
+
+test("with memory off every tool refuses and nothing is stored", () => {
+  const { mem, emitted } = setup({ enabled: false });
+  for (const r of [mem.tools.remember(CTX, { text: "x" }), mem.tools.recall(CTX, {}), mem.tools.update(CTX, { id: "a", text: "b" }), mem.tools.forget(CTX, { id: "a" })]) {
+    expect(r.isError).toBe(true);
+    expect(r.text).toContain("turned off");
+  }
   expect(mem.list("u1")).toEqual([]);
+  expect(emitted).toEqual([]);
+});
+
+test("memory is not shared between users", () => {
+  const { mem } = setup();
+  mem.tools.remember(CTX, { text: "Secret" });
+  expect(mem.list("u2")).toEqual([]);
+  expect(mem.tools.recall({ userId: "u2", chatId: "c2" }, {}).text).toContain("empty");
+  mem.remove("u2", mem.list("u1")[0].id);
+  expect(mem.tools.forget({ userId: "u2", chatId: "c2" }, { id: mem.list("u1")[0].id }).isError).toBe(true);
+  expect(mem.list("u1")).toHaveLength(1);
+});
+
+// ---- The abstract profile ----
+
+test("the profile is written by DeepSeek V4.1 Flash at High from the saved facts", async () => {
+  const { mem, engine } = setup();
+  mem.tools.remember(CTX, { text: "Likes tea" });
+  await mem.refreshNow("u1");
+  expect(engine.completes).toHaveLength(1);
+  expect(engine.completes[0]).toMatchObject({ kind: "memory", system: SUMMARY_SYSTEM, model: { providerId: "opencode-go", modelId: "deepseek-v4.1-flash" }, thinking: "high" });
+  expect(engine.completes[0].text).toContain("Likes tea");
+  expect(mem.summary("u1")?.text).toBe("Works on web apps; likes tea.");
+  expect(mem.currentSummary("u1")).toBe("Works on web apps; likes tea.");
+});
+
+test("the profile prompt asks for broad strokes, not details, and nothing invented", () => {
+  for (const rule of ["abstract", "3 to 6 short plain lines", "leave out exact numbers", "never invent", "they/them"]) expect(SUMMARY_SYSTEM).toContain(rule);
+});
+
+test("an unchanged memory is not summarised twice; a change makes the profile stale", async () => {
+  const { mem, engine } = setup();
+  mem.tools.remember(CTX, { text: "Likes tea" });
+  await mem.refreshNow("u1");
+  await mem.refreshNow("u1");
+  expect(engine.completes).toHaveLength(1);
+  mem.tools.remember(CTX, { text: "Lives in Almaty" });
+  // Stale profile is still served while a fresh one is written in the background.
+  expect(mem.currentSummary("u1")).toBe("Works on web apps; likes tea.");
+  await mem.refreshNow("u1");
+  expect(engine.completes).toHaveLength(2);
+  mem.close();
+});
+
+test("forgetting everything removes the profile", async () => {
+  const { mem } = setup();
+  mem.tools.remember(CTX, { text: "Likes tea" });
+  await mem.refreshNow("u1");
+  mem.remove("u1", mem.list("u1")[0].id);
+  expect(mem.currentSummary("u1")).toBe("");
+  await mem.refreshNow("u1");
+  expect(mem.summary("u1")).toBeNull();
+  mem.close();
+});
+
+test("a missing profile is written in the background when a chat starts", async () => {
+  const { mem, engine } = setup();
+  mem.tools.remember(CTX, { text: "Likes tea" });
+  mem.close(); // drop the scheduled rewrite, as if the server restarted
+  expect(mem.currentSummary("u1")).toBe("");
+  await Bun.sleep(30);
+  expect(engine.completes).toHaveLength(1);
+  expect(mem.currentSummary("u1")).toBe("Works on web apps; likes tea.");
+});
+
+test("when the memory model fails the profile falls back to the last chat model; when both fail it is logged and the old one stays", async () => {
+  const CHAT = { providerId: "openrouter", modelId: "a/b" };
+  const { mem, engine } = setup({ fails: (m) => m?.providerId === "opencode-go" });
+  mem.noteModel("u1", CHAT);
+  mem.tools.remember(CTX, { text: "Likes tea" });
+  expect(await quietly(() => mem.refreshNow("u1"))).toEqual([]);
+  expect(engine.completes.map((c) => c.model)).toEqual([{ providerId: "opencode-go", modelId: "deepseek-v4.1-flash" }, CHAT]);
+  expect(mem.summary("u1")).not.toBeNull();
+
+  const both = setup({ fails: () => true });
+  both.mem.tools.remember(CTX, { text: "Likes tea" });
+  const errors = await quietly(() => both.mem.refreshNow("u1"));
   expect(errors).toHaveLength(1);
   expect(errors[0]).toContain("memory");
+  expect(both.mem.summary("u1")).toBeNull();
+  mem.close(); both.mem.close();
 });
 
-test("with no chat model to fall back to, a failure of the memory model is reported", async () => {
-  const { mem, engine } = setupFailing(failing("opencode-go/deepseek-v4.1-flash"));
-  const errors = await quietly(() => mem.extractAfterTurn("u1", "I like tea", "Noted"));
-  expect(engine.completes).toHaveLength(1);
-  expect(errors).toHaveLength(1);
+// ---- Settings and the context block ----
+
+const S = { memoryEnabled: true, displayName: "", tone: "", about: "", disabledProviders: [], freeOnlyProviders: [] };
+
+test("settings default, round trip and per-user", () => {
+  const db = openDb(":memory:");
+  for (const u of ["u1", "u2"]) db.run("insert into users(id,email,password_hash,is_owner,created_at) values(?,?,?,0,1)", [u, `${u}@x.co`, "h"]);
+  const s = createSettings(db);
+  expect(s.get("u1")).toEqual(S);
+  s.put("u1", { ...S, memoryEnabled: false, displayName: "Sky", tone: "short", about: "dev" });
+  expect(s.get("u1").displayName).toBe("Sky");
+  expect(s.get("u2").displayName).toBe("");
 });
 
-test("when the chat itself ran on the memory model, a failure is not retried on the same model", async () => {
-  const same = { providerId: "opencode-go", modelId: "deepseek-v4.1-flash" };
-  const { mem, engine } = setupFailing(failing("opencode-go/deepseek-v4.1-flash"));
-  await quietly(() => mem.extractAfterTurn("u1", "I like tea", "Noted", same));
-  expect(engine.completes).toHaveLength(1);
+test("buildSystem sends the abstract profile and points at recall, never the raw entries", () => {
+  const s = createSettings(openDb(":memory:"));
+  const text = s.buildSystem({ ...S, displayName: "Sky", tone: "casual", about: "backend dev" }, { summary: "Builds web apps.", count: 12 });
+  for (const part of ["Sky", "casual", "backend dev", "Builds web apps.", "12 saved memories", "recall_memory", "never bring it up on your own, and never in reply to a greeting"]) expect(text).toContain(part);
+  expect(s.buildSystem(S, { summary: "", count: 1 })).toContain("1 saved memory about");
+});
+
+test("buildSystem says nothing about memory when it is empty, and forbids the tools when it is off", () => {
+  const s = createSettings(openDb(":memory:"));
+  expect(s.buildSystem(S, { summary: "", count: 0 })).toBe("");
+  const off = s.buildSystem({ ...S, memoryEnabled: false }, { summary: "Builds web apps.", count: 3 });
+  expect(off).not.toContain("Builds web apps.");
+  expect(off).toContain("do not use the memory tools");
 });

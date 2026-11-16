@@ -3,6 +3,8 @@ package dev.qarasky.koremind
 import dev.qarasky.koremind.data.Activity
 import dev.qarasky.koremind.data.ChatMessage
 import dev.qarasky.koremind.data.Health
+import dev.qarasky.koremind.data.MemorySummary
+import dev.qarasky.koremind.data.MemorySummaryResponse
 import dev.qarasky.koremind.data.ProviderConnection
 import dev.qarasky.koremind.data.ProviderInfo
 import dev.qarasky.koremind.data.Settings
@@ -78,5 +80,15 @@ class ContractJsonTest {
             ),
             out,
         )
+    }
+
+    @Test fun `memory summary decodes with and without a profile`() {
+        assertEquals(MemorySummary("Builds web apps.", 5), KoreMindJson.decodeFromString(MemorySummaryResponse.serializer(), """{"summary":{"text":"Builds web apps.","updatedAt":5}}""").summary)
+        assertEquals(null, KoreMindJson.decodeFromString(MemorySummaryResponse.serializer(), """{"summary":null}""").summary)
+    }
+
+    @Test fun `memory activity decodes like note activity`() {
+        val m = KoreMindJson.decodeFromString(ChatMessage.serializer(), """{"id":"1","role":"assistant","text":"hi","attachments":[],"sources":[],"activity":[{"kind":"memory_saved","title":"Likes tea"},{"kind":"memory_read","title":""}],"createdAt":1}""")
+        assertEquals(listOf(Activity("memory_saved", "Likes tea"), Activity("memory_read", "")), m.activity)
     }
 }

@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import { defaultSettings, type MemoryEntry, type Settings } from "@koremind/shared";
+import { defaultSettings, type Settings } from "@koremind/shared";
 
 export function createSettings(db: Database) {
   return {
@@ -11,14 +11,17 @@ export function createSettings(db: Database) {
       db.run("insert or replace into settings(user_id,json) values(?,?)", [userId, JSON.stringify(s)]);
     },
     /** Context block sent with the first prompt of a chat. "" when there is nothing to say. */
-    buildSystem(s: Settings, memory: MemoryEntry[]): string {
+    buildSystem(s: Settings, memory: { summary: string; count: number }): string {
       const lines: string[] = [];
       if (s.displayName) lines.push(`The user's name is ${s.displayName}.`);
       if (s.tone) lines.push(`Talk to them in this style: ${s.tone}.`);
       if (s.about) lines.push(`About the user: ${s.about}`);
-      if (s.memoryEnabled && memory.length) {
-        lines.push("What you remember about the user:", ...memory.map((m) => `- ${m.text}`));
-        lines.push("Use this only when it helps with what they just asked; never bring it up on your own, and never in reply to a greeting.");
+      if (!s.memoryEnabled) {
+        lines.push("The user turned memory off: do not use the memory tools in this chat.");
+      } else if (memory.count) {
+        if (memory.summary) lines.push("What you know about the user, in broad strokes:", memory.summary);
+        lines.push(`You have ${memory.count} saved ${memory.count === 1 ? "memory" : "memories"} about them; look details up with recall_memory when they would help.`);
+        lines.push("Use what you know only when it helps with what they just asked; never bring it up on your own, and never in reply to a greeting.");
       }
       return lines.join("\n");
     },

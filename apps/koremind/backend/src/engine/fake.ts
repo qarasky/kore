@@ -69,7 +69,7 @@ export class FakeEngine implements Engine {
     if (this.o.completeFails?.(a.model)) throw new Error("model unavailable");
     if (this.o.completeDelayMs) await Bun.sleep(this.o.completeDelayMs);
     if (kind === "title") { const r = this.o.titleReply; return typeof r === "function" ? r() : (r ?? ""); }
-    return this.o.completeReply ?? '{"add":[]}';
+    return this.o.completeReply ?? "A fake profile of the user.";
   }
   close() {}
 

@@ -83,7 +83,9 @@ export type Attachment = z.infer<typeof Attachment>;
 export const Source = z.object({ title: z.string(), url: z.string() });
 export type Source = z.infer<typeof Source>;
 /** What the assistant did with notes during a turn. `chat` is set when another chat's notes were involved. */
-export const Activity = z.object({ kind: z.enum(["saved", "read", "edited", "denied"]), title: z.string(), chat: z.string().optional() });
+/** What the assistant did: with notes (saved…denied) or with memory (memory_*). */
+export const ACTIVITY_KINDS = ["saved", "read", "edited", "denied", "memory_saved", "memory_updated", "memory_read", "memory_deleted"] as const;
+export const Activity = z.object({ kind: z.enum(ACTIVITY_KINDS), title: z.string(), chat: z.string().optional() });
 export type Activity = z.infer<typeof Activity>;
 export const ChatMessage = z.object({
   id: z.string(),
@@ -110,7 +112,7 @@ export const StreamEvent = z.discriminatedUnion("type", [
   z.object({ type: z.literal("source"), title: z.string(), url: z.string() }),
   z.object({ type: z.literal("done"), messageId: z.string() }),
   /** The assistant used (or was refused) the notes tools. Also stored on the assistant message. */
-  z.object({ type: z.literal("activity"), kind: z.enum(["saved", "read", "edited", "denied"]), title: z.string(), chat: z.string().optional() }),
+  z.object({ type: z.literal("activity"), kind: z.enum(ACTIVITY_KINDS), title: z.string(), chat: z.string().optional() }),
   /** The assistant wants to use another chat's notes. The stream stays open until the user answers or it expires. */
   z.object({ type: z.literal("approval"), id: z.string(), action: z.enum(["read", "edit"]), chat: z.string() }),
   z.object({ type: z.literal("approval_closed"), id: z.string(), outcome: z.enum(["allowed", "denied", "expired"]) }),
@@ -126,6 +128,9 @@ export type StreamEvent = z.infer<typeof StreamEvent>;
 
 export const MemoryEntry = z.object({ id: z.string(), text: z.string(), updatedAt: z.number() });
 export type MemoryEntry = z.infer<typeof MemoryEntry>;
+/** The abstract profile written from memory, sent at the start of every chat. */
+export const MemorySummary = z.object({ text: z.string(), updatedAt: z.number() });
+export type MemorySummary = z.infer<typeof MemorySummary>;
 
 export const Settings = z.object({
   memoryEnabled: z.boolean(),

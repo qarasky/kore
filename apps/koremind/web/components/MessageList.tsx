@@ -1,7 +1,7 @@
 "use client";
 import type { Activity, ChatMessage } from "@koremind/shared";
 import { Badge, Button, Card, badgeVariants, cn } from "@qarasky/kore-ui";
-import { BookOpen, FileText, Globe, Lock, Pencil, StickyNote } from "lucide-react";
+import { BookOpen, Brain, BrainCircuit, FileText, Globe, Lock, Pencil, StickyNote, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useLayoutEffect, useRef, type KeyboardEvent, type UIEvent, type WheelEvent } from "react";
 import { Markdown } from "./Markdown";
@@ -119,7 +119,7 @@ function UserBubble({ m, api }: { m: ChatMessage; api: ReturnType<typeof useSess
   );
 }
 
-const ACTIVITY_ICON = { saved: StickyNote, edited: Pencil, read: BookOpen, denied: Lock } as const;
+const ACTIVITY_ICON = { saved: StickyNote, edited: Pencil, read: BookOpen, denied: Lock, memory_saved: Brain, memory_updated: Brain, memory_read: BrainCircuit, memory_deleted: Trash2 } as const satisfies Record<Activity["kind"], unknown>;
 
 function Assistant({ text, sources, status, activity = [], approvals = [], expired = false, live = false, onApproval }: { text: string; live?: boolean; sources: { title: string; url: string }[]; status?: Draft["status"]; activity?: Activity[]; approvals?: PendingApproval[]; expired?: boolean; onApproval?(id: string, allow: boolean): void }) {
   return (

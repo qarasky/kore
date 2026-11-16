@@ -37,6 +37,9 @@ val KoreMindJson = Json { ignoreUnknownKeys = true; explicitNulls = false; encod
 @Serializable data class ModelRef(val providerId: String, val modelId: String)
 @Serializable data class SendMessageRequest(val text: String, val attachmentIds: List<String>, val model: ModelRef, val thinking: String? = null)
 @Serializable data class MemoryEntry(val id: String, val text: String, val updatedAt: Long)
+/** The abstract profile written from memory, sent at the start of every chat. */
+@Serializable data class MemorySummary(val text: String, val updatedAt: Long)
+@Serializable data class MemorySummaryResponse(val summary: MemorySummary? = null)
 @Serializable data class Settings(
     val memoryEnabled: Boolean = true, val displayName: String = "", val tone: String = "", val about: String = "",
     val disabledProviders: List<String> = emptyList(), val freeOnlyProviders: List<String> = emptyList(),

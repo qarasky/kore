@@ -11,6 +11,11 @@ test("activity chips read the same on every platform", () => {
   expect(activityText({ kind: "read", title: "notes" })).toBe("Read notes");
   expect(activityText({ kind: "read", title: "notes", chat: "Lisbon trip" })).toBe("Read notes from “Lisbon trip”");
   expect(activityText({ kind: "denied", title: "notes", chat: "Lisbon trip" })).toBe("Access to “Lisbon trip” was denied");
+  expect(activityText({ kind: "memory_saved", title: "Likes tea" })).toBe("Remembered “Likes tea”");
+  expect(activityText({ kind: "memory_updated", title: "Loves tea" })).toBe("Updated memory “Loves tea”");
+  expect(activityText({ kind: "memory_read", title: "" })).toBe("Checked memory");
+  expect(activityText({ kind: "memory_read", title: "car" })).toBe("Checked memory for “car”");
+  expect(activityText({ kind: "memory_deleted", title: "Likes tea" })).toBe("Forgot “Likes tea”");
 });
 
 test("the approval card asks in plain words", () => {

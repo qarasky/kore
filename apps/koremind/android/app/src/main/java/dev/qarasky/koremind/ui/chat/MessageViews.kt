@@ -28,6 +28,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -225,7 +227,10 @@ fun ActivityChips(items: List<Activity>, animate: Boolean) {
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
                     Icon(
-                        when (a.kind) { "saved" -> Icons.Filled.Create; "edited" -> Icons.Filled.Edit; "read" -> Icons.Filled.Search; else -> Icons.Filled.Lock },
+                        when (a.kind) {
+                            "saved" -> Icons.Filled.Create; "edited" -> Icons.Filled.Edit; "read", "memory_read" -> Icons.Filled.Search
+                            "memory_saved", "memory_updated" -> Icons.Filled.Person; "memory_deleted" -> Icons.Filled.Delete; else -> Icons.Filled.Lock
+                        },
                         null, Modifier.size(12.dp), tint = KoreMindColors.Muted,
                     )
                     Text(stringResource(label.res, *label.args.toTypedArray()), maxLines = 1, overflow = TextOverflow.Ellipsis, color = KoreMindColors.Muted, style = MaterialTheme.typography.labelSmall)

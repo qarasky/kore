@@ -104,6 +104,8 @@
     <string name="memory_hint">What KoreMind remembers about you. Edit or delete anything.</string>
     <string name="memory_on">Remember things about me</string>
     <string name="memory_empty">Nothing remembered yet.</string>
+    <string name="memory_profile">How KoreMind sees you</string>
+    <string name="memory_profile_hint">A short summary written from your memories and given to every new chat. It updates when they change.</string>
     <string name="edit">Edit</string>
     <string name="delete">Delete</string>
     <string name="cancel">Cancel</string>
@@ -128,6 +130,11 @@
     <string name="activity_read">Read notes</string>
     <string name="activity_read_other">Read notes from “%1$s”</string>
     <string name="activity_denied">Access to “%1$s” was denied</string>
+    <string name="activity_memory_saved">Remembered “%1$s”</string>
+    <string name="activity_memory_updated">Updated memory “%1$s”</string>
+    <string name="activity_memory_read">Checked memory</string>
+    <string name="activity_memory_read_for">Checked memory for “%1$s”</string>
+    <string name="activity_memory_deleted">Forgot “%1$s”</string>
     <string name="approval_read">KoreMind wants to read the notes from “%1$s”</string>
     <string name="approval_edit">KoreMind wants to edit the notes in “%1$s”</string>
     <string name="approval_allow">Allow</string>

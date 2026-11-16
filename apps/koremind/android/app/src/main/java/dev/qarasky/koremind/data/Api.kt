@@ -79,6 +79,7 @@ class KoreMindApi(val baseUrl: String, private val token: () -> String?) {
     suspend fun deleteChat(id: String): Ok = delete("/chats/$id")
     suspend fun abort(id: String): Ok = call("POST", "/chats/$id/abort", null, serializer())
     suspend fun memory(): List<MemoryEntry> = get("/memory")
+    suspend fun memorySummary(): MemorySummary? = get<MemorySummaryResponse>("/memory/summary").summary
     suspend fun updateMemory(id: String, text: String): Ok = send("PUT", "/memory/$id", TextBody(text))
     suspend fun deleteMemory(id: String): Ok = delete("/memory/$id")
     suspend fun settings(): Settings = get("/settings")

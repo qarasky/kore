@@ -94,9 +94,12 @@ test("memory and settings routes round trip", async () => {
   expect(((await put.json()) as { displayName: string }).displayName).toBe("Sky");
   expect(((await (await call("GET", "/settings", { token })).json()) as { tone: string }).tone).toBe("short");
   const me = (await (await call("GET", "/me", { token })).json()) as { id: string };
-  (services.engine as FakeEngine); // memory seeded through the real store
-  await services.memory.extractAfterTurn(me.id, "a", "b"); // fake returns {"add":[]}
   expect(await (await call("GET", "/memory", { token })).json()).toEqual([]);
+  expect(await (await call("GET", "/memory/summary", { token })).json()).toEqual({ summary: null });
+  services.memory.tools.remember({ userId: me.id, chatId: "c" }, { text: "Likes tea" });
+  await services.memory.refreshNow(me.id);
+  expect(((await (await call("GET", "/memory", { token })).json()) as { text: string }[]).map((e) => e.text)).toEqual(["Likes tea"]);
+  expect(((await (await call("GET", "/memory/summary", { token })).json()) as { summary: { text: string } }).summary.text).toBe("A fake profile of the user.");
 });
 
 test("provider key route never echoes the key and favorites validate", async () => {

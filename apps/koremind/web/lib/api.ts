@@ -1,5 +1,5 @@
 import type {
-  Attachment, AuthResponse, ChatMessage, ChatSummary, Health, LogoutResponse, MemoryEntry, PairStart, ProviderConnection, ProviderInfo, SendMessageRequest, Settings, SignInStart, SsoStart, SsoStartResponse, SignInStatus, StreamEvent, User,
+  Attachment, AuthResponse, ChatMessage, ChatSummary, Health, LogoutResponse, MemoryEntry, MemorySummary, PairStart, ProviderConnection, ProviderInfo, SendMessageRequest, Settings, SignInStart, SsoStart, SsoStartResponse, SignInStatus, StreamEvent, User,
 } from "@koremind/shared";
 import { parseStream } from "./stream";
 
@@ -52,6 +52,7 @@ export function createApi(baseUrl: string, getToken: () => string | null) {
     upload: (file: File) => { const f = new FormData(); f.set("file", file); return req<Attachment>("POST", "/uploads", undefined, f); },
     uploadUrl: (id: string) => `${baseUrl}/uploads/${id}?token=${encodeURIComponent(getToken() ?? "")}`,
     memory: () => req<MemoryEntry[]>("GET", "/memory"),
+    memorySummary: () => req<{ summary: MemorySummary | null }>("GET", "/memory/summary").then((r) => r.summary),
     updateMemory: (id: string, text: string) => req<{ ok: true }>("PUT", `/memory/${id}`, { text }),
     deleteMemory: (id: string) => req<{ ok: true }>("DELETE", `/memory/${id}`),
     settings: () => req<Settings>("GET", "/settings"),

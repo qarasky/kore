@@ -183,11 +183,12 @@ test("disconnecting removes saved credentials by id; an env-only connection cann
   expect(credentialIdsFor(undefined)).toEqual({ ids: [], envOnly: false });
 });
 
-test("the assistant is told its one tool and that memory is automatic", () => {
+test("the assistant is told its tools and that memory is its own to manage", () => {
   expect(AGENT_SYSTEM).toContain("web search");
-  for (const tool of ["save_note", "read_notes", "edit_note"]) expect(AGENT_SYSTEM).toContain(tool);
+  for (const tool of ["save_note", "read_notes", "edit_note", "remember", "recall_memory", "update_memory", "forget_memory"]) expect(AGENT_SYSTEM).toContain(tool);
   expect(AGENT_SYSTEM).toContain("approve");
-  expect(AGENT_SYSTEM).toContain("remember");
+  expect(AGENT_SYSTEM).toContain("instead of guessing");
+  expect(AGENT_SYSTEM).toContain("Never say you cannot remember");
 });
 
 // Real opencode against a local mock model server: no network, no account. Skipped when opencode isn't installed.

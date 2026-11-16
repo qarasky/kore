@@ -13,6 +13,12 @@ function setup() {
       read: async (ctx, a) => { calls.push(["read", ctx, a]); return { text: "Notes" }; },
       edit: async (ctx, a) => { calls.push(["edit", ctx, a]); return { text: "Edited", isError: true }; },
     },
+    memory: {
+      remember: (ctx, a) => { calls.push(["remember", ctx, a]); return { text: "Remembered" }; },
+      recall: (ctx, a) => { calls.push(["recall", ctx, a]); return { text: "Found" }; },
+      update: (ctx, a) => { calls.push(["update", ctx, a]); return { text: "Updated" }; },
+      forget: (ctx, a) => { calls.push(["forget", ctx, a]); return { text: "Forgot" }; },
+    },
   });
   return { mcp, calls };
 }
@@ -26,10 +32,10 @@ test("initialize, ping and the initialized notification follow the protocol", as
   expect((await mcp.handle(rpc("ping"))).body).toEqual({ jsonrpc: "2.0", id: 1, result: {} });
 });
 
-test("tools/list names the three note tools with JSON schemas", async () => {
+test("tools/list names the note and memory tools with JSON schemas", async () => {
   const { mcp } = setup();
   const r = (await mcp.handle(rpc("tools/list"))).body as any;
-  expect(r.result.tools.map((t: any) => t.name)).toEqual(["save_note", "read_notes", "edit_note"]);
+  expect(r.result.tools.map((t: any) => t.name)).toEqual(["save_note", "read_notes", "edit_note", "remember", "recall_memory", "update_memory", "forget_memory"]);
   for (const t of r.result.tools) { expect(t.description.length).toBeGreaterThan(20); expect(t.inputSchema.type).toBe("object"); }
   expect(r.result.tools[0].inputSchema.required).toEqual(["title", "body"]);
   expect(r.result.tools[2].inputSchema.required).toEqual(["id"]);
@@ -57,4 +63,18 @@ test("a call without a known session, with bad arguments, or for an unknown tool
   expect(calls).toHaveLength(0);
   expect(((await mcp.handle({ nonsense: true })).body as any).error.code).toBe(-32600);
   expect(((await mcp.handle(rpc("resources/list"))).body as any).error.code).toBe(-32601);
+});
+
+test("memory tools reach the memory store with the session's user and chat", async () => {
+  const { mcp, calls } = setup();
+  const meta = { "ai.opencode/sessionID": sess };
+  expect(((await mcp.handle(rpc("tools/call", { name: "remember", arguments: { text: "Likes tea" }, _meta: meta }))).body as any).result.content[0].text).toBe("Remembered");
+  await mcp.handle(rpc("tools/call", { name: "recall_memory", arguments: {}, _meta: meta }));
+  await mcp.handle(rpc("tools/call", { name: "recall_memory", arguments: { query: "tea" }, _meta: meta }));
+  await mcp.handle(rpc("tools/call", { name: "update_memory", arguments: { id: "a1", text: "Loves tea" }, _meta: meta }));
+  await mcp.handle(rpc("tools/call", { name: "forget_memory", arguments: { id: "a1" }, _meta: meta }));
+  const ctx = { userId: "u1", chatId: "c1" };
+  expect(calls).toEqual([["remember", ctx, { text: "Likes tea" }], ["recall", ctx, {}], ["recall", ctx, { query: "tea" }], ["update", ctx, { id: "a1", text: "Loves tea" }], ["forget", ctx, { id: "a1" }]]);
+  const bad = (await mcp.handle(rpc("tools/call", { name: "update_memory", arguments: { id: "a1" }, _meta: meta }))).body as any;
+  expect(bad.result.isError).toBe(true);
 });

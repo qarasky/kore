@@ -79,6 +79,11 @@ class ChatNotesReducerTest {
         assertEquals(R.string.activity_read to emptyList<String>(), activityLabel(Activity("read", "Budget")).let { it.res to it.args })
         assertEquals(R.string.activity_denied to listOf("Lisbon"), activityLabel(Activity("denied", "Budget", "Lisbon")).let { it.res to it.args })
         assertEquals(R.string.activity_denied to listOf("Budget"), activityLabel(Activity("denied", "Budget")).let { it.res to it.args })
+        assertEquals(R.string.activity_memory_saved to listOf("Likes tea"), activityLabel(Activity("memory_saved", "Likes tea")).let { it.res to it.args })
+        assertEquals(R.string.activity_memory_updated to listOf("Loves tea"), activityLabel(Activity("memory_updated", "Loves tea")).let { it.res to it.args })
+        assertEquals(R.string.activity_memory_read to emptyList<String>(), activityLabel(Activity("memory_read", "")).let { it.res to it.args })
+        assertEquals(R.string.activity_memory_read_for to listOf("car"), activityLabel(Activity("memory_read", "car")).let { it.res to it.args })
+        assertEquals(R.string.activity_memory_deleted to listOf("Likes tea"), activityLabel(Activity("memory_deleted", "Likes tea")).let { it.res to it.args })
     }
 
     @Test fun `approval text names the action and the chat`() {

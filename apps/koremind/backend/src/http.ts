@@ -191,6 +191,7 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
     }
 
     if (m === "GET" && path === "/memory") return json(200, s.memory.list(u));
+    if (m === "GET" && path === "/memory/summary") return json(200, { summary: s.memory.summary(u) });
     if ((r = path.match(/^\/memory\/([^/]+)$/))) {
       if (m === "PUT") { s.memory.update(u, r[1], (await body(req, z.object({ text: z.string() }))).text); return ok(); }
       if (m === "DELETE") { s.memory.remove(u, r[1]); return ok(); }
