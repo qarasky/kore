@@ -1,6 +1,26 @@
 "use client";
 
-import { Badge, ConfirmDialog, EmptyState, IconButton, InlineMessage, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, SectionHeader, Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableRow, TableRowHeader } from "@qarasky/kore-ui";
+import {
+    Badge,
+    ConfirmDialog,
+    EmptyState,
+    IconButton,
+    InlineMessage,
+    Menu,
+    MenuContent,
+    MenuItem,
+    MenuSeparator,
+    MenuTrigger,
+    SectionHeader,
+    Table,
+    TableBody,
+    TableCell,
+    TableEmpty,
+    TableHead,
+    TableHeader,
+    TableRow,
+    TableRowHeader,
+} from "@qarasky/kore-ui";
 import { KeyRound, MoreHorizontal, Power, PowerOff, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -68,11 +88,7 @@ export function TokensList({ reloadKey = 0 }: { reloadKey?: number }) {
                 description="Full operator access to /api/v1. Onboarding links carry one too."
                 actions={<MintTokenDialog onMinted={() => void load()} />}
             />
-            {error ? (
-                <InlineMessage className="mb-3">
-                    {error}
-                </InlineMessage>
-            ) : null}
+            {error ? <InlineMessage className="mb-3">{error}</InlineMessage> : null}
             {keys !== null && keys.length === 0 ? (
                 <EmptyState
                     icon={<KeyRound />}

@@ -269,11 +269,7 @@ export const LoadHistory = memo(function LoadHistory({ monitorId }: { monitorId:
                 {data ? `${data.basis}. ` : "Percentiles use archived snapshots (normally every 30s). "}p95 means 95% of
                 readings were at or below that load. Charts show bucket averages; gaps are not zeroes.
             </p>
-            {error ? (
-                <InlineMessage tone="warning">
-                    {error}
-                </InlineMessage>
-            ) : null}
+            {error ? <InlineMessage tone="warning">{error}</InlineMessage> : null}
             {loading ? (
                 <p className="history-no-data" role="status">
                     Loading history…

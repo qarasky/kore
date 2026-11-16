@@ -72,11 +72,7 @@ export function DeleteGroupDialog({
                         undone.
                     </Alert>
                 ) : null}
-                {error ? (
-                    <InlineMessage>
-                        {error}
-                    </InlineMessage>
-                ) : null}
+                {error ? <InlineMessage>{error}</InlineMessage> : null}
             </div>
         </ConfirmDialog>
     );

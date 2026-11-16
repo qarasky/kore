@@ -1,6 +1,16 @@
 "use client";
 
-import { Button, CopyButton, CopyField, Dialog, DialogBody, DialogContent, DialogFooter, Field, Textarea } from "@qarasky/kore-ui";
+import {
+    Button,
+    CopyButton,
+    CopyField,
+    Dialog,
+    DialogBody,
+    DialogContent,
+    DialogFooter,
+    Field,
+    Textarea,
+} from "@qarasky/kore-ui";
 import type { ReactNode } from "react";
 
 export interface SecretField {

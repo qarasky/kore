@@ -1,6 +1,19 @@
 "use client";
 
-import { Badge, EmptyState, InlineMessage, SectionHeader, Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableRow, TableRowHeader } from "@qarasky/kore-ui";
+import {
+    Badge,
+    EmptyState,
+    InlineMessage,
+    SectionHeader,
+    Table,
+    TableBody,
+    TableCell,
+    TableEmpty,
+    TableHead,
+    TableHeader,
+    TableRow,
+    TableRowHeader,
+} from "@qarasky/kore-ui";
 import { DatabaseBackup } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -38,11 +51,7 @@ export function BackupTokens() {
                 title={<span id="backup-tokens">Backup agent tokens</span>}
                 description="One per backup agent. Rotate or revoke a token on the agent's page under Backups."
             />
-            {error ? (
-                <InlineMessage className="mb-3">
-                    {error}
-                </InlineMessage>
-            ) : null}
+            {error ? <InlineMessage className="mb-3">{error}</InlineMessage> : null}
             {agents !== null && agents.length === 0 ? (
                 <EmptyState
                     icon={<DatabaseBackup />}

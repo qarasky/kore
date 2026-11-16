@@ -1,6 +1,20 @@
 "use client";
 
-import { Button, EmptyState, InlineMessage, LoadingState, PageBody, StatusDot, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableRowHeader } from "@qarasky/kore-ui";
+import {
+    Button,
+    EmptyState,
+    InlineMessage,
+    LoadingState,
+    PageBody,
+    StatusDot,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+    TableRowHeader,
+} from "@qarasky/kore-ui";
 import { Archive } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -99,11 +113,7 @@ export function BackupsList() {
     const names = new Map(monitors.map((m) => [m.id, m.name]));
     return (
         <PageBody>
-            {error ? (
-                <InlineMessage className="mb-3">
-                    {error}
-                </InlineMessage>
-            ) : null}
+            {error ? <InlineMessage className="mb-3">{error}</InlineMessage> : null}
             {backups.length === 0 ? (
                 <EmptyState
                     icon={<Archive />}

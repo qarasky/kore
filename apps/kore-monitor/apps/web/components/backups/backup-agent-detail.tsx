@@ -1,6 +1,25 @@
 "use client";
 
-import { Button, Card, Checkbox, CodeBlock, ConfirmDialog, Field, InlineMessage, Input, PageBody, SectionHeader, Select, StatusDot, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@qarasky/kore-ui";
+import {
+    Button,
+    Card,
+    Checkbox,
+    CodeBlock,
+    ConfirmDialog,
+    Field,
+    InlineMessage,
+    Input,
+    PageBody,
+    SectionHeader,
+    Select,
+    StatusDot,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@qarasky/kore-ui";
 import { useCallback, useState, type FormEvent } from "react";
 
 import { useBoardData } from "@/components/board/board-data";
@@ -78,7 +97,12 @@ function LatestBackup({
                     To restore: put <code>{backupFileName(run)}</code> next to the <code>flatline-backup</code> binary
                     (any backup host has it in <code>/usr/local/bin</code>), then run
                 </p>
-                <CodeBlock className="min-w-0" value={commands} language="bash" copy={{ label: "Copy restore commands" }} />
+                <CodeBlock
+                    className="min-w-0"
+                    value={commands}
+                    language="bash"
+                    copy={{ label: "Copy restore commands" }}
+                />
                 <p className="text-meta text-muted">
                     <code>restore-target.json</code> maps each database and bucket to an empty scratch target; restores
                     never touch the live services.{" "}
@@ -237,11 +261,7 @@ export function BackupAgentDetail({
                     <span className="text-meta text-status-down">Last error: {agent.lastErrorCode}</span>
                 ) : null}
             </div>
-            {error ? (
-                <InlineMessage>
-                    {error}
-                </InlineMessage>
-            ) : null}
+            {error ? <InlineMessage>{error}</InlineMessage> : null}
             <Section title="Latest backup">
                 <LatestBackup run={agent.lastCompletedRun} onDownload={startDownload} />
             </Section>

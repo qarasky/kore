@@ -1,6 +1,17 @@
 "use client";
 
-import { Button, Dialog, DialogBody, DialogContent, DialogFooter, DialogTrigger, Field, InlineMessage, Input, Select } from "@qarasky/kore-ui";
+import {
+    Button,
+    Dialog,
+    DialogBody,
+    DialogContent,
+    DialogFooter,
+    DialogTrigger,
+    Field,
+    InlineMessage,
+    Input,
+    Select,
+} from "@qarasky/kore-ui";
 import { Plus } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
@@ -60,11 +71,7 @@ export function NewAgentDialog() {
                             <Field label="Server">
                                 <Select value={server} onValueChange={setServer} options={options} />
                             </Field>
-                            {error ? (
-                                <InlineMessage>
-                                    {error}
-                                </InlineMessage>
-                            ) : null}
+                            {error ? <InlineMessage>{error}</InlineMessage> : null}
                         </DialogBody>
                         <DialogFooter>
                             <Button onClick={() => setOpen(false)} disabled={busy}>

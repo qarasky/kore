@@ -1,6 +1,16 @@
 "use client";
 
-import { Button, Dialog, DialogBody, DialogContent, DialogFooter, Field, InlineMessage, Input, Select } from "@qarasky/kore-ui";
+import {
+    Button,
+    Dialog,
+    DialogBody,
+    DialogContent,
+    DialogFooter,
+    Field,
+    InlineMessage,
+    Input,
+    Select,
+} from "@qarasky/kore-ui";
 import { Plus } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
@@ -74,11 +84,7 @@ export function MintTokenDialog({ onMinted }: { onMinted: () => void }) {
                                     options={EXPIRY_CHOICES}
                                 />
                             </Field>
-                            {error ? (
-                                <InlineMessage>
-                                    {error}
-                                </InlineMessage>
-                            ) : null}
+                            {error ? <InlineMessage>{error}</InlineMessage> : null}
                         </DialogBody>
                         <DialogFooter>
                             <Button onClick={() => setOpen(false)} disabled={busy}>

@@ -1,6 +1,18 @@
 "use client";
 
-import { Button, Card, DescriptionList, Dialog, DialogBody, DialogContent, DialogFooter, InlineMessage, PageBody, SectionHeader, cn } from "@qarasky/kore-ui";
+import {
+    Button,
+    Card,
+    DescriptionList,
+    Dialog,
+    DialogBody,
+    DialogContent,
+    DialogFooter,
+    InlineMessage,
+    PageBody,
+    SectionHeader,
+    cn,
+} from "@qarasky/kore-ui";
 import { Activity, Pencil } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -169,7 +181,10 @@ function AgentReport({
             className="text-sub"
             items={[
                 { label: "Agent", value: <span className="tnum">{metrics?.agent?.version ?? "—"}</span> },
-                { label: "Host uptime", value: <span className="tnum">{formatDuration(metrics?.host?.uptime) ?? "—"}</span> },
+                {
+                    label: "Host uptime",
+                    value: <span className="tnum">{formatDuration(metrics?.host?.uptime) ?? "—"}</span>,
+                },
                 {
                     label: "Updates",
                     value: (
@@ -266,11 +281,7 @@ function LinkedWebsites({ monitor, monitors }: { monitor: MonitorSummary; monito
                 </Button>
             }
         >
-            {error ? (
-                <InlineMessage className="mb-2">
-                    {error}
-                </InlineMessage>
-            ) : null}
+            {error ? <InlineMessage className="mb-2">{error}</InlineMessage> : null}
             {links === null ? null : links.resolved.length === 0 ? (
                 <p className="text-muted">
                     No websites linked. Their status would show here and on the Superboard card.
@@ -458,11 +469,7 @@ export function ServerDetail({
                             {editing ? "Close editor" : "Edit"}
                         </Button>
                     </div>
-                    {muteError ? (
-                        <InlineMessage className="w-full">
-                            {muteError}
-                        </InlineMessage>
-                    ) : null}
+                    {muteError ? <InlineMessage className="w-full">{muteError}</InlineMessage> : null}
                 </div>
                 {editing ? (
                     <Card className="p-4">
@@ -495,9 +502,18 @@ export function ServerDetail({
                     <DescriptionList
                         className="text-sub tnum"
                         items={[
-                            { label: "CPU", value: monitor.metricCpuThreshold != null ? `${monitor.metricCpuThreshold}%` : "Off" },
-                            { label: "RAM", value: monitor.metricRamThreshold != null ? `${monitor.metricRamThreshold}%` : "Off" },
-                            { label: "Disk", value: monitor.metricDiskThreshold != null ? `${monitor.metricDiskThreshold}%` : "Off" },
+                            {
+                                label: "CPU",
+                                value: monitor.metricCpuThreshold != null ? `${monitor.metricCpuThreshold}%` : "Off",
+                            },
+                            {
+                                label: "RAM",
+                                value: monitor.metricRamThreshold != null ? `${monitor.metricRamThreshold}%` : "Off",
+                            },
+                            {
+                                label: "Disk",
+                                value: monitor.metricDiskThreshold != null ? `${monitor.metricDiskThreshold}%` : "Off",
+                            },
                             { label: "Provider", value: monitor.provider ?? "—" },
                         ]}
                     />

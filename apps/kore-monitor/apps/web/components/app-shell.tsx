@@ -97,7 +97,7 @@ export function AdminShell({
                                 <AppSwitcher
                                     urls={methods.apps}
                                     current={KORE_APP}
-                                   
+
                                     accountUrl={methods.accountUrl ?? undefined}
                                 />
                             ) : null}

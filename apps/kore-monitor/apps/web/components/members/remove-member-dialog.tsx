@@ -100,9 +100,7 @@ export function RemoveMemberDialog({
                     </fieldset>
                 )}
                 {warning && <InlineMessage tone="warning">{warning}</InlineMessage>}
-                {error && (
-                    <InlineMessage>{error}</InlineMessage>
-                )}
+                {error && <InlineMessage>{error}</InlineMessage>}
             </div>
         </ConfirmDialog>
     );

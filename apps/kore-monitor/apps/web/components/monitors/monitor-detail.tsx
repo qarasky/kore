@@ -4,7 +4,21 @@ import { ArrowLeft, Maximize2, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-import { Badge, Button, Card, IconButton, InlineMessage, LoadingState, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, cn } from "@qarasky/kore-ui";
+import {
+    Badge,
+    Button,
+    Card,
+    IconButton,
+    InlineMessage,
+    LoadingState,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+    cn,
+} from "@qarasky/kore-ui";
 
 import { useBoardData } from "@/components/board/board-data";
 import { isApiError } from "@/lib/api";
@@ -409,12 +423,12 @@ function MonitorBody({
     const hasCertDays = certDays !== "" && certDays != null;
     return (
         <>
-            {muteError ? (
-                <InlineMessage className="mb-3">
-                    {muteError}
+            {muteError ? <InlineMessage className="mb-3">{muteError}</InlineMessage> : null}
+            {error ? (
+                <InlineMessage tone="warning" className="mb-3">
+                    {error}
                 </InlineMessage>
             ) : null}
-            {error ? <InlineMessage tone="warning" className="mb-3">{error}</InlineMessage> : null}
             {monitor.url ? <p className="text-muted text-meta mb-4 truncate">{monitor.url}</p> : null}
 
             <div className={cn("mb-4 grid grid-cols-2 gap-3", !compact && "md:grid-cols-4")}>

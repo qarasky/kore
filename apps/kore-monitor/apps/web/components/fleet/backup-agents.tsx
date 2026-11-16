@@ -8,7 +8,17 @@ import {
     restoreLabel,
     verificationLabel,
 } from "@/lib/backup-presentation";
-import { Button, InlineMessage, StatusDot, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@qarasky/kore-ui";
+import {
+    Button,
+    InlineMessage,
+    StatusDot,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@qarasky/kore-ui";
 
 import { backupStatus } from "./backup-status";
 
@@ -35,11 +45,7 @@ export function BackupAgents({
 
     return (
         <div className="grid gap-2">
-            {error ? (
-                <InlineMessage>
-                    {error}
-                </InlineMessage>
-            ) : null}
+            {error ? <InlineMessage>{error}</InlineMessage> : null}
             {agents.length ? (
                 <Table caption="Backup agents on this server">
                     <TableHeader>

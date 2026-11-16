@@ -1,6 +1,22 @@
 "use client";
 
-import { EmptyState, IconButton, InlineMessage, Menu, MenuContent, MenuItem, MenuTrigger, SectionHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableRowHeader } from "@qarasky/kore-ui";
+import {
+    EmptyState,
+    IconButton,
+    InlineMessage,
+    Menu,
+    MenuContent,
+    MenuItem,
+    MenuTrigger,
+    SectionHeader,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+    TableRowHeader,
+} from "@qarasky/kore-ui";
 import { ExternalLink, MoreHorizontal, Server, Terminal } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -51,11 +67,7 @@ export function ServerTokens() {
                 title={<span id="server-tokens">Server agent tokens</span>}
                 description="One per server, made with the server. Each only reports its own server."
             />
-            {error ? (
-                <InlineMessage className="mb-3">
-                    {error}
-                </InlineMessage>
-            ) : null}
+            {error ? <InlineMessage className="mb-3">{error}</InlineMessage> : null}
             {rosterLoaded && servers.length === 0 ? (
                 <EmptyState
                     icon={<Server />}

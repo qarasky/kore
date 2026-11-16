@@ -2,7 +2,17 @@
 
 import { useState, type FormEvent } from "react";
 
-import { Button, Checkbox, Dialog, DialogBody, DialogContent, DialogFooter, Field, InlineMessage, Input } from "@qarasky/kore-ui";
+import {
+    Button,
+    Checkbox,
+    Dialog,
+    DialogBody,
+    DialogContent,
+    DialogFooter,
+    Field,
+    InlineMessage,
+    Input,
+} from "@qarasky/kore-ui";
 
 import { notificationBody, notificationValues, type NotificationValues } from "@/lib/notification-form";
 import { createNotification, updateNotification, type NotificationRecord } from "@/lib/notifications-api";
@@ -105,11 +115,7 @@ export function NotificationDialog({
                                 onCheckedChange={(c) => set("protect", c === true)}
                             />
                         </div>
-                        {error ? (
-                            <InlineMessage>
-                                {error}
-                            </InlineMessage>
-                        ) : null}
+                        {error ? <InlineMessage>{error}</InlineMessage> : null}
                     </DialogBody>
                     <DialogFooter>
                         <Button onClick={onClose} disabled={busy}>

@@ -1,6 +1,22 @@
 "use client";
 
-import { EmptyState, InlineMessage, Input, LoadingState, PageBody, Select, Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableRow, TableRowHeader, cn } from "@qarasky/kore-ui";
+import {
+    EmptyState,
+    InlineMessage,
+    Input,
+    LoadingState,
+    PageBody,
+    Select,
+    Table,
+    TableBody,
+    TableCell,
+    TableEmpty,
+    TableHead,
+    TableHeader,
+    TableRow,
+    TableRowHeader,
+    cn,
+} from "@qarasky/kore-ui";
 import { Search, Server } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";

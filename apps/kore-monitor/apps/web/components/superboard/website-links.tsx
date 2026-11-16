@@ -2,7 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { SyntheticEvent } from "react";
-import { Button, Checkbox, Dialog, DialogBody, DialogContent, DialogFooter, InlineMessage, Input, LoadingState, StatusDot, type Status } from "@qarasky/kore-ui";
+import {
+    Button,
+    Checkbox,
+    Dialog,
+    DialogBody,
+    DialogContent,
+    DialogFooter,
+    InlineMessage,
+    Input,
+    LoadingState,
+    StatusDot,
+    type Status,
+} from "@qarasky/kore-ui";
 import { Search } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import type { MonitorSummary } from "@/lib/monitor-types";
@@ -183,11 +195,7 @@ export function WebsiteLinkDialog({ server, onClose }: { server: MonitorSummary;
                                 disabled={saving}
                             />
                         )}
-                        {error ? (
-                            <InlineMessage className="mt-3">
-                                {error}
-                            </InlineMessage>
-                        ) : null}
+                        {error ? <InlineMessage className="mt-3">{error}</InlineMessage> : null}
                     </DialogBody>
                     <DialogFooter className="sm:items-center">
                         <span className="mr-auto text-meta text-muted">

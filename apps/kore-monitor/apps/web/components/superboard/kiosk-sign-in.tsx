@@ -33,7 +33,7 @@ export function KioskSignIn() {
     return (
         <AuthScreen
             app={KORE_APP}
-           
+
             title="Sign in"
             description={methods.sso ? "Sign in to monitor your sites and servers." : undefined}
             sso={methods.sso ? { href: ssoStartHref(next) } : undefined}

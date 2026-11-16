@@ -1,6 +1,26 @@
 "use client";
 
-import { Badge, Button, ConfirmDialog, EmptyState, IconButton, InlineMessage, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableRow, TableRowHeader } from "@qarasky/kore-ui";
+import {
+    Badge,
+    Button,
+    ConfirmDialog,
+    EmptyState,
+    IconButton,
+    InlineMessage,
+    Menu,
+    MenuContent,
+    MenuItem,
+    MenuSeparator,
+    MenuTrigger,
+    Table,
+    TableBody,
+    TableCell,
+    TableEmpty,
+    TableHead,
+    TableHeader,
+    TableRow,
+    TableRowHeader,
+} from "@qarasky/kore-ui";
 import { Bell, ChevronDown, ChevronRight, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useState } from "react";
@@ -72,11 +92,7 @@ export function NotificationsList() {
                     New notification
                 </Button>
             </div>
-            {error ? (
-                <InlineMessage>
-                    {error}
-                </InlineMessage>
-            ) : null}
+            {error ? <InlineMessage>{error}</InlineMessage> : null}
             {records !== null && records.length === 0 ? (
                 <EmptyState
                     icon={<Bell />}
