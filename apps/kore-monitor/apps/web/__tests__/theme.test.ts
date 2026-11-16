@@ -43,6 +43,7 @@ describe("theme", () => {
     it("wires the three themes before first paint", () => {
         expect(layout).toContain("themeInitScript()");
         expect(layout).toContain("suppressHydrationWarning");
+        expect(layout).toContain("themeColor: KORE_THEME_COLOR");
     });
 
     it("keeps every colour on a token so the themes can change it", () => {
