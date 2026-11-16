@@ -1,13 +1,12 @@
 "use client";
 
 import { AnimatePresence, m } from "motion/react";
-import { duration, ease } from "@/lib/motion";
 import { useState, useSyncExternalStore, type FormEvent } from "react";
 import { useMutate } from "@/hooks/useMutate";
 import { t } from "@/lib/i18n";
 import { createToken, revokeToken } from "@/lib/mutations";
 import type { Token } from "@/lib/types";
-import { Button, ConfirmDialog, CopyButton, Field, Input, SettingsSection } from "@qarasky/kore-ui";
+import { Button, ConfirmDialog, CopyButton, Field, Input, SettingsSection, koreDuration, koreEase } from "@qarasky/kore-ui";
 import { KeyRoundIcon } from "lucide-react";
 import { useShell } from "../ShellContext";
 
@@ -76,8 +75,8 @@ export function TokensManager({ initial }: { initial: Token[] }) {
         {initial.map((tok) => (
           <m.li key={tok.id} layout="position"
             initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0, transition: { duration: duration.enter, ease: ease.standard } }}
-            exit={{ opacity: 0, transition: { duration: duration.exit, ease: ease.exit } }}
+            animate={{ opacity: 1, y: 0, transition: { duration: koreDuration.pop.in, ease: koreEase.standard } }}
+            exit={{ opacity: 0, transition: { duration: koreDuration.pop.out, ease: koreEase.exit } }}
             data-testid="token-row" className="flex min-h-row items-center gap-3 px-4 py-2">
             <KeyRoundIcon size={16} className="shrink-0 text-muted" />
             <div className="min-w-0 flex-1">

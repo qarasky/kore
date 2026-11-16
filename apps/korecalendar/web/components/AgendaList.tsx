@@ -2,7 +2,8 @@
 
 import { useMemo } from "react";
 import { groupByDay } from "@/lib/agenda";
-import { calendarTint } from "@/lib/colors";
+import { DEFAULT_CALENDAR_COLOR } from "@/lib/colors";
+import { tintOf } from "@qarasky/kore-ui";
 import { parseDay } from "@/lib/dates";
 import { formatDayShort, formatTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -44,11 +45,11 @@ export function AgendaList({ days, occurrences }: { days: string[]; occurrences:
         <section key={day} aria-label={formatDayShort(day)} className="border-b border-border px-4 py-3">
           <h2 className="mb-1.5 flex items-baseline gap-2 text-sub font-semibold">
             {formatDayShort(day)} {parseDay(day).year}
-            {day === today ? <span className="rounded-full bg-accent px-2 py-0.5 text-2xs font-medium text-white">{t("agenda.today")}</span> : null}
+            {day === today ? <span className="rounded-full bg-accent px-2 py-0.5 text-2xs font-medium text-on-accent">{t("agenda.today")}</span> : null}
           </h2>
           <ul className="flex flex-col">
             {items.map((occ) => {
-              const tint = calendarTint(colors.get(occ.calendar_id) ?? "#5b8def");
+              const tint = tintOf(colors.get(occ.calendar_id) ?? DEFAULT_CALENDAR_COLOR);
               return (
                 <li key={occ.event_id + occ.key}>
                   <button
@@ -58,7 +59,7 @@ export function AgendaList({ days, occurrences }: { days: string[]; occurrences:
                     data-key={occ.key}
                     data-title={occ.title}
                     onClick={(e) => openOccurrence(occ, e.currentTarget)}
-                    className="flex min-h-control w-full items-center gap-3 rounded-ui px-2 text-left hover:bg-white/5"
+                    className="flex min-h-control w-full items-center gap-3 rounded-ui px-2 text-left hover:bg-hover"
                   >
                     <span aria-hidden="true" className="h-5 w-1 shrink-0 rounded-full" style={{ backgroundColor: tint.edge }} />
                     <span className="w-32 shrink-0 text-sub text-muted tabular-nums">{whenOn(occ, day, tz, prefs.clock)}</span>

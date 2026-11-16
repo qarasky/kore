@@ -5,7 +5,7 @@ import { weekdayLong, weekdayShort } from "@/lib/format";
 import { t, type MessageKey } from "@/lib/i18n";
 import { matchPreset, presets, type Freq, type Recurrence, type RuleRecurrence } from "@/lib/rrule";
 import { addDays, parseDay, weekday } from "@/lib/dates";
-import { Button, Input, Select } from "@qarasky/kore-ui";
+import { Button, Input, Select, ToggleGroup, ToggleGroupItem } from "@qarasky/kore-ui";
 import { useShell } from "./ShellContext";
 
 type Rule = RuleRecurrence;
@@ -130,29 +130,27 @@ function CustomRule({ rule, start, weekStart, onChange }: { rule: Rule; start: s
       </div>
 
       {rule.freq === "WEEKLY" ? (
-        <div role="group" aria-label={t("recurrence.repeatOn")} className="flex flex-wrap gap-1.5">
-          {order.map((d) => {
-            const on = rule.byDay.includes(d);
-            return (
-              <button
-                key={d}
-                type="button"
-                aria-pressed={on}
-                aria-label={t("recurrence.weekdayToggle", { day: weekdayLong(d) })}
-                onClick={() => {
-                  const next = on ? rule.byDay.filter((x) => x !== d) : [...rule.byDay, d];
-                  if (next.length > 0) set({ byDay: next.sort((a, b) => a - b) });
-                }}
-                className={
-                  "grid size-control-sm place-items-center rounded-full text-meta font-medium transition-colors " +
-                  (on ? "bg-accent text-white" : "border border-border-strong text-muted hover:bg-white/5 hover:text-text")
-                }
-              >
-                {weekdayShort(d).slice(0, 2)}
-              </button>
-            );
-          })}
-        </div>
+        <ToggleGroup
+          type="multiple"
+          shape="round"
+          aria-label={t("recurrence.repeatOn")}
+          value={rule.byDay.map(String)}
+          onValueChange={(days) => {
+            const next = days.map(Number);
+            if (next.length > 0) set({ byDay: next.sort((a, b) => a - b) });
+          }}
+        >
+          {order.map((d) => (
+            <ToggleGroupItem
+              key={d}
+              value={String(d)}
+              aria-label={t("recurrence.weekdayToggle", { day: weekdayLong(d) })}
+              className="size-control-sm px-0 text-meta"
+            >
+              {weekdayShort(d).slice(0, 2)}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
       ) : null}
 
       {rule.freq === "MONTHLY" ? (

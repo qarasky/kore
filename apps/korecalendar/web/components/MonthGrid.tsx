@@ -8,6 +8,7 @@ import { COMPACT_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
 import { useMonthDrag } from "@/hooks/useMonthDrag";
 import { useMoveCommit } from "@/hooks/useMoveCommit";
 import { chipsForDay, groupByDay } from "@/lib/agenda";
+import { DEFAULT_CALENDAR_COLOR } from "@/lib/colors";
 import { isSameMonth, parseDay, weekday } from "@/lib/dates";
 import { monthShortName, weekdayShort } from "@/lib/format";
 import { layoutKey } from "@/lib/motion";
@@ -40,7 +41,7 @@ export function MonthGrid({ day, days, occurrences }: { day: string; days: strin
     return first;
   }, [groups]);
   const colors = useMemo(() => new Map(calendars.map((c) => [c.id, c.color])), [calendars]);
-  const colorOf = (id: string) => colors.get(id) ?? "#5b8def";
+  const colorOf = (id: string) => colors.get(id) ?? DEFAULT_CALENDAR_COLOR;
 
   return (
     <div className="flex h-full min-h-[34rem] flex-col" data-testid="month-grid" onClickCapture={drag.swallowClick}>
@@ -70,7 +71,7 @@ export function MonthGrid({ day, days, occurrences }: { day: string; days: strin
                 onClick={(e) => e.stopPropagation()}
                 className={
                   "mb-0.5 inline-flex h-6 min-w-6 items-center justify-center self-start rounded-full px-1.5 text-meta " +
-                  (isToday ? "bg-accent font-semibold text-white" : isSameMonth(d, day) ? "text-text hover:bg-white/5" : "text-muted hover:bg-white/5")
+                  (isToday ? "bg-accent font-semibold text-on-accent" : isSameMonth(d, day) ? "text-text hover:bg-hover" : "text-muted hover:bg-hover")
                 }
               >
                 {dom === 1 ? `${dom} ${monthShortName(month - 1)}` : dom}

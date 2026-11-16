@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { placedId, useGridDrag } from "@/hooks/useGridDrag";
 import { useMoveCommit } from "@/hooks/useMoveCommit";
 import { snapForClick } from "@/lib/click";
+import { DEFAULT_CALENDAR_COLOR } from "@/lib/colors";
 import { hourLabel } from "@/lib/format";
 import { placeAllDay, placeTimed } from "@/lib/layout";
 import { utcToLocal } from "@/lib/tz";
@@ -34,7 +35,7 @@ export function TimeGrid({ days, occurrences }: { days: string[]; occurrences: O
   const placed = useMemo(() => placeTimed(occurrences, days, tz), [occurrences, days, tz]);
   const allDay = useMemo(() => placeAllDay(occurrences, days), [occurrences, days]);
   const colors = useMemo(() => new Map(calendars.map((c) => [c.id, c.color])), [calendars]);
-  const colorOf = (id: string) => colors.get(id) ?? "#5b8def";
+  const colorOf = (id: string) => colors.get(id) ?? DEFAULT_CALENDAR_COLOR;
   const todayInGrid = days.includes(today);
 
   const drag = useGridDrag({

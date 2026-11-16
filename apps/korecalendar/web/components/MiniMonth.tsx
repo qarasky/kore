@@ -67,9 +67,9 @@ export function MiniMonth() {
               className={
                 "relative grid h-7 place-items-center text-meta transition-colors duration-100 " +
                 (isToday
-                  ? "rounded-full bg-accent font-semibold text-white"
+                  ? "rounded-full bg-accent font-semibold text-on-accent"
                   : (isSameMonth(d, shown) ? "text-text" : "text-muted/60") +
-                    (view === "week" || !inView.has(d) ? " rounded-[4px] hover:bg-white/5" : " bg-raised") +
+                    (view === "week" || !inView.has(d) ? " rounded-[4px] hover:bg-hover" : " bg-raised") +
                     (isSel ? " rounded-full ring-1 ring-accent" : ""))
               }
             >

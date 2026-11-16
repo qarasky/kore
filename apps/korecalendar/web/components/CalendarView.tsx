@@ -3,7 +3,8 @@
 import { m, useReducedMotionConfig } from "motion/react";
 import { useEffect, useState } from "react";
 import { COMPACT_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
-import { duration, ease, pushDirection, viewEnter } from "@/lib/motion";
+import { koreDuration, koreEase } from "@qarasky/kore-ui";
+import { pushDirection, viewEnter } from "@/lib/motion";
 import { compactDays } from "@/lib/range";
 import type { Occurrence, View } from "@/lib/types";
 import { AgendaList } from "./AgendaList";
@@ -37,7 +38,7 @@ function Screen(props: { view: View; day: string; days: string[]; occurrences: O
     <m.div
       className="h-full"
       initial={enter ? enter.initial : false}
-      animate={enter ? { ...enter.animate, transition: { duration: duration.view, ease: ease.standard } } : undefined}
+      animate={enter ? { ...enter.animate, transition: { duration: koreDuration.dialog.in, ease: koreEase.standard } } : undefined}
     >
       <ViewBody {...props} />
     </m.div>

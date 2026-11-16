@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useEventDelete } from "@/hooks/useEventDelete";
-import { calendarTint } from "@/lib/colors";
+import { DEFAULT_CALENDAR_COLOR } from "@/lib/colors";
 import { formatRange } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { describeReminder } from "@/lib/reminders";
@@ -10,7 +10,7 @@ import { describeRule } from "@/lib/rrule";
 import { fetchEvent } from "@/lib/mutations";
 import { parseWall } from "@/lib/wall";
 import type { Event, Occurrence } from "@/lib/types";
-import { Button, IconButton, Popover, PopoverAnchor, PopoverContent } from "@qarasky/kore-ui";
+import { Button, IconButton, Popover, PopoverAnchor, PopoverContent, tintOf } from "@qarasky/kore-ui";
 import { AlignLeftIcon, BellIcon, CalendarDaysIcon, ClockIcon, MapPinIcon, RepeatIcon, XIcon } from "lucide-react";
 import { useShell } from "./ShellContext";
 
@@ -33,7 +33,7 @@ export function EventPopover({ occ, anchor, onClose, onEdit }: { occ: Occurrence
   const del = useEventDelete();
   const anchorRef = useRef(anchor);
   const calendar = calendars.find((c) => c.id === occ.calendar_id);
-  const tint = calendarTint(calendar?.color ?? "#5b8def");
+  const tint = tintOf(calendar?.color ?? DEFAULT_CALENDAR_COLOR);
 
   useEffect(() => {
     const ac = new AbortController();

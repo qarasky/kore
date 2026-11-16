@@ -40,7 +40,7 @@ export function MoreEvents({
           aria-label={t("month.moreLabel", { count, date: formatDayShort(day) })}
           data-testid="more-events"
           onClick={(e) => e.stopPropagation()}
-          className="min-h-5 w-full rounded-[4px] px-1 text-left text-2xs font-medium text-muted hover:bg-white/5 hover:text-text"
+          className="min-h-5 w-full rounded-[4px] px-1 text-left text-2xs font-medium text-muted hover:bg-hover hover:text-text"
         >
           {t("month.more", { count })}
         </button>

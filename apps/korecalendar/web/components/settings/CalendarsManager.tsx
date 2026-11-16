@@ -1,7 +1,6 @@
 "use client";
 
 import { AnimatePresence, m } from "motion/react";
-import { duration, ease } from "@/lib/motion";
 import { useState } from "react";
 import { useMutate } from "@/hooks/useMutate";
 import { isApiError } from "@/lib/api";
@@ -17,6 +16,8 @@ import {
   IconButton,
   Input,
   SettingsSection,
+  koreDuration,
+  koreEase,
   useToast,
 } from "@qarasky/kore-ui";
 import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
@@ -94,8 +95,8 @@ export function CalendarsManager() {
         {calendars.map((c) => (
           <m.li key={c.id} layout="position"
             initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0, transition: { duration: duration.enter, ease: ease.standard } }}
-            exit={{ opacity: 0, transition: { duration: duration.exit, ease: ease.exit } }}
+            animate={{ opacity: 1, y: 0, transition: { duration: koreDuration.pop.in, ease: koreEase.standard } }}
+            exit={{ opacity: 0, transition: { duration: koreDuration.pop.out, ease: koreEase.exit } }}
             data-testid="calendar-row">
             {editing === c.id ? (
               <div className="flex flex-col gap-4 p-4">

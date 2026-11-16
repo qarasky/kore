@@ -37,7 +37,7 @@ export function CalendarList() {
               color={c.color}
               aria-label={t("calendars.show", { name: c.name })}
               label={<span className={`block truncate ${visible ? "text-text" : "text-muted"}`}>{c.name}</span>}
-              className="min-h-control-sm w-full items-center gap-3 rounded-ui px-3 py-0 transition-colors hover:bg-white/[0.04] [&>div]:min-w-0 [&>div]:flex-1"
+              className="min-h-control-sm w-full items-center gap-3 rounded-ui px-3 py-0 transition-colors hover:bg-hover-subtle [&>div]:min-w-0 [&>div]:flex-1"
             />
           </li>
         );

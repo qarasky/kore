@@ -2,8 +2,8 @@
 
 import { m } from "motion/react";
 import { t } from "@/lib/i18n";
-import { duration, ease, layoutKey, spring } from "@/lib/motion";
-import { calendarTint } from "@/lib/colors";
+import { koreDuration, koreEase, tintOf } from "@qarasky/kore-ui";
+import { layoutKey, spring } from "@/lib/motion";
 import { formatTime } from "@/lib/format";
 import type { Placed } from "@/lib/layout";
 import { utcToLocal } from "@/lib/tz";
@@ -36,7 +36,7 @@ export function EventBlock({
   onKeyDown?: (e: React.KeyboardEvent) => void;
 }) {
   const { occ, col, cols, span, top, height, continuesBefore, continuesAfter } = placed;
-  const tint = calendarTint(color);
+  const tint = tintOf(color);
   const startMin = utcToLocal(new Date(occ.start_utc), tz).minutes;
   const when = continuesBefore ? t("grid.continues") : formatTime(startMin, clock);
   const title = occ.title || t("grid.untitled");
@@ -50,8 +50,8 @@ export function EventBlock({
       layout={animated ? "position" : false}
       layoutId={animated && !continuesBefore ? layoutKey(occ) : undefined}
       initial={animated ? { opacity: 0, scale: 0.96 } : false}
-      animate={{ opacity: state === "source" ? 0.4 : 1, scale: 1, transition: { duration: duration.enter, ease: ease.standard } }}
-      exit={{ opacity: 0, scale: 0.96, transition: { duration: duration.exit, ease: ease.exit } }}
+      animate={{ opacity: state === "source" ? 0.4 : 1, scale: 1, transition: { duration: koreDuration.pop.in, ease: koreEase.standard } }}
+      exit={{ opacity: 0, scale: 0.96, transition: { duration: koreDuration.pop.out, ease: koreEase.exit } }}
       transition={{ layout: spring.settle }}
       data-testid="event"
       data-event-id={occ.event_id}
@@ -76,7 +76,7 @@ export function EventBlock({
         height: `calc(var(--hour) * ${height / 60} - 1px)`,
         left: `calc(${(col / cols) * 100}% + 1px)`,
         width: `calc(${(span / cols) * 100}% - 3px)`,
-        backgroundColor: tint.bg,
+        backgroundColor: tint.background,
         borderLeftColor: tint.edge,
       }}
     >
@@ -86,7 +86,7 @@ export function EventBlock({
           {/* In a narrow column (three or more events side by side) the title
               is what matters; the time and the repeat mark would crowd it out. */}
           {cols < 3 ? (
-            <span className="shrink-0" style={{ color: tint.text }}>
+            <span className="shrink-0" style={{ color: tint.edge }}>
               {when}
             </span>
           ) : null}
@@ -95,7 +95,7 @@ export function EventBlock({
       ) : (
         <span className="block py-1">
           <span className="line-clamp-2 font-medium break-words">{title}</span>
-          <span className="mt-0.5 flex items-center gap-1" style={{ color: tint.text }}>
+          <span className="mt-0.5 flex items-center gap-1" style={{ color: tint.edge }}>
             {when}
             {occ.is_recurring ? <RepeatIcon size={11} aria-label={t("grid.repeats")} /> : null}
           </span>
