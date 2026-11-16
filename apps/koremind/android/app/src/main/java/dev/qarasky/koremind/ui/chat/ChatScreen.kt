@@ -96,6 +96,19 @@ import dev.qarasky.koremind.ui.theme.exitFade
 import dev.qarasky.koremind.ui.theme.exitShrink
 import dev.qarasky.koremind.ui.theme.quickSpec
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.isActive
 
 @Composable
 fun ChatScreen(vm: AppViewModel, onSettings: () -> Unit, onProviders: () -> Unit) {
@@ -163,6 +176,14 @@ private fun rememberCloseKeyboard(): () -> Unit {
     return { keyboard?.hide(); focus.clearFocus() }
 }
 
+/** Pixels between the end of the last item and the bottom of the list; huge while the last item is off screen. */
+private fun LazyListState.distanceToBottom(): Float {
+    val info = layoutInfo
+    val last = info.visibleItemsInfo.lastOrNull() ?: return 0f
+    if (last.index < info.totalItemsCount - 1) return Float.MAX_VALUE
+    return (last.offset + last.size - (info.viewportEndOffset - info.afterContentPadding)).coerceAtLeast(0).toFloat()
+}
+
 /** A key that stays the same while a new chat gets its id, but changes when you switch chats, so opened messages don't animate in. */
 @Composable
 private fun rememberListKey(chatId: String?): Any {
@@ -176,11 +197,51 @@ private fun rememberListKey(chatId: String?): Any {
 private fun MessageList(state: ChatUiState, modifier: Modifier, onApproval: (String, Boolean) -> Unit) {
     val list = rememberLazyListState()
     val count = state.messages.size + if (state.draft != null) 1 else 0
-    val tail = (state.draft?.text?.length ?: 0) + (state.draft?.approvals?.size ?: 0) * 1000 + (state.draft?.activity?.size ?: 0)
     // Messages already on screen when the list opens don't animate; new ones rise into place.
     val shown = remember { state.messages.map { it.id }.toSet() }
-    LaunchedEffect(count, tail) { if (count > 0) list.scrollToItem(count - 1, scrollOffset = Int.MAX_VALUE / 2) }
-    LazyColumn(modifier.fillMaxWidth(), state = list, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+    val density = LocalDensity.current.density
+    // Keep the newest text in view, easing towards it frame by frame instead of snapping on every token.
+    var following by remember { mutableStateOf(true) }
+    val dragged by list.interactionSource.collectIsDraggedAsState()
+    // Any upward move by the reader stops following; it never fights their finger.
+    val reader = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (consumed.y > 0f) following = false
+                return Offset.Zero
+            }
+        }
+    }
+    // When a scroll settles at (or near) the bottom, follow again.
+    LaunchedEffect(list) {
+        snapshotFlow { list.isScrollInProgress }.filter { !it }.collect {
+            following = nextFollowing(following, list.distanceToBottom() / density, movedUp = false)
+        }
+    }
+    // Sending a message always brings you back to the bottom.
+    LaunchedEffect(count) { if (state.messages.lastOrNull()?.role == "user") following = true }
+    LaunchedEffect(list, following, dragged) {
+        if (!following || dragged) return@LaunchedEffect
+        snapshotFlow { list.distanceToBottom() }.filter { it >= 1f }.collect {
+            var last = withFrameNanos { it }
+            while (true) {
+                val now = withFrameNanos { it }
+                val distance = list.distanceToBottom()
+                val viewport = list.layoutInfo.viewportSize.height.toFloat()
+                val step = followStep(distance, viewport, (now - last) / 1_000_000f)
+                last = now
+                if (step <= 0f || distance < 1f) break
+                try {
+                    if (distance > viewport * 2) list.scrollToItem(list.layoutInfo.totalItemsCount - 1, scrollOffset = Int.MAX_VALUE / 2)
+                    else list.scrollBy(step)
+                } catch (e: CancellationException) {
+                    if (!isActive) throw e
+                    break // the reader took over
+                }
+            }
+        }
+    }
+    LazyColumn(modifier.fillMaxWidth().nestedScroll(reader), state = list, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         items(state.messages, key = { it.id }) { m ->
             if (m.role == "user") Appear(animate = m.id !in shown) { UserBubble(m) } else AssistantMessage(m.text, m.sources, activity = m.activity)
         }

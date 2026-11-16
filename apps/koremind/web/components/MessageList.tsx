@@ -3,9 +3,10 @@ import type { Activity, ChatMessage } from "@koremind/shared";
 import { Badge, Button, Card, badgeVariants, cn } from "@qarasky/kore-ui";
 import { BookOpen, FileText, Globe, Lock, Pencil, StickyNote } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, type KeyboardEvent, type UIEvent, type WheelEvent } from "react";
 import { Markdown } from "./Markdown";
 import type { Draft } from "@/lib/chat-state";
+import { followStep, nextFollowing } from "@/lib/chat-scroll";
 import { activityText, approvalText, type PendingApproval } from "@/lib/notes-ui";
 import { fadeUp, quick } from "@/lib/motion";
 import { useSession } from "@/lib/session";
@@ -13,17 +14,83 @@ import { t } from "@/lib/strings";
 
 export function MessageList({ messages, draft, onApproval }: { messages: ChatMessage[]; draft: Draft | null; onApproval(id: string, allow: boolean): void }) {
   const { api } = useSession();
-  const end = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
-  const stick = useRef(true);
+  const content = useRef<HTMLDivElement>(null);
+  const follow = useRef(true); // keep the newest text in view
+  const held = useRef(false); // a finger or the scrollbar is on the list: never scroll under it
+  const lastTop = useRef(0);
+  const frame = useRef(0);
 
+  // Ease towards the bottom frame by frame while following, instead of snapping on every token.
+  const kick = useCallback(() => {
+    if (frame.current || !follow.current || held.current) return;
+    let last = performance.now();
+    const tick = (now: number) => {
+      frame.current = 0;
+      const el = scroller.current;
+      if (!el || !follow.current || held.current) return;
+      const step = followStep(el.scrollHeight - el.clientHeight - el.scrollTop, el.clientHeight, now - last);
+      last = now;
+      if (step > 0) { el.scrollTop += step; lastTop.current = el.scrollTop; }
+      if (el.scrollHeight - el.clientHeight - el.scrollTop >= 1) frame.current = requestAnimationFrame(tick);
+    };
+    frame.current = requestAnimationFrame(tick);
+  }, []);
+
+  // Any growth of the content (tokens, cards, images loading) moves the list along.
   useEffect(() => {
-    if (stick.current) end.current?.scrollIntoView({ block: "end" });
-  }, [messages, draft]);
+    const el = content.current;
+    if (!el) return;
+    const ro = new ResizeObserver(kick);
+    ro.observe(el);
+    const release = () => { if (held.current) { held.current = false; kick(); } };
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    return () => { ro.disconnect(); cancelAnimationFrame(frame.current); frame.current = 0; window.removeEventListener("pointerup", release); window.removeEventListener("pointercancel", release); };
+  }, [kick]);
+
+  // Opening another chat starts at its end.
+  const firstId = messages[0]?.id;
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    follow.current = true;
+    el.scrollTop = el.scrollHeight;
+    lastTop.current = el.scrollTop;
+  }, [firstId]);
+
+  // Sending a message always brings you back to the bottom.
+  const lastRole = messages[messages.length - 1]?.role;
+  useEffect(() => {
+    if (lastRole === "user") { follow.current = true; kick(); }
+  }, [messages.length, lastRole, kick]);
+
+  const onScroll = (e: UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const movedUp = el.scrollTop < lastTop.current - 1;
+    lastTop.current = el.scrollTop;
+    follow.current = nextFollowing(follow.current, el.scrollHeight - el.clientHeight - el.scrollTop, movedUp);
+    if (follow.current) kick();
+  };
+  // Stop following before the browser starts its own (smooth) scroll, so the two never fight.
+  const onWheel = (e: WheelEvent<HTMLDivElement>) => { if (e.deltaY < 0) follow.current = false; };
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => { if (["ArrowUp", "PageUp", "Home"].includes(e.key)) follow.current = false; };
+  const hold = () => { held.current = true; };
+  const letGo = () => { held.current = false; kick(); };
 
   return (
-    <div ref={scroller} onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }} className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto flex w-full max-w-reading flex-col gap-6 px-4 py-6">
+    <div
+      ref={scroller}
+      onScroll={onScroll}
+      onWheel={onWheel}
+      onKeyDown={onKeyDown}
+      onTouchStart={hold}
+      onTouchEnd={letGo}
+      onTouchCancel={letGo}
+      onPointerDown={(e) => { if (e.target === e.currentTarget) hold(); }}
+      className="min-h-0 flex-1 overflow-y-auto"
+    >
+      <div ref={content} className="mx-auto flex w-full max-w-reading flex-col gap-6 px-4 py-6">
         <AnimatePresence initial={false}>
           {messages.map((m) => (
             <motion.div key={m.id} variants={fadeUp} initial="hidden" animate="show">
@@ -32,7 +99,6 @@ export function MessageList({ messages, draft, onApproval }: { messages: ChatMes
           ))}
           {draft && <motion.div key="draft" variants={fadeUp} initial="hidden" animate="show"><Assistant text={draft.text} sources={draft.sources} status={draft.status} activity={draft.activity} approvals={draft.approvals} expired={draft.expired} live onApproval={onApproval} /></motion.div>}
         </AnimatePresence>
-        <div ref={end} />
       </div>
     </div>
   );
