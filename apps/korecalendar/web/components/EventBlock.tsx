@@ -50,7 +50,7 @@ export function EventBlock({
       layout={animated ? "position" : false}
       layoutId={animated && !continuesBefore ? layoutKey(occ) : undefined}
       initial={animated ? { opacity: 0, scale: 0.96 } : false}
-      animate={{ opacity: state === "source" ? 0.4 : 1, scale: 1, transition: { duration: koreDuration.pop.in, ease: koreEase.standard } }}
+      animate={{ opacity: state === "source" ? 0.4 : 1, scale: 1, transition: { duration: koreDuration.fade.in, ease: koreEase.standard } }}
       exit={{ opacity: 0, scale: 0.96, transition: { duration: koreDuration.pop.out, ease: koreEase.exit } }}
       transition={{ layout: spring.settle }}
       data-testid="event"
@@ -86,7 +86,7 @@ export function EventBlock({
           {/* In a narrow column (three or more events side by side) the title
               is what matters; the time and the repeat mark would crowd it out. */}
           {cols < 3 ? (
-            <span className="shrink-0" style={{ color: tint.edge }}>
+            <span className="shrink-0" style={{ color: tint.text }}>
               {when}
             </span>
           ) : null}
@@ -95,7 +95,7 @@ export function EventBlock({
       ) : (
         <span className="block py-1">
           <span className="line-clamp-2 font-medium break-words">{title}</span>
-          <span className="mt-0.5 flex items-center gap-1" style={{ color: tint.edge }}>
+          <span className="mt-0.5 flex items-center gap-1" style={{ color: tint.text }}>
             {when}
             {occ.is_recurring ? <RepeatIcon size={11} aria-label={t("grid.repeats")} /> : null}
           </span>

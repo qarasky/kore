@@ -5,7 +5,7 @@ import { weekdayLong, weekdayShort } from "@/lib/format";
 import { t, type MessageKey } from "@/lib/i18n";
 import { matchPreset, presets, type Freq, type Recurrence, type RuleRecurrence } from "@/lib/rrule";
 import { addDays, parseDay, weekday } from "@/lib/dates";
-import { Button, Input, Select, ToggleGroup, ToggleGroupItem } from "@qarasky/kore-ui";
+import { Button, CodeBlock, Input, Select, ToggleGroup, ToggleGroupItem } from "@qarasky/kore-ui";
 import { useShell } from "./ShellContext";
 
 type Rule = RuleRecurrence;
@@ -42,9 +42,13 @@ export function RecurrenceEditor({
         <span className="text-meta font-medium text-muted">{t("recurrence.label")}</span>
         <div className="rounded-ui border border-border bg-bg/60 p-3">
           <p className="text-sub font-medium">{t("recurrence.rawTitle")}</p>
-          <code data-testid="raw-rule-text" className="mt-1 block text-meta break-all text-muted">
-            {value.rrule}
-          </code>
+          <CodeBlock
+            value={value.rrule}
+            wrap
+            data-testid="raw-rule-text"
+            copy={{ label: t("tokens.copy"), copiedLabel: t("tokens.copied"), failedLabel: t("tokens.copyFailed") }}
+            className="mt-2"
+          />
           <p className="mt-2 text-meta text-muted">{t("recurrence.rawHint")}</p>
           <Button size="sm" className="mt-2" onClick={() => setReplacing(true)}>
             {t("recurrence.change")}

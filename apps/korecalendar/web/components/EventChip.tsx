@@ -47,7 +47,7 @@ export function EventChip({
       layout={shared ? "position" : false}
       layoutId={shared ? layoutKey(occ) : undefined}
       initial={{ opacity: 0, scale: 0.96 }}
-      animate={{ opacity: dragging ? 0.4 : 1, scale: 1, transition: { duration: koreDuration.pop.in, ease: koreEase.standard, delay: enterDelay } }}
+      animate={{ opacity: dragging ? 0.4 : 1, scale: 1, transition: { duration: koreDuration.fade.in, ease: koreEase.standard, delay: enterDelay } }}
       exit={{ opacity: 0, scale: 0.96, transition: { duration: koreDuration.pop.out, ease: koreEase.exit } }}
       transition={{ layout: spring.settle }}
       data-testid="event"

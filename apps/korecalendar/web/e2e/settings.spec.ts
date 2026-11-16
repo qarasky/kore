@@ -118,7 +118,7 @@ test.describe.serial("settings", () => {
     await page.getByRole("button", { name: "Create token" }).click();
     const reveal = page.getByTestId("token-reveal");
     await expect(reveal).toBeVisible();
-    const secret = await page.getByTestId("token-secret").innerText();
+    const secret = await page.getByTestId("token-secret").inputValue();
     expect(secret).toMatch(/^kcal_/);
 
     // It works against the API, through the same address the web app uses, and the API records who changed what.
@@ -148,13 +148,13 @@ test.describe.serial("settings", () => {
     await page.goto("/settings/tokens");
     const block = page.getByTestId("caldav");
     await expect(block).toBeVisible();
-    await expect(block).toContainText("/dav/");
-    await expect(block).toContainText(OWNER.email);
+    await expect(block.getByRole("textbox", { name: "Address" })).toHaveValue(/\/dav\/$/);
+    await expect(block.getByRole("textbox", { name: "User name" })).toHaveValue(OWNER.email);
     await expect(block).toContainText("access token");
 
     await page.locator("#token-name").fill("calendar-app");
     await page.getByRole("button", { name: "Create token" }).click();
-    const secret = await page.getByTestId("token-secret").innerText();
+    const secret = await page.getByTestId("token-secret").inputValue();
     const basic = (pw: string) => "Basic " + Buffer.from(`${OWNER.email}:${pw}`).toString("base64");
     const propfind = `<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/></d:prop></d:propfind>`;
     const ask = (pw: string) =>

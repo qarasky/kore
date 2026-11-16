@@ -6,7 +6,7 @@ import { useMutate } from "@/hooks/useMutate";
 import { t } from "@/lib/i18n";
 import { createToken, revokeToken } from "@/lib/mutations";
 import type { Token } from "@/lib/types";
-import { Button, ConfirmDialog, CopyButton, Field, Input, SettingsSection, koreDuration, koreEase } from "@qarasky/kore-ui";
+import { Button, ConfirmDialog, CopyField, DescriptionList, Field, Input, SettingsSection, koreDuration, koreEase } from "@qarasky/kore-ui";
 import { KeyRoundIcon } from "lucide-react";
 import { useShell } from "../ShellContext";
 
@@ -47,12 +47,7 @@ export function TokensManager({ initial }: { initial: Token[] }) {
         <div role="status" data-testid="token-reveal" className="rounded-ui border border-accent/50 bg-accent/10 p-4">
           <h3 className="text-sub font-semibold">{t("tokens.revealTitle")}</h3>
           <p className="mt-1 text-sub text-muted">{t("tokens.revealBody")}</p>
-          <div className="mt-3 flex items-center gap-2">
-            <code data-testid="token-secret" className="min-w-0 flex-1 rounded-ui border border-border bg-bg/60 px-3 py-2 font-mono text-meta break-all select-all">
-              {revealed.token}
-            </code>
-            <CopyButton value={revealed.token} size="sm" {...copyLabels} />
-          </div>
+          <CopyField value={revealed.token} mono copy={copyLabels} aria-label={t("tokens.revealTitle")} data-testid="token-secret" className="mt-3" />
           <p className="mt-2 text-meta text-muted">{t("tokens.usage")}</p>
           <Button size="sm" className="mt-3" onClick={() => setRevealed(null)}>
             {t("tokens.done")}
@@ -75,7 +70,7 @@ export function TokensManager({ initial }: { initial: Token[] }) {
         {initial.map((tok) => (
           <m.li key={tok.id} layout="position"
             initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0, transition: { duration: koreDuration.pop.in, ease: koreEase.standard } }}
+            animate={{ opacity: 1, y: 0, transition: { duration: koreDuration.fade.in, ease: koreEase.standard } }}
             exit={{ opacity: 0, transition: { duration: koreDuration.pop.out, ease: koreEase.exit } }}
             data-testid="token-row" className="flex min-h-row items-center gap-3 px-4 py-2">
             <KeyRoundIcon size={16} className="shrink-0 text-muted" />
@@ -110,18 +105,12 @@ export function TokensManager({ initial }: { initial: Token[] }) {
 
     <SettingsSection title={t("caldav.title")} description={t("caldav.intro")}>
       <div data-testid="caldav">
-        <dl className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2 text-sub">
-          <dt className="text-muted">{t("caldav.address")}</dt>
-          <dd className="flex items-center gap-2">
-            <code className="min-w-0 rounded-ui border border-border bg-bg/60 px-3 py-1.5 font-mono text-meta break-all select-all">{origin}/dav/</code>
-            <CopyButton value={`${origin}/dav/`} iconOnly {...copyLabels} />
-          </dd>
-          <dt className="text-muted">{t("caldav.user")}</dt>
-          <dd className="flex items-center gap-2">
-            <code className="min-w-0 rounded-ui border border-border bg-bg/60 px-3 py-1.5 font-mono text-meta break-all select-all">{me.email}</code>
-            <CopyButton value={me.email} iconOnly {...copyLabels} />
-          </dd>
-        </dl>
+        <DescriptionList
+          items={[
+            { id: "address", label: t("caldav.address"), value: <CopyField value={`${origin}/dav/`} mono size="sm" copy={copyLabels} aria-label={t("caldav.address")} /> },
+            { id: "user", label: t("caldav.user"), value: <CopyField value={me.email} mono size="sm" copy={copyLabels} aria-label={t("caldav.user")} /> },
+          ]}
+        />
         <p className="mt-3 text-meta text-muted">{t("caldav.passwordNote")}</p>
         <p className="mt-1 text-meta text-muted">{t("caldav.docs")}</p>
       </div>

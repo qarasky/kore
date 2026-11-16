@@ -258,6 +258,18 @@ const en = {
   "settings.importExport": "Import and export",
   "settings.users": "Users",
 
+  "appearance.heading": "Appearance",
+  "appearance.intro": "The theme applies at once and is remembered in this browser.",
+  "appearance.label": "Theme",
+  "appearance.color": "Color",
+  "appearance.colorHint": "The original blue-grey dark look",
+  "appearance.light": "Light",
+  "appearance.lightHint": "White surfaces, the same accent",
+  "appearance.dark": "Dark",
+  "appearance.darkHint": "Pure black, for OLED screens",
+  "appearance.system": "System",
+  "appearance.systemHint": "Match this device",
+
   "general.heading": "General",
   "general.timezone": "Your time zone",
   "general.timezoneHint": "Events are shown in this zone. New events start in it.",

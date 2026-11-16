@@ -10,7 +10,7 @@ import { describeRule } from "@/lib/rrule";
 import { fetchEvent } from "@/lib/mutations";
 import { parseWall } from "@/lib/wall";
 import type { Event, Occurrence } from "@/lib/types";
-import { Button, IconButton, Popover, PopoverAnchor, PopoverContent, tintOf } from "@qarasky/kore-ui";
+import { Button, ColorDot, IconButton, Popover, PopoverAnchor, PopoverContent, tintOf } from "@qarasky/kore-ui";
 import { AlignLeftIcon, BellIcon, CalendarDaysIcon, ClockIcon, MapPinIcon, RepeatIcon, XIcon } from "lucide-react";
 import { useShell } from "./ShellContext";
 
@@ -98,7 +98,7 @@ export function EventPopover({ occ, anchor, onClose, onEdit }: { occ: Occurrence
             ) : null}
             <Row icon={<CalendarDaysIcon size={16} />}>
               <span className="inline-flex items-center gap-2">
-                <span aria-hidden="true" className="size-2.5 rounded-[3px]" style={{ backgroundColor: tint.edge }} />
+                <ColorDot color={tint.edge} size="sm" shape="square" />
                 {calendar?.name}
               </span>
             </Row>
