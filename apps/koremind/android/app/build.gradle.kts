@@ -64,6 +64,9 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     // Google's QR scanner screen: no camera permission needed in this app.
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+    // Images in answers (https only). The network module is picked up by Coil automatically.
+    implementation("io.coil-kt.coil3:coil-compose:3.6.3")
+    implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")

@@ -133,4 +133,8 @@
     <string name="approval_allow">Allow</string>
     <string name="approval_deny">Deny</string>
     <string name="approval_expired">The request expired.</string>
+    <string name="copy">Copy</string>
+    <string name="copied">Copied</string>
+    <string name="card_building">Building card…</string>
+    <string name="image_open">Open image</string>
 </resources>

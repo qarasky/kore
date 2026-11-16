@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -52,6 +53,7 @@ import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
@@ -168,12 +170,13 @@ private fun Dots() {
     }
 }
 
-private fun spans(list: List<Span>): AnnotatedString = buildAnnotatedString {
+internal fun spans(list: List<Span>): AnnotatedString = buildAnnotatedString {
     list.forEach { s ->
         when (s) {
             is Span.Text -> append(s.text)
             is Span.Bold -> withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(s.text) }
             is Span.Italic -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(s.text) }
+            is Span.Strike -> withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) { append(s.text) }
             is Span.Code -> withStyle(SpanStyle(fontFamily = CodeFont, background = KoreMindColors.Raised)) { append(s.text) }
             is Span.Link -> withLink(LinkAnnotation.Url(s.url, TextLinkStyles(SpanStyle(color = KoreMindColors.Accent, textDecoration = TextDecoration.Underline)))) { append(s.text) }
         }
@@ -188,11 +191,19 @@ fun MarkdownText(text: String) {
             when (b) {
                 is Block.Heading -> Text(spans(b.spans), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
                 is Block.Paragraph -> Text(spans(b.spans), style = MaterialTheme.typography.bodyLarge)
-                is Block.Bullets -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { b.items.forEach { Row { Text("•  ", color = KoreMindColors.Muted); Text(spans(it), style = MaterialTheme.typography.bodyLarge) } } }
-                is Block.Numbered -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { b.items.forEachIndexed { i, it -> Row { Text("${i + 1}.  ", color = KoreMindColors.Muted); Text(spans(it), style = MaterialTheme.typography.bodyLarge) } } }
+                is Block.Bullets -> ListView(b.items.map { ListItem(0, false, 0, it) })
+                is Block.Numbered -> ListView(b.items.mapIndexed { i, it -> ListItem(0, true, b.start + i, it) })
+                is Block.ListBlock -> ListView(b.items)
                 is Block.Quote -> Row { Box(Modifier.size(width = 3.dp, height = 20.dp).background(KoreMindColors.BorderStrong)); Text(spans(b.spans), color = KoreMindColors.Muted, modifier = Modifier.padding(start = 10.dp)) }
-                is Block.Code -> Text(b.text, fontFamily = CodeFont, style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.fillMaxWidth().background(KoreMindColors.Surface, RoundedCornerShape(6.dp)).border(1.dp, KoreMindColors.Border, RoundedCornerShape(6.dp)).padding(10.dp))
+                is Block.Code -> CodeBlock(b.text, b.lang.orEmpty())
+                is Block.Rule -> Box(Modifier.fillMaxWidth().height(1.dp).background(KoreMindColors.Border))
+                is Block.Table -> DataTable(
+                    b.header.map(::spans), b.rows.map { r -> r.map(::spans) },
+                    b.aligns.map { when (it) { Align.Left -> TextAlign.Start; Align.Center -> TextAlign.Center; Align.Right -> TextAlign.End; Align.None -> null } },
+                )
+                is Block.Image -> RichImage(b.alt, b.url)
+                is Block.Card -> CardView(b.card)
+                is Block.CardPending -> CardPlaceholder()
             }
         }
     }
