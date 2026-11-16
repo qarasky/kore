@@ -30,7 +30,7 @@ export function MessageList({ messages, draft, onApproval }: { messages: ChatMes
               {m.role === "user" ? <UserBubble m={m} api={api} /> : <Assistant text={m.text} sources={m.sources} activity={m.activity} />}
             </motion.div>
           ))}
-          {draft && <motion.div key="draft" variants={fadeUp} initial="hidden" animate="show"><Assistant text={draft.text} sources={draft.sources} status={draft.status} activity={draft.activity} approvals={draft.approvals} expired={draft.expired} onApproval={onApproval} /></motion.div>}
+          {draft && <motion.div key="draft" variants={fadeUp} initial="hidden" animate="show"><Assistant text={draft.text} sources={draft.sources} status={draft.status} activity={draft.activity} approvals={draft.approvals} expired={draft.expired} live onApproval={onApproval} /></motion.div>}
         </AnimatePresence>
         <div ref={end} />
       </div>
@@ -55,7 +55,7 @@ function UserBubble({ m, api }: { m: ChatMessage; api: ReturnType<typeof useSess
 
 const ACTIVITY_ICON = { saved: StickyNote, edited: Pencil, read: BookOpen, denied: Lock } as const;
 
-function Assistant({ text, sources, status, activity = [], approvals = [], expired = false, onApproval }: { text: string; sources: { title: string; url: string }[]; status?: Draft["status"]; activity?: Activity[]; approvals?: PendingApproval[]; expired?: boolean; onApproval?(id: string, allow: boolean): void }) {
+function Assistant({ text, sources, status, activity = [], approvals = [], expired = false, live = false, onApproval }: { text: string; live?: boolean; sources: { title: string; url: string }[]; status?: Draft["status"]; activity?: Activity[]; approvals?: PendingApproval[]; expired?: boolean; onApproval?(id: string, allow: boolean): void }) {
   return (
     <div className="flex flex-col gap-3">
       <AnimatePresence initial={false} mode="wait">
@@ -93,7 +93,7 @@ function Assistant({ text, sources, status, activity = [], approvals = [], expir
           })}
         </div>
       )}
-      {text && <Markdown text={text} />}
+      {text && <Markdown text={text} live={live} />}
       {sources.length > 0 && (
         <div className="flex flex-wrap gap-2">
           <span className="sr-only">{t.sources}</span>

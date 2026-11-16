@@ -1,0 +1,458 @@
+[
+ {
+  "name": "stats, table with total row and note, badge",
+  "raw": "{\n \"title\": \"KuroFi — New dividend policy\",\n \"badge\": {\n  \"text\": \"Approved\",\n  \"tone\": \"good\"\n },\n \"sections\": [\n  {\n   \"type\": \"stats\",\n   \"items\": [\n    {\n     \"label\": \"Your previous annual dividend\",\n     \"value\": \"€54,000\"\n    },\n    {\n     \"label\": \"Your new annual dividend\",\n     \"value\": \"€60,000\",\n     \"tone\": \"good\"\n    }\n   ]\n  },\n  {\n   \"type\": \"table\",\n   \"columns\": [\n    \"Shareholder\",\n    \"Annual distribution\"\n   ],\n   \"rows\": [\n    [\n     \"Skyler (90%)\",\n     \"€60,000\"\n    ],\n    [\n     \"Afterline (10%)\",\n     \"€6,667\"\n    ],\n    [\n     \"Company total\",\n     \"€66,667\"\n    ]\n   ],\n   \"totalRow\": true\n  },\n  {\n   \"type\": \"note\",\n   \"text\": \"Paid through approved quarterly distributions.\"\n  }\n ]\n}",
+  "card": {
+   "title": "KuroFi — New dividend policy",
+   "badge": {
+    "text": "Approved",
+    "tone": "good"
+   },
+   "sections": [
+    {
+     "type": "stats",
+     "items": [
+      {
+       "label": "Your previous annual dividend",
+       "value": "€54,000"
+      },
+      {
+       "label": "Your new annual dividend",
+       "value": "€60,000",
+       "tone": "good"
+      }
+     ]
+    },
+    {
+     "type": "table",
+     "columns": [
+      "Shareholder",
+      "Annual distribution"
+     ],
+     "rows": [
+      [
+       "Skyler (90%)",
+       "€60,000"
+      ],
+      [
+       "Afterline (10%)",
+       "€6,667"
+      ],
+      [
+       "Company total",
+       "€66,667"
+      ]
+     ],
+     "totalRow": true
+    },
+    {
+     "type": "note",
+     "text": "Paid through approved quarterly distributions."
+    }
+   ]
+  }
+ },
+ {
+  "name": "title, subtitle, stats and bars",
+  "raw": "{\n \"title\": \"Estimated financial assets\",\n \"subtitle\": \"Savings and investments · Excluding real estate\",\n \"sections\": [\n  {\n   \"type\": \"stats\",\n   \"items\": [\n    {\n     \"label\": \"Total\",\n     \"value\": \"€945,417\",\n     \"tone\": \"good\"\n    }\n   ]\n  },\n  {\n   \"type\": \"bars\",\n   \"items\": [\n    {\n     \"label\": \"Fixed-term bank deposits\",\n     \"value\": \"€703,942\",\n     \"share\": 0.74,\n     \"tone\": \"good\"\n    },\n    {\n     \"label\": \"Global equity ETFs\",\n     \"value\": \"€58,475\",\n     \"share\": 0.06,\n     \"tone\": \"info\"\n    },\n    {\n     \"label\": \"Salary savings\",\n     \"value\": \"€183,000\",\n     \"share\": 0.19\n    }\n   ]\n  }\n ]\n}",
+  "card": {
+   "title": "Estimated financial assets",
+   "subtitle": "Savings and investments · Excluding real estate",
+   "sections": [
+    {
+     "type": "stats",
+     "items": [
+      {
+       "label": "Total",
+       "value": "€945,417",
+       "tone": "good"
+      }
+     ]
+    },
+    {
+     "type": "bars",
+     "items": [
+      {
+       "label": "Fixed-term bank deposits",
+       "value": "€703,942",
+       "share": 0.74,
+       "tone": "good"
+      },
+      {
+       "label": "Global equity ETFs",
+       "value": "€58,475",
+       "share": 0.06,
+       "tone": "info"
+      },
+      {
+       "label": "Salary savings",
+       "value": "€183,000",
+       "share": 0.19
+      }
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "name": "a badge on its own",
+  "raw": "{\n \"badge\": {\n  \"text\": \"Useful\",\n  \"tone\": \"good\"\n }\n}",
+  "card": {
+   "badge": {
+    "text": "Useful",
+    "tone": "good"
+   },
+   "sections": []
+  }
+ },
+ {
+  "name": "not json",
+  "raw": "{\"title\": \"half a card\", \"sections\": [ {\"type\": \"sta",
+  "card": null
+ },
+ {
+  "name": "empty object",
+  "raw": "{}",
+  "card": null
+ },
+ {
+  "name": "an array is not a card",
+  "raw": "[1,2,3]",
+  "card": null
+ },
+ {
+  "name": "only unknown sections and no header",
+  "raw": "{\"sections\": [{\"type\": \"chart\", \"data\": [1]}]}",
+  "card": null
+ },
+ {
+  "name": "coercion, clamping, padding and dropped junk",
+  "raw": "{\n \"title\": \"Odd input\",\n \"badge\": {\n  \"text\": \"Hm\",\n  \"tone\": \"purple\"\n },\n \"sections\": [\n  {\n   \"type\": \"stats\",\n   \"items\": [\n    {\n     \"label\": \"Number value\",\n     \"value\": 151000,\n     \"tone\": \"loud\"\n    },\n    {\n     \"label\": \"\",\n     \"value\": \"skipped, no label\"\n    },\n    {\n     \"value\": \"skipped\"\n    }\n   ]\n  },\n  {\n   \"type\": \"mystery\",\n   \"x\": 1\n  },\n  {\n   \"type\": \"table\",\n   \"columns\": [\n    \"A\",\n    \"B\",\n    \"C\"\n   ],\n   \"rows\": [\n    [\n     \"1\",\n     \"2\"\n    ],\n    [\n     \"1\",\n     \"2\",\n     \"3\",\n     \"4\"\n    ],\n    [\n     7,\n     8,\n     9\n    ]\n   ]\n  },\n  {\n   \"type\": \"bars\",\n   \"items\": [\n    {\n     \"label\": \"Over\",\n     \"value\": \"1\",\n     \"share\": 1.7\n    },\n    {\n     \"label\": \"Under\",\n     \"value\": \"2\",\n     \"share\": -0.2\n    },\n    {\n     \"label\": \"Text share\",\n     \"value\": \"3\",\n     \"share\": \"0.5\"\n    },\n    {\n     \"label\": \"No share\",\n     \"value\": \"4\"\n    }\n   ]\n  }\n ]\n}",
+  "card": {
+   "title": "Odd input",
+   "badge": {
+    "text": "Hm",
+    "tone": "neutral"
+   },
+   "sections": [
+    {
+     "type": "stats",
+     "items": [
+      {
+       "label": "Number value",
+       "value": "151000"
+      }
+     ]
+    },
+    {
+     "type": "table",
+     "columns": [
+      "A",
+      "B",
+      "C"
+     ],
+     "rows": [
+      [
+       "1",
+       "2",
+       ""
+      ],
+      [
+       "1",
+       "2",
+       "3"
+      ],
+      [
+       "7",
+       "8",
+       "9"
+      ]
+     ],
+     "totalRow": false
+    },
+    {
+     "type": "bars",
+     "items": [
+      {
+       "label": "Over",
+       "value": "1",
+       "share": 1
+      },
+      {
+       "label": "Under",
+       "value": "2",
+       "share": 0
+      },
+      {
+       "label": "Text share",
+       "value": "3",
+       "share": 0.5
+      },
+      {
+       "label": "No share",
+       "value": "4",
+       "share": 0
+      }
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "name": "at most 8 sections",
+  "raw": "{\n \"title\": \"Limits\",\n \"sections\": [\n  {\n   \"type\": \"note\",\n   \"text\": \"n0\"\n  },\n  {\n   \"type\": \"note\",\n   \"text\": \"n1\"\n  },\n  {\n   \"type\": \"note\",\n   \"text\": \"n2\"\n  },\n  {\n   \"type\": \"note\",\n   \"text\": \"n3\"\n  },\n  {\n   \"type\": \"note\",\n   \"text\": \"n4\"\n  },\n  {\n   \"type\": \"note\",\n   \"text\": \"n5\"\n  },\n  {\n   \"type\": \"note\",\n   \"text\": \"n6\"\n  },\n  {\n   \"type\": \"note\",\n   \"text\": \"n7\"\n  },\n  {\n   \"type\": \"note\",\n   \"text\": \"n8\"\n  },\n  {\n   \"type\": \"note\",\n   \"text\": \"n9\"\n  }\n ]\n}",
+  "card": {
+   "title": "Limits",
+   "sections": [
+    {
+     "type": "note",
+     "text": "n0"
+    },
+    {
+     "type": "note",
+     "text": "n1"
+    },
+    {
+     "type": "note",
+     "text": "n2"
+    },
+    {
+     "type": "note",
+     "text": "n3"
+    },
+    {
+     "type": "note",
+     "text": "n4"
+    },
+    {
+     "type": "note",
+     "text": "n5"
+    },
+    {
+     "type": "note",
+     "text": "n6"
+    },
+    {
+     "type": "note",
+     "text": "n7"
+    }
+   ]
+  }
+ },
+ {
+  "name": "at most 6 columns",
+  "raw": "{\n \"sections\": [\n  {\n   \"type\": \"table\",\n   \"columns\": [\n    \"a\",\n    \"b\",\n    \"c\",\n    \"d\",\n    \"e\",\n    \"f\",\n    \"g\",\n    \"h\"\n   ],\n   \"rows\": [\n    [\n     \"r0\",\n     \"1\"\n    ],\n    [\n     \"r1\",\n     \"1\"\n    ]\n   ]\n  }\n ]\n}",
+  "card": {
+   "sections": [
+    {
+     "type": "table",
+     "columns": [
+      "a",
+      "b",
+      "c",
+      "d",
+      "e",
+      "f"
+     ],
+     "rows": [
+      [
+       "r0",
+       "1",
+       "",
+       "",
+       "",
+       ""
+      ],
+      [
+       "r1",
+       "1",
+       "",
+       "",
+       "",
+       ""
+      ]
+     ],
+     "totalRow": false
+    }
+   ]
+  }
+ },
+ {
+  "name": "at most 40 rows",
+  "raw": "{\n \"sections\": [\n  {\n   \"type\": \"table\",\n   \"columns\": [\n    \"a\",\n    \"b\"\n   ],\n   \"rows\": [\n    [\n     \"r0\",\n     \"1\"\n    ],\n    [\n     \"r1\",\n     \"1\"\n    ],\n    [\n     \"r2\",\n     \"1\"\n    ],\n    [\n     \"r3\",\n     \"1\"\n    ],\n    [\n     \"r4\",\n     \"1\"\n    ],\n    [\n     \"r5\",\n     \"1\"\n    ],\n    [\n     \"r6\",\n     \"1\"\n    ],\n    [\n     \"r7\",\n     \"1\"\n    ],\n    [\n     \"r8\",\n     \"1\"\n    ],\n    [\n     \"r9\",\n     \"1\"\n    ],\n    [\n     \"r10\",\n     \"1\"\n    ],\n    [\n     \"r11\",\n     \"1\"\n    ],\n    [\n     \"r12\",\n     \"1\"\n    ],\n    [\n     \"r13\",\n     \"1\"\n    ],\n    [\n     \"r14\",\n     \"1\"\n    ],\n    [\n     \"r15\",\n     \"1\"\n    ],\n    [\n     \"r16\",\n     \"1\"\n    ],\n    [\n     \"r17\",\n     \"1\"\n    ],\n    [\n     \"r18\",\n     \"1\"\n    ],\n    [\n     \"r19\",\n     \"1\"\n    ],\n    [\n     \"r20\",\n     \"1\"\n    ],\n    [\n     \"r21\",\n     \"1\"\n    ],\n    [\n     \"r22\",\n     \"1\"\n    ],\n    [\n     \"r23\",\n     \"1\"\n    ],\n    [\n     \"r24\",\n     \"1\"\n    ],\n    [\n     \"r25\",\n     \"1\"\n    ],\n    [\n     \"r26\",\n     \"1\"\n    ],\n    [\n     \"r27\",\n     \"1\"\n    ],\n    [\n     \"r28\",\n     \"1\"\n    ],\n    [\n     \"r29\",\n     \"1\"\n    ],\n    [\n     \"r30\",\n     \"1\"\n    ],\n    [\n     \"r31\",\n     \"1\"\n    ],\n    [\n     \"r32\",\n     \"1\"\n    ],\n    [\n     \"r33\",\n     \"1\"\n    ],\n    [\n     \"r34\",\n     \"1\"\n    ],\n    [\n     \"r35\",\n     \"1\"\n    ],\n    [\n     \"r36\",\n     \"1\"\n    ],\n    [\n     \"r37\",\n     \"1\"\n    ],\n    [\n     \"r38\",\n     \"1\"\n    ],\n    [\n     \"r39\",\n     \"1\"\n    ],\n    [\n     \"r40\",\n     \"1\"\n    ],\n    [\n     \"r41\",\n     \"1\"\n    ],\n    [\n     \"r42\",\n     \"1\"\n    ],\n    [\n     \"r43\",\n     \"1\"\n    ],\n    [\n     \"r44\",\n     \"1\"\n    ]\n   ]\n  }\n ]\n}",
+  "card": {
+   "sections": [
+    {
+     "type": "table",
+     "columns": [
+      "a",
+      "b"
+     ],
+     "rows": [
+      [
+       "r0",
+       "1"
+      ],
+      [
+       "r1",
+       "1"
+      ],
+      [
+       "r2",
+       "1"
+      ],
+      [
+       "r3",
+       "1"
+      ],
+      [
+       "r4",
+       "1"
+      ],
+      [
+       "r5",
+       "1"
+      ],
+      [
+       "r6",
+       "1"
+      ],
+      [
+       "r7",
+       "1"
+      ],
+      [
+       "r8",
+       "1"
+      ],
+      [
+       "r9",
+       "1"
+      ],
+      [
+       "r10",
+       "1"
+      ],
+      [
+       "r11",
+       "1"
+      ],
+      [
+       "r12",
+       "1"
+      ],
+      [
+       "r13",
+       "1"
+      ],
+      [
+       "r14",
+       "1"
+      ],
+      [
+       "r15",
+       "1"
+      ],
+      [
+       "r16",
+       "1"
+      ],
+      [
+       "r17",
+       "1"
+      ],
+      [
+       "r18",
+       "1"
+      ],
+      [
+       "r19",
+       "1"
+      ],
+      [
+       "r20",
+       "1"
+      ],
+      [
+       "r21",
+       "1"
+      ],
+      [
+       "r22",
+       "1"
+      ],
+      [
+       "r23",
+       "1"
+      ],
+      [
+       "r24",
+       "1"
+      ],
+      [
+       "r25",
+       "1"
+      ],
+      [
+       "r26",
+       "1"
+      ],
+      [
+       "r27",
+       "1"
+      ],
+      [
+       "r28",
+       "1"
+      ],
+      [
+       "r29",
+       "1"
+      ],
+      [
+       "r30",
+       "1"
+      ],
+      [
+       "r31",
+       "1"
+      ],
+      [
+       "r32",
+       "1"
+      ],
+      [
+       "r33",
+       "1"
+      ],
+      [
+       "r34",
+       "1"
+      ],
+      [
+       "r35",
+       "1"
+      ],
+      [
+       "r36",
+       "1"
+      ],
+      [
+       "r37",
+       "1"
+      ],
+      [
+       "r38",
+       "1"
+      ],
+      [
+       "r39",
+       "1"
+      ]
+     ],
+     "totalRow": false
+    }
+   ]
+  }
+ }
+]
