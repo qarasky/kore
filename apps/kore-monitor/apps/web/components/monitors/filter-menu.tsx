@@ -2,7 +2,7 @@
 
 import { ListFilter } from "lucide-react";
 
-import { Button, Popover, PopoverContent, PopoverTrigger, cn } from "@qarasky/kore-ui";
+import { Button, Popover, PopoverContent, PopoverTrigger, ToggleButton } from "@qarasky/kore-ui";
 
 import { STATUS_LABEL } from "@/lib/board-format";
 import { STATUS_KEYS, activeFilterCount, type FilterState, type StatusKey } from "@/lib/board-model";
@@ -15,17 +15,9 @@ function toggle<T>(list: T[], value: T): T[] {
 
 function Chip({ pressed, onClick, children }: { pressed: boolean; onClick: () => void; children: React.ReactNode }) {
     return (
-        <button
-            type="button"
-            aria-pressed={pressed}
-            onClick={onClick}
-            className={cn(
-                "text-meta flex h-7 items-center gap-1.5 rounded-ui border border-border-strong px-2 transition-colors hover:bg-white/5",
-                pressed && "border-accent/60 bg-accent/10"
-            )}
-        >
+        <ToggleButton pressed={pressed} onPressedChange={onClick} className="text-meta gap-1.5 px-2">
             {children}
-        </button>
+        </ToggleButton>
     );
 }
 
@@ -60,7 +52,7 @@ export function FilterMenu({
                     <ListFilter />
                     Filter
                     {count > 0 ? (
-                        <span className="bg-accent text-2xs inline-flex min-w-4 items-center justify-center rounded-full px-1 leading-4 font-semibold text-white tabular-nums">
+                        <span className="bg-accent text-2xs inline-flex min-w-4 items-center justify-center rounded-full px-1 leading-4 font-semibold text-on-accent tabular-nums">
                             {count}
                         </span>
                     ) : null}

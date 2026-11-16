@@ -1,18 +1,6 @@
 "use client";
 
-import {
-    Button,
-    EmptyState,
-    PageBody,
-    StatusDot,
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-    TableRowHeader,
-} from "@qarasky/kore-ui";
+import { Button, EmptyState, InlineMessage, PageBody, StatusDot, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableRowHeader } from "@qarasky/kore-ui";
 import { Archive } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -112,9 +100,9 @@ export function BackupsList() {
     return (
         <PageBody>
             {error ? (
-                <p role="alert" className="mb-3 text-meta text-danger">
+                <InlineMessage className="mb-3">
                     {error}
-                </p>
+                </InlineMessage>
             ) : null}
             {backups.length === 0 ? (
                 <EmptyState

@@ -57,7 +57,7 @@ export function UpdateWatcher({
     }
     return (
         <div
-            className="bg-raised border-border-strong shadow-overlay animate-kore-pop-in fixed right-4 bottom-4 z-60 flex items-center gap-3 rounded-overlay border py-2 pr-2 pl-4"
+            className="bg-raised border-border-strong shadow-overlay animate-kore-pop-in fixed right-4 bottom-4 z-(--z-toast) flex items-center gap-3 rounded-overlay border py-2 pr-2 pl-4"
             role="status"
         >
             <span>A new version of KoreMonitor is available.</span>

@@ -1,24 +1,6 @@
 "use client";
 
-import {
-    Button,
-    Card,
-    Checkbox,
-    ConfirmDialog,
-    CopyButton,
-    Field,
-    Input,
-    PageBody,
-    SectionHeader,
-    Select,
-    StatusDot,
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@qarasky/kore-ui";
+import { Button, Card, Checkbox, ConfirmDialog, CopyButton, Field, InlineMessage, Input, PageBody, SectionHeader, Select, StatusDot, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@qarasky/kore-ui";
 import { useCallback, useState, type FormEvent } from "react";
 
 import { useBoardData } from "@/components/board/board-data";
@@ -259,9 +241,9 @@ export function BackupAgentDetail({
                 ) : null}
             </div>
             {error ? (
-                <p role="alert" className="text-meta text-danger">
+                <InlineMessage>
                     {error}
-                </p>
+                </InlineMessage>
             ) : null}
             <Section title="Latest backup">
                 <LatestBackup run={agent.lastCompletedRun} onDownload={startDownload} />

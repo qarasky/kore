@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 
-import { Button, Dialog, DialogBody, DialogContent, DialogFooter, Field, Select, Textarea } from "@qarasky/kore-ui";
+import { Button, Dialog, DialogBody, DialogContent, DialogFooter, Field, InlineMessage, Select, Textarea } from "@qarasky/kore-ui";
 import { recordVerification } from "@/lib/backups-api";
 import type { BackupRunSummary } from "@/lib/monitor-types";
 
@@ -82,9 +82,9 @@ export function VerificationDialog({
                             />
                         </Field>
                         {error ? (
-                            <p role="alert" className="text-meta text-danger">
+                            <InlineMessage>
                                 {error}
-                            </p>
+                            </InlineMessage>
                         ) : null}
                     </DialogBody>
                     <DialogFooter>

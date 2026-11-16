@@ -1,17 +1,6 @@
 "use client";
 
-import {
-    Button,
-    Dialog,
-    DialogBody,
-    DialogContent,
-    DialogFooter,
-    Field,
-    Input,
-    RadioGroup,
-    RadioGroupItem,
-    Select,
-} from "@qarasky/kore-ui";
+import { Button, Dialog, DialogBody, DialogContent, DialogFooter, Field, InlineMessage, Input, RadioGroup, RadioGroupItem, Select } from "@qarasky/kore-ui";
 import { ServerCog } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
@@ -152,9 +141,9 @@ export function AddServersDialog({ onTokenMinted }: { onTokenMinted?: () => void
                                 </Field>
                             )}
                             {error ? (
-                                <p role="alert" className="text-meta text-danger">
+                                <InlineMessage>
                                     {error}
-                                </p>
+                                </InlineMessage>
                             ) : null}
                         </DialogBody>
                         <DialogFooter>

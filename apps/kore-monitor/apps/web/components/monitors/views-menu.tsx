@@ -56,7 +56,7 @@ export function ViewsMenu({
                                             onApply(view);
                                             setOpen(false);
                                         }}
-                                        className="min-h-control-sm min-w-0 flex-1 truncate rounded-ui px-2 text-left transition-colors hover:bg-white/5"
+                                        className="min-h-control-sm min-w-0 flex-1 truncate rounded-ui px-2 text-left transition-colors hover:bg-hover"
                                     >
                                         {view.name}
                                     </button>

@@ -131,7 +131,7 @@ export function MetricBar({
                 </span>
             </div>
             {detail ? <p className="metric-detail mt-1 text-xs text-muted">{detail}</p> : null}
-            <div className="metric-track mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+            <div className="metric-track mt-2 h-2 overflow-hidden rounded-full bg-track">
                 <div
                     className={cn(
                         "h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none",

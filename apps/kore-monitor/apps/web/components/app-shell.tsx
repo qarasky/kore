@@ -17,7 +17,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useAttentionCount } from "@/components/attention/attention-list";
 import { openCommandPalette } from "@/components/command-palette";
-import { KORE_APP, KORE_NAMES, SIDEBAR_COOKIE } from "@/lib/kore";
+import { KORE_APP, SIDEBAR_COOKIE } from "@/lib/kore";
 import { type Me, displayName } from "@/lib/me";
 import { NAV_SECTIONS, activeSection } from "@/lib/nav";
 import { SIGN_IN_PATH } from "@/lib/session";
@@ -117,7 +117,7 @@ export function AdminShell({
             collapsible
             sidebarCollapsed={collapsed}
             onSidebarCollapsedChange={setCollapsed}
-            brand={<Wordmark app={KORE_APP} names={KORE_NAMES} />}
+            brand={<Wordmark app={KORE_APP} />}
             brandHref="/monitors"
             topBar={
                 <TopBar
@@ -127,14 +127,14 @@ export function AdminShell({
                                 <AppSwitcher
                                     urls={methods.apps}
                                     current={KORE_APP}
-                                    names={KORE_NAMES}
+                                   
                                     accountUrl={methods.accountUrl ?? undefined}
                                 />
                             ) : null}
                             <AccountMenu
                                 user={user}
                                 accountUrl={methods.accountUrl ?? undefined}
-                                apps={{ urls: methods.apps, current: KORE_APP, names: KORE_NAMES }}
+                                apps={{ urls: methods.apps, current: KORE_APP }}
                                 onSignOut={signOut}
                             />
                         </>

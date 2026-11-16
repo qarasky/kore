@@ -9,15 +9,6 @@
 @import "@qarasky/kore-ui/theme.css";
 @source "../node_modules/@qarasky/kore-ui/src";
 
-/*
- * A monitoring state kore-ui has no token for: a critical resource level
- * (a deeper red than down, for fleet meters). The muted down colour is
- * kore-ui's `status-down-muted`.
- */
-@theme {
-    --color-status-critical: #c0262c;
-}
-
 /* Tailwind v4 borders default to currentColor; Kore hairlines are the border token. */
 @layer base {
     *,

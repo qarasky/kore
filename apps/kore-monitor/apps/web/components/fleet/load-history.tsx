@@ -2,7 +2,7 @@
 
 import { memo, useEffect, useMemo, useState } from "react";
 
-import { Button } from "@qarasky/kore-ui";
+import { InlineMessage, ToggleGroup, ToggleGroupItem } from "@qarasky/kore-ui";
 import { historyPath, historyRefreshMs, historyTimeoutMs } from "@/lib/history-chart";
 import type { HistoryMetric, MetricsHistorySummary } from "@/lib/monitor-types";
 import { fetchMetricsHistory } from "@/lib/monitors-api";
@@ -18,10 +18,10 @@ const RANGES = [
     { label: "1y", hours: 8760 },
 ];
 const CHARTS: { key: HistoryMetric; label: string; color: string }[] = [
-    { key: "cpu", label: "Total CPU", color: "#e0d9c9" },
-    { key: "ram", label: "RAM", color: "#9eb8cd" },
-    { key: "gpu", label: "GPU · first device", color: "#b5c8a1" },
-    { key: "vram", label: "VRAM · first device", color: "#c4acd2" },
+    { key: "cpu", label: "Total CPU", color: "var(--color-chart-1)" },
+    { key: "ram", label: "RAM", color: "var(--color-chart-2)" },
+    { key: "gpu", label: "GPU · first device", color: "var(--color-chart-3)" },
+    { key: "vram", label: "VRAM · first device", color: "var(--color-chart-4)" },
 ];
 
 function HistoryChart({
@@ -244,18 +244,25 @@ export const LoadHistory = memo(function LoadHistory({ monitorId }: { monitorId:
 
     return (
         <section aria-label="Load history" className="history-panel">
-            <div className="history-controls" role="group" aria-label="History time range">
-                {RANGES.map((range) => (
-                    <Button
-                        key={range.label}
-                        size="sm"
-                        className="aria-pressed:border-accent aria-pressed:bg-accent/15 aria-pressed:text-accent"
-                        aria-pressed={hours === range.hours}
-                        onClick={() => setHours(range.hours)}
-                    >
-                        {range.label}
-                    </Button>
-                ))}
+            <div className="history-controls">
+                <ToggleGroup
+                    type="single"
+                    joined
+                    aria-label="History time range"
+                    value={String(hours)}
+                    onValueChange={(value) => {
+                        const range = RANGES.find((item) => String(item.hours) === value);
+                        if (range) {
+                            setHours(range.hours);
+                        }
+                    }}
+                >
+                    {RANGES.map((range) => (
+                        <ToggleGroupItem key={range.label} value={String(range.hours)}>
+                            {range.label}
+                        </ToggleGroupItem>
+                    ))}
+                </ToggleGroup>
                 <span className="text-meta text-muted">Refreshes every 30s</span>
             </div>
             <p className="history-note">
@@ -263,9 +270,9 @@ export const LoadHistory = memo(function LoadHistory({ monitorId }: { monitorId:
                 readings were at or below that load. Charts show bucket averages; gaps are not zeroes.
             </p>
             {error ? (
-                <p className="text-meta text-warning" role="alert">
+                <InlineMessage tone="warning">
                     {error}
-                </p>
+                </InlineMessage>
             ) : null}
             {loading ? (
                 <p className="history-no-data" role="status">
@@ -278,9 +285,9 @@ export const LoadHistory = memo(function LoadHistory({ monitorId }: { monitorId:
             ) : data ? (
                 <>
                     {data.capped ? (
-                        <p className="text-meta text-warning">
+                        <InlineMessage tone="warning">
                             Window exceeds the safety limit. These statistics cover only the newest 50,000 samples.
-                        </p>
+                        </InlineMessage>
                     ) : null}
                     <p className="history-note tnum">
                         {data.samples.toLocaleString()} archived snapshots · {Math.round(data.bucketSeconds)}s chart

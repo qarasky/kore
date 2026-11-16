@@ -1,16 +1,6 @@
 "use client";
 
-import {
-    Button,
-    Card,
-    cn,
-    Dialog,
-    DialogBody,
-    DialogContent,
-    DialogFooter,
-    PageBody,
-    SectionHeader,
-} from "@qarasky/kore-ui";
+import { Button, Card, Dialog, DialogBody, DialogContent, DialogFooter, InlineMessage, PageBody, SectionHeader, cn } from "@qarasky/kore-ui";
 import { Activity, Pencil } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -207,9 +197,7 @@ function AgentReport({
                     <span className="text-muted">None</span>
                 )}
                 {error ? (
-                    <span role="alert" className="block text-meta text-danger">
-                        {error}
-                    </span>
+                    <InlineMessage className="mt-1">{error}</InlineMessage>
                 ) : null}
             </dd>
         </dl>
@@ -268,9 +256,9 @@ function LinkedWebsites({ monitor, monitors }: { monitor: MonitorSummary; monito
             }
         >
             {error ? (
-                <p role="alert" className="mb-2 text-meta text-danger">
+                <InlineMessage className="mb-2">
                     {error}
-                </p>
+                </InlineMessage>
             ) : null}
             {links === null ? null : links.resolved.length === 0 ? (
                 <p className="text-muted">
@@ -420,9 +408,9 @@ export function ServerDetail({
             <PausedBanner />
             <PageBody className="grid gap-6">
                 {live.failed ? (
-                    <p role="status" className="text-meta text-warning">
+                    <InlineMessage tone="warning">
                         Couldn&apos;t load the latest metrics; the numbers may be old.
-                    </p>
+                    </InlineMessage>
                 ) : null}
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                     <ProviderLogo provider={monitor.provider} />
@@ -460,9 +448,9 @@ export function ServerDetail({
                         </Button>
                     </div>
                     {muteError ? (
-                        <p role="alert" className="w-full text-meta text-danger">
+                        <InlineMessage className="w-full">
                             {muteError}
-                        </p>
+                        </InlineMessage>
                     ) : null}
                 </div>
                 {editing ? (

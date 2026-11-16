@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { Checkbox, ConfirmDialog } from "@qarasky/kore-ui";
+import { Checkbox, ConfirmDialog, InlineMessage } from "@qarasky/kore-ui";
 import { api } from "@/lib/api";
 import { failureMessage } from "@/lib/failure";
 import { type Member, type MemberToken, removalWarning } from "@/lib/members";
@@ -99,11 +99,9 @@ export function RemoveMemberDialog({
                         <p className="text-meta text-muted">An unticked token keeps working.</p>
                     </fieldset>
                 )}
-                {warning && <p className="text-warning">{warning}</p>}
+                {warning && <InlineMessage tone="warning">{warning}</InlineMessage>}
                 {error && (
-                    <p role="alert" className="text-danger">
-                        {error}
-                    </p>
+                    <InlineMessage>{error}</InlineMessage>
                 )}
             </div>
         </ConfirmDialog>

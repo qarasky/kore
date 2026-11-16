@@ -27,7 +27,7 @@ export function SelectionBar({
         <div
             role="toolbar"
             aria-label="Selected monitors"
-            className="bg-raised fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 rounded-overlay border border-border-strong px-2 py-1.5 shadow-overlay"
+            className="bg-raised fixed bottom-6 left-1/2 z-(--z-drawer) flex -translate-x-1/2 items-center gap-1 rounded-overlay border border-border-strong px-2 py-1.5 shadow-overlay"
         >
             <span className="text-sub px-2 tabular-nums">{count} selected</span>
             <Button variant="ghost" size="sm" disabled={busy} onClick={onPause}>

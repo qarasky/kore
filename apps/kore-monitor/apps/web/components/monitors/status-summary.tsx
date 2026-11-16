@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@qarasky/kore-ui";
+import { ToggleButton, cn } from "@qarasky/kore-ui";
 
 import type { AttentionItem } from "@/lib/attention";
 import { STATUS_LABEL, summarySentence } from "@/lib/board-format";
@@ -54,21 +54,17 @@ export function StatusSummary({
                     const count = totals[key];
                     const pressed = active.includes(key);
                     return (
-                        <button
+                        <ToggleButton
                             key={key}
-                            type="button"
-                            aria-pressed={pressed}
+                            pressed={pressed}
                             disabled={count === 0 && !pressed}
-                            onClick={() => onToggleStatus(key)}
-                            className={cn(
-                                "text-meta flex h-7 items-center gap-1.5 rounded-ui border border-transparent px-2 transition-colors hover:bg-white/5 disabled:opacity-40 disabled:hover:bg-transparent",
-                                pressed && "border-accent/60 bg-accent/10"
-                            )}
+                            onPressedChange={() => onToggleStatus(key)}
+                            className="text-meta gap-1.5 border-transparent px-2 disabled:opacity-40"
                         >
                             <StatusDot status={key} />
                             <span className="text-text font-semibold tabular-nums">{count}</span>
                             <span className="text-muted">{STATUS_LABEL[key].toLowerCase()}</span>
-                        </button>
+                        </ToggleButton>
                     );
                 })}
             </div>

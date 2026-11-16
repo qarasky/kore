@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { Checkbox, ConfirmDialog } from "@qarasky/kore-ui";
+import { Alert, Checkbox, ConfirmDialog, InlineMessage } from "@qarasky/kore-ui";
 
 import { directChildren, subtreeMonitorCount } from "@/lib/groups";
 import type { MonitorSummary } from "@/lib/monitor-types";
@@ -67,15 +67,15 @@ export function DeleteGroupDialog({
                     description={`Unticked, the ${n} direct ${n === 1 ? "child moves" : "children move"} up to ${parentName ?? "the top level"} and nothing is lost.`}
                 />
                 {purge && rows > 0 ? (
-                    <p role="alert" className="bg-danger/10 text-danger text-meta rounded-ui px-2.5 py-2">
+                    <Alert tone="danger" icon={false}>
                         {rows} {rows === 1 ? "monitor" : "monitors"} will be deleted with their history. This can't be
                         undone.
-                    </p>
+                    </Alert>
                 ) : null}
                 {error ? (
-                    <p role="alert" className="text-danger text-meta">
+                    <InlineMessage>
                         {error}
-                    </p>
+                    </InlineMessage>
                 ) : null}
             </div>
         </ConfirmDialog>

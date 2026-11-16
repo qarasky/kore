@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@qarasky/kore-ui";
+import { Alert, Button } from "@qarasky/kore-ui";
 
 import { useBoardData } from "./board-data";
 
@@ -14,17 +14,18 @@ export function PausedBanner() {
         return null;
     }
     return (
-        <div
-            role="status"
-            className="bg-status-warn/10 text-status-warn text-meta flex shrink-0 items-center gap-3 px-4 py-1.5"
+        <Alert
+            banner
+            tone="warning"
+            className="shrink-0"
+            title="Live updates paused"
+            action={
+                <Button size="sm" onClick={() => setPaused(false)}>
+                    Resume
+                </Button>
+            }
         >
-            <span>
-                Live updates paused
-                {pending > 0 ? <span className="tabular-nums"> · {pending} waiting</span> : null}
-            </span>
-            <Button size="sm" className="min-h-7 px-2.5" onClick={() => setPaused(false)}>
-                Resume
-            </Button>
-        </div>
+            {pending > 0 ? <span className="tabular-nums">{pending} waiting</span> : null}
+        </Alert>
     );
 }

@@ -2,18 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { SyntheticEvent } from "react";
-import {
-    Button,
-    Checkbox,
-    Dialog,
-    DialogBody,
-    DialogContent,
-    DialogFooter,
-    Input,
-    StatusDot,
-    Spinner,
-    type Status,
-} from "@qarasky/kore-ui";
+import { Button, Checkbox, Dialog, DialogBody, DialogContent, DialogFooter, InlineMessage, Input, Spinner, StatusDot, type Status } from "@qarasky/kore-ui";
 import { Search } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import type { MonitorSummary } from "@/lib/monitor-types";
@@ -83,7 +72,7 @@ export function LinkPicker({
                     filtered.map((candidate) => (
                         <label
                             key={candidate.id}
-                            className="flex min-h-control cursor-pointer items-center gap-3 border-b border-border px-3 last:border-0 hover:bg-white/5"
+                            className="flex min-h-control cursor-pointer items-center gap-3 border-b border-border px-3 last:border-0 hover:bg-hover"
                         >
                             <Checkbox
                                 checked={selected.has(candidate.id)}
@@ -197,9 +186,9 @@ export function WebsiteLinkDialog({ server, onClose }: { server: MonitorSummary;
                             />
                         )}
                         {error ? (
-                            <p className="mt-3 text-meta text-danger" role="alert">
+                            <InlineMessage className="mt-3">
                                 {error}
-                            </p>
+                            </InlineMessage>
                         ) : null}
                     </DialogBody>
                     <DialogFooter className="sm:items-center">

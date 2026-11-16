@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
-import { Button, Checkbox, Field, Input, Select, Textarea } from "@qarasky/kore-ui";
+import { Alert, Button, Checkbox, Field, InlineMessage, Input, Select, Textarea } from "@qarasky/kore-ui";
 
 import { useBoardData } from "@/components/board/board-data";
 import { ApiError } from "@/lib/api";
@@ -194,9 +194,9 @@ function NotificationsPicker({
         <fieldset className="rounded-ui border border-border p-3">
             <legend className="text-muted text-meta px-1 font-medium">Notifications</legend>
             {error ? (
-                <p role="alert" className="text-warning text-meta">
+                <InlineMessage tone="warning">
                     {error} Saving leaves this monitor&apos;s notifications as they are.
-                </p>
+                </InlineMessage>
             ) : list === null ? (
                 <p className="text-muted text-meta">Loading…</p>
             ) : list.length === 0 ? (
@@ -476,9 +476,9 @@ export function MonitorForm({
                         it.
                     </p>
                     {linkError ? (
-                        <p className="text-danger text-meta mt-2" role="alert">
+                        <InlineMessage className="mt-2">
                             {linkError} Saving leaves the linked websites as they are.
-                        </p>
+                        </InlineMessage>
                     ) : null}
                 </fieldset>
             ) : null}
@@ -530,14 +530,14 @@ export function MonitorForm({
                 ) : null}
             </div>
             {ignored.length > 0 ? (
-                <p className="bg-warning/10 text-warning text-meta rounded-ui px-2.5 py-2">
+                <InlineMessage tone="warning" className="bg-warning/10 rounded-ui px-2.5 py-2">
                     The server ignored unknown fields: {ignored.join(", ")}
-                </p>
+                </InlineMessage>
             ) : null}
             {error ? (
-                <p role="alert" className="bg-danger/10 text-danger text-meta rounded-ui px-2.5 py-2">
+                <Alert tone="danger" icon={false}>
                     {error}
-                </p>
+                </Alert>
             ) : null}
             <div className="flex justify-end gap-2">
                 <Button onClick={onCancel}>Cancel</Button>

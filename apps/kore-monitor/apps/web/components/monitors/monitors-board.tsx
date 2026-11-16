@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Search } from "lucide-react";
 
-import { Input } from "@qarasky/kore-ui";
+import { InlineMessage, Input } from "@qarasky/kore-ui";
 
 import { useBoardData } from "@/components/board/board-data";
 import { PausedBanner } from "@/components/board/paused-banner";
@@ -495,9 +495,9 @@ export function MonitorsBoard({ initialQuery }: { initialQuery: BoardQuery & { h
                 </div>
                 <PausedBanner />
                 {data.error && rosterLoaded ? (
-                    <p role="status" className="text-warning text-meta shrink-0 px-4 py-1.5">
+                    <InlineMessage tone="warning" className="shrink-0 px-4 py-1.5">
                         {data.error}
-                    </p>
+                    </InlineMessage>
                 ) : null}
                 <BoardActionsContext.Provider value={actions}>
                     <BoardViewContext.Provider value={view}>

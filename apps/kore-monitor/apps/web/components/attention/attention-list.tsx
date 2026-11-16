@@ -40,7 +40,7 @@ function Row({ item }: { item: AttentionItem }) {
         <li>
             <Link
                 href={attentionHref(item)}
-                className="grid min-h-row grid-cols-[12px_120px_minmax(160px,320px)_minmax(0,1fr)] items-center gap-3 border-b border-border px-4 py-2 transition-colors hover:bg-white/5"
+                className="grid min-h-row grid-cols-[12px_120px_minmax(160px,320px)_minmax(0,1fr)] items-center gap-3 border-b border-border px-4 py-2 transition-colors hover:bg-hover-subtle"
             >
                 <KindMark kind={item.kind} muted={item.muted} />
                 <span className={cn("text-meta font-medium", tone)}>{item.title}</span>

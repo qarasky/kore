@@ -1,20 +1,6 @@
 "use client";
 
-import {
-    cn,
-    EmptyState,
-    Input,
-    PageBody,
-    Select,
-    Table,
-    TableBody,
-    TableCell,
-    TableEmpty,
-    TableHead,
-    TableHeader,
-    TableRow,
-    TableRowHeader,
-} from "@qarasky/kore-ui";
+import { EmptyState, InlineMessage, Input, PageBody, Select, Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableRow, TableRowHeader, cn } from "@qarasky/kore-ui";
 import { Search, Server } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -184,9 +170,9 @@ export function ServersList() {
                             />
                         </div>
                         {failed ? (
-                            <p role="status" className="text-meta text-warning">
+                            <InlineMessage tone="warning">
                                 Couldn&apos;t load the latest metrics for some servers; their numbers may be old.
-                            </p>
+                            </InlineMessage>
                         ) : null}
                         <Table caption="Servers">
                             <TableHeader>

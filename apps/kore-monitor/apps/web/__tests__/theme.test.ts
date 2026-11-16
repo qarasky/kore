@@ -27,6 +27,8 @@ describe("theme", () => {
             expect(css).not.toMatch(new RegExp(`^\\s*${name}:`, "m"));
         }
         expect(css).not.toMatch(/--color-(bg|surface|raised|text|muted|accent|border):/);
+        expect(css).not.toMatch(/--color-(status-[a-z-]+|hover|hover-subtle|active|track|on-accent|chart-[1-4]):/);
+        expect(css).not.toMatch(/--z-[a-z]+:/);
         expect(css).not.toContain("tw-animate-css");
     });
 

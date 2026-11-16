@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Monitor } from "lucide-react";
-import { Button, Dialog, DialogBody, DialogContent, EmptyState } from "@qarasky/kore-ui";
+import { Alert, Button, Dialog, DialogBody, DialogContent, EmptyState } from "@qarasky/kore-ui";
 import { ApiError } from "@/lib/api";
 import type { BackupAgentSummary, MonitorLinks, MonitorSummary, ResolvedMonitorLink } from "@/lib/monitor-types";
 import {
@@ -654,9 +654,9 @@ function Superboard({
             )}
 
             {error ? (
-                <div className="border-b border-border bg-danger/10 px-4 py-2 text-meta text-danger" role="alert">
+                <Alert banner tone="danger">
                     {error}
-                </div>
+                </Alert>
             ) : null}
 
             <div className={`flex min-h-0 flex-1 flex-col p-4 ${kiosk ? "pt-0" : ""}`}>{content}</div>

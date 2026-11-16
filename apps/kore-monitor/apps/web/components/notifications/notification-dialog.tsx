@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 
-import { Button, Checkbox, Dialog, DialogBody, DialogContent, DialogFooter, Field, Input } from "@qarasky/kore-ui";
+import { Button, Checkbox, Dialog, DialogBody, DialogContent, DialogFooter, Field, InlineMessage, Input } from "@qarasky/kore-ui";
 
 import { notificationBody, notificationValues, type NotificationValues } from "@/lib/notification-form";
 import { createNotification, updateNotification, type NotificationRecord } from "@/lib/notifications-api";
@@ -106,9 +106,9 @@ export function NotificationDialog({
                             />
                         </div>
                         {error ? (
-                            <p role="alert" className="text-meta text-danger">
+                            <InlineMessage>
                                 {error}
-                            </p>
+                            </InlineMessage>
                         ) : null}
                     </DialogBody>
                     <DialogFooter>

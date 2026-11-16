@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { AuthScreen } from "@qarasky/kore-ui";
 
 import { api } from "@/lib/api";
-import { KORE_APP, KORE_NAMES } from "@/lib/kore";
+import { KORE_APP } from "@/lib/kore";
 import { NO_SIGN_IN, type SignInMethods, ssoStartHref, toMethods } from "@/lib/sso";
 
 /**
@@ -27,13 +27,13 @@ export function KioskSignIn() {
     }, []);
 
     if (methods === null) {
-        return <AuthScreen app={KORE_APP} names={KORE_NAMES} title="Sign in" description="Signing in…" />;
+        return <AuthScreen app={KORE_APP} title="Sign in" description="Signing in…" />;
     }
 
     return (
         <AuthScreen
             app={KORE_APP}
-            names={KORE_NAMES}
+           
             title="Sign in"
             description={methods.sso ? "Sign in to monitor your sites and servers." : undefined}
             sso={methods.sso ? { href: ssoStartHref(next) } : undefined}

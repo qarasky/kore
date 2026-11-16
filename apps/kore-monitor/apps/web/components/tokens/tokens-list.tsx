@@ -1,25 +1,6 @@
 "use client";
 
-import {
-    Badge,
-    ConfirmDialog,
-    EmptyState,
-    IconButton,
-    Menu,
-    MenuContent,
-    MenuItem,
-    MenuSeparator,
-    MenuTrigger,
-    SectionHeader,
-    Table,
-    TableBody,
-    TableCell,
-    TableEmpty,
-    TableHead,
-    TableHeader,
-    TableRow,
-    TableRowHeader,
-} from "@qarasky/kore-ui";
+import { Badge, ConfirmDialog, EmptyState, IconButton, InlineMessage, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, SectionHeader, Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableRow, TableRowHeader } from "@qarasky/kore-ui";
 import { KeyRound, MoreHorizontal, Power, PowerOff, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -88,9 +69,9 @@ export function TokensList({ reloadKey = 0 }: { reloadKey?: number }) {
                 actions={<MintTokenDialog onMinted={() => void load()} />}
             />
             {error ? (
-                <p role="alert" className="mb-3 text-meta text-danger">
+                <InlineMessage className="mb-3">
                     {error}
-                </p>
+                </InlineMessage>
             ) : null}
             {keys !== null && keys.length === 0 ? (
                 <EmptyState

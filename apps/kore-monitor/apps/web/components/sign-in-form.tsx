@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { AuthScreen } from "@qarasky/kore-ui";
 
 import { api } from "@/lib/api";
-import { KORE_NAMES } from "@/lib/kore";
 import { NO_SIGN_IN, type SignInMethods, ssoErrorMessage, ssoStartHref, toMethods } from "@/lib/sso";
 
 /**
@@ -34,7 +33,7 @@ export function SignInForm({
             });
     }, []);
 
-    const shared = { app: "flatline" as const, names: KORE_NAMES };
+    const shared = { app: "flatline" as const };
 
     if (methods === null) {
         return <AuthScreen {...shared} description="Signing in…" />;

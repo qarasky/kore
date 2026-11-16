@@ -45,7 +45,7 @@ export function LinkPicker({
                     filtered.map((candidate) => (
                         <label
                             key={candidate.id}
-                            className="flex cursor-pointer items-center gap-2 border-b border-border px-3 py-1.5 transition-colors last:border-0 hover:bg-white/5"
+                            className="flex cursor-pointer items-center gap-2 border-b border-border px-3 py-1.5 transition-colors last:border-0 hover:bg-hover"
                         >
                             <Checkbox
                                 checked={selected.has(candidate.id)}

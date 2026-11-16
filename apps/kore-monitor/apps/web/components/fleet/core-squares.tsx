@@ -39,7 +39,7 @@ export function CoreSquares({ values, label }: { values?: number[]; label: strin
                         key={i}
                         title={`${label} ${i}: ${known ? `${safe.toFixed(1)}%` : "unknown"}`}
                         className={cn(
-                            "core-square inline-flex items-center justify-center overflow-hidden rounded-[4px] border border-white/10 bg-white/5",
+                            "core-square inline-flex items-center justify-center overflow-hidden rounded-[4px] border border-border bg-hover",
                             TONE_TEXT[usageTone(value)]
                         )}
                         style={{ "--load": known ? safe : 0 } as CSSProperties}
