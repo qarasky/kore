@@ -150,12 +150,12 @@ fun ChatScreen(vm: AppViewModel, onSettings: () -> Unit, onProviders: () -> Unit
                 AnimatedContent(shownTitle, Modifier.weight(1f), label = "title", transitionSpec = { fadeIn(quickSpec(on)) togetherWith fadeOut(quickSpec(on)) }) { t ->
                     Text(t, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
                 }
-                if (chatId != null && !empty) IconButton(onClick = { chatId?.let(vm::deleteChat) }) { Icon(Icons.Filled.Delete, stringResource(R.string.delete_chat), tint = KoreMindColors.Muted) }
+                if (!empty) IconButton(onClick = { closeKeyboard(); vm.newChat() }) { Icon(Icons.Filled.Add, stringResource(R.string.new_chat), tint = KoreMindColors.Muted) }
                 else Spacer(Modifier.size(48.dp))
             }
             UpdateBanner(vm)
             if (empty) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { Appear { Text(stringResource(R.string.home_greeting), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold) } }
-            else androidx.compose.runtime.key(listKey) { MessageList(state, Modifier.weight(1f), vm::answerApproval) }
+            else androidx.compose.runtime.key(listKey) { MessageList(state, busy, Modifier.weight(1f), vm::answerApproval, vm::edit, vm::showVariant) }
 
             AnimatedVisibility(state.connectProvider, enter = enterExpand(on), exit = exitShrink(on)) {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).border(1.dp, KoreMindColors.Warning.copy(alpha = 0.4f), RoundedCornerShape(6.dp)).background(KoreMindColors.Surface, RoundedCornerShape(6.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -196,7 +196,10 @@ private fun rememberListKey(chatId: String?): Any {
 }
 
 @Composable
-private fun MessageList(state: ChatUiState, modifier: Modifier, onApproval: (String, Boolean) -> Unit) {
+private fun MessageList(
+    state: ChatUiState, busy: Boolean, modifier: Modifier, onApproval: (String, Boolean) -> Unit,
+    onEdit: (id: String, text: String) -> Unit, onVariant: (id: String) -> Unit,
+) {
     val list = rememberLazyListState()
     val count = state.messages.size + if (state.draft != null) 1 else 0
     // Messages already on screen when the list opens don't animate; new ones rise into place.
@@ -245,7 +248,7 @@ private fun MessageList(state: ChatUiState, modifier: Modifier, onApproval: (Str
     }
     LazyColumn(modifier.fillMaxWidth().nestedScroll(reader), state = list, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         items(state.messages, key = { it.id }) { m ->
-            if (m.role == "user") Appear(animate = m.id !in shown) { UserBubble(m) } else AssistantMessage(m.text, m.sources, activity = m.activity)
+            if (m.role == "user") Appear(animate = m.id !in shown) { UserBubble(m, busy, onEdit, onVariant) } else AssistantMessage(m.text, m.sources, activity = m.activity)
         }
         state.draft?.let { d -> item(key = "draft") { Appear { AssistantMessage(d.text, d.sources, d.status, d.activity, d.approvals, d.expired, animateChips = true, onApproval = onApproval) } } }
     }

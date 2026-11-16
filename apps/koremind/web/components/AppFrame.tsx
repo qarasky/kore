@@ -1,8 +1,9 @@
 "use client";
-import { AccountMenu, AppShell, AppSwitcher, Button, MenuItem, Sidebar, SidebarItem, SidebarNav, TopBar, Wordmark, type AppUrls } from "@qarasky/kore-ui";
-import { Plus, Settings } from "lucide-react";
+import type { ChatSummary } from "@koremind/shared";
+import { AccountMenu, AppShell, AppSwitcher, Button, ConfirmDialog, IconButton, MenuItem, Sidebar, SidebarNav, TopBar, Wordmark, cn, useAppShell, type AppUrls } from "@qarasky/kore-ui";
+import { Plus, Settings, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { useChats } from "@/lib/contexts";
 import { useSession } from "@/lib/session";
@@ -14,8 +15,17 @@ import { t } from "@/lib/strings";
  */
 export function AppFrame({ children }: { children: ReactNode }) {
   const { user, server, signOut } = useSession();
-  const { chats } = useChats();
+  const { chats, remove } = useChats();
   const path = usePathname();
+  const router = useRouter();
+  const [deleting, setDeleting] = useState<ChatSummary | null>(null);
+  const deleteChat = async () => {
+    const c = deleting;
+    if (!c) return;
+    await remove(c.id);
+    setDeleting(null);
+    if (path === `/c/${c.id}`) router.push("/");
+  };
   // KoreMind's own address is wherever this page is served from.
   const [origin, setOrigin] = useState("");
   useEffect(() => setOrigin(location.origin), []);
@@ -56,12 +66,43 @@ export function AppFrame({ children }: { children: ReactNode }) {
         <Sidebar header={<Button asChild variant="primary"><Link href="/"><Plus aria-hidden />{t.newChat}</Link></Button>}>
           <SidebarNav label={t.chats} title={t.chats}>
             {chats.length === 0 && <li className="px-3 py-2 text-meta text-muted">{t.noChats}</li>}
-            {chats.map((c) => <SidebarItem key={c.id} href={`/c/${c.id}`} active={path === `/c/${c.id}`}>{c.title}</SidebarItem>)}
+            {chats.map((c) => <ChatItem key={c.id} chat={c} active={path === `/c/${c.id}`} onDelete={() => setDeleting(c)} />)}
           </SidebarNav>
         </Sidebar>
       }
     >
       {children}
+      <ConfirmDialog
+        open={!!deleting} onOpenChange={(o) => { if (!o) setDeleting(null); }} danger
+        title={t.deleteChatTitle(deleting?.title ?? "")} description={t.deleteChatBody}
+        confirmLabel={t.delete} cancelLabel={t.cancel} pendingLabel={t.deleting} onConfirm={deleteChat}
+      />
     </AppShell>
+  );
+}
+
+/** A chat in the sidebar, like a SidebarItem, with a delete button that shows on hover (always on touch screens). */
+function ChatItem({ chat, active, onDelete }: { chat: ChatSummary; active: boolean; onDelete(): void }) {
+  const shell = useAppShell();
+  const collapsed = !!shell?.collapsed;
+  return (
+    <li className="group relative">
+      <Link
+        href={`/c/${chat.id}`} aria-current={active ? "page" : undefined}
+        onClick={() => { if (shell?.inDrawer) shell.setDrawerOpen(false); }}
+        className={cn(
+          "flex min-h-control w-full items-center rounded-ui px-3 pr-10 text-left transition-colors",
+          collapsed && "sr-only",
+          active ? "bg-raised font-medium text-text" : "text-muted hover:bg-white/[0.04] hover:text-text",
+        )}
+      >
+        <span className="min-w-0 flex-1 truncate">{chat.title}</span>
+      </Link>
+      {!collapsed && (
+        <span className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+          <IconButton label={t.deleteChat} icon={<Trash2 />} tooltip={false} variant="danger" className="size-8" onClick={onDelete} />
+        </span>
+      )}
+    </li>
   );
 }

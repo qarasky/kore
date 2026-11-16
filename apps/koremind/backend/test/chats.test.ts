@@ -196,3 +196,100 @@ test("the turn reports the model the chat used (memory falls back to it)", async
   await collect(chats.send("u1", c.id, req("q", { model: { providerId: "openai", modelId: "gpt" } }), new AbortController().signal));
   expect(seen).toEqual([{ providerId: "openai", modelId: "gpt" }]);
 });
+
+// ---- Edits and variants ----
+
+test("editing a message adds a variant with a new answer, in a fresh session told the conversation so far", async () => {
+  const { chats, engine } = setup({ reply: (a) => [{ type: "delta", text: `re: ${a.text}` }] });
+  const c = chats.create("u1");
+  await collect(chats.send("u1", c.id, req("first"), new AbortController().signal));
+  await collect(chats.send("u1", c.id, req("second"), new AbortController().signal));
+  const before = chats.get("u1", c.id)!.messages;
+  const second = before[2];
+  await collect(chats.send("u1", c.id, req("second, edited", { editOf: second.id }), new AbortController().signal));
+
+  const after = chats.get("u1", c.id)!.messages;
+  expect(after.map((m) => m.text)).toEqual(["first", "re: first", "second, edited", "re: second, edited"]);
+  expect(after[2].siblings).toEqual([second.id, after[2].id]);
+  expect(after[0].siblings).toBeUndefined();
+  // The edit went to a new engine session that got the earlier messages, not the replaced one.
+  const last = engine.prompts.at(-1)!;
+  expect(last.sessionId).not.toBe(engine.prompts[0].sessionId);
+  expect(last.system).toContain("SYSTEM");
+  expect(last.system).toContain("User: first\n\nAssistant: re: first");
+  expect(last.system).not.toContain("second");
+});
+
+test("switching variants shows the other branch, and new messages continue in that branch's session", async () => {
+  const { chats, engine } = setup({ reply: (a) => [{ type: "delta", text: `re: ${a.text}` }] });
+  const c = chats.create("u1");
+  await collect(chats.send("u1", c.id, req("q"), new AbortController().signal));
+  const original = chats.get("u1", c.id)!.messages[0];
+  await collect(chats.send("u1", c.id, req("q2", { editOf: original.id }), new AbortController().signal));
+  expect(chats.get("u1", c.id)!.messages.map((m) => m.text)).toEqual(["q2", "re: q2"]);
+
+  expect(chats.branch("u1", c.id, original.id)).toBe(true);
+  expect(chats.get("u1", c.id)!.messages.map((m) => m.text)).toEqual(["q", "re: q"]);
+  await collect(chats.send("u1", c.id, req("follow-up"), new AbortController().signal));
+  expect(chats.get("u1", c.id)!.messages.map((m) => m.text)).toEqual(["q", "re: q", "follow-up", "re: follow-up"]);
+  expect(engine.prompts.at(-1)!.sessionId).toBe(engine.prompts[0].sessionId);
+  expect(engine.prompts.at(-1)!.system).toBe("");
+  expect(chats.branch("u1", c.id, "nope")).toBe(false);
+  expect(chats.branch("u2", c.id, original.id)).toBe(false);
+});
+
+test("an edited message keeps the original's attachments", async () => {
+  const { chats, db, engine } = setup();
+  db.run("insert into attachments(id,user_id,message_id,name,mime,size,path) values('up1','u1',null,'a.png','image/png',1,'/x')");
+  const c = chats.create("u1");
+  await collect(chats.send("u1", c.id, req("look", { attachmentIds: ["up1"] }), new AbortController().signal));
+  const first = chats.get("u1", c.id)!.messages[0];
+  await collect(chats.send("u1", c.id, req("look again", { editOf: first.id }), new AbortController().signal));
+  const edited = chats.get("u1", c.id)!.messages[0];
+  expect(edited.attachments.map((a) => a.name)).toEqual(["a.png"]);
+  expect(edited.attachments[0].id).not.toBe("up1");
+  expect(engine.prompts.at(-1)!.files).toHaveLength(1);
+  chats.branch("u1", c.id, first.id);
+  expect(chats.get("u1", c.id)!.messages[0].attachments.map((a) => a.id)).toEqual(["up1"]);
+});
+
+test("an edit of something that is not a user message of this chat is refused", async () => {
+  const { chats } = setup();
+  const c = chats.create("u1");
+  await collect(chats.send("u1", c.id, req("q"), new AbortController().signal));
+  const answer = chats.get("u1", c.id)!.messages[1];
+  const evs = await collect(chats.send("u1", c.id, req("x", { editOf: answer.id }), new AbortController().signal));
+  expect(evs).toEqual([{ type: "error", code: "engine", message: "The message to edit was not found." }]);
+});
+
+// ---- Turns that outlive the connection ----
+
+test("a started turn finishes even when nobody reads it, and can be followed from the start", async () => {
+  const { chats } = setup({ reply: () => [{ type: "delta", text: "a" }, { type: "delta", text: "b" }], delayMs: 5 });
+  const c = chats.create("u1");
+  chats.start("u1", c.id, req("q"));
+  expect(chats.running(c.id)).toBe(true);
+  expect(chats.get("u1", c.id)!.running).toBe(true);
+  // A listener that goes away (a dropped connection) does not stop the answer.
+  const first = chats.follow(c.id)!;
+  await first.next();
+  await first.return(undefined);
+  // Someone re-attaching gets everything from the beginning.
+  const replay = await collect(chats.follow(c.id)!);
+  expect(replay.map((e) => e.type)).toEqual(["status", "delta", "delta", "done"]);
+  expect(chats.running(c.id)).toBe(false);
+  expect(chats.follow(c.id)).toBeNull();
+  expect(chats.get("u1", c.id)!.messages.map((m) => m.text)).toEqual(["q", "ab"]);
+});
+
+test("a second turn in the same chat is refused while one runs, and abort still stops it", async () => {
+  const { chats } = setup({ reply: () => [{ type: "delta", text: "a" }, { type: "delta", text: "b" }, { type: "delta", text: "c" }], delayMs: 20 });
+  const c = chats.create("u1");
+  chats.start("u1", c.id, req("q"));
+  expect(() => chats.start("u1", c.id, req("again"))).toThrow("still being written");
+  await Bun.sleep(30);
+  chats.abort(c.id);
+  const evs = await collect(chats.follow(c.id) ?? (async function* () {})());
+  expect(evs.at(-1)).toMatchObject({ type: "error", code: "aborted" });
+  expect(chats.running(c.id)).toBe(false);
+});

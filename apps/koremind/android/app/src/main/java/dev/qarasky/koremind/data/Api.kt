@@ -78,6 +78,8 @@ class KoreMindApi(val baseUrl: String, private val token: () -> String?) {
     suspend fun chat(id: String): ChatDetail = get("/chats/$id")
     suspend fun deleteChat(id: String): Ok = delete("/chats/$id")
     suspend fun abort(id: String): Ok = call("POST", "/chats/$id/abort", null, serializer())
+    /** Shows another version of an edited message; returns the chat with that branch. */
+    suspend fun branch(id: String, messageId: String): ChatDetail = send("POST", "/chats/$id/branch", BranchBody(messageId))
     suspend fun memory(): List<MemoryEntry> = get("/memory")
     suspend fun memorySummary(): MemorySummary? = get<MemorySummaryResponse>("/memory/summary").summary
     suspend fun updateMemory(id: String, text: String): Ok = send("PUT", "/memory/$id", TextBody(text))
@@ -107,12 +109,20 @@ class KoreMindApi(val baseUrl: String, private val token: () -> String?) {
         return call("POST", "/uploads", form, serializer())
     }
 
-    /** Streams a reply. Network failures arrive as a single Error event instead of an exception. */
-    fun send(chatId: String, body: SendMessageRequest): Flow<StreamEvent> = flow {
-        val call = streamClient.newCall(req("POST", "/chats/$chatId/messages", KoreMindJson.encodeToString(SendMessageRequest.serializer(), body).toRequestBody(JSON_TYPE)))
+    /** Streams a reply. A connection that breaks before the answer ends gives one Error("network"); the answer goes on on the server. */
+    fun send(chatId: String, body: SendMessageRequest): Flow<StreamEvent> =
+        stream(req("POST", "/chats/$chatId/messages", KoreMindJson.encodeToString(SendMessageRequest.serializer(), body).toRequestBody(JSON_TYPE)))
+
+    /** Re-attaches to the answer running in a chat, from its first event. Empty when nothing is running (it is saved). */
+    fun follow(chatId: String): Flow<StreamEvent> = stream(req("GET", "/chats/$chatId/stream", null), emptyOnNoContent = true)
+
+    private fun stream(request: Request, emptyOnNoContent: Boolean = false): Flow<StreamEvent> = flow {
+        val call = streamClient.newCall(request)
+        var ended = false
         try {
             val resp = withContext(Dispatchers.IO) { call.execute() }
             resp.use { r ->
+                if (emptyOnNoContent && r.code == 204) return@flow
                 if (!r.isSuccessful) {
                     val msg = try { KoreMindJson.parseToJsonElement(r.body.string()).jsonObject["error"]?.jsonObject?.get("message")?.jsonPrimitive?.content } catch (_: Exception) { null }
                     emit(StreamEvent.Error("engine", msg ?: "Request failed (${r.code})"))
@@ -124,13 +134,14 @@ class KoreMindApi(val baseUrl: String, private val token: () -> String?) {
                 while (true) {
                     val n = withContext(Dispatchers.IO) { src.read(buf) }
                     if (n < 0) break
-                    for (ev in parser.feed(buf.copyOf(n))) emit(ev)
+                    for (ev in parser.feed(buf.copyOf(n))) { if (ev is StreamEvent.Done || ev is StreamEvent.Error) ended = true; emit(ev) }
                 }
             }
         } catch (e: CancellationException) {
             call.cancel(); throw e
         } catch (e: IOException) {
-            emit(StreamEvent.Error(if (call.isCanceled()) "aborted" else "engine", if (call.isCanceled()) "Stopped" else "The connection dropped."))
+            if (call.isCanceled()) { emit(StreamEvent.Error("aborted", "Stopped")); return@flow }
         }
+        if (!ended) emit(StreamEvent.Error("network", "The connection dropped."))
     }
 }

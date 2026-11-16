@@ -24,10 +24,12 @@ Source of truth: `shared/src/api.ts` (zod). All bodies are JSON unless noted. Au
 | `DELETE /providers/:id/key` | owner | | `{ok:true}`; 4xx with a reason if the connection comes from a server environment variable |
 | `GET /chats` | yes | | `{id,title,updatedAt}[]` newest first |
 | `POST /chats` | yes | | `ChatSummary` |
-| `GET /chats/:id` | yes | | `{chat,messages:ChatMessage[]}` |
+| `GET /chats/:id` | yes | | `{chat,messages:ChatMessage[],running}`: the messages of the branch on screen (an edited user message lists its versions in `siblings`); `running` is true while an answer is still being written. |
 | `PATCH /chats/:id` | yes | `{title}` | `{ok:true}` |
 | `DELETE /chats/:id` | yes | | `{ok:true}` (its notes go with it) |
-| `POST /chats/:id/messages` | yes | `{text,attachmentIds[],model:{providerId,modelId},thinking?}` | `text/event-stream`. See StreamEvent. 400 `model_not_allowed` before any stream when the model isn't currently allowed. |
+| `POST /chats/:id/messages` | yes | `{text,attachmentIds[],model:{providerId,modelId},thinking?,editOf?}` | `text/event-stream`. See StreamEvent. 400 `model_not_allowed` before any stream when the model isn't currently allowed; 409 `busy` while an answer is still running in the chat. `editOf` (a user message id) sends a new version of that message: it gets the original's files, a new answer and a fresh engine session told the conversation before it. The answer runs on the server on its own: a dropped connection does not stop it, only `abort` does. |
+| `GET /chats/:id/stream` | yes | | Re-attach after a dropped connection: the running answer as `text/event-stream`, replayed from its first event. 204 when nothing is running (the answer is saved; reload the chat). |
+| `POST /chats/:id/branch` | yes | `{messageId}` | Shows another version of an edited message: the chat's branch now runs through `messageId` to its newest message. Returns the chat like `GET /chats/:id`. 409 while an answer runs. |
 | `POST /chats/:id/abort` | yes | | `{ok:true}` |
 | `POST /chats/:id/approvals/:approvalId` | yes | `{allow:boolean}` | `{ok:true}`; 404 if unknown, already closed, or not this user's |
 | `POST /uploads` | yes | multipart field `file` | `{id,name,mime,size}`; 413 `attachment_too_large` |
@@ -63,7 +65,7 @@ Source of truth: `shared/src/api.ts` (zod). All bodies are JSON unless noted. Au
 | `{type:"approval_closed",id,outcome:"allowed"\|"denied"\|"expired"}` | the card is resolved |
 | `{type:"done",messageId}` | the answer is complete |
 | `{type:"title",title}` | first turn of a chat only, best effort, after `done` |
-| `{type:"error",code,message}` | `code` is `no_provider`, `attachment_too_large`, `engine`, `aborted` or `model_not_allowed` |
+| `{type:"error",code,message}` | `code` is `no_provider`, `attachment_too_large`, `engine`, `aborted` or `model_not_allowed` (`network` is made by the apps for a broken connection; the server never sends it) |
 
 A stream ends after `error`, or after `done` (and on the first turn of a chat up to about 8 s later, after `title`). Clients treat the turn as finished at `done` and keep reading only for `title`. Assistant messages carry `activity: Activity[]` (same shape as the event, without `type`) so history shows what was done. Keep-alive `: ping` comment lines arrive every 15 s.
 

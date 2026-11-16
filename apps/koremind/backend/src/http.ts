@@ -5,6 +5,7 @@ import { BACKCHANNEL_LOGOUT_PATH } from "./config";
 import { OidcError } from "./oidc";
 import type { Services } from "./services";
 import { UploadError } from "./uploads";
+import { BusyError } from "./chats";
 
 const CORS = {
   "access-control-allow-origin": "*",
@@ -23,6 +24,29 @@ const isLoopback = (ip?: string) => ip === "127.0.0.1" || ip === "::1" || ip ===
 
 export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs?: number } = {}) {
   const keepAliveMs = opts.keepAliveMs ?? 15_000;
+  /** Streams events as server-sent events, with a comment line every [keepAliveMs] so proxies keep the connection open. */
+  const sse = (events: AsyncGenerator<StreamEvent> | null): Response => {
+    const it = events ?? (async function* () {})();
+    const enc = new TextEncoder();
+    let nextEv: Promise<IteratorResult<StreamEvent>> | null = null;
+    const stream = new ReadableStream<Uint8Array>({
+      async pull(c) {
+        nextEv ??= it.next();
+        for (;;) {
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          const r = await Promise.race([nextEv, new Promise<null>((res) => { timer = setTimeout(() => res(null), keepAliveMs); })]);
+          clearTimeout(timer);
+          if (r === null) { c.enqueue(enc.encode(": ping\n\n")); continue; }
+          nextEv = null;
+          if (r.done) c.close(); else c.enqueue(enc.encode(`data: ${JSON.stringify(r.value)}\n\n`));
+          return;
+        }
+      },
+      // Only this listener stops; the turn itself keeps running.
+      async cancel() { await it.return?.(undefined); },
+    });
+    return new Response(stream, { headers: { ...CORS, "content-type": "text/event-stream", "cache-control": "no-cache", "x-accel-buffering": "no" } });
+  };
   async function body<T>(req: Request, schema: z.ZodType<T>): Promise<T> {
     let raw: unknown;
     try { raw = await req.json(); } catch { throw new HttpError(400, "bad_request", "Invalid JSON"); }
@@ -153,25 +177,22 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
       if (!s.chats.has(u, r[1])) return fail(404, "not_found", "Chat not found");
       const sendReq = await body(req, SendMessageRequest);
       if (!(await s.models.allowed(u, sendReq.model.providerId, sendReq.model.modelId))) return fail(400, "model_not_allowed", "That model isn't available. Pick another one in the model picker.");
-      const it = s.chats.send(u, r[1], sendReq, req.signal)[Symbol.asyncIterator]();
-      const enc = new TextEncoder();
-      let nextEv: Promise<IteratorResult<StreamEvent>> | null = null;
-      const stream = new ReadableStream<Uint8Array>({
-        async pull(c) {
-          nextEv ??= it.next();
-          for (;;) {
-            let timer: ReturnType<typeof setTimeout> | undefined;
-            const r = await Promise.race([nextEv, new Promise<null>((res) => { timer = setTimeout(() => res(null), keepAliveMs); })]);
-            clearTimeout(timer);
-            if (r === null) { c.enqueue(enc.encode(": ping\n\n")); continue; }
-            nextEv = null;
-            if (r.done) c.close(); else c.enqueue(enc.encode(`data: ${JSON.stringify(r.value)}\n\n`));
-            return;
-          }
-        },
-        async cancel() { await it.return?.(undefined); },
-      });
-      return new Response(stream, { headers: { ...CORS, "content-type": "text/event-stream", "cache-control": "no-cache", "x-accel-buffering": "no" } });
+      // The answer runs on its own; this response only follows it. Losing the connection leaves it running.
+      try { s.chats.start(u, r[1], sendReq); } catch (e) { if (e instanceof BusyError) return fail(409, "busy", e.message); throw e; }
+      return sse(s.chats.follow(r[1]));
+    }
+    if ((r = path.match(/^\/chats\/([^/]+)\/stream$/)) && m === "GET") {
+      // Re-attach after a dropped connection: the running answer from its first event. 204 when nothing is running.
+      if (!s.chats.has(u, r[1])) return fail(404, "not_found", "Chat not found");
+      const it = s.chats.follow(r[1]);
+      return it ? sse(it) : new Response(null, { status: 204, headers: CORS });
+    }
+    if ((r = path.match(/^\/chats\/([^/]+)\/branch$/)) && m === "POST") {
+      if (!s.chats.has(u, r[1])) return fail(404, "not_found", "Chat not found");
+      if (s.chats.running(r[1])) return fail(409, "busy", "Wait for the answer to finish.");
+      const { messageId } = await body(req, z.object({ messageId: z.string() }));
+      if (!s.chats.branch(u, r[1], messageId)) return fail(404, "not_found", "Message not found");
+      return json(200, s.chats.get(u, r[1]));
     }
 
     if (m === "POST" && path === "/uploads") {

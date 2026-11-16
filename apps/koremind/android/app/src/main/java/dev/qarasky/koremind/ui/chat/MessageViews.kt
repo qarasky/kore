@@ -72,6 +72,25 @@ import dev.qarasky.koremind.data.Activity
 import dev.qarasky.koremind.data.Attachment
 import dev.qarasky.koremind.data.ChatMessage
 import dev.qarasky.koremind.data.Source
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import android.content.ClipboardManager
+import android.content.ClipData
 import androidx.compose.foundation.layout.heightIn
 import dev.qarasky.koremind.data.sourceHost
 import dev.qarasky.koremind.data.dedupeSources
@@ -115,12 +134,64 @@ fun Wordmark() {
 
 
 
+/**
+ * Your message. A long press opens Copy and Edit; Edit turns the bubble into a field and sends a new version.
+ * An edited message shows "‹ 2 / 3 ›" to switch between its versions.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun UserBubble(m: ChatMessage) {
+fun UserBubble(m: ChatMessage, busy: Boolean = false, onEdit: (id: String, text: String) -> Unit = { _, _ -> }, onVariant: (id: String) -> Unit = {}) {
+    var menu by remember { mutableStateOf(false) }
+    var editing by rememberSaveable(m.id) { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+    val saved = !m.id.startsWith("local-")
+    val shape = RoundedCornerShape(18.dp)
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (m.attachments.isNotEmpty()) AttachmentChips(m.attachments)
-        if (m.text.isNotBlank()) Box(Modifier.widthIn(max = 320.dp).background(KoreMindColors.Raised, RoundedCornerShape(18.dp)).padding(horizontal = 14.dp, vertical = 9.dp)) {
-            Text(m.text, style = MaterialTheme.typography.bodyLarge)
+        val draft = editing
+        if (draft != null) {
+            val focus = remember { FocusRequester() }
+            LaunchedEffect(Unit) { focus.requestFocus() }
+            val submit = {
+                val t = draft.trim()
+                if (t.isNotEmpty() && !busy) { editing = null; if (t != m.text.trim()) onEdit(m.id, t) }
+            }
+            Column(Modifier.fillMaxWidth().background(KoreMindColors.Raised, shape).border(1.dp, KoreMindColors.Accent, shape).padding(start = 14.dp, end = 6.dp, top = 10.dp, bottom = 2.dp)) {
+                BasicTextField(
+                    draft, { editing = it }, Modifier.fillMaxWidth().padding(end = 8.dp).focusRequester(focus),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = KoreMindColors.Text), cursorBrush = SolidColor(KoreMindColors.Accent),
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = { editing = null }) { Text(stringResource(R.string.cancel), color = KoreMindColors.Muted) }
+                    TextButton(onClick = submit, enabled = !busy && draft.isNotBlank()) { Text(stringResource(R.string.send), color = if (!busy && draft.isNotBlank()) KoreMindColors.Accent else KoreMindColors.Muted) }
+                }
+            }
+        } else if (m.text.isNotBlank()) Box {
+            Box(
+                Modifier.widthIn(max = 320.dp).clip(shape).background(KoreMindColors.Raised)
+                    .combinedClickable(onClick = {}, onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menu = true }, onLongClickLabel = stringResource(R.string.message_actions))
+                    .padding(horizontal = 14.dp, vertical = 9.dp),
+            ) { Text(m.text, style = MaterialTheme.typography.bodyLarge) }
+            DropdownMenu(menu, onDismissRequest = { menu = false }, containerColor = KoreMindColors.Raised) {
+                DropdownMenuItem(text = { Text(stringResource(R.string.copy)) }, onClick = {
+                    menu = false
+                    context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("message", m.text))
+                })
+                if (saved) DropdownMenuItem(text = { Text(stringResource(R.string.edit_message)) }, enabled = !busy, onClick = { menu = false; editing = m.text })
+            }
+        }
+        if (draft == null) variantPosition(m)?.let { (index, count) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { variantAt(m, -1)?.let(onVariant) }, enabled = !busy && index > 1, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, stringResource(R.string.previous_version), Modifier.size(18.dp), tint = KoreMindColors.Muted)
+                }
+                Text("$index / $count", color = KoreMindColors.Muted, style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.semantics { contentDescription = context.getString(R.string.version_of, index, count) })
+                IconButton(onClick = { variantAt(m, 1)?.let(onVariant) }, enabled = !busy && index < count, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(R.string.next_version), Modifier.size(18.dp), tint = KoreMindColors.Muted)
+                }
+            }
         }
     }
 }
@@ -147,7 +218,7 @@ fun AssistantMessage(
         AnimatedContent(status, label = "status", transitionSpec = { fadeIn(quickSpec(on)) togetherWith fadeOut(quickSpec(on)) }) { st ->
             if (st != null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(if (st == "searching") stringResource(R.string.searching) else stringResource(R.string.thinking), color = KoreMindColors.Muted, style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(when (st) { "searching" -> R.string.searching; "reconnecting" -> R.string.reconnecting; else -> R.string.thinking }), color = KoreMindColors.Muted, style = MaterialTheme.typography.bodySmall)
                     Dots()
                 }
             }

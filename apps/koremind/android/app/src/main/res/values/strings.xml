@@ -39,6 +39,12 @@
     <string name="thinking">Thinking</string>
     <string name="searching">Searching the web</string>
     <string name="sources">Sources</string>
+    <string name="edit_message">Edit message</string>
+    <string name="message_actions">Copy or edit</string>
+    <string name="previous_version">Previous version</string>
+    <string name="next_version">Next version</string>
+    <string name="version_of">Version %1$d of %2$d</string>
+    <string name="reconnecting">Reconnecting</string>
     <string name="sources_count">Sources (%1$d)</string>
     <string name="connect_provider">Connect a provider</string>
     <string name="connect_provider_hint">OpenCode\'s free quota is used up, or no provider is connected. Add a key in Settings to continue.</string>

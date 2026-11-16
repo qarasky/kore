@@ -226,3 +226,45 @@ test("pairing over HTTP: signed-in start, anonymous redeem, link carries code an
   expect(again.status).toBe(401);
   expect(await again.text()).toContain("bad_code");
 });
+
+test("closing the connection mid-answer leaves the answer running; the app can re-attach and read it whole", async () => {
+  const engine = new FakeEngine({ reply: () => [{ type: "delta", text: "one " }, { type: "delta", text: "two " }, { type: "delta", text: "three" }], delayMs: 15 });
+  const { call, signIn } = setup(engine);
+  const token = signIn();
+  const chat = (await (await call("POST", "/chats", { token })).json()) as { id: string };
+  const res = await call("POST", `/chats/${chat.id}/messages`, { token, body: { text: "count", attachmentIds: [], model } });
+  const reader = res.body!.getReader();
+  await reader.read();
+  await reader.cancel(); // the phone switched apps
+
+  expect(((await (await call("GET", `/chats/${chat.id}`, { token })).json()) as { running: boolean }).running).toBe(true);
+  const busy = await call("POST", `/chats/${chat.id}/messages`, { token, body: { text: "again", attachmentIds: [], model } });
+  expect(busy.status).toBe(409);
+  const again = await call("GET", `/chats/${chat.id}/stream`, { token });
+  expect(again.headers.get("content-type")).toContain("text/event-stream");
+  const evs = await frames(again);
+  expect(evs.filter((e) => e.type === "delta").map((e) => (e as { text: string }).text).join("")).toBe("one two three");
+  expect(evs.at(-1)!.type).toBe("done");
+
+  const got = (await (await call("GET", `/chats/${chat.id}`, { token })).json()) as { running: boolean; messages: { text: string }[] };
+  expect(got.running).toBe(false);
+  expect(got.messages.map((m) => m.text)).toEqual(["count", "one two three"]);
+  expect((await call("GET", `/chats/${chat.id}/stream`, { token })).status).toBe(204);
+});
+
+test("variants: edit over HTTP, then switch back with /branch", async () => {
+  const engine = new FakeEngine({ reply: (a) => [{ type: "delta", text: `re: ${a.text}` }] });
+  const { call, signIn } = setup(engine);
+  const token = signIn();
+  const chat = (await (await call("POST", "/chats", { token })).json()) as { id: string };
+  await frames(await call("POST", `/chats/${chat.id}/messages`, { token, body: { text: "a", attachmentIds: [], model } }));
+  const first = ((await (await call("GET", `/chats/${chat.id}`, { token })).json()) as { messages: { id: string }[] }).messages[0];
+  await frames(await call("POST", `/chats/${chat.id}/messages`, { token, body: { text: "b", attachmentIds: [], model, editOf: first.id } }));
+  type Detail = { messages: { id: string; text: string; siblings?: string[] }[] };
+  const edited = (await (await call("GET", `/chats/${chat.id}`, { token })).json()) as Detail;
+  expect(edited.messages.map((m) => m.text)).toEqual(["b", "re: b"]);
+  expect(edited.messages[0].siblings).toEqual([first.id, edited.messages[0].id]);
+  const back = (await (await call("POST", `/chats/${chat.id}/branch`, { token, body: { messageId: first.id } })).json()) as Detail;
+  expect(back.messages.map((m) => m.text)).toEqual(["a", "re: a"]);
+  expect((await call("POST", `/chats/${chat.id}/branch`, { token, body: { messageId: "nope" } })).status).toBe(404);
+});

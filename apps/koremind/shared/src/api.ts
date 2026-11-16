@@ -95,14 +95,24 @@ export const ChatMessage = z.object({
   sources: z.array(Source),
   activity: z.array(Activity).default([]),
   createdAt: z.number(),
+  /** The message this one answers or follows; null at the start of the chat. */
+  parentId: z.string().nullable().optional(),
+  /** On a user message that was edited: every variant's id (this one included), oldest first. Absent with one variant. */
+  siblings: z.array(z.string()).optional(),
 });
 export type ChatMessage = z.infer<typeof ChatMessage>;
+
+/** A chat as the apps open it: the messages of the branch on screen, and whether an answer is still being written. */
+export const ChatDetail = z.object({ chat: ChatSummary, messages: z.array(ChatMessage), running: z.boolean().default(false) });
+export type ChatDetail = z.infer<typeof ChatDetail>;
 
 export const SendMessageRequest = z.object({
   text: z.string(),
   attachmentIds: z.array(z.string()),
   model: z.object({ providerId: z.string(), modelId: z.string() }),
   thinking: z.string().optional(),
+  /** Edit: the id of the user message this text replaces. The answer starts a new variant next to it. */
+  editOf: z.string().optional(),
 });
 export type SendMessageRequest = z.infer<typeof SendMessageRequest>;
 
@@ -120,7 +130,8 @@ export const StreamEvent = z.discriminatedUnion("type", [
   z.object({ type: z.literal("title"), title: z.string() }),
   z.object({
     type: z.literal("error"),
-    code: z.enum(["no_provider", "attachment_too_large", "engine", "aborted", "model_not_allowed"]),
+    // "network" is made by the apps when the connection breaks; the server never sends it.
+    code: z.enum(["no_provider", "attachment_too_large", "engine", "aborted", "model_not_allowed", "busy", "network"]),
     message: z.string(),
   }),
 ]);

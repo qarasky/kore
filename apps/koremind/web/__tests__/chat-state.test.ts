@@ -104,3 +104,47 @@ test("a source the engine repeats is kept once", () => {
   const s = evs.reduce(applyEvent, beginTurn(emptyChat, "q", []));
   expect(s.draft!.sources.map((x) => x.url)).toEqual(["https://runpod.io/pricing", "https://ai.google.dev/pricing"]);
 });
+
+import { beginEdit, reconnecting, restartDraft, variantAt, variantPosition, withServerMessages } from "../lib/chat-state";
+import type { ChatMessage } from "@koremind/shared";
+
+const msg = (id: string, role: "user" | "assistant", text: string, extra: Partial<ChatMessage> = {}): ChatMessage =>
+  ({ id, role, text, attachments: [], sources: [], activity: [], createdAt: 1, ...extra });
+
+test("editing drops the message and everything after it, keeps its files and starts a new answer", () => {
+  const file = { id: "f", name: "a.png", mime: "image/png", size: 1 };
+  const s = { ...emptyChat, messages: [msg("u1", "user", "a"), msg("a1", "assistant", "A"), msg("u2", "user", "b", { attachments: [file] }), msg("a2", "assistant", "B")] };
+  const e = beginEdit(s, "u2", "b2");
+  expect(e.messages.map((m) => m.text)).toEqual(["a", "A", "b2"]);
+  expect(e.messages[2].attachments).toEqual([file]);
+  expect(e.draft?.status).toBe("thinking");
+  expect(beginEdit(s, "a1", "x")).toBe(s); // only user messages
+  expect(beginEdit(s, "nope", "x")).toBe(s);
+});
+
+test("a dropped connection keeps the partial answer and shows reconnecting; a replay starts it over", () => {
+  let s = beginTurn(emptyChat, "q", []);
+  s = applyEvent(s, { type: "delta", text: "par" });
+  s = applyEvent(s, { type: "error", code: "network", message: "The connection dropped." });
+  expect(s.draft).toMatchObject({ text: "par", status: "reconnecting" });
+  expect(s.error).toBeNull();
+  expect(s.messages).toHaveLength(1);
+  expect(reconnecting(emptyChat).draft?.status).toBe("reconnecting");
+  expect(restartDraft(s).draft).toMatchObject({ text: "", status: "thinking" });
+});
+
+test("the server's messages replace the local ones and end the draft", () => {
+  const s = withServerMessages(beginTurn(emptyChat, "q", []), [msg("u1", "user", "q"), msg("a1", "assistant", "A")]);
+  expect(s.messages.map((m) => m.id)).toEqual(["u1", "a1"]);
+  expect(s.draft).toBeNull();
+});
+
+test("variants read as 2 / 3 and step to their neighbours", () => {
+  const m = msg("b", "user", "x", { siblings: ["a", "b", "c"] });
+  expect(variantPosition(m)).toEqual({ index: 2, count: 3 });
+  expect(variantAt(m, -1)).toBe("a");
+  expect(variantAt(m, 1)).toBe("c");
+  expect(variantAt(msg("c", "user", "x", { siblings: ["a", "b", "c"] }), 1)).toBeNull();
+  expect(variantPosition(msg("a", "user", "x"))).toBeNull();
+  expect(variantAt(msg("a", "user", "x"), 1)).toBeNull();
+});

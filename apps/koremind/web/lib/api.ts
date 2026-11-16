@@ -1,10 +1,24 @@
 import type {
-  Attachment, AuthResponse, ChatMessage, ChatSummary, Health, LogoutResponse, MemoryEntry, MemorySummary, PairStart, ProviderConnection, ProviderInfo, SendMessageRequest, Settings, SignInStart, SsoStart, SsoStartResponse, SignInStatus, StreamEvent, User,
+  Attachment, AuthResponse, ChatDetail, ChatMessage, ChatSummary, Health, LogoutResponse, MemoryEntry, MemorySummary, PairStart, ProviderConnection, ProviderInfo, SendMessageRequest, Settings, SignInStart, SsoStart, SsoStartResponse, SignInStatus, StreamEvent, User,
 } from "@koremind/shared";
 import { parseStream } from "./stream";
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public retryAfterSec?: number) { super(message); }
+}
+
+/** The events of a response body; a connection that breaks before the answer ends gives one `network` error. */
+async function* readStream(body: ReadableStream<Uint8Array>, signal?: AbortSignal): AsyncGenerator<StreamEvent> {
+  let ended = false;
+  try {
+    for await (const ev of parseStream(body)) {
+      if (ev.type === "done" || ev.type === "error") ended = true;
+      yield ev;
+    }
+  } catch {
+    if (signal?.aborted) { yield { type: "error", code: "aborted", message: "Stopped" }; return; }
+  }
+  if (!ended && !signal?.aborted) yield { type: "error", code: "network", message: "The connection dropped." };
 }
 
 export function createApi(baseUrl: string, getToken: () => string | null) {
@@ -46,7 +60,9 @@ export function createApi(baseUrl: string, getToken: () => string | null) {
     removeProviderKey: (id: string) => req<{ ok: true }>("DELETE", `/providers/${encodeURIComponent(id)}/key`),
     chats: () => req<ChatSummary[]>("GET", "/chats"),
     createChat: () => req<ChatSummary>("POST", "/chats"),
-    chat: (id: string) => req<{ chat: ChatSummary; messages: ChatMessage[] }>("GET", `/chats/${id}`),
+    chat: (id: string) => req<ChatDetail>("GET", `/chats/${id}`),
+    /** Shows another variant of an edited message; returns the chat with that branch. */
+    branch: (id: string, messageId: string) => req<ChatDetail>("POST", `/chats/${id}/branch`, { messageId }),
     deleteChat: (id: string) => req<{ ok: true }>("DELETE", `/chats/${id}`),
     abort: (id: string) => req<{ ok: true }>("POST", `/chats/${id}/abort`),
     upload: (file: File) => { const f = new FormData(); f.set("file", file); return req<Attachment>("POST", "/uploads", undefined, f); },
@@ -78,8 +94,19 @@ export function createApi(baseUrl: string, getToken: () => string | null) {
         yield { type: "error", code: "engine", message: e?.message ?? `Request failed (${res.status})` };
         return;
       }
-      try { yield* parseStream(res.body); }
-      catch { yield { type: "error", code: signal?.aborted ? "aborted" : "engine", message: signal?.aborted ? "Stopped" : "The connection dropped." }; }
+      yield* readStream(res.body, signal);
+    },
+
+    /**
+     * Re-attaches to the answer running in a chat, from its first event. Null when nothing is running (the answer is
+     * saved). A broken connection ends with a `network` error, like send().
+     */
+    async follow(chatId: string, signal?: AbortSignal): Promise<AsyncGenerator<StreamEvent> | null> {
+      const token = getToken();
+      const res = await fetch(`${baseUrl}/chats/${chatId}/stream`, { signal, headers: token ? { authorization: `Bearer ${token}` } : {} });
+      if (res.status === 204) return null;
+      if (!res.ok || !res.body) throw new Error(`Request failed (${res.status})`);
+      return readStream(res.body, signal);
     },
   };
 }

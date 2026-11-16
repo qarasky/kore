@@ -33,9 +33,17 @@ val KoreMindJson = Json { ignoreUnknownKeys = true; explicitNulls = false; encod
     val sources: List<Source> = emptyList(),
     val activity: List<Activity> = emptyList(),
     val createdAt: Long = 0,
+    /** The message this one follows; null at the start of the chat. */
+    val parentId: String? = null,
+    /** On an edited user message: every version's id (this one included), oldest first. Empty with one version. */
+    val siblings: List<String> = emptyList(),
 )
 @Serializable data class ModelRef(val providerId: String, val modelId: String)
-@Serializable data class SendMessageRequest(val text: String, val attachmentIds: List<String>, val model: ModelRef, val thinking: String? = null)
+@Serializable data class SendMessageRequest(
+    val text: String, val attachmentIds: List<String>, val model: ModelRef, val thinking: String? = null,
+    /** Edit: the id of the user message this text replaces. The answer starts a new version next to it. */
+    val editOf: String? = null,
+)
 @Serializable data class MemoryEntry(val id: String, val text: String, val updatedAt: Long)
 /** The abstract profile written from memory, sent at the start of every chat. */
 @Serializable data class MemorySummary(val text: String, val updatedAt: Long)
@@ -44,7 +52,9 @@ val KoreMindJson = Json { ignoreUnknownKeys = true; explicitNulls = false; encod
     val memoryEnabled: Boolean = true, val displayName: String = "", val tone: String = "", val about: String = "",
     val disabledProviders: List<String> = emptyList(), val freeOnlyProviders: List<String> = emptyList(),
 )
-@Serializable data class ChatDetail(val chat: ChatSummary, val messages: List<ChatMessage>)
+/** A chat as the app opens it: the branch on screen, and whether an answer is still being written on the server. */
+@Serializable data class ChatDetail(val chat: ChatSummary, val messages: List<ChatMessage>, val running: Boolean = false)
+@Serializable data class BranchBody(val messageId: String)
 @Serializable data class KeyBody(val key: String)
 @Serializable data class TitleBody(val title: String)
 @Serializable data class TextBody(val text: String)

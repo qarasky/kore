@@ -1,18 +1,21 @@
 "use client";
 import { dedupeSources, sourceHost, type Activity, type ChatMessage } from "@koremind/shared";
-import { Badge, Button, Card, cn } from "@qarasky/kore-ui";
-import { BookOpen, Brain, BrainCircuit, ChevronDown, FileText, Globe, Lock, Pencil, StickyNote, Trash2 } from "lucide-react";
+import { Badge, Button, Card, IconButton, cn } from "@qarasky/kore-ui";
+import { BookOpen, Brain, BrainCircuit, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileText, Globe, Lock, Pencil, RefreshCw, StickyNote, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type UIEvent, type WheelEvent } from "react";
 import { Markdown } from "./Markdown";
-import type { Draft } from "@/lib/chat-state";
+import { variantAt, variantPosition, type Draft } from "@/lib/chat-state";
 import { followStep, nextFollowing } from "@/lib/chat-scroll";
 import { activityText, approvalText, type PendingApproval } from "@/lib/notes-ui";
 import { fadeUp, quick } from "@/lib/motion";
 import { useSession } from "@/lib/session";
 import { t } from "@/lib/strings";
 
-export function MessageList({ messages, draft, onApproval }: { messages: ChatMessage[]; draft: Draft | null; onApproval(id: string, allow: boolean): void }) {
+export function MessageList({ messages, draft, busy, onApproval, onEdit, onVariant }: {
+  messages: ChatMessage[]; draft: Draft | null; busy: boolean;
+  onApproval(id: string, allow: boolean): void; onEdit(id: string, text: string): void; onVariant(id: string): void;
+}) {
   const { api } = useSession();
   const scroller = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -94,7 +97,7 @@ export function MessageList({ messages, draft, onApproval }: { messages: ChatMes
         <AnimatePresence initial={false}>
           {messages.map((m) => (
             <motion.div key={m.id} variants={fadeUp} initial="hidden" animate="show">
-              {m.role === "user" ? <UserBubble m={m} api={api} /> : <Assistant text={m.text} sources={m.sources} activity={m.activity} />}
+              {m.role === "user" ? <UserBubble m={m} api={api} busy={busy} onEdit={onEdit} onVariant={onVariant} /> : <Assistant text={m.text} sources={m.sources} activity={m.activity} />}
             </motion.div>
           ))}
           {draft && <motion.div key="draft" variants={fadeUp} initial="hidden" animate="show"><Assistant text={draft.text} sources={draft.sources} status={draft.status} activity={draft.activity} approvals={draft.approvals} expired={draft.expired} live onApproval={onApproval} /></motion.div>}
@@ -104,9 +107,23 @@ export function MessageList({ messages, draft, onApproval }: { messages: ChatMes
   );
 }
 
-function UserBubble({ m, api }: { m: ChatMessage; api: ReturnType<typeof useSession>["api"] }) {
+/** Your message. Copy and Edit sit under it (on hover, always on touch screens); an edited message can switch between its versions. */
+function UserBubble({ m, api, busy, onEdit, onVariant }: { m: ChatMessage; api: ReturnType<typeof useSession>["api"]; busy: boolean; onEdit(id: string, text: string): void; onVariant(id: string): void }) {
+  const [editing, setEditing] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const saved = !m.id.startsWith("local-");
+  const position = variantPosition(m);
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(m.text); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* clipboard blocked */ }
+  };
+  const submit = () => {
+    const text = editing?.trim();
+    if (!text || busy) return;
+    setEditing(null);
+    if (text !== m.text.trim()) onEdit(m.id, text);
+  };
   return (
-    <div className="flex flex-col items-end gap-2">
+    <div className="group flex flex-col items-end gap-2">
       {m.attachments.length > 0 && (
         <div className="flex flex-wrap justify-end gap-2">
           {m.attachments.map((a) => a.mime.startsWith("image/") && api
@@ -114,7 +131,38 @@ function UserBubble({ m, api }: { m: ChatMessage; api: ReturnType<typeof useSess
             : <span key={a.id} className="flex h-control-sm items-center gap-1.5 rounded-ui border border-border bg-raised px-2 text-meta"><FileText className="size-4 text-muted" aria-hidden />{a.name}</span>)}
         </div>
       )}
-      {m.text && <div className="max-w-[85%] whitespace-pre-wrap rounded-overlay bg-raised px-4 py-2.5">{m.text}</div>}
+      {editing !== null ? (
+        <div className="flex w-full max-w-[85%] flex-col gap-2 rounded-overlay border border-accent bg-raised p-2">
+          <textarea
+            autoFocus value={editing} aria-label={t.editMessage} rows={Math.min(8, Math.max(2, editing.split("\n").length))}
+            onChange={(e) => setEditing(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setEditing(null);
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); }
+            }}
+            className="w-full resize-none bg-transparent px-2 py-1 text-text outline-none"
+          />
+          <div className="flex justify-end gap-2">
+            <Button size="sm" onClick={() => setEditing(null)}>{t.cancel}</Button>
+            <Button size="sm" variant="primary" disabled={busy || !editing.trim()} onClick={submit}>{t.send}</Button>
+          </div>
+        </div>
+      ) : m.text && <div className="max-w-[85%] whitespace-pre-wrap rounded-overlay bg-raised px-4 py-2.5">{m.text}</div>}
+      {editing === null && (
+        <div className="flex items-center gap-0.5 text-muted">
+          {position && (
+            <span className="mr-1 flex items-center text-meta tabular-nums">
+              <IconButton label={t.previousVersion} icon={<ChevronLeft />} tooltip={false} className="size-7" disabled={busy || position.index === 1} onClick={() => { const id = variantAt(m, -1); if (id) onVariant(id); }} />
+              <span aria-label={t.versionOf(position.index, position.count)}>{position.index} / {position.count}</span>
+              <IconButton label={t.nextVersion} icon={<ChevronRight />} tooltip={false} className="size-7" disabled={busy || position.index === position.count} onClick={() => { const id = variantAt(m, 1); if (id) onVariant(id); }} />
+            </span>
+          )}
+          <span className="flex opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+            {m.text && <IconButton label={copied ? t.copied : t.copy} icon={copied ? <Check /> : <Copy />} tooltip={false} className="size-7" onClick={copy} />}
+            {saved && m.text && <IconButton label={t.editMessage} icon={<Pencil />} tooltip={false} className="size-7" disabled={busy} onClick={() => setEditing(m.text)} />}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -127,8 +175,8 @@ function Assistant({ text, sources, status, activity = [], approvals = [], expir
       <AnimatePresence initial={false} mode="wait">
         {status && (
           <motion.div key={status} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.14 }} className="flex items-center gap-2 text-meta text-muted" role="status">
-            {status === "searching" ? <Globe className="size-4" aria-hidden /> : null}
-            <span>{status === "searching" ? t.searching : t.thinking}</span>
+            {status === "searching" ? <Globe className="size-4" aria-hidden /> : status === "reconnecting" ? <RefreshCw className="size-4" aria-hidden /> : null}
+            <span>{status === "searching" ? t.searching : status === "reconnecting" ? t.reconnecting : t.thinking}</span>
             <span className="dot-pulse" aria-hidden><i /><i /><i /></span>
           </motion.div>
         )}

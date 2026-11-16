@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite";
 
-const MIGRATIONS: string[] = [
+export const MIGRATIONS: string[] = [
   `
   create table users(id text primary key, email text unique not null, password_hash text not null, is_owner integer not null, created_at integer not null);
   create table tokens(token_hash text primary key, user_id text not null references users(id) on delete cascade, expires_at integer not null);
@@ -39,6 +39,21 @@ const MIGRATIONS: string[] = [
   alter table oidc_tickets add column sid text;
   alter table pair_codes add column sid text;
   create table oidc_logout_jti(jti text primary key, expires_at integer not null);
+  `,
+  // Edited messages and their variants. Messages form a tree (parent_id); chats.leaf_id is the last message of the branch on
+  // screen. session_id is the engine session a message was sent in: continuing a branch continues its session. Existing chats
+  // become one straight branch in their single session.
+  `
+  alter table messages add column parent_id text;
+  alter table messages add column session_id text;
+  alter table chats add column leaf_id text;
+  update messages set parent_id = (
+    select p.id from messages p where p.chat_id = messages.chat_id
+      and (p.created_at < messages.created_at or (p.created_at = messages.created_at and p.rowid < messages.rowid))
+    order by p.created_at desc, p.rowid desc limit 1);
+  update messages set session_id = (select c.engine_session_id from chats c where c.id = messages.chat_id);
+  update chats set leaf_id = (select m.id from messages m where m.chat_id = chats.id order by m.created_at desc, m.rowid desc limit 1);
+  create index messages_parent on messages(chat_id, parent_id);
   `,
 ];
 

@@ -1,15 +1,15 @@
 "use client";
-import type { Attachment } from "@koremind/shared";
-import { Button, Card, ConfirmDialog, IconButton, PageHeader } from "@qarasky/kore-ui";
+import type { Attachment, StreamEvent } from "@koremind/shared";
+import { Button, Card, IconButton, PageHeader } from "@qarasky/kore-ui";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Trash2 } from "lucide-react";
+import { SquarePen } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Composer } from "@/components/Composer";
 import { InlineError } from "@/components/InlineError";
 import { MessageList } from "@/components/MessageList";
-import { applyEvent, beginTurn, emptyChat, needsLoad, type ChatState } from "@/lib/chat-state";
+import { applyEvent, beginEdit, beginTurn, emptyChat, needsLoad, reconnecting, restartDraft, withServerMessages, type ChatState } from "@/lib/chat-state";
 import { useChats, useModelChoice } from "@/lib/contexts";
 import { useSession } from "@/lib/session";
 import { t } from "@/lib/strings";
@@ -21,7 +21,7 @@ let handoff: { id: string; state: ChatState } | null = null;
 export default function ChatScreen() {
   const { api } = useSession();
   const { choice } = useModelChoice();
-  const { chats, refresh, remove } = useChats();
+  const { chats, refresh } = useChats();
   const router = useRouter();
   const slug = useParams<{ slug?: string[] }>().slug;
   const urlChatId = slug?.[0] === "c" ? (slug[1] ?? null) : null;
@@ -31,25 +31,73 @@ export default function ChatScreen() {
   const stateRef = useRef(state);
   const update = useCallback((fn: (s: ChatState) => ChatState) => { stateRef.current = fn(stateRef.current); setState(stateRef.current); }, []);
   const [busy, setBusy] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const chatId = useRef<string | null>(initial.current?.id ?? null);
   const abort = useRef<AbortController | null>(null);
 
   useEffect(() => { handoff = null; }, []);
 
-  // Load a chat when the URL points at a different one than the one on screen.
+  /** The chat as the server has it: real ids and variants after a turn, or the answer that finished while we were away. */
+  const reload = useCallback(async (id: string) => {
+    const r = await api?.chat(id).catch(() => null);
+    if (r && chatId.current === id) update((s) => withServerMessages(s, r.messages));
+    return r;
+  }, [api, update]);
+
+  /** Reads a turn's events into the screen. "dropped" when the connection broke before the answer ended. */
+  const read = useCallback(async (events: AsyncIterable<StreamEvent>): Promise<"ended" | "dropped"> => {
+    for await (const ev of events) {
+      if (ev.type === "error" && ev.code === "network") { update(reconnecting); return "dropped"; }
+      update((s) => applyEvent(s, ev));
+      // The stream stays open a moment after `done` for the generated title; the composer must not wait for it.
+      if (ev.type === "done" || ev.type === "error") setBusy(false);
+      if (ev.type === "title") void refresh();
+    }
+    return "ended";
+  }, [refresh, update]);
+
+  /**
+   * The answer keeps running on the server when the connection drops (switching apps, a network change). Re-attach to it,
+   * waiting a little longer each time, until it ends or the user leaves the chat; then show what the server saved.
+   */
+  const resume = useCallback(async (id: string, ac: AbortController) => {
+    for (let attempt = 0; chatId.current === id && !ac.signal.aborted; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** (attempt - 1), 10_000)));
+      if (chatId.current !== id || ac.signal.aborted) return;
+      try {
+        const events = await api?.follow(id, ac.signal);
+        if (!events) break; // finished meanwhile
+        update(restartDraft);
+        if ((await read(events)) === "ended") break;
+      } catch { /* offline: try again */ }
+    }
+    if (chatId.current === id && !ac.signal.aborted) await reload(id);
+    setBusy(false);
+  }, [api, read, reload, update]);
+
+  // Load a chat when the URL points at a different one than the one on screen; pick up an answer still being written.
   useEffect(() => {
     if (!needsLoad(urlChatId, chatId.current)) return;
     abort.current?.abort();
     setBusy(false);
     chatId.current = urlChatId;
     if (!urlChatId) { update(() => emptyChat); return; }
-    api?.chat(urlChatId).then((r) => update(() => ({ ...emptyChat, messages: r.messages }))).catch(() => router.replace("/"));
-  }, [urlChatId, api, router, update]);
+    api?.chat(urlChatId).then((r) => {
+      if (chatId.current !== urlChatId) return;
+      update(() => ({ ...emptyChat, messages: r.messages }));
+      if (r.running) {
+        const ac = new AbortController();
+        abort.current = ac;
+        setBusy(true);
+        update(reconnecting);
+        void resume(urlChatId, ac);
+      }
+    }).catch(() => router.replace("/"));
+  }, [urlChatId, api, router, update, resume]);
 
-  const send = useCallback(async (text: string, attachments: Attachment[]) => {
+  /** Sends a message, or with [editOf] replaces that message with a new variant. */
+  const send = useCallback(async (text: string, attachments: Attachment[], editOf?: string) => {
     if (!api || !choice) return;
-    update((s) => beginTurn(s, text, attachments));
+    update((s) => (editOf ? beginEdit(s, editOf, text) : beginTurn(s, text, attachments)));
     setBusy(true);
     const ac = new AbortController();
     abort.current = ac;
@@ -59,12 +107,10 @@ export default function ChatScreen() {
         chatId.current = (await api.createChat()).id;
         created = true;
       }
-      for await (const ev of api.send(chatId.current, { text, attachmentIds: attachments.map((a) => a.id), model: { providerId: choice.providerId, modelId: choice.modelId }, thinking: choice.thinking }, ac.signal)) {
-        update((s) => applyEvent(s, ev));
-        // The stream stays open a moment after `done` for the generated title; the composer must not wait for it.
-        if (ev.type === "done") setBusy(false);
-        if (ev.type === "title") void refresh();
-      }
+      const id = chatId.current;
+      const body = { text, attachmentIds: editOf ? [] : attachments.map((a) => a.id), model: { providerId: choice.providerId, modelId: choice.modelId }, thinking: choice.thinking, ...(editOf ? { editOf } : {}) };
+      if ((await read(api.send(id, body, ac.signal))) === "dropped") await resume(id, ac);
+      else if (!ac.signal.aborted) await reload(id);
     } catch (e) {
       update((s) => applyEvent(s, { type: "error", code: "engine", message: e instanceof Error ? e.message : t.genericError }));
     } finally {
@@ -75,7 +121,17 @@ export default function ChatScreen() {
         router.replace(`/c/${chatId.current}`);
       }
     }
-  }, [api, choice, refresh, router, update]);
+  }, [api, choice, refresh, router, update, read, resume, reload]);
+
+  const edit = useCallback((messageId: string, text: string) => { void send(text, [], messageId); }, [send]);
+
+  /** Shows another version of an edited message and the conversation that follows it. */
+  const showVariant = useCallback(async (messageId: string) => {
+    const id = chatId.current;
+    if (!api || !id || busy) return;
+    const r = await api.branch(id, messageId).catch(() => null);
+    if (r && chatId.current === id) update((s) => ({ ...withServerMessages(s, r.messages), error: null }));
+  }, [api, busy, update]);
 
   const answerApproval = useCallback((id: string, allow: boolean) => {
     // The card goes away the moment it is tapped; the server's approval_closed confirms.
@@ -85,35 +141,25 @@ export default function ChatScreen() {
 
   const stop = useCallback(() => {
     abort.current?.abort();
+    update((s) => (s.draft ? applyEvent(s, { type: "error", code: "aborted", message: "Stopped" }) : s));
     if (chatId.current) void api?.abort(chatId.current).catch(() => {});
-  }, [api]);
+  }, [api, update]);
 
   const title = chats.find((c) => c.id === chatId.current)?.title ?? t.appName;
   const empty = state.messages.length === 0 && !state.draft;
 
-  const deleteChat = async () => {
-    const id = chatId.current!;
-    chatId.current = null;
-    update(() => emptyChat);
-    await remove(id);
-    router.push("/");
-  };
+
 
   return (
     <>
       <PageHeader
         title={empty ? t.newChat : title}
-        actions={chatId.current && !empty ? <IconButton label={t.deleteChat} icon={<Trash2 />} variant="danger" onClick={() => setConfirmDelete(true)} /> : null}
-      />
-      <ConfirmDialog
-        open={confirmDelete} onOpenChange={setConfirmDelete} danger
-        title={t.deleteChatTitle(title)} description={t.deleteChatBody}
-        confirmLabel={t.delete} cancelLabel={t.cancel} pendingLabel={t.deleting} onConfirm={deleteChat}
+        actions={!empty ? <IconButton label={t.newChat} icon={<SquarePen />} onClick={() => router.push("/")} /> : null}
       />
       {empty ? (
         <div className="flex flex-1 items-center justify-center px-6"><motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: [0.2, 0, 0, 1] }} className="text-display font-semibold tracking-[-0.01em]">{t.homeGreeting}</motion.p></div>
       ) : (
-        <MessageList messages={state.messages} draft={state.draft} onApproval={answerApproval} />
+        <MessageList messages={state.messages} draft={state.draft} busy={busy} onApproval={answerApproval} onEdit={edit} onVariant={showVariant} />
       )}
       {state.connectProvider && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mx-auto mb-2 w-full max-w-reading px-4">

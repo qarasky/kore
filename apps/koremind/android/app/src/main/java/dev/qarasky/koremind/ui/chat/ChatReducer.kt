@@ -32,6 +32,37 @@ fun beginTurn(s: ChatUiState, text: String, attachments: List<Attachment>): Chat
     draft = Draft(status = "thinking"),
 )
 
+/**
+ * Editing a user message: everything from it on leaves the screen, the new text takes its place (with the original's
+ * files) and a new answer starts. The server keeps the old version as a variant. Mirrors web beginEdit.
+ */
+fun beginEdit(s: ChatUiState, messageId: String, text: String): ChatUiState {
+    val i = s.messages.indexOfFirst { it.id == messageId && it.role == "user" }
+    if (i < 0) return s
+    return beginTurn(s.copy(messages = s.messages.take(i)), text, s.messages[i].attachments)
+}
+
+/** The connection broke mid-answer: keep what arrived and say we are reconnecting. The answer goes on on the server. */
+fun reconnecting(s: ChatUiState): ChatUiState = s.copy(draft = (s.draft ?: Draft()).copy(status = "reconnecting"))
+
+/** Re-attached to the running answer, which replays from its first event: start the draft over. */
+fun restartDraft(s: ChatUiState): ChatUiState = s.copy(draft = Draft(status = "thinking"))
+
+/** The chat as the server has it (real ids, versions), keeping an error shown for the last turn. */
+fun withServerMessages(s: ChatUiState, messages: List<ChatMessage>): ChatUiState = s.copy(messages = messages, draft = null)
+
+/** (2, 3) for the second of three versions of an edited message, or null when it has one version. */
+fun variantPosition(m: ChatMessage): Pair<Int, Int>? {
+    val i = m.siblings.indexOf(m.id)
+    return if (m.siblings.size > 1 && i >= 0) (i + 1) to m.siblings.size else null
+}
+
+/** The version [step] away (-1 previous, +1 next), or null at either end. */
+fun variantAt(m: ChatMessage, step: Int): String? {
+    val i = m.siblings.indexOf(m.id)
+    return if (i >= 0) m.siblings.getOrNull(i + step) else null
+}
+
 fun reduce(s: ChatUiState, ev: StreamEvent): ChatUiState {
     val d = s.draft ?: Draft()
     return when (ev) {
@@ -50,7 +81,7 @@ fun reduce(s: ChatUiState, ev: StreamEvent): ChatUiState {
             draft = null,
             messages = s.messages + ChatMessage(ev.messageId, "assistant", d.text, emptyList(), d.sources, d.activity, System.currentTimeMillis()),
         )
-        is StreamEvent.Error -> {
+        is StreamEvent.Error -> if (ev.code == "network") reconnecting(s) else {
             val keep = d.text.isNotEmpty() || d.sources.isNotEmpty() || d.activity.isNotEmpty()
             ChatUiState(
                 messages = if (keep) s.messages + ChatMessage(localId(), "assistant", d.text, emptyList(), d.sources, d.activity, System.currentTimeMillis()) else s.messages,
@@ -72,4 +103,4 @@ fun canSend(text: String, pendingCount: Int, busy: Boolean, hasModel: Boolean): 
     hasModel && !busy && (text.isNotBlank() || pendingCount > 0)
 
 /** The reply is over (or failed). The stream may stay open a moment longer for the chat title. */
-fun endsTurn(ev: StreamEvent): Boolean = ev is StreamEvent.Done || ev is StreamEvent.Error
+fun endsTurn(ev: StreamEvent): Boolean = ev is StreamEvent.Done || (ev is StreamEvent.Error && ev.code != "network")

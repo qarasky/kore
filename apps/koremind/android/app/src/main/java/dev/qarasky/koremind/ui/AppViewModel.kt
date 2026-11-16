@@ -37,6 +37,12 @@ import dev.qarasky.koremind.data.isNewer
 import dev.qarasky.koremind.data.updateCheckDue
 import dev.qarasky.koremind.ui.chat.ChatUiState
 import dev.qarasky.koremind.ui.chat.beginTurn
+import dev.qarasky.koremind.ui.chat.beginEdit
+import dev.qarasky.koremind.ui.chat.reconnecting
+import dev.qarasky.koremind.ui.chat.restartDraft
+import dev.qarasky.koremind.ui.chat.withServerMessages
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import dev.qarasky.koremind.ui.chat.dismissApproval
 import dev.qarasky.koremind.ui.model.defaultChoice
 import dev.qarasky.koremind.ui.model.isChoiceAllowed
@@ -345,7 +351,72 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val d = api?.chat(id) ?: return@launch
-                if (_chatId.value == id) { _chat.value = ChatUiState(messages = d.messages); cache.saveMessages(id, d.messages) }
+                if (_chatId.value != id) return@launch
+                _chat.value = ChatUiState(messages = d.messages); cache.saveMessages(id, d.messages)
+                // An answer is still being written (the app was closed mid-reply): pick it up.
+                if (d.running) {
+                    _busy.value = true
+                    _chat.update { reconnecting(it) }
+                    streamJob = viewModelScope.launch { resume(id) }
+                }
+            } catch (_: Exception) { }
+        }
+    }
+
+    /** Reads a turn into the screen. False when the connection broke before the answer ended. */
+    private suspend fun read(id: String, events: Flow<StreamEvent>, replay: Boolean = false): Boolean {
+        var dropped = false
+        var first = true
+        events.collect { ev ->
+            if (_chatId.value != id) return@collect
+            if (ev is StreamEvent.Error && ev.code == "network") { dropped = true; _chat.update { reconnecting(it) }; return@collect }
+            // A re-attached stream replays the answer from its first event.
+            if (replay && first) _chat.update { restartDraft(it) }
+            first = false
+            _chat.update { reduce(it, ev) }
+            // The composer is free the moment the reply ends; the stream stays open a little longer for the title.
+            if (endsTurn(ev)) { _busy.value = false; cache.saveMessages(id, _chat.value.messages) }
+            if (ev is StreamEvent.Title) refreshChats()
+        }
+        return !dropped
+    }
+
+    /**
+     * The answer keeps running on the server when the connection drops (switching apps, a network change). Re-attach to
+     * it, waiting a little longer each time, until it ends or another chat is opened; then show what the server saved.
+     */
+    private suspend fun resume(id: String) {
+        var attempt = 0
+        while (_chatId.value == id) {
+            if (attempt > 0) delay(minOf(1000L shl (attempt - 1).coerceAtMost(4), 10_000L))
+            attempt++
+            if (_chatId.value != id) return
+            val a = api ?: break
+            if (read(id, a.follow(id), replay = true)) break
+        }
+        if (_chatId.value == id) reload(id)
+        _busy.value = false
+    }
+
+    /** The chat as the server has it: real ids and versions after a turn, or an answer that finished while we were away. */
+    private suspend fun reload(id: String) {
+        try {
+            val d = api?.chat(id) ?: return
+            if (_chatId.value == id) { _chat.update { withServerMessages(it, d.messages) }; cache.saveMessages(id, d.messages) }
+        } catch (_: Exception) { }
+    }
+
+    /** Replaces a message of yours with [text]: a new version with a new answer; the old one stays reachable. */
+    fun edit(messageId: String, text: String) = send(text, editOf = messageId)
+
+    /** Shows another version of an edited message and the conversation that follows it. */
+    fun showVariant(messageId: String) {
+        val id = _chatId.value ?: return
+        if (_busy.value) return
+        viewModelScope.launch {
+            try {
+                val d = api?.branch(id, messageId) ?: return@launch
+                if (_chatId.value == id) { _chat.update { withServerMessages(it, d.messages).copy(error = null) }; cache.saveMessages(id, d.messages) }
             } catch (_: Exception) { }
         }
     }
@@ -357,13 +428,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         refreshChats()
     }
 
-    fun send(text: String) {
+    fun send(text: String, editOf: String? = null) {
         val a = api ?: return
         val c = _choice.value ?: return
-        val atts = _pending.value.map { it.attachment }
+        val atts = if (editOf != null) emptyList() else _pending.value.map { it.attachment }
         if (text.isBlank() && atts.isEmpty()) return
-        _chat.update { beginTurn(it, text, atts) }
-        _pending.value = emptyList()
+        _chat.update { if (editOf != null) beginEdit(it, editOf, text) else beginTurn(it, text, atts) }
+        if (editOf == null) _pending.value = emptyList()
         _busy.value = true
         streamJob?.cancel() // a previous turn may still be waiting on its title; the server finishes naming either way
         streamJob = viewModelScope.launch {
@@ -371,13 +442,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 var id = _chatId.value
                 if (id == null) { id = a.createChat().id; _chatId.value = id }
-                a.send(id, SendMessageRequest(text, atts.map { it.id }, ModelRef(c.providerId, c.modelId), c.thinking)).collect { ev ->
-                    _chat.update { reduce(it, ev) }
-                    // The composer is free the moment the reply ends; the stream stays open a little longer for the title.
-                    if (endsTurn(ev)) { _busy.value = false; cache.saveMessages(id, _chat.value.messages) }
-                    if (ev is StreamEvent.Title) refreshChats()
-                }
-                cache.saveMessages(id, _chat.value.messages)
+                val ended = read(id, a.send(id, SendMessageRequest(text, atts.map { it.id }, ModelRef(c.providerId, c.modelId), c.thinking, editOf)))
+                if (ended) reload(id) else resume(id)
             } catch (e: ApiException) {
                 _chat.update { reduce(it, StreamEvent.Error("engine", e.message ?: "Request failed")) }
             } finally {
