@@ -6,7 +6,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -764,6 +764,136 @@ async fn finalize_hashes_once_off_the_runtime_thread() {
     assert_eq!(probe["run"]["status"], "completed");
 }
 
+/// Holds every full-bundle hash for `delay`, like a spinning disk under a
+/// 15 GiB bundle, and counts the passes.
+struct SlowHashFaults {
+    delay: std::time::Duration,
+    hashes: AtomicUsize,
+}
+
+impl SlowHashFaults {
+    fn new(delay: std::time::Duration) -> Arc<Self> {
+        Arc::new(Self {
+            delay,
+            hashes: AtomicUsize::new(0),
+        })
+    }
+}
+
+impl FaultInjector for SlowHashFaults {
+    fn hit(&self, point: FaultPoint) -> io::Result<()> {
+        if point == FaultPoint::FullHash {
+            self.hashes.fetch_add(1, Ordering::SeqCst);
+            std::thread::sleep(self.delay);
+        }
+        Ok(())
+    }
+}
+
+fn short_complete_wait(h: &common::Harness, wait: std::time::Duration) {
+    h.state
+        .backups
+        .set_upload_limits(flatline_backend::backups::UploadLimits {
+            complete_wait: wait,
+            ..Default::default()
+        });
+}
+
+async fn upload_whole(h: &common::Harness, token: &str, name: &str) -> String {
+    let data = vec![5u8; 4096];
+    let (status, started) = start_run(h, token, name, 4096, &digest(&data)).await;
+    assert_eq!(status, 200, "{started}");
+    let run_id = started["run"]["id"].as_str().unwrap().to_string();
+    let (status, uploaded) = put(h, token, &run_id, 0, 0, data).await;
+    assert_eq!(status, 200, "{uploaded}");
+    run_id
+}
+
+/// A bundle that takes longer to hash than the agent or the proxy will wait
+/// must not be hashed again on every retry: the first /complete answers 202
+/// "finalizing", keeps working, and later calls join it.
+#[tokio::test]
+async fn slow_finalization_answers_202_and_is_joined_by_retries() {
+    let faults = SlowHashFaults::new(std::time::Duration::from_millis(500));
+    let free = FakeFreeSpace::new(RESERVE_BYTES + 256 * 1024 * 1024);
+    let h = harness_with_backups(free, Arc::clone(&faults) as Arc<dyn FaultInjector>).await;
+    short_complete_wait(&h, std::time::Duration::from_millis(100));
+    let (_, token) = register(&h, "acme").await;
+    let run_id = upload_whole(&h, &token, "slow-finalize").await;
+
+    let (status, first) = complete(&h, &token, &run_id).await;
+    assert_eq!(status, 202, "{first}");
+    assert_eq!(first["run"]["status"], "finalizing");
+
+    // Retries while the hash runs join it instead of starting another.
+    let (status, again) = complete(&h, &token, &run_id).await;
+    assert_eq!(status, 202, "{again}");
+
+    let mut completed = Value::Null;
+    for _ in 0..50 {
+        let (status, body) = complete(&h, &token, &run_id).await;
+        if status == 200 {
+            completed = body;
+            break;
+        }
+        assert_eq!(status, 202, "{body}");
+    }
+    assert_eq!(completed["run"]["status"], "completed", "{completed}");
+    assert_eq!(
+        faults.hashes.load(Ordering::SeqCst),
+        1,
+        "the bundle must be hashed once, not once per retry"
+    );
+    assert_eq!(
+        h.state.backups.run_lock_entries(),
+        0,
+        "a finished finalization must release the run lock"
+    );
+}
+
+/// The agent hanging up (its request timeout, a proxy 524) must not cancel
+/// the finalization it triggered.
+#[tokio::test]
+async fn finalization_survives_a_client_that_gives_up() {
+    let faults = SlowHashFaults::new(std::time::Duration::from_millis(300));
+    let free = FakeFreeSpace::new(RESERVE_BYTES + 256 * 1024 * 1024);
+    let h = harness_with_backups(free, Arc::clone(&faults) as Arc<dyn FaultInjector>).await;
+    short_complete_wait(&h, std::time::Duration::from_secs(30));
+    let (agent_id, token) = register(&h, "acme").await;
+    let run_id = upload_whole(&h, &token, "hang-up").await;
+
+    let backups = Arc::clone(&h.state.backups);
+    let abandoned = tokio::time::timeout(
+        std::time::Duration::from_millis(50),
+        backups.complete_run(&agent_id, &run_id),
+    )
+    .await;
+    assert!(abandoned.is_err(), "the request was meant to be cut off");
+
+    let mut status = String::new();
+    for _ in 0..100 {
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        status = sqlx::query_scalar("SELECT status FROM backup_runs WHERE id = ?")
+            .bind(&run_id)
+            .fetch_one(&h.pool)
+            .await
+            .unwrap();
+        if status == "completed" {
+            break;
+        }
+    }
+    assert_eq!(
+        status, "completed",
+        "the hang-up cancelled the finalization"
+    );
+    assert!(
+        run_path(&h, &agent_id, &run_id, "bundle.tar").exists()
+            || run_path(&h, &agent_id, &run_id, "bundle.age").exists(),
+        "the bundle was not published"
+    );
+    assert_eq!(faults.hashes.load(Ordering::SeqCst), 1);
+}
+
 /// Review L2: complete_run allocated a lock entry before checking
 /// ownership, and entries were never removed.
 #[tokio::test]
@@ -820,6 +950,7 @@ async fn stalled_chunk_bodies_release_slots_and_locks() {
         lock_wait: std::time::Duration::from_millis(100),
         body_idle: std::time::Duration::from_millis(300),
         body_total: std::time::Duration::from_secs(5),
+        ..Default::default()
     });
     let (agent_id, token) = register(&h, "acme").await;
     let data = vec![9u8; 4096];

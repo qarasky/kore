@@ -273,6 +273,17 @@ a restore test; see [Recovery](#recovery) for the restore procedure.
 - Hashing, fsync, rename and unlink run on the blocking thread pool. The
   bundle is hashed once at completion; boot reconciliation of an interrupted
   finalization hashes it once too.
+- Completion runs as a background job that holds the run lock. `POST
+.../complete` waits up to 45 seconds for it and answers `200` with the
+  completed run, or `202` with the run still `finalizing` (a large bundle on a
+  spinning disk needs minutes to hash). The call is idempotent: a retry joins
+  the job in flight and never hashes a second time, and a client that hangs up
+  does not cancel the job. The agent (0.3.5 and later) asks again every 15
+  seconds, for up to about two hours, and each request may take up to 30
+  minutes, so it also works against a receiver that still answers
+  synchronously. Before 0.3.5 the two-minute request timeout cut off every
+  completion of a bundle that took longer to hash, and the agent reported it as
+  `server unreachable`.
 - The chunk, completion and download routes form their own router group
   (`api::backups::transfer_routes`), exempt from the 30 s request timeout
   (completion hashes up to 32 GiB); they enforce the body deadlines above

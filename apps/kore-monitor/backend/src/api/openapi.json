@@ -3391,7 +3391,7 @@
         "/api/backup/v1/runs/{id}/complete": {
             "post": {
                 "summary": "Finalize an uploaded bundle",
-                "description": "Idempotent. Full digest and size are verified before the bundle is fsynced and atomically published; a mismatch answers 422 and never becomes completed.",
+                "description": "Idempotent. Full digest and size are verified before the bundle is fsynced and atomically published; a mismatch answers 422 and never becomes completed. Hashing a large bundle takes minutes, so it runs as a background job: the call waits up to 45 seconds and answers 200 once the run is completed or 202 while it is still `finalizing`. Call again to join the job in flight; the bundle is never hashed twice and a client that hangs up does not cancel it.",
                 "security": [
                     {
                         "bearerAuth": []
@@ -3411,6 +3411,24 @@
                 "responses": {
                     "200": {
                         "description": "Completed run",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "run": {
+                                            "$ref": "#/components/schemas/BackupRun"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "The run is still `finalizing`; call again.",
                         "content": {
                             "application/json": {
                                 "schema": {

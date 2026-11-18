@@ -574,17 +574,26 @@ pub async fn agent_abandon(
 }
 
 /// POST /api/backup/v1/runs/{id}/complete (agent-scoped)
+///
+/// `200` with the completed run, or `202` with the run still `finalizing`:
+/// the server is hashing the bundle in the background and the agent asks
+/// again (the call is idempotent and joins the job in flight).
 pub async fn agent_complete(
     State(state): State<AppState>,
     axum::Extension(AgentId(agent_id)): axum::Extension<AgentId>,
     Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, BackupApiError> {
+) -> Result<(StatusCode, Json<serde_json::Value>), BackupApiError> {
     let run = state
         .backups
         .complete_run(&agent_id, &id)
         .await
         .map_err(api_error)?;
-    Ok(Json(serde_json::json!({ "ok": true, "run": run })))
+    let status = if run.status == backups::runs::STATUS_FINALIZING {
+        StatusCode::ACCEPTED
+    } else {
+        StatusCode::OK
+    };
+    Ok((status, Json(serde_json::json!({ "ok": true, "run": run }))))
 }
 
 /// GET /api/v1/backup-runs/{id}/download

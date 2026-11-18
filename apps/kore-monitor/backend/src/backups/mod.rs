@@ -24,7 +24,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use sqlx::{QueryBuilder, Sqlite, SqlitePool};
-use tokio::sync::{Mutex, OwnedMutexGuard, Semaphore};
+use tokio::sync::{Mutex, OwnedMutexGuard, Semaphore, watch};
 use tokio_util::sync::CancellationToken;
 
 use crate::auth::hash_token;
@@ -292,6 +292,11 @@ pub struct UploadLimits {
     pub body_idle: Duration,
     /// Longest time to receive one whole chunk body.
     pub body_total: Duration,
+    /// Longest a `/complete` request waits for the bundle to be hashed and
+    /// published before it answers `202 finalizing` and leaves the work
+    /// running in the background. Kept under the 100 s a Cloudflare-fronted
+    /// origin may stay silent.
+    pub complete_wait: Duration,
 }
 
 impl Default for UploadLimits {
@@ -302,6 +307,7 @@ impl Default for UploadLimits {
             body_idle: Duration::from_secs(30),
             // The Go agent's own request deadline is two minutes.
             body_total: Duration::from_secs(5 * 60),
+            complete_wait: Duration::from_secs(45),
         }
     }
 }
@@ -338,6 +344,26 @@ struct RunLockGuard {
     _entry: RunLockEntry,
 }
 
+type FinalizeJobs = Arc<std::sync::Mutex<HashMap<String, watch::Receiver<()>>>>;
+
+/// Registers one running finalization. Dropping it (job done, failed or
+/// panicked) removes the entry and drops the sender, which wakes every
+/// request that joined the job.
+struct FinalizeJob {
+    run_id: String,
+    jobs: FinalizeJobs,
+    _done: watch::Sender<()>,
+}
+
+impl Drop for FinalizeJob {
+    fn drop(&mut self) {
+        self.jobs
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&self.run_id);
+    }
+}
+
 /// Shared service, stored in `AppState`.
 pub struct Backups {
     pool: SqlitePool,
@@ -358,6 +384,10 @@ pub struct Backups {
     /// Serializes appends and finalization per run. Entries exist only
     /// while a request holds or awaits them.
     run_locks: RunLockMap,
+    /// Finalizations running in the background, by run id. The receiver
+    /// reports the end of the job: its sender is dropped when the job is
+    /// done, however it ended.
+    finalize_jobs: FinalizeJobs,
     /// Upload timeouts; adjustable for tests.
     limits: std::sync::Mutex<UploadLimits>,
     /// Cancelled at shutdown: stops the maintenance loop and aborts body
@@ -402,6 +432,7 @@ impl Backups {
             upload_slots: Semaphore::new(4),
             progress_event: std::sync::Mutex::new(None),
             run_locks: Arc::new(std::sync::Mutex::new(HashMap::new())),
+            finalize_jobs: Arc::new(std::sync::Mutex::new(HashMap::new())),
             limits: std::sync::Mutex::new(UploadLimits::default()),
             shutdown: CancellationToken::new(),
             tickets: std::sync::Mutex::new(HashMap::new()),
@@ -1180,12 +1211,35 @@ impl Backups {
 
     /// Finalize idempotently: check the full digest, publish atomically and
     /// only then mark the run completed.
-    pub async fn complete_run(&self, agent_id: &str, run_id: &str) -> Result<RunSummary, Error> {
+    ///
+    /// Hashing a large bundle takes longer than the agent or a proxy will
+    /// wait on one request (a 15 GiB bundle on a spinning disk: about two
+    /// minutes). The work therefore runs as a detached task that holds the
+    /// run lock: a client that gives up does not cancel it, and a retry
+    /// joins the job in flight instead of hashing again. When the job does
+    /// not end within `complete_wait`, the answer is the run in `finalizing`
+    /// state and the caller asks again.
+    pub async fn complete_run(
+        self: &Arc<Self>,
+        agent_id: &str,
+        run_id: &str,
+    ) -> Result<RunSummary, Error> {
         // Ownership first: an unknown or foreign id never allocates a lock.
         let owned = self.run_for_agent(agent_id, run_id).await?;
-        let _run = self
-            .lock_run(&owned.id, self.upload_limits().lock_wait)
-            .await?;
+        let limits = self.upload_limits();
+
+        let mut guard = None;
+        if self.finalize_job(&owned.id).is_none() {
+            match self.lock_run(&owned.id, limits.lock_wait).await {
+                Ok(held) => guard = Some(held),
+                // The holder is a finalization that started meanwhile.
+                Err(Error::Busy(_)) if self.finalize_job(&owned.id).is_some() => {}
+                Err(error) => return Err(error),
+            }
+        }
+        let Some(guard) = guard else {
+            return self.join_finalization(agent_id, run_id, limits).await;
+        };
         let run = self.run_for_agent(agent_id, run_id).await?;
 
         if run.status == runs::STATUS_COMPLETED {
@@ -1220,12 +1274,56 @@ impl Backups {
                 .await?;
         }
 
-        // One hashing pass plus fsync/rename, on the blocking pool. The
-        // published name says what the bundle is (.tar or .age).
+        // Registered while the run lock is held, so a second request either
+        // sees the job or waits for the lock until the job has ended.
+        let (done, finished) = watch::channel(());
+        self.finalize_jobs
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(owned.id.clone(), finished);
+        let job = FinalizeJob {
+            run_id: owned.id.clone(),
+            jobs: Arc::clone(&self.finalize_jobs),
+            _done: done,
+        };
+
         let encrypted = runs::summary_is_encrypted(run.source_summary.as_ref());
-        let (agent, run, digest) = (agent_id.to_string(), run_id.to_string(), sha256.clone());
-        let finalized = run_blocking(&storage, move |storage| {
-            storage.finalize(&agent, &run, total as u64, &digest, encrypted)
+        let (agent, run_id, digest) = (agent_id.to_string(), run_id.to_string(), sha256);
+        let service = Arc::clone(self);
+        let mut task = tokio::spawn(async move {
+            // Kept for the whole job: appends and abandons wait on the lock.
+            let _guard = guard;
+            let _job = job;
+            service
+                .finalize_run(&storage, &agent, &run_id, total as u64, &digest, encrypted)
+                .await
+        });
+
+        match tokio::time::timeout(limits.complete_wait, &mut task).await {
+            Ok(Ok(result)) => result,
+            Ok(Err(error)) => Err(Error::Internal(format!(
+                "finalization task failed: {error}"
+            ))),
+            // The task keeps running; dropping its handle detaches it.
+            Err(_) => self.run_for_agent(agent_id, &owned.id).await,
+        }
+    }
+
+    /// One hashing pass plus fsync/rename on the blocking pool, then the
+    /// `completed` row. The published name says what the bundle is (.tar or
+    /// .age).
+    async fn finalize_run(
+        &self,
+        storage: &Storage,
+        agent_id: &str,
+        run_id: &str,
+        total: u64,
+        sha256: &str,
+        encrypted: bool,
+    ) -> Result<RunSummary, Error> {
+        let (agent, run, digest) = (agent_id.to_string(), run_id.to_string(), sha256.to_string());
+        let finalized = run_blocking(storage, move |storage| {
+            storage.finalize(&agent, &run, total, &digest, encrypted)
         })
         .await;
         match finalized {
@@ -1234,7 +1332,10 @@ impl Backups {
                 self.fail_run(run_id, "bundle_hash_mismatch").await?;
                 return Err(Error::HashMismatch(message));
             }
-            Err(error) => return Err(storage_error(error)),
+            Err(error) => {
+                tracing::error!("backup finalize: run {run_id}: {error}");
+                return Err(storage_error(error));
+            }
         }
 
         sqlx::query(
@@ -1249,6 +1350,36 @@ impl Backups {
 
         self.publish_change();
         self.run_by_id(run_id).await
+    }
+
+    fn finalize_job(&self, run_id: &str) -> Option<watch::Receiver<()>> {
+        self.finalize_jobs
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(run_id)
+            .cloned()
+    }
+
+    /// Wait up to `complete_wait` for the finalization that is already
+    /// running, then report the run as it is. Never starts a second hash.
+    async fn join_finalization(
+        &self,
+        agent_id: &str,
+        run_id: &str,
+        limits: UploadLimits,
+    ) -> Result<RunSummary, Error> {
+        if let Some(mut finished) = self.finalize_job(run_id) {
+            // The sender is dropped when the job ends, so `changed` fails
+            // exactly then; no one ever sends a value.
+            let _ = tokio::time::timeout(limits.complete_wait, finished.changed()).await;
+        }
+        let run = self.run_for_agent(agent_id, run_id).await?;
+        match run.status.as_str() {
+            runs::STATUS_COMPLETED | runs::STATUS_FINALIZING => Ok(run),
+            other => Err(Error::Terminal(format!(
+                "run is {other} and cannot be completed"
+            ))),
+        }
     }
 
     /// Abandon this agent's own uploading run, typically one whose local
