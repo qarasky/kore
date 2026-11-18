@@ -33,8 +33,12 @@ type fakeUploadServer struct {
 	dropStartOnce    bool
 	dropChunkOnce    bool
 	dropCompleteOnce bool
-	expireOnChunk    bool
-	allowReopen      bool
+	// finalizingPolls is how many /complete calls answer 202 "finalizing"
+	// before the run completes; completeDelay holds each answer back.
+	finalizingPolls int
+	completeDelay   time.Duration
+	expireOnChunk   bool
+	allowReopen     bool
 
 	server *httptest.Server
 }
@@ -111,6 +115,16 @@ func (f *fakeUploadServer) handle(w http.ResponseWriter, r *http.Request) {
 
 	case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/complete"):
 		f.completeHits++
+		if f.completeDelay > 0 {
+			time.Sleep(f.completeDelay)
+		}
+		if f.finalizingPolls > 0 {
+			f.finalizingPolls--
+			f.status = "finalizing"
+			w.WriteHeader(http.StatusAccepted)
+			writeRun(w, f.runID, f.status, f.received, f.received)
+			return
+		}
 		if f.dropCompleteOnce {
 			f.dropCompleteOnce = false
 			f.status = "completed"
@@ -230,6 +244,70 @@ func TestUploadResumesAfterLostResponses(t *testing.T) {
 	}
 	if fake.completeHits < 2 {
 		t.Fatalf("lost completion response was not retried: %d", fake.completeHits)
+	}
+}
+
+// A long finalization must not cost the agent its upload: the request
+// timeout that bounds a chunk does not apply to /complete, which hashes the
+// whole bundle on the server.
+func TestCompleteOutlivesTheChunkRequestTimeout(t *testing.T) {
+	fake := newFakeUploadServer(t)
+	fake.completeDelay = 300 * time.Millisecond
+	client := testUploadClient(t, fake.server.URL)
+	client.http.Timeout = 100 * time.Millisecond
+	client.completeTimeout = 5 * time.Second
+	bundle := makeBundle(t, 1024)
+
+	run, err := uploadBundleWith(context.Background(), client, bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.Status != "completed" {
+		t.Fatalf("status = %q", run.Status)
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if fake.completeHits != 1 {
+		t.Fatalf("complete was sent %d times, want 1", fake.completeHits)
+	}
+}
+
+// A server that finalizes in the background answers 202 "finalizing"; the
+// agent polls the idempotent /complete until the run is completed.
+func TestCompletePollsWhileTheServerFinalizes(t *testing.T) {
+	fake := newFakeUploadServer(t)
+	fake.finalizingPolls = 3
+	client := testUploadClient(t, fake.server.URL)
+	bundle := makeBundle(t, 1024)
+
+	run, err := uploadBundleWith(context.Background(), client, bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.Status != "completed" {
+		t.Fatalf("status = %q", run.Status)
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if fake.completeHits != 4 {
+		t.Fatalf("complete was sent %d times, want 4", fake.completeHits)
+	}
+}
+
+func TestCompleteGivesUpWhenFinalizationNeverEnds(t *testing.T) {
+	fake := newFakeUploadServer(t)
+	fake.finalizingPolls = 1 << 30
+	client := testUploadClient(t, fake.server.URL)
+	bundle := makeBundle(t, 1024)
+
+	_, err := uploadBundleWith(context.Background(), client, bundle)
+	if err == nil {
+		t.Fatal("an endless finalization must not look like success")
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if fake.completeHits != completeMaxPolls {
+		t.Fatalf("complete was polled %d times, want %d", fake.completeHits, completeMaxPolls)
 	}
 }
 

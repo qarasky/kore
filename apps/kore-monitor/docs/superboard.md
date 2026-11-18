@@ -112,7 +112,7 @@ The desk board (`/superboard`) card:
 ```
 ┌───────────────────────────────────────────────────────────────┐
 │ ⬢ web-01 ↗                            ● Host up               │
-│   uptime 11d · agent 1.8.3 · backup 0.3.4   Updated 2s ago    │
+│   uptime 11d · agent 1.8.3 · backup 0.3.5   Updated 2s ago    │
 │                                portal: last backup 3h ago     │
 │                                harbor: last backup 2h ago     │
 │                                                               │
@@ -141,7 +141,7 @@ The desk board (`/superboard`) card:
   reported hostname stays read-only and appears in the tooltip. `↗` opens the
   history dialog.
 - **Subline** is uptime, agent version and, on a server with backup agents, the
-  backup-agent version (`backup 0.3.4`; `backup 0.3.3/0.3.4`, lowest first, while
+  backup-agent version (`backup 0.3.5`; `backup 0.3.4/0.3.5`, lowest first, while
   an update is half done; amber when the host's self-update is failing, with the
   reason on hover), nothing else. OS and core count are noise the operator can
   get from the machine.

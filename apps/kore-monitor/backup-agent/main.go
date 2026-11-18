@@ -10,7 +10,7 @@ import (
 	"syscall"
 )
 
-const version = "0.3.4"
+const version = "0.3.5"
 
 func main() {
 	os.Exit(run(os.Args[1:]))

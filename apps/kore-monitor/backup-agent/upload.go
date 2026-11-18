@@ -20,6 +20,19 @@ import (
 
 const uploadChunkBytes = 8 * 1024 * 1024
 
+// Completion is the one request that is not bounded by the chunk timeout:
+// the server hashes the whole bundle before it answers, and a 15 GiB bundle
+// on a spinning disk already takes longer than the two-minute chunk limit.
+// A newer server answers 202 "finalizing" at once and keeps working in the
+// background; the agent then asks again every completePollInterval, at most
+// completeMaxPolls times (about two hours), before it leaves the bundle for
+// the next scheduled run.
+const (
+	completeRequestTimeout = 30 * time.Minute
+	completePollInterval   = 15 * time.Second
+	completeMaxPolls       = 480
+)
+
 // RunSummary is the server's run metadata as far as the uploader needs it.
 type RunSummary struct {
 	ID               string `json:"id"`
@@ -130,6 +143,8 @@ type UploadClient struct {
 	http           *http.Client
 	retry          RetryPolicy
 	bytesPerSecond int64
+	// completeTimeout bounds one /complete request (zero: the default).
+	completeTimeout time.Duration
 }
 
 func newUploadClient(cfg Config) (*UploadClient, error) {
@@ -340,15 +355,30 @@ func (c *UploadClient) putChunk(ctx context.Context, runID string, index, offset
 
 func (c *UploadClient) complete(ctx context.Context, runID string) (RunSummary, error) {
 	path := fmt.Sprintf("/runs/%s/complete", url.PathEscape(runID))
-	data, err := c.request(ctx, http.MethodPost, path, nil, nil)
-	if err != nil {
-		return RunSummary{}, err
+	slow := *c.http
+	slow.Timeout = c.completeTimeout
+	if slow.Timeout <= 0 {
+		slow.Timeout = completeRequestTimeout
 	}
-	var envelope runEnvelope
-	if err := json.Unmarshal(data, &envelope); err != nil || !envelope.OK || envelope.Run.ID == "" {
-		return RunSummary{}, errors.New("invalid completion response")
+	for poll := 1; ; poll++ {
+		data, err := c.requestWith(ctx, &slow, http.MethodPost, path, nil, nil)
+		if err != nil {
+			return RunSummary{}, err
+		}
+		var envelope runEnvelope
+		if err := json.Unmarshal(data, &envelope); err != nil || !envelope.OK || envelope.Run.ID == "" {
+			return RunSummary{}, errors.New("invalid completion response")
+		}
+		if envelope.Run.Status != "finalizing" {
+			return envelope.Run, nil
+		}
+		if poll >= completeMaxPolls {
+			return RunSummary{}, errors.New("server is still finalizing the bundle")
+		}
+		if err := c.retry.Sleep(ctx, completePollInterval); err != nil {
+			return RunSummary{}, err
+		}
 	}
-	return envelope.Run, nil
 }
 
 func (c *UploadClient) reportFailure(ctx context.Context, clientRunID, exportStartedAt, code string) error {
@@ -365,6 +395,12 @@ func (c *UploadClient) reportFailure(ctx context.Context, clientRunID, exportSta
 }
 
 func (c *UploadClient) request(ctx context.Context, method, path string, body []byte, headers map[string]string) ([]byte, error) {
+	return c.requestWith(ctx, c.http, method, path, body, headers)
+}
+
+// requestWith is request over an explicit client, so one call can carry a
+// longer timeout than the chunk uploads.
+func (c *UploadClient) requestWith(ctx context.Context, client *http.Client, method, path string, body []byte, headers map[string]string) ([]byte, error) {
 	var last error
 	for attempt := 1; attempt <= c.retry.Attempts; attempt++ {
 		var reader io.Reader
@@ -383,7 +419,7 @@ func (c *UploadClient) request(ctx context.Context, method, path string, body []
 			request.Header.Set("Content-Type", "application/octet-stream")
 		}
 
-		response, err := c.http.Do(request)
+		response, err := client.Do(request)
 		if err != nil {
 			if errors.Is(err, errRedirectRefused) {
 				return nil, errRedirectRefused
