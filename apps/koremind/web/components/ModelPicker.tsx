@@ -1,5 +1,5 @@
 "use client";
-import { Badge, Button, IconButton, Input, Kbd, Popover, PopoverContent, PopoverTrigger, ToggleButton, Tooltip, cn } from "@qarasky/kore-ui";
+import { Badge, Button, IconButton, Input, Kbd, Popover, PopoverContent, PopoverTrigger, Tooltip, cn } from "@qarasky/kore-ui";
 import { Check, ChevronDown, Search, Star } from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";
@@ -7,12 +7,12 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNod
 import { ProviderIcon } from "./ProviderIcon";
 import { useModelChoice } from "@/lib/contexts";
 import { spring } from "@/lib/motion";
-import { chipLabel, filterModels, initialRail, railDimmed, railNotice, railProviders, thinkingLabel } from "@/lib/model-picker";
+import { chipLabel, filterModels, initialRail, railDimmed, railNotice, railProviders } from "@/lib/model-picker";
 import { t } from "@/lib/strings";
 
-/** The model chip in the composer and its picker: a kore-ui Popover with a provider rail, search, models and thinking level. */
+/** The model chip in the composer and its picker: a kore-ui Popover with a provider rail, search and models. The thinking level lives in EffortControl. */
 export function ModelPicker() {
-  const { providers, favorites, choice, select, setThinking, toggleFavorite } = useModelChoice();
+  const { providers, favorites, choice, select, toggleFavorite } = useModelChoice();
   const [open, setOpen] = useState(false);
   const [rail, setRail] = useState<string>("favorites");
   const [query, setQuery] = useState("");
@@ -34,7 +34,6 @@ export function ModelPicker() {
     }
   };
 
-  const levels = current.model?.thinkingLevels ?? [];
   const railProvider = providers.find((p) => p.id === rail);
   const notice = railProvider ? railNotice(railProvider) : null;
   const name = current.model?.name ?? t.chooseModel;
@@ -44,7 +43,6 @@ export function ModelPicker() {
       <PopoverTrigger asChild>
         <Button variant="ghost" size="sm" className="gap-1 px-2 text-meta font-normal text-muted hover:text-text data-[state=open]:bg-hover" aria-label={chipLabel(name, choice?.thinking)}>
           <span className="max-w-40 truncate text-text">{name}</span>
-          {choice?.thinking && <span>{thinkingLabel(choice.thinking)}</span>}
           <ChevronDown aria-hidden className="size-3.5" />
         </Button>
       </PopoverTrigger>
@@ -64,7 +62,7 @@ export function ModelPicker() {
         </div>
         <div className="flex min-w-0 flex-1 flex-col p-2">
           <Input ref={search} size="sm" variant="filled" leadingIcon={<Search />} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t.searchModels} aria-label={t.searchModels} />
-          <ul className="mt-2 max-h-72 overflow-y-auto">
+          <ul className="mt-2 h-72 overflow-y-auto">
             {notice && (
               <li className="flex flex-col items-start gap-3 px-2 py-3 text-meta text-muted">
                 <span>{notice}</span>
@@ -90,16 +88,6 @@ export function ModelPicker() {
               );
             })}
           </ul>
-          {levels.length > 0 && (
-            <div className="mt-2 border-t border-border px-1 pt-2" role="group" aria-labelledby="thinking-level">
-              <div id="thinking-level" className="mb-1.5 text-meta font-medium text-muted">{t.thinkingLevel}</div>
-              <div className="flex flex-wrap gap-1">
-                {[undefined, ...levels].map((l) => (
-                  <ToggleButton key={l ?? "default"} pressed={choice?.thinking === l} onPressedChange={() => setThinking(l)}>{l ? thinkingLabel(l) : t.thinkingDefault}</ToggleButton>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </PopoverContent>
     </Popover>

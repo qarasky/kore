@@ -4,6 +4,7 @@ import { IconButton, InlineMessage, Textarea } from "@qarasky/kore-ui";
 import { ArrowUp, FileText, Paperclip, Square, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRef, useState, type KeyboardEvent } from "react";
+import { EffortControl } from "./EffortControl";
 import { ModelPicker } from "./ModelPicker";
 import { canSend } from "@/lib/chat-state";
 import { pop, spring } from "@/lib/motion";
@@ -81,6 +82,7 @@ export function Composer({ busy, onSend, onStop }: { busy: boolean; onSend(text:
           <input ref={input} type="file" multiple accept="image/*,application/pdf,text/*,application/json" hidden onChange={(e) => void pick(e.target.files)} />
           <IconButton label={t.attach} icon={<Paperclip />} onClick={() => input.current?.click()} />
           <ModelPicker />
+          <EffortControl />
           <div className="flex-1" />
           <AnimatePresence initial={false} mode="popLayout">
             {busy ? (
