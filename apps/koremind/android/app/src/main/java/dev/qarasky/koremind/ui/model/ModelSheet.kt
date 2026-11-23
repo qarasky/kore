@@ -10,13 +10,13 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -67,18 +66,17 @@ import dev.qarasky.koremind.ui.theme.quickSpec
 @Composable
 fun ModelSheet(
     providers: List<ProviderInfo>, favorites: Set<String>, choice: Choice?,
-    onSelect: (String, String) -> Unit, onThinking: (String?) -> Unit, onFavorite: (String) -> Unit, onOpenSettings: () -> Unit, onDismiss: () -> Unit,
+    onSelect: (String, String) -> Unit, onFavorite: (String) -> Unit, onOpenSettings: () -> Unit, onDismiss: () -> Unit,
 ) {
     var rail by remember { mutableStateOf(initialRail(providers, favorites, choice)) }
     var query by remember { mutableStateOf("") }
     val rows = filterModels(providers, favorites, rail, query)
-    val levels = providers.firstOrNull { it.id == choice?.providerId }?.models?.firstOrNull { it.id == choice?.modelId }?.thinkingLevels ?: emptyList()
     // A provider that can't be used right now explains itself instead of listing models.
     val railProvider = providers.firstOrNull { it.id == rail }
     val notice = railProvider?.let { railNoticeRes(it) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = KoreMindColors.Surface, contentColor = KoreMindColors.Text) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 280.dp, max = 460.dp).navigationBarsPadding()) {
+        Row(Modifier.fillMaxWidth().height(380.dp).navigationBarsPadding()) {
             Column(Modifier.width(52.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 RailItem(rail == "favorites", stringResource(R.string.favorites), 1f) { rail = "favorites" }
                 Box(Modifier.width(28.dp).size(width = 28.dp, height = 1.dp).background(KoreMindColors.Border))
@@ -97,7 +95,7 @@ fun ModelSheet(
                     }
                 }
                 Box(Modifier.fillMaxWidth().size(width = 1.dp, height = 2.dp).background(KoreMindColors.Accent))
-                LazyColumn(Modifier.weight(1f, fill = false)) {
+                LazyColumn(Modifier.weight(1f)) {
                     if (rows.isEmpty()) item { Text(if (rail == "favorites" && query.isEmpty()) stringResource(R.string.no_favorites) else stringResource(R.string.no_models), color = KoreMindColors.Muted, modifier = Modifier.padding(vertical = 14.dp)) }
                     items(rows, key = { it.key }) { r ->
                         val active = r.providerId == choice?.providerId && r.model.id == choice.modelId
@@ -115,16 +113,6 @@ fun ModelSheet(
                                 }
                             }
                             if (active) Icon(Icons.Filled.Check, null, Modifier.padding(end = 8.dp).size(18.dp))
-                        }
-                    }
-                }
-                if (levels.isNotEmpty()) {
-                    Text(stringResource(R.string.thinking_level), color = KoreMindColors.Muted, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
-                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        (listOf<String?>(null) + levels).forEach { l ->
-                            val sel = choice?.thinking == l
-                            Text(if (l == null) stringResource(R.string.thinking_default) else thinkingLabel(l), style = MaterialTheme.typography.labelMedium, color = if (sel) androidx.compose.ui.graphics.Color.White else KoreMindColors.Text,
-                                modifier = Modifier.background(if (sel) KoreMindColors.Accent else KoreMindColors.Raised, RoundedCornerShape(6.dp)).clickable { onThinking(l) }.padding(horizontal = 12.dp, vertical = 8.dp))
                         }
                     }
                 }

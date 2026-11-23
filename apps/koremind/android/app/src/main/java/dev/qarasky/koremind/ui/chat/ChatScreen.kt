@@ -72,6 +72,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -86,7 +87,10 @@ import dev.qarasky.koremind.ui.UpdateBanner
 import dev.qarasky.koremind.ui.ErrorText
 import dev.qarasky.koremind.ui.model.ModelSheet
 import dev.qarasky.koremind.ui.model.lacksVision
-import dev.qarasky.koremind.ui.model.thinkingLabel
+import dev.qarasky.koremind.ui.model.EffortSheet
+import dev.qarasky.koremind.ui.model.effortAt
+import dev.qarasky.koremind.ui.model.effortIndex
+import dev.qarasky.koremind.ui.model.effortLabel
 import dev.qarasky.koremind.ui.theme.Appear
 import dev.qarasky.koremind.ui.theme.LocalMotion
 import dev.qarasky.koremind.ui.theme.KoreMindColors
@@ -264,6 +268,7 @@ private fun Composer(vm: AppViewModel, busy: Boolean, onProviders: () -> Unit) {
     var text by remember { mutableStateOf("") }
     var menu by remember { mutableStateOf(false) }
     var sheet by remember { mutableStateOf(false) }
+    var effortSheet by remember { mutableStateOf(false) }
     val closeKeyboard = rememberCloseKeyboard()
     val resolver = LocalContext.current.contentResolver
     val on = LocalMotion.current
@@ -272,6 +277,7 @@ private fun Composer(vm: AppViewModel, busy: Boolean, onProviders: () -> Unit) {
     val sendLabel = stringResource(R.string.send)
     val stopLabel = stringResource(R.string.stop)
     val currentModel = providers.firstOrNull { it.id == choice?.providerId }?.models?.firstOrNull { it.id == choice?.modelId }
+    val levels = currentModel?.thinkingLevels ?: emptyList()
 
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
         Column(Modifier.fillMaxWidth().background(KoreMindColors.Surface, RoundedCornerShape(20.dp)).border(1.dp, KoreMindColors.Border, RoundedCornerShape(20.dp)).padding(8.dp)) {
@@ -302,8 +308,14 @@ private fun Composer(vm: AppViewModel, busy: Boolean, onProviders: () -> Unit) {
                 }
                 if (currentModel != null) Row(Modifier.heightIn(min = 36.dp).clickable { closeKeyboard(); sheet = true }.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(currentModel.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge, modifier = Modifier.widthIn(max = 150.dp))
-                    choice?.thinking?.let { Text(" ${thinkingLabel(it)}", color = KoreMindColors.Muted, style = MaterialTheme.typography.labelLarge) }
                     Icon(Icons.Filled.KeyboardArrowDown, null, tint = KoreMindColors.Muted, modifier = Modifier.size(18.dp))
+                }
+                if (levels.isNotEmpty()) {
+                    val effort = effortLabel(effortAt(levels, effortIndex(levels, choice?.thinking)))
+                    val gaugeLabel = stringResource(R.string.thinking_level) + ": " + effort
+                    IconButton(onClick = { closeKeyboard(); effortSheet = true }, Modifier.size(36.dp).semantics { contentDescription = gaugeLabel }) {
+                        Icon(painterResource(R.drawable.ic_gauge), null, Modifier.size(20.dp), tint = if (choice?.thinking != null) KoreMindColors.Accent else KoreMindColors.Muted)
+                    }
                 }
                 Spacer(Modifier.weight(1f))
                 val can = canSend(text, pending.size, busy = false, hasModel = currentModel != null)
@@ -324,7 +336,8 @@ private fun Composer(vm: AppViewModel, busy: Boolean, onProviders: () -> Unit) {
         }
         ErrorText(uploadError ?: if (currentModel == null) stringResource(R.string.no_model) else if (lacksVision(pending.map { it.attachment }, currentModel)) stringResource(R.string.no_photos_warning) else null)
     }
-    if (sheet) ModelSheet(providers, favorites, choice, vm::selectModel, vm::setThinking, vm::toggleFavorite, onProviders) { sheet = false }
+    if (sheet) ModelSheet(providers, favorites, choice, vm::selectModel, vm::toggleFavorite, onProviders) { sheet = false }
+    if (effortSheet) EffortSheet(levels, choice?.thinking, vm::setThinking) { effortSheet = false }
 }
 
 @Composable

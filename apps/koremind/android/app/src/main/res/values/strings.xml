@@ -56,7 +56,8 @@
     <string name="no_models">No models match</string>
     <string name="no_favorites">Star a model in the picker to pin it here.</string>
     <string name="thinking_level">Thinking level</string>
-    <string name="thinking_default">Default</string>
+    <string name="effort_default">Default effort</string>
+    <string name="effort_of">%1$s effort</string>
     <string name="settings">Settings</string>
     <string name="backend_section">Backend</string>
     <string name="favorites_section">Favorite models</string>
