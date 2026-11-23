@@ -21,7 +21,7 @@ export function createSettings(db: Database) {
       } else if (memory.count) {
         if (memory.summary) lines.push("What you know about the user, in broad strokes:", memory.summary);
         lines.push(`You have ${memory.count} saved ${memory.count === 1 ? "memory" : "memories"} about them; look details up with recall_memory when they would help.`);
-        lines.push("Use what you know only when it helps with what they just asked; never bring it up on your own, and never in reply to a greeting.");
+        lines.push("Use what you know when it helps with what they ask; don't recite it, and don't bring it up in reply to a greeting.");
       }
       return lines.join("\n");
     },

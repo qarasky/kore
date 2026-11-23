@@ -45,4 +45,4 @@ At most 8 sections. Numbers are accepted for values and read as text. Unknown se
 
 **Streaming.** While the JSON is still arriving the card shows a placeholder. If the block closes and is not a usable card, it is shown as a plain code block, never as a broken card.
 
-**When the assistant uses one.** The system prompt (`AGENT_SYSTEM` in `backend/src/engine/opencode.ts`) allows a card for a status, or a total with its breakdown, at most two per answer, and says a plain comparison is a Markdown table.
+**When the assistant uses them.** The system prompt (`AGENT_SYSTEM` in `backend/src/engine/opencode.ts`) lists every block above (headings, lists, tables, code, quotes, links, images, cards) with when each fits, and invites their use without being asked. A card is for a status, or a total with its breakdown, never for a single fact, at most two per answer; a plain comparison is a Markdown table.

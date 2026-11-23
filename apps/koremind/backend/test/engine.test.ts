@@ -191,6 +191,15 @@ test("the assistant is told its tools and that memory is its own to manage", () 
   expect(AGENT_SYSTEM).toContain("Never say you cannot remember");
 });
 
+test("notes are the assistant's own working space, used without being asked", () => {
+  for (const part of ["working space", "without being asked", "multi-step", "read_notes"]) expect(AGENT_SYSTEM).toContain(part);
+});
+
+test("the assistant recalls before answering about the user, unless memory is off", () => {
+  expect(AGENT_SYSTEM).toContain("recall_memory before");
+  expect(AGENT_SYSTEM).toContain("unless memory is turned off");
+});
+
 // Real opencode against a local mock model server: no network, no account. Skipped when opencode isn't installed.
 test.skipIf(!Bun.which("opencode"))("opencode end to end on a mock OpenRouter: connect, answer with one tool-free-ish prompt, title on the chosen model, disconnect", async () => {
   const calls: { tools: string[]; system: string; last: string }[] = [];
@@ -320,8 +329,14 @@ test("the assistant's style rules (tuned against DeepSeek V4.1 Flash at High) ar
     "never invent traits or details about them",
     "a greeting or a casual remark gets a sentence or two of plain prose, never a list",
   ]) expect(AGENT_SYSTEM).toContain(rule);
+  for (const gone of ["no decoration", "Use Markdown only where it helps reading"]) expect(AGENT_SYSTEM).not.toContain(gone);
+});
+
+test("the assistant knows every block the clients draw and is invited to use them", () => {
+  for (const block of ["headings", "numbered lists", "tables", "code blocks", "quotes", "links", "images", "cards"]) expect(AGENT_SYSTEM).toContain(block);
+  expect(AGENT_SYSTEM).toContain("without waiting to be asked");
 });
 
 test("the assistant knows the card format and when not to use it", () => {
-  for (const part of ["a fenced block tagged card", "\"type\": \"stats\"", "\"type\": \"table\"", "\"type\": \"bars\"", "\"type\": \"note\"", "Valid JSON only", "at most two per reply", "never for ordinary answers", "A plain comparison is a Markdown table, not a card", "never invent one"]) expect(AGENT_SYSTEM).toContain(part);
+  for (const part of ["a fenced block tagged card", "\"type\": \"stats\"", "\"type\": \"table\"", "\"type\": \"bars\"", "\"type\": \"note\"", "Valid JSON only", "at most two per reply", "never for a single fact", "A plain comparison is a Markdown table, not a card", "never invent one"]) expect(AGENT_SYSTEM).toContain(part);
 });

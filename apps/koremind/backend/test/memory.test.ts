@@ -192,7 +192,8 @@ test("settings default, round trip and per-user", () => {
 test("buildSystem sends the abstract profile and points at recall, never the raw entries", () => {
   const s = createSettings(openDb(":memory:"));
   const text = s.buildSystem({ ...S, displayName: "Sky", tone: "casual", about: "backend dev" }, { summary: "Builds web apps.", count: 12 });
-  for (const part of ["Sky", "casual", "backend dev", "Builds web apps.", "12 saved memories", "recall_memory", "never bring it up on your own, and never in reply to a greeting"]) expect(text).toContain(part);
+  for (const part of ["Sky", "casual", "backend dev", "Builds web apps.", "12 saved memories", "recall_memory", "don't recite it"]) expect(text).toContain(part);
+  expect(text).not.toContain("never bring it up on your own");
   expect(s.buildSystem(S, { summary: "", count: 1 })).toContain("1 saved memory about");
 });
 
