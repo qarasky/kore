@@ -11,6 +11,7 @@ import dev.qarasky.koremind.data.ApiException
 import dev.qarasky.koremind.ui.chat.PendingFile
 import dev.qarasky.koremind.ui.chat.UploadState
 import dev.qarasky.koremind.ui.chat.addUploading
+import dev.qarasky.koremind.ui.chat.cameraFilesToDelete
 import dev.qarasky.koremind.ui.chat.markFailed
 import dev.qarasky.koremind.ui.chat.markReady
 import dev.qarasky.koremind.ui.chat.readyAttachments
@@ -138,6 +139,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     init {
         if (_session.value.signedIn) refreshAll()
         updater.cleanUp()
+        purgeCamera() // photos left over from an earlier run
         checkForUpdate(force = false)
         viewModelScope.launch {
             UpdateEvents.failure.collect { msg ->
@@ -349,7 +351,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         try { api?.chats()?.let { _chats.value = it; cache.saveChats(it) } } catch (_: Exception) { }
     }
 
-    fun newChat() { streamJob?.cancel(); _busy.value = false; _chatId.value = null; _chat.value = ChatUiState(); _pending.value = emptyList() }
+    fun newChat() { streamJob?.cancel(); _busy.value = false; _chatId.value = null; _chat.value = ChatUiState(); _pending.value = emptyList(); purgeCamera() }
 
     fun openChat(id: String) {
         if (id == _chatId.value) return
@@ -443,7 +445,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val atts = if (editOf != null) emptyList() else readyAttachments(_pending.value)
         if (text.isBlank() && atts.isEmpty()) return
         _chat.update { if (editOf != null) beginEdit(it, editOf, text) else beginTurn(it, text, atts) }
-        if (editOf == null) _pending.value = emptyList()
+        if (editOf == null) { _pending.value = emptyList(); purgeCamera() }
         _busy.value = true
         streamJob?.cancel() // a previous turn may still be waiting on its title; the server finishes naming either way
         streamJob = viewModelScope.launch {
@@ -498,6 +500,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         } catch (e: Exception) { _pending.update { markFailed(it, id, e.message ?: "Upload failed") } }
     }
 
+    /** Deletes the photos in cache/camera/ that no pending file needs any more (sent, removed or left over from an earlier run). */
+    private fun purgeCamera() {
+        val dir = java.io.File(getApplication<Application>().cacheDir, "camera")
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val names = dir.list()?.toList() ?: return@launch
+            cameraFilesToDelete(names, _pending.value).forEach { java.io.File(dir, it).delete() }
+        }
+    }
+
     fun showUploadError(message: String) { _uploadError.value = message }
 
     fun retry(resolver: ContentResolver, id: String) {
@@ -517,5 +528,5 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { try { api?.answerApproval(id, approvalId, allow) } catch (_: Exception) { } }
     }
 
-    fun removePending(id: String) { _pending.update { removePendingFile(it, id) } }
+    fun removePending(id: String) { _pending.update { removePendingFile(it, id) }; purgeCamera() }
 }

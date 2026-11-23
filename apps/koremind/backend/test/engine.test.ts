@@ -200,6 +200,17 @@ test("the assistant recalls before answering about the user, unless memory is of
   expect(AGENT_SYSTEM).toContain("unless memory is turned off");
 });
 
+test("recalling is bounded: once per lookup, and not when nothing is saved", () => {
+  expect(AGENT_SYSTEM).toContain("do not repeat a lookup");
+  expect(AGENT_SYSTEM).toContain("nothing is saved yet");
+  expect(AGENT_SYSTEM).not.toContain("short profile at the start of a chat, with the details left out on purpose.");
+});
+
+test("notes are read back when needed, not on every turn", () => {
+  expect(AGENT_SYSTEM).toContain("no longer in view");
+  expect(AGENT_SYSTEM).not.toContain("read them back at the start of later turns");
+});
+
 // Real opencode against a local mock model server: no network, no account. Skipped when opencode isn't installed.
 test.skipIf(!Bun.which("opencode"))("opencode end to end on a mock OpenRouter: connect, answer with one tool-free-ish prompt, title on the chosen model, disconnect", async () => {
   const calls: { tools: string[]; system: string; last: string }[] = [];

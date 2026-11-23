@@ -12,7 +12,7 @@ import { canSend } from "@/lib/chat-state";
 import { pop } from "@/lib/motion";
 import { useModelChoice } from "@/lib/contexts";
 import { lacksVision } from "@/lib/model-picker";
-import { addUploading, markFailed, markReady, readyAttachments, removePending, retrying, uploadingCount, type PendingFile } from "@/lib/pending-files";
+import { addUploading, markFailed, markReady, readyAttachments, removePending, retrying, uploadNotice, uploadingCount, type PendingFile } from "@/lib/pending-files";
 import { useSession } from "@/lib/session";
 import { uploadSizeError } from "@/lib/upload";
 import { t } from "@/lib/strings";
@@ -72,7 +72,7 @@ export function Composer({ busy, onSend, onStop }: { busy: boolean; onSend(text:
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); }
   };
 
-  const notice = error || (!model ? t.noModel : "") || (lacksVision(files.filter((f) => f.state !== "failed"), model) ? t.noPhotosWarning : "");
+  const notice = error || uploadNotice(files, t.uploadFailed) || (!model ? t.noModel : "") || (lacksVision(files.filter((f) => f.state !== "failed"), model) ? t.noPhotosWarning : "");
 
   // Chat-specific: a multi-line field styled like a kore-ui input (bg/60, hairline, accent border + ring on focus) that holds
   // the attachments, the model picker and the send button.

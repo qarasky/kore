@@ -4,11 +4,13 @@ import dev.qarasky.koremind.data.Attachment
 import dev.qarasky.koremind.ui.chat.PendingFile
 import dev.qarasky.koremind.ui.chat.UploadState
 import dev.qarasky.koremind.ui.chat.addUploading
+import dev.qarasky.koremind.ui.chat.cameraFilesToDelete
 import dev.qarasky.koremind.ui.chat.markFailed
 import dev.qarasky.koremind.ui.chat.markReady
 import dev.qarasky.koremind.ui.chat.readyAttachments
 import dev.qarasky.koremind.ui.chat.removePending
 import dev.qarasky.koremind.ui.chat.retrying
+import dev.qarasky.koremind.ui.chat.uploadNotice
 import dev.qarasky.koremind.ui.chat.uploadingCount
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -53,5 +55,21 @@ class PendingFilesTest {
         assertEquals(list, markFailed(list, "B", "x"))
         assertEquals(list, retrying(list, "B"))
         assertEquals(list, removePending(list, "B"))
+    }
+
+    @Test fun `uploadNotice names the latest failure, falls back to the generic text, and is null when nothing failed`() {
+        assertNull(uploadNotice(three(), "Upload failed"))
+        var list = markFailed(three(), "A", "That file type isn't supported.")
+        list = markFailed(list, "B", "offline")
+        assertEquals("offline", uploadNotice(list, "Upload failed"))
+        assertEquals("Upload failed", uploadNotice(markFailed(three(), "C", ""), "Upload failed"))
+        assertNull(uploadNotice(removePending(markFailed(three(), "C", "x"), "C"), "Upload failed"))
+    }
+
+    @Test fun `cameraFilesToDelete keeps only the photos a pending file still points at`() {
+        val pending = listOf(PendingFile("1", "a.jpg", "image/jpeg", "content://dev.qarasky.koremind.files/camera/IMG_a.jpg", UploadState.Ready))
+        assertEquals(listOf("IMG_b.jpg"), cameraFilesToDelete(listOf("IMG_a.jpg", "IMG_b.jpg"), pending))
+        assertEquals(listOf("IMG_a.jpg"), cameraFilesToDelete(listOf("IMG_a.jpg"), emptyList()))
+        assertEquals(emptyList<String>(), cameraFilesToDelete(emptyList(), pending))
     }
 }

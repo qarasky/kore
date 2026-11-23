@@ -25,3 +25,11 @@ fun removePending(list: List<PendingFile>, id: String): List<PendingFile> = if (
 /** What gets sent: only the files that finished uploading, in pick order. */
 fun readyAttachments(list: List<PendingFile>): List<Attachment> = list.mapNotNull { if (it.state == UploadState.Ready) it.attachment else null }
 fun uploadingCount(list: List<PendingFile>): Int = list.count { it.state == UploadState.Uploading }
+
+/** The reason to show for failed uploads: the latest failure's message, or [fallback] when it has none. Null when nothing failed. */
+fun uploadNotice(list: List<PendingFile>, fallback: String): String? =
+    list.lastOrNull { it.state == UploadState.Failed }?.let { it.error?.takeIf { e -> e.isNotEmpty() } ?: fallback }
+
+/** Photos in cache/camera/ that no pending file points at any more; the caller deletes them. */
+fun cameraFilesToDelete(existing: List<String>, pending: List<PendingFile>): List<String> =
+    existing.filterNot { name -> pending.any { it.uri.endsWith("/$name") } }

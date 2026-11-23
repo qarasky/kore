@@ -349,7 +349,7 @@ private fun Composer(vm: AppViewModel, busy: Boolean, onProviders: () -> Unit) {
                 }
             }
         }
-        ErrorText(uploadError ?: if (currentModel == null) stringResource(R.string.no_model) else if (lacksVision(pending.filter { it.state != UploadState.Failed }.map { Attachment("", it.name, it.mime, 0) }, currentModel)) stringResource(R.string.no_photos_warning) else null)
+        ErrorText(uploadError ?: uploadNotice(pending, stringResource(R.string.upload_failed)) ?: if (currentModel == null) stringResource(R.string.no_model) else if (lacksVision(pending.filter { it.state != UploadState.Failed }.map { Attachment("", it.name, it.mime, 0) }, currentModel)) stringResource(R.string.no_photos_warning) else null)
     }
     if (sheet) ModelSheet(providers, favorites, choice, vm::selectModel, vm::toggleFavorite, onProviders) { sheet = false }
     if (effortSheet) EffortSheet(levels, choice?.thinking, vm::setThinking) { effortSheet = false }

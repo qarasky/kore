@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { Attachment } from "@koremind/shared";
-import { addUploading, markFailed, markReady, readyAttachments, removePending, retrying, uploadingCount, type PendingFile } from "../lib/pending-files";
+import { addUploading, markFailed, markReady, readyAttachments, removePending, retrying, uploadNotice, uploadingCount, type PendingFile } from "../lib/pending-files";
 
 const file = (key: string): Omit<PendingFile, "state"> => ({ key, name: `${key}.png`, mime: "image/png", size: 10 });
 const att = (id: string): Attachment => ({ id, name: `${id}.png`, mime: "image/png", size: 10 });
@@ -39,4 +39,13 @@ test("an upload that ends after its file was removed changes nothing", () => {
   expect(markFailed(list, "B", "x")).toEqual(list);
   expect(retrying(list, "B")).toEqual(list);
   expect(removePending(list, "B")).toEqual(list);
+});
+
+test("uploadNotice names the latest failure, falls back to the generic text, and is null when nothing failed", () => {
+  expect(uploadNotice(three(), "Upload failed")).toBeNull();
+  let list = markFailed(three(), "A", "That file type isn't supported.");
+  list = markFailed(list, "B", "offline");
+  expect(uploadNotice(list, "Upload failed")).toBe("offline");
+  expect(uploadNotice(markFailed(three(), "C", ""), "Upload failed")).toBe("Upload failed");
+  expect(uploadNotice(removePending(markFailed(three(), "C", "x"), "C"), "Upload failed")).toBeNull();
 });

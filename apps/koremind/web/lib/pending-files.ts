@@ -27,3 +27,10 @@ export const removePending = (list: PendingFile[], key: string): PendingFile[] =
 /** What gets sent: only the files that finished uploading, in pick order. */
 export const readyAttachments = (list: PendingFile[]): Attachment[] => list.flatMap((f) => (f.state === "ready" && f.attachment ? [f.attachment] : []));
 export const uploadingCount = (list: PendingFile[]): number => list.filter((f) => f.state === "uploading").length;
+
+/** The reason to show for failed uploads: the latest failure's message, or [fallback] when it has none. Null when nothing failed. */
+export function uploadNotice(list: PendingFile[], fallback: string): string | null {
+  const failed = list.filter((f) => f.state === "failed");
+  const last = failed[failed.length - 1];
+  return last ? last.error || fallback : null;
+}
