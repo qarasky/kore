@@ -148,3 +148,10 @@ test("variants read as 2 / 3 and step to their neighbours", () => {
   expect(variantPosition(msg("a", "user", "x"))).toBeNull();
   expect(variantAt(msg("a", "user", "x"), 1)).toBeNull();
 });
+
+test("canSend waits for uploads but is not blocked by a file that failed", () => {
+  const base = { text: "hi", fileCount: 0, busy: false, hasModel: true };
+  expect(canSend({ ...base, uploading: 0 })).toBe(true); // the only file failed: it is left out
+  expect(canSend({ ...base, uploading: 1 })).toBe(false);
+  expect(canSend({ ...base, text: "", fileCount: 1, uploading: 0 })).toBe(true);
+});
