@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Photos taken from the app land here first, then are uploaded. Shared with the camera app through FileProvider. -->
+<paths>
+    <cache-path name="camera" path="camera/" />
+</paths>

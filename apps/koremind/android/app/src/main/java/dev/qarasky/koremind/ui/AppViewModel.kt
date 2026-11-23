@@ -8,6 +8,15 @@ import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.qarasky.koremind.data.ApiException
+import dev.qarasky.koremind.ui.chat.PendingFile
+import dev.qarasky.koremind.ui.chat.UploadState
+import dev.qarasky.koremind.ui.chat.addUploading
+import dev.qarasky.koremind.ui.chat.markFailed
+import dev.qarasky.koremind.ui.chat.markReady
+import dev.qarasky.koremind.ui.chat.readyAttachments
+import dev.qarasky.koremind.ui.chat.removePending as removePendingFile
+import dev.qarasky.koremind.ui.chat.retrying
+import dev.qarasky.koremind.ui.chat.uploadingCount
 import dev.qarasky.koremind.data.Health
 import dev.qarasky.koremind.data.Pkce
 import dev.qarasky.koremind.data.parseSsoLink
@@ -57,7 +66,6 @@ import kotlinx.coroutines.launch
 
 data class Session(val baseUrl: String?, val signedIn: Boolean, val email: String?)
 data class Choice(val providerId: String, val modelId: String, val thinking: String? = null)
-data class Pending(val attachment: Attachment, val uri: Uri?)
 
 /** Where a QR / deep-link pairing stands. Done is consumed by the app shell, which opens the chat. */
 sealed interface PairUi {
@@ -102,8 +110,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val chatId: StateFlow<String?> = _chatId.asStateFlow()
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
-    private val _pending = MutableStateFlow<List<Pending>>(emptyList())
-    val pending: StateFlow<List<Pending>> = _pending.asStateFlow()
+    private val _pending = MutableStateFlow<List<PendingFile>>(emptyList())
+    val pending: StateFlow<List<PendingFile>> = _pending.asStateFlow()
     private val _uploadError = MutableStateFlow<String?>(null)
     val uploadError: StateFlow<String?> = _uploadError.asStateFlow()
 
@@ -431,7 +439,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun send(text: String, editOf: String? = null) {
         val a = api ?: return
         val c = _choice.value ?: return
-        val atts = if (editOf != null) emptyList() else _pending.value.map { it.attachment }
+        if (editOf == null && uploadingCount(_pending.value) > 0) return // a file is still uploading
+        val atts = if (editOf != null) emptyList() else readyAttachments(_pending.value)
         if (text.isBlank() && atts.isEmpty()) return
         _chat.update { if (editOf != null) beginEdit(it, editOf, text) else beginTurn(it, text, atts) }
         if (editOf == null) _pending.value = emptyList()
@@ -462,8 +471,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- attachments -------------------------------------------------------
-    fun attach(resolver: ContentResolver, uri: Uri) = viewModelScope.launch {
-        val a = api ?: return@launch
+    /** The file shows in the composer at once and uploads in the background; the strip follows its state. */
+    fun attach(resolver: ContentResolver, uri: Uri) {
+        val a = api ?: return
         _uploadError.value = null
         try {
             val mime = resolver.getType(uri) ?: "application/octet-stream"
@@ -472,11 +482,29 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (c.moveToFirst() && i >= 0) c.getString(i) else null
             } ?: "file"
             val size = resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { c -> if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else null }
-            uploadSizeError(size)?.let { _uploadError.value = it; return@launch }
+            uploadSizeError(size)?.let { _uploadError.value = it; return }
+            val id = java.util.UUID.randomUUID().toString()
+            _pending.update { addUploading(it, PendingFile(id, name, mime, uri.toString(), UploadState.Uploading)) }
+            upload(a, resolver, id, uri, name, mime)
+        } catch (e: Exception) { _uploadError.value = e.message ?: "Upload failed" }
+    }
+
+    private fun upload(a: KoreMindApi, resolver: ContentResolver, id: String, uri: Uri, name: String, mime: String) = viewModelScope.launch {
+        try {
             val bytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { resolver.openInputStream(uri)?.use { it.readBytes() } } ?: error("Couldn't read that file")
             val att = a.upload(name, mime, bytes)
-            _pending.update { it + Pending(att, uri) }
-        } catch (e: Exception) { _uploadError.value = e.message ?: "Upload failed" }
+            _pending.update { markReady(it, id, att) } // ignored when the file was removed meanwhile
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e
+        } catch (e: Exception) { _pending.update { markFailed(it, id, e.message ?: "Upload failed") } }
+    }
+
+    fun showUploadError(message: String) { _uploadError.value = message }
+
+    fun retry(resolver: ContentResolver, id: String) {
+        val a = api ?: return
+        val f = _pending.value.firstOrNull { it.localId == id } ?: return
+        _pending.update { retrying(it, id) }
+        upload(a, resolver, id, Uri.parse(f.uri), f.name, f.mime)
     }
 
     /** Saves Settings from a screen that is going away, so a late edit is never lost. */
@@ -489,5 +517,5 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { try { api?.answerApproval(id, approvalId, allow) } catch (_: Exception) { } }
     }
 
-    fun removePending(id: String) { _pending.update { l -> l.filterNot { it.attachment.id == id } } }
+    fun removePending(id: String) { _pending.update { removePendingFile(it, id) } }
 }

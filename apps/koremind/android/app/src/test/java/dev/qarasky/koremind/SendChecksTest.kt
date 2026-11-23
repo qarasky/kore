@@ -13,11 +13,17 @@ import org.junit.Test
 
 class SendChecksTest {
     @Test fun `canSend refuses without a model while busy or when empty`() {
-        assertTrue(canSend("hi", 0, busy = false, hasModel = true))
-        assertFalse(canSend("hi", 0, busy = false, hasModel = false))
-        assertFalse(canSend("hi", 0, busy = true, hasModel = true))
-        assertFalse(canSend("  ", 0, busy = false, hasModel = true))
-        assertTrue(canSend("", 1, busy = false, hasModel = true))
+        assertTrue(canSend("hi", 0, 0, busy = false, hasModel = true))
+        assertFalse(canSend("hi", 0, 0, busy = false, hasModel = false))
+        assertFalse(canSend("hi", 0, 0, busy = true, hasModel = true))
+        assertFalse(canSend("  ", 0, 0, busy = false, hasModel = true))
+        assertTrue(canSend("", 1, 0, busy = false, hasModel = true))
+    }
+
+    @Test fun `canSend waits for uploads but is not blocked by a file that failed`() {
+        assertFalse(canSend("hi", 0, 1, busy = false, hasModel = true))
+        assertTrue(canSend("hi", 0, 0, busy = false, hasModel = true)) // the only file failed: it is left out
+        assertFalse(canSend("", 1, 1, busy = false, hasModel = true))
     }
 
     @Test fun `uploadSizeError refuses big files before reading them and allows unknown sizes`() {

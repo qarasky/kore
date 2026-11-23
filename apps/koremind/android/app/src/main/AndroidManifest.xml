@@ -3,6 +3,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Self-update from GitHub releases (Settings → Account → Updates). Android still asks before installing. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Lets the app see whether a camera app exists to take a photo for a message. -->
+    <queries>
+        <intent><action android:name="android.media.action.IMAGE_CAPTURE" /></intent>
+    </queries>
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
@@ -35,6 +39,14 @@
                 <data android:scheme="koremind" android:host="sso" />
             </intent-filter>
         </activity>
+        <!-- Hands the camera a place to write a photo (cache/camera/) without any storage or camera permission. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
+        </provider>
         <!-- Receives the result of installing an update; only the system's PackageInstaller sends to it (via a PendingIntent). -->
         <receiver android:name=".data.UpdateInstallReceiver" android:exported="false" />
     </application>

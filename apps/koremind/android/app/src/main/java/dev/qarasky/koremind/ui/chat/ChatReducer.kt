@@ -99,8 +99,9 @@ fun dismissApproval(s: ChatUiState, id: String): ChatUiState {
     return s.copy(draft = d.copy(approvals = d.approvals.filterNot { it.id == id }))
 }
 
-fun canSend(text: String, pendingCount: Int, busy: Boolean, hasModel: Boolean): Boolean =
-    hasModel && !busy && (text.isNotBlank() || pendingCount > 0)
+/** [fileCount] counts files that finished uploading; a send waits while any is still [uploading], and a failed one is left out. */
+fun canSend(text: String, fileCount: Int, uploading: Int, busy: Boolean, hasModel: Boolean): Boolean =
+    hasModel && !busy && uploading == 0 && (text.isNotBlank() || fileCount > 0)
 
 /** The reply is over (or failed). The stream may stay open a moment longer for the chat title. */
 fun endsTurn(ev: StreamEvent): Boolean = ev is StreamEvent.Done || (ev is StreamEvent.Error && ev.code != "network")

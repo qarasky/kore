@@ -31,7 +31,13 @@
     <string name="send">Send</string>
     <string name="stop">Stop</string>
     <string name="attach">Attach photo or file</string>
-    <string name="attach_photo">Photo</string>
+    <string name="attach_photo">Photo library</string>
+    <string name="take_photo">Take photo</string>
+    <string name="uploading">Uploading</string>
+    <string name="upload_failed">Upload failed</string>
+    <string name="retry">Retry</string>
+    <string name="remove_file">Remove %1$s</string>
+    <string name="no_camera">No camera app found</string>
     <string name="attach_file">File</string>
     <string name="new_chat">New chat</string>
     <string name="no_chats">No chats yet</string>
