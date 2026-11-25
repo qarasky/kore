@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
@@ -11,7 +12,10 @@ const nextConfig = read("../next.config.ts");
 describe("theme", () => {
     it("takes every token from kore-ui", () => {
         expect(css).toContain('@import "@qarasky/kore-ui/theme.css";');
-        expect(css).toContain('@source "../node_modules/@qarasky/kore-ui/src";');
+        // kore-ui's theme.css carries its own @source, so the app adds none for it.
+        expect(css).not.toMatch(/@source[^;]*kore-ui/);
+        const theme = readFileSync(createRequire(import.meta.url).resolve("@qarasky/kore-ui/theme.css"), "utf8");
+        expect(theme).toContain('@source "./src";');
         expect(nextConfig).toContain('"@qarasky/kore-ui"');
     });
 
