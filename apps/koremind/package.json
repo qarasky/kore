@@ -7,5 +7,5 @@
     "build:web": "bun run --cwd web build",
     "start": "bun run scripts/dev.ts"
   },
-  "version": "0.3.0"
+  "version": "0.3.1"
 }

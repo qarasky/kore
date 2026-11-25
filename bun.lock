@@ -134,11 +134,11 @@
     },
     "apps/koremind": {
       "name": "koremind",
-      "version": "0.3.0",
+      "version": "0.3.1",
     },
     "apps/koremind/backend": {
       "name": "@koremind/backend",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "dependencies": {
         "@koremind/shared": "workspace:*",
         "jose": "^6.2.15",
@@ -151,14 +151,14 @@
     },
     "apps/koremind/shared": {
       "name": "@koremind/shared",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "dependencies": {
         "zod": "^4.0.0",
       },
     },
     "apps/koremind/web": {
       "name": "@koremind/web",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "dependencies": {
         "@koremind/shared": "workspace:*",
         "@qarasky/kore-ui": "workspace:*",
