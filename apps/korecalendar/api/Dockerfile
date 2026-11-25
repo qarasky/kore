@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 FROM gcr.io/distroless/static-debian13:nonroot
 # Links the package to the repository on ghcr.io (the release workflow adds the
 # version, revision and the rest of the OCI labels).
-LABEL org.opencontainers.image.source="https://github.com/qarasky/korecalendar" \
+LABEL org.opencontainers.image.source="https://github.com/qarasky/kore" \
       org.opencontainers.image.title="korecalendar-api"
 COPY --from=build /out/korecalendar /usr/local/bin/korecalendar
 # docker-compose.yml overrides the user with KORECAL_UID:KORECAL_GID so files in

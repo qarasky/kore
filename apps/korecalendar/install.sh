@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # KoreCalendar installer: sets up KoreCalendar with Docker Compose in one go.
 #
-#   curl -fsSL https://raw.githubusercontent.com/qarasky/korecalendar/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/qarasky/kore/main/apps/korecalendar/install.sh | bash
 #
 # It asks a few questions (or takes the defaults), writes .env, creates and
 # initializes the data directory, pulls the images and starts the calendar. The
@@ -32,19 +32,21 @@
 #   KORECAL_OIDC_OWNER_EMAIL=you@example.com      who becomes the first administrator
 #   KORECAL_VERSION=0.1.0          image tag to install: a release number, latest or edge
 #                                  (default: the newest release)
-#   KORECAL_REF=v0.1.0             git ref (branch or tag) the compose files come from
+#   KORECAL_REF=korecalendar-v0.1.0  git ref (branch or tag) the compose files come from
 #                                  (default: the tag of KORECAL_VERSION, or main)
 #   KORECAL_REPO_URL=<git url>     where to clone the source from when the images
 #                                  cannot be pulled (default: the GitHub repository)
-#   KORECAL_SOURCE_DIR=<checkout>  install from a local checkout: copies the
+#   KORECAL_SOURCE_DIR=<checkout>  install from a local Kore monorepo checkout: copies the
 #                                  compose files and builds the images from it
 #                                  instead of pulling them
 #   KORECAL_YES=1                  never prompt
 set -euo pipefail
 
-REPO="qarasky/korecalendar"
+REPO="qarasky/kore"
+# KoreCalendar's directory in the Kore monorepo.
+APP_PATH="apps/korecalendar"
 REF="${KORECAL_REF:-main}"
-RAW="https://raw.githubusercontent.com/${REPO}/${REF}"
+RAW="https://raw.githubusercontent.com/${REPO}/${REF}/${APP_PATH}"
 REPO_URL="${KORECAL_REPO_URL:-https://github.com/${REPO}.git}"
 SOURCE_INSTALL=0
 IN_PLACE=0
@@ -55,11 +57,13 @@ step() { printf '%s==>%s %s\n' "$B" "$N" "$*"; }
 warn() { printf '%swarning:%s %s\n' "$Y" "$N" "$*" >&2; }
 die()  { printf '%serror:%s %s\n' "$R" "$N" "$*" >&2; exit 1; }
 
-# Run from inside a checkout of the repository: build from it (see above).
+# Run from inside a checkout of the Kore monorepo: build from it (see above).
+# KORECAL_SOURCE_DIR is the monorepo root; this script lives in its $APP_PATH.
 if [ -z "${KORECAL_SOURCE_DIR:-}" ] && [ -f "${BASH_SOURCE[0]:-}" ]; then
   HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  if [ -f "$HERE/docker-compose.yml" ] && [ -f "$HERE/api/Dockerfile" ] && [ -f "$HERE/web/Dockerfile" ]; then
-    KORECAL_SOURCE_DIR="$HERE"
+  if [ -f "$HERE/docker-compose.yml" ] && [ -f "$HERE/api/Dockerfile" ] && [ -f "$HERE/web/Dockerfile" ] &&
+     [ -f "$HERE/../../package.json" ] && [ "$(cd "$HERE/../.." && pwd)/$APP_PATH" = "$HERE" ]; then
+    KORECAL_SOURCE_DIR="$(cd "$HERE/../.." && pwd)"
   fi
 fi
 
@@ -88,7 +92,7 @@ confirm() { # confirm "Question" -> 0 for yes (default yes); no when not interac
 
 fetch() { # fetch FILE DEST
   if [ -n "${KORECAL_SOURCE_DIR:-}" ]; then
-    cp "${KORECAL_SOURCE_DIR}/$1" "$2"
+    cp "${KORECAL_SOURCE_DIR}/${APP_PATH}/$1" "$2"
   elif command -v curl >/dev/null 2>&1; then
     curl -fsSL "${RAW}/$1" -o "$2"
   elif command -v wget >/dev/null 2>&1; then
@@ -107,7 +111,8 @@ docker info >/dev/null 2>&1 || die "Cannot talk to the Docker daemon. Is it runn
 # --- Already installed? ---------------------------------------------------
 # Run from a checkout, the installation lives in that checkout by default (so a later
 # `git pull` brings the new compose files); otherwise in ~/korecalendar.
-KORECAL_DIR="${KORECAL_DIR:-${KORECAL_SOURCE_DIR:-$HOME/korecalendar}}"
+KORECAL_DIR="${KORECAL_DIR:-${KORECAL_SOURCE_DIR:+$KORECAL_SOURCE_DIR/$APP_PATH}}"
+KORECAL_DIR="${KORECAL_DIR:-$HOME/korecalendar}"
 KORECAL_DIR="${KORECAL_DIR/#\~/$HOME}"
 if [ -f "$KORECAL_DIR/.env" ]; then
   say "KoreCalendar is already installed in $KORECAL_DIR (found .env); leaving it alone."
@@ -173,27 +178,37 @@ fi
 # --- Which release --------------------------------------------------------
 # The compose files and the images must belong together: unless told otherwise, install
 # the newest release, with the files of its tag.
-latest_release() { # prints the newest release tag (v1.2.3), or nothing
-  local body=""
+latest_release() { # prints the newest KoreCalendar release tag (korecalendar-v1.2.3), or nothing
+  # The monorepo's releases belong to every Kore app: take the newest korecalendar-vX.Y.Z (a tag
+  # with a suffix such as -rc.1 is a pre-release). GitHub lists the newest first.
+  local body="" url="https://api.github.com/repos/${REPO}/releases?per_page=100"
   if command -v curl >/dev/null 2>&1; then
-    body="$(curl -fsSL --max-time 15 "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null || true)"
+    body="$(curl -fsSL --max-time 15 "$url" 2>/dev/null || true)"
   elif command -v wget >/dev/null 2>&1; then
-    body="$(wget -q -T 15 -O - "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null || true)"
+    body="$(wget -q -T 15 -O - "$url" 2>/dev/null || true)"
   fi
-  printf '%s' "$body" | sed -n 's/.*"tag_name": *"\(v[^"]*\)".*/\1/p' | head -n1
+  printf '%s' "$body" | grep -oE '"tag_name": *"korecalendar-v[0-9]+\.[0-9]+\.[0-9]+"' | sed 's/.*"\(korecalendar-v[^"]*\)"/\1/' | head -n1 || true
+}
+
+build_images() { # build_images <Kore monorepo checkout>: the images docker-compose.yml names
+  local root="$1" v="${KORECAL_VERSION:-latest}"
+  docker build -t "ghcr.io/qarasky/korecalendar-api:${v}" "$root/${APP_PATH}/api" </dev/null
+  # The web image builds from the monorepo root: it uses packages/kore-ui.
+  docker build --build-arg API_URL=http://api:8080 -f "$root/${APP_PATH}/web/Dockerfile" \
+    -t "ghcr.io/qarasky/korecalendar-web:${v}" "$root" </dev/null
 }
 if [ -z "${KORECAL_SOURCE_DIR:-}" ]; then
   if [ -z "${KORECAL_VERSION:-}" ] && [ -z "${KORECAL_REF:-}" ]; then
     TAG="$(latest_release)"
     if [ -n "$TAG" ]; then
-      KORECAL_VERSION="${TAG#v}"; REF="$TAG"
+      KORECAL_VERSION="${TAG#korecalendar-v}"; REF="$TAG"
     else
       warn "could not look up the newest release; using the tags latest and main instead"
     fi
   elif [ -z "${KORECAL_REF:-}" ]; then
-    case "${KORECAL_VERSION}" in [0-9]*) REF="v${KORECAL_VERSION}" ;; esac
+    case "${KORECAL_VERSION}" in [0-9]*) REF="korecalendar-v${KORECAL_VERSION}" ;; esac
   fi
-  RAW="https://raw.githubusercontent.com/${REPO}/${REF}"
+  RAW="https://raw.githubusercontent.com/${REPO}/${REF}/${APP_PATH}"
   step "Installing KoreCalendar ${KORECAL_VERSION:-latest} (files from ${REF})"
 fi
 
@@ -205,16 +220,13 @@ if ! mkdir -p "$KORECAL_DIR" 2>/dev/null; then
 fi
 # Installing in place (the install directory is the checkout itself): nothing to copy or link.
 IN_PLACE=0
-if [ -n "${KORECAL_SOURCE_DIR:-}" ] && [ "$(cd "$KORECAL_DIR" && pwd -P)" = "$(cd "$KORECAL_SOURCE_DIR" && pwd -P)" ]; then IN_PLACE=1; fi
+if [ -n "${KORECAL_SOURCE_DIR:-}" ]; then
+  [ -d "$KORECAL_SOURCE_DIR/$APP_PATH" ] || die "KORECAL_SOURCE_DIR must be a Kore monorepo checkout (no $APP_PATH in $KORECAL_SOURCE_DIR)"
+  if [ "$(cd "$KORECAL_DIR" && pwd -P)" = "$(cd "$KORECAL_SOURCE_DIR/$APP_PATH" && pwd -P)" ]; then IN_PLACE=1; fi
+fi
 if [ "$IN_PLACE" = 0 ]; then
   fetch docker-compose.yml "$KORECAL_DIR/docker-compose.yml"
   fetch Caddyfile "$KORECAL_DIR/Caddyfile"
-  if [ -n "${KORECAL_SOURCE_DIR:-}" ]; then
-    # A local install builds its images from the checkout.
-    SRC="$(cd "$KORECAL_SOURCE_DIR" && pwd)"
-    ln -sfn "$SRC/api" "$KORECAL_DIR/api"
-    ln -sfn "$SRC/web" "$KORECAL_DIR/web"
-  fi
 fi
 umask 077
 cat >"$KORECAL_DIR/.env" <<EOF2
@@ -238,7 +250,7 @@ cd "$KORECAL_DIR"
 if [ -n "${KORECAL_SOURCE_DIR:-}" ]; then
   SOURCE_INSTALL=1
   step "Building the images from $KORECAL_SOURCE_DIR"
-  docker compose build </dev/null
+  if [ "$IN_PLACE" = 1 ]; then docker compose build </dev/null; else build_images "$KORECAL_SOURCE_DIR"; fi
 else
   step "Pulling the images"
   if ! docker compose pull --quiet </dev/null 2>/dev/null; then
@@ -248,13 +260,11 @@ else
     step "Fetching the source into $SRC"
     git clone --quiet --depth 1 --branch "$REF" "$REPO_URL" "$SRC" </dev/null || die "could not clone $REPO_URL ($REF)"
     # Use the compose files that belong to this source, and build from it.
-    cp "$SRC/docker-compose.yml" "$KORECAL_DIR/docker-compose.yml"
-    cp "$SRC/Caddyfile" "$KORECAL_DIR/Caddyfile"
-    ln -sfn "$SRC/api" "$KORECAL_DIR/api"
-    ln -sfn "$SRC/web" "$KORECAL_DIR/web"
+    cp "$SRC/$APP_PATH/docker-compose.yml" "$KORECAL_DIR/docker-compose.yml"
+    cp "$SRC/$APP_PATH/Caddyfile" "$KORECAL_DIR/Caddyfile"
     SOURCE_INSTALL=1
     step "Building the images (a few minutes the first time)"
-    docker compose build </dev/null
+    build_images "$SRC"
   fi
 fi
 if [ "$HAVE_VOLUME" = 0 ]; then
@@ -311,10 +321,10 @@ if [ "$IN_PLACE" = 1 ]; then
   say "Update later:        back up the database first (docs/deploy.md), then: cd $KORECAL_DIR && git pull && docker compose build --pull && docker compose up -d --wait"
 elif [ "$SOURCE_INSTALL" = 1 ]; then
   UPSRC="${KORECAL_SOURCE_DIR:-$KORECAL_DIR/src}"
-  say "Update later:        back up the database first (docs/deploy.md), then: cd $UPSRC && git pull && cp docker-compose.yml Caddyfile $KORECAL_DIR/ && cd $KORECAL_DIR && docker compose build --pull && docker compose up -d --wait"
+  say "Update later:        back up the database first (docs/deploy.md), then: cd $UPSRC && git pull && cp $APP_PATH/docker-compose.yml $APP_PATH/Caddyfile $KORECAL_DIR/, rebuild the two images as build_images in $APP_PATH/install.sh does, then: cd $KORECAL_DIR && docker compose up -d --wait"
 else
   say "Update later:        see docs/deploy.md (Updating): back up the database, then set KORECAL_VERSION in .env to the new release, replace the compose files with that tag's, and: docker compose pull && docker compose up -d --wait"
 fi
 say "AI agents and scripts: create an access token under Settings, then see the API guide:"
-say "  https://github.com/${REPO}/blob/main/docs/api.md"
+say "  https://github.com/${REPO}/blob/main/${APP_PATH}/docs/api.md"
 say "Browser notifications need HTTPS (Cloudflare Tunnel or Tailscale HTTPS in front of the published port)."

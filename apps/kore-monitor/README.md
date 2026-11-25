@@ -81,8 +81,8 @@ Requires `cargo`, `go` and Node (Node runs the web app; the backend and the
 agents do not use it).
 
 ```bash
-git clone https://github.com/qarasky/kore-monitor.git
-cd kore-monitor
+git clone https://github.com/qarasky/kore.git
+cd kore/apps/kore-monitor
 ./dev.sh
 ```
 
@@ -98,8 +98,8 @@ Without it the backend and web app still start and the mock fleet is skipped.
 ### Docker
 
 ```bash
-git clone https://github.com/qarasky/kore-monitor.git
-cd kore-monitor
+git clone https://github.com/qarasky/kore.git
+cd kore/apps/kore-monitor
 docker compose up -d --build
 ```
 

@@ -14,7 +14,7 @@
 - **Credential kind**: `{{TOKEN_KIND}}` (prefix `{{TOKEN_PREFIX}}`)
 - **Host push monitor**: {{MONITOR_ID}} (`{{MONITOR_NAME}}`)
 - **Available host-agent version**: {{AGENT_VERSION}}
-- **Source repository**: https://github.com/qarasky/kore-monitor
+- **Source repository**: https://github.com/qarasky/kore/tree/main/apps/kore-monitor
 
 The credential in this link is an operator token or a push-agent token. KoreMonitor has three families:
 
@@ -322,7 +322,7 @@ project on the server that owns data (a Postgres database, an S3/MinIO/Garage
 bucket) gets **one named backup agent**: `flatline-backup` is a separate
 program from `superboard`, uses its own `kmon_agent_backup_` token and uploads
 daily bundles to KoreMonitor. Full reference:
-[backup agent](https://github.com/qarasky/kore-monitor/blob/master/docs/backup-agent.md).
+[backup agent](https://github.com/qarasky/kore/blob/main/apps/kore-monitor/docs/backup-agent.md).
 It needs the operator token from §3.
 
 ### Decide what to back up

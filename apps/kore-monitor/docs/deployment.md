@@ -90,8 +90,8 @@ Copy `.env.example` to `.env` and fill it in before the first start:
 Published images are the normal path:
 
 ```bash
-git clone https://github.com/qarasky/kore-monitor.git
-cd kore-monitor
+git clone https://github.com/qarasky/kore.git
+cd kore/apps/kore-monitor
 cp .env.example .env
 $EDITOR .env
 docker compose pull
@@ -120,13 +120,13 @@ install needs one before it can add hosts.
 
 ## Published images (GHCR)
 
-`.github/workflows/images.yml` builds the backend, web and Caddy images for
+`.github/workflows/kore-monitor-images.yml` (at the monorepo root) builds the backend, web and Caddy images for
 `linux/amd64` and `linux/arm64` after `ci.yml` passes, and publishes
 `ghcr.io/<owner>/kore-monitor-{backend,web,caddy}`:
 
-- `:edge` and `:sha-<short>` on every push to `master`;
-- `:X.Y.Z`, `:X.Y`, `:X` and `:latest` for a `vX.Y.Z` tag (`:latest` is skipped
-  for a pre-release tag, and `:X` for a `v0.y.z` one).
+- `:edge` and `:sha-<short>` on every push to `main`;
+- `:X.Y.Z`, `:X.Y`, `:X` and `:latest` for a `kore-monitor-vX.Y.Z` tag (`:latest` is skipped
+  for a pre-release tag, and `:X` for a `kore-monitor-v0.y.z` one).
 
 A tag also creates the GitHub release. `KOREMONITOR_VERSION` chooses the tag and
 `KOREMONITOR_IMAGE_PREFIX` the repository, so pinning production is a one-line

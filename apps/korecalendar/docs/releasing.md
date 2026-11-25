@@ -8,7 +8,7 @@ The API and the web app are released together, as one version:
 
 | What | Where | Example |
 | --- | --- | --- |
-| git tag | the repository | `v0.2.0` |
+| git tag | the repository | `korecalendar-v0.2.0` |
 | API image | `ghcr.io/qarasky/korecalendar-api` | `0.2.0`, `0.2`, `latest` |
 | web image | `ghcr.io/qarasky/korecalendar-web` | `0.2.0`, `0.2`, `latest` |
 | the binary | `korecalendar version` and the startup log | `korecalendar 0.2.0 (3f9c1ab)` |
@@ -23,19 +23,19 @@ The REST contract has its own number, `info.version` in [openapi.yaml](openapi.y
 
 | Event | Tags pushed (api and web, identical) |
 | --- | --- |
-| tag `v1.2.3` | `1.2.3`, `1.2`, `1`, `latest` |
-| tag `v0.2.0` | `0.2.0`, `0.2`, `latest` (no `0`: a `0.x` minor may break) |
-| tag `v1.0.0-rc.1` | `1.0.0-rc.1` only (a pre-release is never `latest`) |
+| tag `korecalendar-v1.2.3` | `1.2.3`, `1.2`, `1`, `latest` |
+| tag `korecalendar-v0.2.0` | `0.2.0`, `0.2`, `latest` (no `0`: a `0.x` minor may break) |
+| tag `korecalendar-v1.0.0-rc.1` | `1.0.0-rc.1` only (a pre-release is never `latest`) |
 | push to `main` | `edge`, `sha-<7 chars>` |
 
 Pin `KORECAL_VERSION` in `.env` to an exact release for a server you care about. `latest` follows the newest stable release, `edge` follows `main` and is for trying things. Every image is `linux/amd64` and `linux/arm64`, and carries a signed build provenance attestation (`gh attestation verify oci://ghcr.io/qarasky/korecalendar-api:0.2.0 --owner qarasky`).
 
 ## Cutting a release
 
-1. Be on an up-to-date, clean `main` whose last [CI run](../.github/workflows/ci.yml) is green.
-2. `scripts/release.sh 0.2.0` bumps `web/package.json`, commits `release: v0.2.0` and creates the annotated tag `v0.2.0`. It refuses a dirty tree, a branch other than `main`, a `main` that differs from `origin/main`, a malformed version or an existing tag.
-3. `git push origin main v0.2.0`.
-4. The `images` workflow ([images.yml](../.github/workflows/images.yml)) then runs, and stops at the first failure:
+1. Be on an up-to-date, clean `main` whose last [CI run](../.github/workflows/korecalendar-ci.yml) is green.
+2. `scripts/release.sh 0.2.0` bumps `web/package.json`, commits `release: v0.2.0` and creates the annotated tag `korecalendar-v0.2.0`. It refuses a dirty tree, a branch other than `main`, a `main` that differs from `origin/main`, a malformed version or an existing tag.
+3. `git push origin main korecalendar-v0.2.0`.
+4. The `images` workflow ([images.yml](../.github/workflows/korecalendar-images.yml)) then runs, and stops at the first failure:
    1. the whole test suite (Go, web unit, Playwright);
    2. four builds, each on a native runner (api and web, amd64 and arm64);
    3. one multi-arch tag per image, plus the provenance attestation;
@@ -56,27 +56,27 @@ The Android app is released from the same repository with its own tags, so the s
 
 | What | Where | Example |
 | --- | --- | --- |
-| git tag | the repository | `android-v0.2.0`, `android-v1.0.0-rc.1` |
+| git tag | the repository | `korecalendar-android-v0.2.0`, `korecalendar-android-v1.0.0-rc.1` |
 | version | `android/version.properties`, written by `scripts/release-android.sh` | `versionName=0.2.0`, `versionCode=20099` |
-| release | GitHub Releases, tag `android-v…` | `KoreCalendar for Android 0.2.0` |
+| release | GitHub Releases, tag `korecalendar-android-v…` | `KoreCalendar for Android 0.2.0` |
 | files | on the release | `korecalendar-0.2.0.apk`, `korecalendar-0.2.0.apk.sha256` |
 
-Server tags (`vX.Y.Z`) do not trigger the Android workflow and Android tags do not trigger the server's `images` workflow. The app is not tied to a server version: it talks to the public REST API, whose
+Server tags (`korecalendar-vX.Y.Z`) do not trigger the Android workflow and Android tags do not trigger the server's `images` workflow. The app is not tied to a server version: it talks to the public REST API, whose
 contract is versioned separately (above).
 
 ### `versionCode`
 
 Android only installs an update whose `versionCode` is higher, so it is derived from the version and only ever increases: `major*1000000 + minor*10000 + patch*100 + slot`, where `slot` is `99` for a
 final release and `N` for `-rc.N`. So `0.1.0` is `10099`, `1.0.0-rc.1` is `1000001` and `1.0.0` is `1000099`: a release candidate sorts below its final release. (Limits: major below 2000, minor and patch below 100,
-rc 1 to 98.) `bash scripts/test-android-version.sh` checks the scheme.
+rc 1 to 98.) `bash scripts/test-korecalendar-android-version.sh` checks the scheme.
 
 ### Cutting an Android release
 
-1. Be on an up-to-date, clean `main`. [android-ci](../.github/workflows/android-ci.yml) runs on pull requests (lint, JVM and contract tests, and the emulator UI flows) and again on the tag before anything is signed (without the emulator job); the PR that went in must have been green.
-2. `scripts/release-android.sh 0.2.0` writes `android/version.properties`, commits `android release: v0.2.0` and creates the annotated tag `android-v0.2.0`. It refuses a dirty tree, a branch other than `main`,
+1. Be on an up-to-date, clean `main`. [android-ci](../.github/workflows/korecalendar-android-ci.yml) runs on pull requests (lint, JVM and contract tests, and the emulator UI flows) and again on the tag before anything is signed (without the emulator job); the PR that went in must have been green.
+2. `scripts/release-android.sh 0.2.0` writes `android/version.properties`, commits `release: korecalendar android v0.2.0` and creates the annotated tag `korecalendar-android-v0.2.0`. It refuses a dirty tree, a branch other than `main`,
    a `main` that differs from `origin/main`, a malformed version or an existing tag.
-3. `git push origin main android-v0.2.0`.
-4. [android-release.yml](../.github/workflows/android-release.yml) then runs and stops at the first failure: it checks that the tag matches `version.properties` and is on `main`; runs the checks (version-code
+3. `git push origin main korecalendar-android-v0.2.0`.
+4. [android-release.yml](../.github/workflows/korecalendar-android-release.yml) then runs and stops at the first failure: it checks that the tag matches `version.properties` and is on `main`; runs the checks (version-code
    tests, Android lint, unit and contract tests, debug build); decodes the keystore from the repository secrets; builds the **release APK signed with the release key**; runs `apksigner verify`; compares the
    certificate's SHA-256 with [android/signing-fingerprint.txt](../android/signing-fingerprint.txt) (an APK signed by any other key fails the release); writes the checksum; and creates the GitHub release
    (a pre-release when the version has `-rc.N`) with the APK and checksum attached. There is no unsigned fallback.

@@ -44,7 +44,7 @@ so the files in the data directory belong to that user.
 ## Install (recommended)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/qarasky/korecalendar/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/qarasky/kore/main/apps/korecalendar/install.sh | bash
 ```
 
 This installs the **newest release**: it looks it up, downloads the compose files of that release and pulls the matching images, pinned to that exact version
@@ -86,9 +86,9 @@ not exist), it clones the repository into `<install dir>/src` and builds them th
 The same thing without the script; useful to understand it or to put the files where you want them.
 
 ```sh
-V=0.1.0                                                  # a release: https://github.com/qarasky/korecalendar/releases
+V=0.1.0                                                  # a release: https://github.com/qarasky/kore/releases
 sudo mkdir -p /opt/korecalendar && sudo chown "$(id -u):$(id -g)" /opt/korecalendar && cd /opt/korecalendar
-curl -fsSLO "https://raw.githubusercontent.com/qarasky/korecalendar/v$V/{docker-compose.yml,Caddyfile,.env.example}"
+curl -fsSLO "https://raw.githubusercontent.com/qarasky/kore/korecalendar-v$V/apps/korecalendar/{docker-compose.yml,Caddyfile,.env.example}"
 
 # 1. The data directory, owned by the user the API will run as.
 sudo mkdir -p /srv/korecalendar && sudo chown "$(id -u):$(id -g)" /srv/korecalendar
@@ -113,7 +113,7 @@ To run your own changes or a branch, build the images instead of pulling them. F
 the data directory defaults to `<clone>-data`, outside it):
 
 ```sh
-git clone https://github.com/qarasky/korecalendar.git && cd korecalendar
+git clone https://github.com/qarasky/kore.git && cd kore/apps/korecalendar
 ./install.sh                       # builds the images from this checkout; a few minutes the first time
 ```
 
@@ -148,7 +148,7 @@ compose sets those for you and you do not touch them.
 
 ## Sign in with Kore ID
 
-KoreCalendar signs in with [Kore ID](https://github.com/qarasky/kore-id), the shared OpenID Connect sign-in of the Kore apps.
+KoreCalendar signs in with [Kore ID](https://github.com/qarasky/kore/tree/main/apps/kore-id), the shared OpenID Connect sign-in of the Kore apps.
 It is the **only** way in: there is no email + password login, no first-run form, and no password reset. Without `KORECAL_OIDC_ISSUER`
 the apps start but show "No sign-in method is configured" instead of a password form.
 
@@ -315,12 +315,12 @@ sudo systemctl daemon-reload
 ## Updating
 
 Run these in the installation directory. **Take a backup first** ([below](#backups)): migrations are applied automatically when the API starts and only go forward.
-Read the [release notes](https://github.com/qarasky/korecalendar/releases) first; while the version is `0.x`, a minor release may change things.
+Read the [release notes](https://github.com/qarasky/kore/releases) first; while the version is `0.x`, a minor release may change things.
 
 ```sh
 V=0.2.0                                                  # the release you are moving to
 for f in docker-compose.yml Caddyfile; do                # the compose files that belong to it
-  curl -fsSL "https://raw.githubusercontent.com/qarasky/korecalendar/v$V/$f" -o "$f.new" && mv "$f.new" "$f"
+  curl -fsSL "https://raw.githubusercontent.com/qarasky/kore/korecalendar-v$V/apps/korecalendar/$f" -o "$f.new" && mv "$f.new" "$f"
 done
 sed -i "s/^KORECAL_VERSION=.*/KORECAL_VERSION=$V/" .env  # on macOS: sed -i ''
 docker compose pull                                      # the new images, and a newer Caddy of the pinned minor version

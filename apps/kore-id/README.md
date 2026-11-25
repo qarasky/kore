@@ -156,7 +156,7 @@ gets the SPA's "You don't have access to <App>" screen from `/authorize` itself 
 `GET /logout` without a valid hint serves the SPA's confirm screen, whose form posts to `POST /logout` (CSRF and
 the redirect are checked there). Without a built UI both fall back to minimal server HTML.
 
-The UI is built only from [kore-ui](https://github.com/qarasky/kore-ui). Screenshots: `docs/screenshots/`
+The UI is built only from [kore-ui](https://github.com/qarasky/kore/tree/main/packages/kore-ui). Screenshots: `docs/screenshots/`
 (regenerate with `web/scripts/walkthrough.mjs` against a fresh server; see its header).
 
 The SPA talks to `/api/*` (same-origin, `kore_sid` cookie). Every non-GET needs header `X-CSRF-Token` equal to the

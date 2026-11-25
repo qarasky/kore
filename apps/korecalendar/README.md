@@ -4,7 +4,7 @@
 
 A small self-hosted personal calendar whose **API is the product**. An AI agent or a script can do everything the UI can: create
 and manage events, recurring series with single exclusions and single-occurrence changes, reminders, and `.ics` import and export.
-Go API + SQLite and a Next.js web app behind Caddy, in the same shape as [Kore](https://github.com/qarasky/kore). The web app
+Go API + SQLite and a Next.js web app behind Caddy, in the same shape as [Kore Drive](https://github.com/qarasky/kore/tree/main/apps/kore-drive). The web app
 (and the Android app) uses exactly the same public API.
 
 Status: **phase 1 (API and core), phase 2 (web app) and CalDAV are done;** the **Android app** is in progress (agenda, day/week/month views, search, home-screen widget, editing and reminders; see [docs/android.md](docs/android.md)). See [`docs/`](docs/README.md) for everything below in detail.
@@ -31,12 +31,12 @@ Status: **phase 1 (API and core), phase 2 (web app) and CalDAV are done;** the *
 
 ## Install
 
-You need a Linux host (or any machine) with Docker and the Compose plugin, and a **Kore ID** provider ([kore-id](https://github.com/qarasky/kore-id)).
+You need a Linux host (or any machine) with Docker and the Compose plugin, and a **Kore ID** provider ([kore-id](https://github.com/qarasky/kore/tree/main/apps/kore-id)).
 Run the installer, configure Kore ID in `.env` (`KORECAL_OIDC_ISSUER`, `KORECAL_OIDC_CLIENT_SECRET`, `KORECAL_OIDC_OWNER_EMAIL`), open the address it prints and
 **continue with Kore ID** (the first sign-in with the owner email becomes the administrator):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/qarasky/korecalendar/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/qarasky/kore/main/apps/korecalendar/install.sh | bash
 ```
 
 It installs the newest release: it asks where to put things and which address and port to listen on (default `127.0.0.1:8080`), pulls the matching images

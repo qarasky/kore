@@ -40,11 +40,12 @@ fun compareVersions(a: String, b: String): Int {
     return 0
 }
 
-private const val PREFIX = "android-v"
+// Releases live in the Kore monorepo, beside the other apps' releases: korecalendar-android-v1.2.3.
+private const val PREFIX = "korecalendar-android-v"
 
 /**
- * From GitHub's list of releases: the newest `android-v*` release that is newer than [installed]. A pre-release is only offered to
- * someone running a pre-release; drafts, server releases and anything unreadable are ignored.
+ * From GitHub's list of releases: the newest `korecalendar-android-v*` release that is newer than [installed]. A pre-release is only offered to
+ * someone running a pre-release; drafts, server releases, other Kore apps' releases and anything unreadable are ignored.
  */
 fun newestAndroidRelease(json: String, installed: String): UpdateInfo? {
     val list = try { Json.parseToJsonElement(json) as? JsonArray } catch (_: Exception) { null } ?: return null
@@ -109,7 +110,8 @@ class UpdateChecker(private val fetch: suspend () -> String, private val kv: Key
     }
 }
 
-private const val RELEASES_URL = "https://api.github.com/repos/qarasky/korecalendar/releases?per_page=30"
+// 100: the monorepo's list also holds every other Kore app's releases.
+internal const val RELEASES_URL = "https://api.github.com/repos/qarasky/kore/releases?per_page=100"
 
 /** GitHub's release list for this repository: the app's only request to a host other than the owner's server, with no identifier. */
 suspend fun fetchReleases(): String = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {

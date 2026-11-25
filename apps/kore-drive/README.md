@@ -58,7 +58,7 @@ config, creates and initializes the data directory, pulls the images and
 starts KoreDrive:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/qarasky/kore/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/qarasky/kore/main/apps/kore-drive/install.sh | bash
 ```
 
 Read the script first if you like; it is short. It needs Docker and the
@@ -78,9 +78,9 @@ The same steps by hand, from the images on ghcr.io:
 
 ```sh
 mkdir kore && cd kore
-curl -fsSLO https://raw.githubusercontent.com/qarasky/kore/main/docker-compose.yml
-curl -fsSLO https://raw.githubusercontent.com/qarasky/kore/main/Caddyfile
-curl -fsSL  https://raw.githubusercontent.com/qarasky/kore/main/.env.example -o .env
+curl -fsSLO https://raw.githubusercontent.com/qarasky/kore/main/apps/kore-drive/docker-compose.yml
+curl -fsSLO https://raw.githubusercontent.com/qarasky/kore/main/apps/kore-drive/Caddyfile
+curl -fsSL  https://raw.githubusercontent.com/qarasky/kore/main/apps/kore-drive/.env.example -o .env
 # edit .env, create the data dir (below), then:
 docker compose run --rm api kore init
 docker compose up -d
@@ -354,16 +354,16 @@ again; the legacy column stays so old databases keep working.
 
 ## Releases and images
 
-Every push to `main` and every `v*.*.*` tag runs `.github/workflows/images.yml`:
+Every push to `main` and every `kore-drive-v*.*.*` tag runs `.github/workflows/kore-drive-images.yml` (at the monorepo root):
 the CI jobs, then native amd64 and arm64 builds of `api/` and `web/`, one
 multi-arch tag per image with a build provenance attestation, a smoke test
 (`scripts/smoke.sh`) of the published images, and for tags a GitHub release.
 
 | Event | Tags pushed (`ghcr.io/qarasky/kore-api` and `kore-web`) |
 | --- | --- |
-| tag `v1.2.3` | `1.2.3`, `1.2`, `1`, `latest` |
-| tag `v0.2.0` | `0.2.0`, `0.2`, `latest` |
-| tag `v1.0.0-rc.1` | `1.0.0-rc.1` only |
+| tag `kore-drive-v1.2.3` | `1.2.3`, `1.2`, `1`, `latest` |
+| tag `kore-drive-v0.2.0` | `0.2.0`, `0.2`, `latest` |
+| tag `kore-drive-v1.0.0-rc.1` | `1.0.0-rc.1` only |
 | push to `main` | `edge`, `sha-<7 chars>` |
 
 `kore version` prints the release the binary was built from. Pull requests

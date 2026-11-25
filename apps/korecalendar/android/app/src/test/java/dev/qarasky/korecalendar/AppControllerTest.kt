@@ -383,7 +383,7 @@ class AppControllerTest {
     @Test fun anAvailableUpdateIsShownUntilTheSwitchIsOff() = runTest {
         val kv2 = MapKeyValue()
         val checker = dev.qarasky.korecalendar.update.UpdateChecker(
-            { """[{"tag_name":"android-v0.9.0","html_url":"https://example.test/r","prerelease":false,"draft":false}]""" }, kv2,
+            { """[{"tag_name":"korecalendar-android-v0.9.0","html_url":"https://example.test/r","prerelease":false,"draft":false}]""" }, kv2,
         ) { now }
         val c = AppController(accounts, prefs, store, repo, signIn, { _, _ -> api }, background, TestMessages, checker, "0.1.0") { now }
         serverWith("u1", occ("gym"))

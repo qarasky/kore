@@ -13,7 +13,7 @@ npm run e2e                 # Playwright against the real Go API; see below
 - `lib/` is pure logic with unit tests (dates and time zones, layout, recurrence editing, drag geometry, shortcuts).
 - `components/` are the pieces; every string comes from `lib/i18n/en.ts` through `t()`.
 - Server Components fetch with `lib/api.ts` (forwarding the session cookie); mutations are made in the browser and followed by `router.refresh()`.
-- The UI is built on [kore-ui](https://github.com/qarasky/kore-ui) (`@qarasky/kore-ui`, pinned to a release tag in `package.json`): tokens and
+- The UI is built on [kore-ui](https://github.com/qarasky/kore/tree/main/packages/kore-ui) (`@qarasky/kore-ui`, pinned to a release tag in `package.json`): tokens and
   base styles come from its `theme.css` (`app/globals.css` keeps only the time grid's `--hour`/`--gutter`), and the shell (AppShell, TopBar,
   Sidebar, SettingsLayout), AccountMenu, AppSwitcher, AuthScreen and every primitive (Button, Field, Input, Select, Combobox, Dialog,
   ConfirmDialog, Menu, Popover, Toast, CopyButton, EmptyState…) are kore-ui's. Its `DESIGN.md` is the design source of truth; don't add local

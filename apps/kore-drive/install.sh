@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # KoreDrive installer: sets up KoreDrive with Docker Compose in one go.
 #
-#   curl -fsSL https://raw.githubusercontent.com/qarasky/kore/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/qarasky/kore/main/apps/kore-drive/install.sh | bash
 #
 # It asks a few questions (or takes the defaults), writes .env, creates and
 # initializes the data directory, pulls the images and starts KoreDrive. Safe to
@@ -18,13 +18,15 @@
 #   KORE_BIND=127.0.0.1|0.0.0.0   KORE_PORT=8080
 #   KORE_VERSION=latest        image tag
 #   KORE_REF=main              git ref the compose files are fetched from
-#   KORE_SOURCE_DIR=<checkout> copy the compose files from here instead
+#   KORE_SOURCE_DIR=<checkout> copy the compose files from this Kore monorepo checkout instead
 #   KORE_YES=1                 never prompt
 set -euo pipefail
 
 REPO="qarasky/kore"
+# Kore Drive's directory in the Kore monorepo.
+APP_PATH="apps/kore-drive"
 REF="${KORE_REF:-main}"
-RAW="https://raw.githubusercontent.com/${REPO}/${REF}"
+RAW="https://raw.githubusercontent.com/${REPO}/${REF}/${APP_PATH}"
 
 if [ -t 1 ]; then B=$'\033[1m'; G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; N=$'\033[0m'; else B=; G=; Y=; R=; N=; fi
 say()  { printf '%s\n' "$*"; }
@@ -57,7 +59,7 @@ confirm() { # confirm "Question" -> 0 for yes (default yes); no when not interac
 
 fetch() { # fetch FILE DEST
   if [ -n "${KORE_SOURCE_DIR:-}" ]; then
-    cp "${KORE_SOURCE_DIR}/$1" "$2"
+    cp "${KORE_SOURCE_DIR}/${APP_PATH}/$1" "$2"
   elif command -v curl >/dev/null 2>&1; then
     curl -fsSL "${RAW}/$1" -o "$2"
   elif command -v wget >/dev/null 2>&1; then
@@ -208,4 +210,4 @@ say "  Files:     $KORE_DIR   (docker-compose.yml, .env)"
 say "  Data:      $KORE_DATA_DIR"
 say
 say "Update later:        cd $KORE_DIR && docker compose pull && docker compose up -d"
-say "Public HTTPS (Cloudflare Tunnel, etc.): https://github.com/${REPO}#cloudflare-tunnel"
+say "Public HTTPS (Cloudflare Tunnel, etc.): https://github.com/${REPO}/tree/main/${APP_PATH}#cloudflare-tunnel"

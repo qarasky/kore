@@ -1,5 +1,6 @@
 package dev.qarasky.korecalendar
 
+import dev.qarasky.korecalendar.update.RELEASES_URL
 import dev.qarasky.korecalendar.update.UpdateChecker
 import dev.qarasky.korecalendar.update.UpdateInfo
 import dev.qarasky.korecalendar.update.compareVersions
@@ -14,7 +15,7 @@ import org.junit.Test
 
 class UpdateCheckTest {
     private fun rel(tag: String, pre: Boolean = false, draft: Boolean = false) =
-        """{"tag_name":"$tag","html_url":"https://github.com/qarasky/korecalendar/releases/tag/$tag","prerelease":$pre,"draft":$draft}"""
+        """{"tag_name":"$tag","html_url":"https://github.com/qarasky/kore/releases/tag/$tag","prerelease":$pre,"draft":$draft}"""
     private fun list(vararg r: String) = "[" + r.joinToString(",") + "]"
 
     @Test fun versionsCompareAsNumbersAndAReleaseCandidateIsBeforeItsRelease() {
@@ -27,18 +28,27 @@ class UpdateCheckTest {
     }
 
     @Test fun theNewestAndroidReleaseThatIsNewerThanTheInstalledOneIsOffered() {
-        val json = list(rel("v0.9.0"), rel("android-v0.3.0"), rel("android-v0.2.0"), rel("android-v0.4.0-rc.1", pre = true), rel("android-v0.5.0", draft = true))
-        assertEquals(UpdateInfo("0.3.0", "https://github.com/qarasky/korecalendar/releases/tag/android-v0.3.0"), newestAndroidRelease(json, "0.2.0"))
+        val json = list(rel("korecalendar-v0.9.0"), rel("korecalendar-android-v0.3.0"), rel("korecalendar-android-v0.2.0"), rel("korecalendar-android-v0.4.0-rc.1", pre = true), rel("korecalendar-android-v0.5.0", draft = true))
+        assertEquals(UpdateInfo("0.3.0", "https://github.com/qarasky/kore/releases/tag/korecalendar-android-v0.3.0"), newestAndroidRelease(json, "0.2.0"))
+    }
+
+    @Test fun theAppReadsTheKoreMonorepoReleases() {
+        assertEquals("https://api.github.com/repos/qarasky/kore/releases?per_page=100", RELEASES_URL)
+    }
+
+    @Test fun releasesOfOtherKoreAppsAndOfTheServerAreIgnored() {
+        val json = list(rel("kore-drive-v9.9.9"), rel("korecalendar-v9.9.9"), rel("koremind-android-v9.9.9"), rel("korecalendar-android-v0.3.0"))
+        assertEquals("0.3.0", newestAndroidRelease(json, "0.2.0")?.version)
     }
 
     @Test fun nothingIsOfferedWhenTheInstalledVersionIsTheNewest() {
-        assertNull(newestAndroidRelease(list(rel("android-v0.3.0"), rel("android-v0.2.0")), "0.3.0"))
-        assertNull(newestAndroidRelease(list(rel("v1.0.0")), "0.1.0")) // a server release is not an app release
+        assertNull(newestAndroidRelease(list(rel("korecalendar-android-v0.3.0"), rel("korecalendar-android-v0.2.0")), "0.3.0"))
+        assertNull(newestAndroidRelease(list(rel("korecalendar-v1.0.0")), "0.1.0")) // a server release is not an app release
         assertNull(newestAndroidRelease("[]", "0.1.0"))
     }
 
     @Test fun aPreReleaseIsOfferedOnlyToSomeoneRunningOne() {
-        val json = list(rel("android-v0.3.0-rc.1", pre = true), rel("android-v0.2.0"))
+        val json = list(rel("korecalendar-android-v0.3.0-rc.1", pre = true), rel("korecalendar-android-v0.2.0"))
         assertNull(newestAndroidRelease(json, "0.2.0"))
         assertEquals("0.3.0-rc.1", newestAndroidRelease(json, "0.3.0-rc.0")?.version)
     }
@@ -60,7 +70,7 @@ class UpdateCheckTest {
         var calls = 0
         val kv = Memory()
         var now = Instant.parse("2026-11-04T10:00:00Z")
-        val checker = UpdateChecker({ calls++; list(rel("android-v0.3.0")) }, kv) { now }
+        val checker = UpdateChecker({ calls++; list(rel("korecalendar-android-v0.3.0")) }, kv) { now }
         assertEquals("0.3.0", checker.checkIfDue("0.2.0")?.version)
         now = now.plusSeconds(3600)
         assertEquals("0.3.0", checker.checkIfDue("0.2.0")?.version) // remembered, not asked again
@@ -72,7 +82,7 @@ class UpdateCheckTest {
 
     @Test fun anInstalledUpdateClearsTheNotice() = runTest {
         val kv = Memory()
-        val checker = UpdateChecker({ list(rel("android-v0.3.0")) }, kv) { Instant.parse("2026-11-04T10:00:00Z") }
+        val checker = UpdateChecker({ list(rel("korecalendar-android-v0.3.0")) }, kv) { Instant.parse("2026-11-04T10:00:00Z") }
         checker.checkIfDue("0.2.0")
         assertNull(checker.known("0.3.0"))
     }
@@ -81,7 +91,7 @@ class UpdateCheckTest {
         var fail = true
         var calls = 0
         var now = Instant.parse("2026-11-04T10:00:00Z")
-        val checker = UpdateChecker({ calls++; if (fail) throw IOException("down") else list(rel("android-v0.3.0")) }, Memory()) { now }
+        val checker = UpdateChecker({ calls++; if (fail) throw IOException("down") else list(rel("korecalendar-android-v0.3.0")) }, Memory()) { now }
         assertNull(checker.checkIfDue("0.2.0"))
         fail = false
         now = now.plusSeconds(2 * 3600) // two hours later: the failure does not wait a whole day
@@ -93,7 +103,7 @@ class UpdateCheckTest {
         var calls = 0
         val kv = Memory()
         kv.put("update.last", "2026-12-01T10:00:00Z") // the clock was wrong when it was written
-        val checker = UpdateChecker({ calls++; list(rel("android-v0.3.0")) }, kv) { Instant.parse("2026-11-04T10:00:00Z") }
+        val checker = UpdateChecker({ calls++; list(rel("korecalendar-android-v0.3.0")) }, kv) { Instant.parse("2026-11-04T10:00:00Z") }
         assertEquals("0.3.0", checker.checkIfDue("0.2.0")?.version)
         assertEquals(1, calls)
     }

@@ -55,7 +55,7 @@ func unitFile(binaryPath, configPath string) string {
 func renderUnit(execStart string) string {
 	return fmt.Sprintf(`[Unit]
 Description=KoreMonitor Superboard agent
-Documentation=https://github.com/qarasky/kore-monitor
+Documentation=https://github.com/qarasky/kore/tree/main/apps/kore-monitor
 After=network-online.target docker.service
 Wants=network-online.target
 

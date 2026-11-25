@@ -6,8 +6,8 @@
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/qarasky/flatline.git",
-        "directory": "."
+        "url": "https://github.com/qarasky/kore.git",
+        "directory": "apps/kore-monitor"
     },
     "//": "Node is a build/test tool here and the web app's runtime (apps/web, its own image); the backend is Rust and the agents are Go.",
     "scripts": {

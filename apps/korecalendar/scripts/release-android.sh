@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Cuts an Android release: writes android/version.properties, commits it, and
-# creates the annotated tag android-vX.Y.Z. It does not push; it prints the
+# creates the annotated tag korecalendar-android-vX.Y.Z. It does not push; it prints the
 # command. Pushing the tag is what builds, signs and publishes the APK
 # (see docs/releasing.md).
 #
@@ -42,13 +42,14 @@ CODE="$(version_code "$V")"
 [ -z "$(git status --porcelain)" ] || die "the working tree is not clean"
 git fetch --quiet origin main --tags
 [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] || die "main is not the same as origin/main (pull or push first)"
-git rev-parse -q --verify "refs/tags/android-v$V" >/dev/null && die "tag android-v$V already exists"
+TAG="korecalendar-android-v$V"
+git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && die "tag $TAG already exists"
 
 printf '# Written by scripts/release-android.sh. Do not edit by hand.\nversionName=%s\nversionCode=%s\n' "$V" "$CODE" > android/version.properties
 if [ -n "$(git status --porcelain android/version.properties)" ]; then
   git add android/version.properties
-  git commit -q -m "android release: v$V"
+  git commit -q -m "release: korecalendar android v$V"
 fi
-git tag -a "android-v$V" -m "KoreCalendar for Android $V"
-echo "release-android: created android-v$V at $(git rev-parse --short HEAD) (versionCode $CODE)"
-echo "release-android: publish it with:  git push origin main android-v$V"
+git tag -a "$TAG" -m "KoreCalendar for Android $V"
+echo "release-android: created $TAG at $(git rev-parse --short HEAD) (versionCode $CODE)"
+echo "release-android: publish it with:  git push origin main $TAG"

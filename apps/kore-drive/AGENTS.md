@@ -131,7 +131,7 @@ restrictive CSP (`sandbox`). Nothing user-controlled becomes a filesystem path
   `KORE_PUBLIC_URL`, `KORE_OIDC_*`, `KORE_DATA_DIR`, `KORE_BIND` and
   `KORE_PORT` from the environment (the TOML file is optional). Kore ID is
   required; `KORE_OIDC_OWNER_EMAIL` names the first administrator.
-- Releases: pushes to `main` publish `:edge`; `git tag vX.Y.Z && git push origin vX.Y.Z` runs
+- Releases: pushes to `main` publish `:edge`; `git tag kore-drive-vX.Y.Z && git push origin kore-drive-vX.Y.Z` runs
   `.github/workflows/images.yml` (ci, native amd64/arm64 builds, manifest, smoke, GitHub release), which publishes `ghcr.io/qarasky/kore-api`
   and `kore-web` (amd64 + arm64). `install.sh` pulls them; test changes to it
   with a local file run and a `curl | bash` run (docker must not read the

@@ -178,10 +178,11 @@ fi
 # server-rendered pages call the backend at API_URL.
 (
     cd "$ROOT/apps/web"
-    [ -d node_modules ] || npm ci --no-audit --no-fund >/dev/null
+    # Dependencies live in the Kore monorepo's workspace (hoisted to its root).
+    [ -d "$ROOT/../../node_modules" ] || (cd "$ROOT/../.." && bun install --frozen-lockfile >/dev/null)
     API_URL="http://127.0.0.1:$BACKEND_PORT" \
     KOREMONITOR_DEV_ORIGINS="$(ipconfig getifaddr en0 2>/dev/null || true)" \
-    start_one "web" npx next dev --hostname 0.0.0.0 --port "$WEB_PORT"
+    start_one "web" bunx next dev --hostname 0.0.0.0 --port "$WEB_PORT"
 )
 
 sleep 6

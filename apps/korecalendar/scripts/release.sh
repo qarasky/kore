@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Cuts a server release: bumps web/package.json, commits, and creates the annotated
-# tag vX.Y.Z. It does not push; it prints the command. Pushing the tag is what
+# tag korecalendar-vX.Y.Z (the Kore monorepo holds every app's tags). It does not push; it prints the command. Pushing the tag is what
 # publishes the images (see docs/releasing.md).
 #
 #   scripts/release.sh 0.2.0
@@ -17,14 +17,17 @@ V="${1:-}"
 [ -z "$(git status --porcelain)" ] || die "the working tree is not clean"
 git fetch --quiet origin main --tags
 [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] || die "main is not the same as origin/main (pull or push first)"
-git rev-parse -q --verify "refs/tags/v$V" >/dev/null && die "tag v$V already exists"
+TAG="korecalendar-v$V"
+git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && die "tag $TAG already exists"
 
 current="$(node -p "require('./web/package.json').version")"
 if [ "$current" != "$V" ]; then
-  (cd web && npm version "$V" --no-git-tag-version --allow-same-version >/dev/null)
-  git add web/package.json web/package-lock.json
-  git commit -q -m "release: v$V"
+  node -e 'const f="web/package.json",fs=require("fs"),p=JSON.parse(fs.readFileSync(f));p.version=process.argv[1];fs.writeFileSync(f,JSON.stringify(p,null,2)+"\n")' "$V"
+  # The monorepo's bun.lock records each workspace's version.
+  (cd ../.. && bun install --silent)
+  git add web/package.json ../../bun.lock
+  git commit -q -m "release: korecalendar v$V"
 fi
-git tag -a "v$V" -m "KoreCalendar $V"
-echo "release: created v$V at $(git rev-parse --short HEAD)"
-echo "release: publish it with:  git push origin main v$V"
+git tag -a "$TAG" -m "KoreCalendar $V"
+echo "release: created $TAG at $(git rev-parse --short HEAD)"
+echo "release: publish it with:  git push origin main $TAG"

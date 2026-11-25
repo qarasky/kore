@@ -7,7 +7,7 @@ Design: [specs/2026-11-03-android-design.md](superpowers/specs/2026-11-03-androi
 
 ## Install
 
-1. Open the [Releases page](https://github.com/qarasky/korecalendar/releases) and pick the newest release whose tag starts with `android-v`.
+1. Open the [Releases page](https://github.com/qarasky/kore/releases) and pick the newest release whose tag starts with `korecalendar-android-v`.
 2. Download `korecalendar-<version>.apk` and its `.sha256` file. Optional but sensible: `sha256sum -c korecalendar-<version>.apk.sha256` in the same folder.
 3. Open the APK on the phone. Android asks once to allow installing from your browser or file manager. Needs **Android 13 or newer**.
 4. Updating is the same: install the newer APK over the old one. It replaces the app and keeps your sign-in, because every release is signed with the same key.
@@ -61,7 +61,7 @@ Hidden calendars are **not** muted: hiding only changes what you see.
 
 ## New versions
 
-Once a day while you use the app it asks GitHub for the newest `android-v*` release of this repository and shows "Version X is available" in Settings ((and a line on the agenda); Settings has a **Download** button.
+Once a day while you use the app it asks GitHub for the newest `korecalendar-android-v*` KoreCalendar release of the Kore monorepo and shows "Version X is available" in Settings ((and a line on the agenda); Settings has a **Download** button.
 It is the app's only request to any host other than your server and carries no identifier. Switch it off in Settings (**Check for new versions once a day**). Installing is up to you: open the downloaded APK;
 Android replaces the old app because both are signed with the same key.
 
