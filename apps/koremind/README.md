@@ -1,0 +1,91 @@
+<img src="assets/mark.svg" width="64" height="64" alt="KoreMind">
+
+# KoreMind
+
+[![CI](https://github.com/qarasky/koremind/actions/workflows/ci.yml/badge.svg)](https://github.com/qarasky/koremind/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/qarasky/koremind?include_prereleases)](https://github.com/qarasky/koremind/releases)
+
+A personal assistant that feels like the ChatGPT app, with its own apps instead of a bot inside Telegram or Discord. Fast, few settings, and it remembers you.
+
+- **Backend** (`backend/`): Bun + TypeScript. Accounts, chats, memory, notes, streaming. It drives a local [OpenCode](https://opencode.ai) server for the models.
+- **Web UI** (`web/`): Next.js, runs as its own process on the same machine.
+- **Android app** (`android/`): native Kotlin + Jetpack Compose. Same features and wording as the web UI.
+- Dark only, with [Kore](https://github.com/qarasky/kore)'s palette.
+
+## What it does
+
+- **Chat** with streaming Markdown (tables, code with a Copy button, images) and rich cards ([docs/rich-messages.md](docs/rich-messages.md)), photos and files, a model picker (provider rail, favorites, thinking level) and web search. Chats are named automatically by the model you chose.
+- **Providers**, chosen on the server with `KOREMIND_PROVIDERS` and signed in there, never in the apps: **Claude** (the server's own `claude` CLI and its owner's subscription, owner-only; see [docs/claude-integration.md](docs/claude-integration.md)), **OpenCode** (free models need no sign-in) and **OpenCode Go** (your Go subscription). Each can be turned off per person, and OpenCode can be limited to free models, in **Settings → Providers**.
+- **Memory** you can see and edit. The assistant decides what is worth remembering; it is written in the background so it never slows an answer.
+- **Notes:** the assistant can save, read and edit notes, per chat and per user. Asking it to use another chat's notes shows an **Allow / Deny** card. Notes live in KoreMind's own database.
+- **Phone pairing:** Settings → Account → **Show QR code** on the web, then **Scan QR code** in the Android app. The code is minted from your signed-in (Kore ID) web session and signs the phone in as you, no typing.
+
+## Run it (development, one machine)
+
+You need [Bun](https://bun.sh) and, for the default provider, the [Claude Code](https://code.claude.com) CLI signed in (`claude auth login`). For OpenCode providers also the `opencode` CLI (v2); OpenCode Go signs in with `OPENCODE_API_KEY` in the server's environment.
+
+```bash
+bun install
+bun run start        # backend on :8787 and web UI on :3210
+```
+
+The first run builds the web UI. The backend prints the addresses it is reachable at (local IP, a Tailscale address if you have one, or `KOREMIND_PUBLIC_URL` if set). Open the web UI on the same machine and it finds the backend by itself. Sign-in is **Kore ID only**: set `KOREMIND_OIDC_ISSUER` and sign in with the account pinned by `KOREMIND_OIDC_OWNER_EMAIL` (that first sign-in creates the owner); everyone else is created automatically on their first Kore ID sign-in.
+
+For the phone: install the app, scan the QR code from the web UI (or type one of the printed addresses into **Backend URL**) and sign in. KoreMind does no tunnel or TLS setup; use Tailscale, a Cloudflare tunnel or your own domain for access away from home.
+
+To run it on a server: **[Docker](docs/deployment-docker.md)** (prebuilt images on GHCR, the easy way) or **[a Linux service with systemd](docs/deployment-linux.md)**. Android builds come with each [GitHub Release](https://github.com/qarasky/koremind/releases) as a signed APK.
+
+### Coming from the Zero days
+
+The product used to be called Zero. A `zero.sqlite` database in your data directory is renamed to `koremind.sqlite` automatically at first start. Rename any `ZERO_*` environment variables to `KOREMIND_*` (and `zero.service` to `koremind.service`), and sign in again on the web (the stored session key changed). The Android app is a new app (`dev.qarasky.koremind`); install it next to the old one, then remove the old one.
+
+### Settings (environment)
+
+| Setting | Default |
+| --- | --- |
+| `KOREMIND_PORT` | `8787` (backend) |
+| `KOREMIND_DATA_DIR` | `./data` relative to where you start it. Holds the database, uploads, memory and OpenCode's state, **including OpenCode's sign-ins**. |
+| `KOREMIND_HOST` | `0.0.0.0`. Set `127.0.0.1` when only a tunnel or proxy on the same machine should reach the backend (required with `KOREMIND_TRUST_PROXY=1` on a host other apps can reach). |
+| `KOREMIND_PROVIDERS` | `claude`. Comma list, in the order the apps show them: `claude`, `opencode`, `opencode-go`. OpenCode's engine only starts when one of its providers is listed. |
+| `KOREMIND_CLAUDE_BIN` | `claude`; set the full path (e.g. `/home/you/.local/bin/claude`) under a service manager |
+| `KOREMIND_CLAUDE_CONFIG_DIR` | unset = the service user's `~/.claude`. A separate folder gives KoreMind its own Claude login (`CLAUDE_CONFIG_DIR=… claude auth login`). |
+| `KOREMIND_WEB_PORT` | `3210` |
+| `KOREMIND_WEB_MODE` | `start` (production build). `dev` runs Next.js in dev mode. |
+| `KOREMIND_PUBLIC_URL` | unset; shown as the `domain` address and put into phone-pairing QR codes |
+| `KOREMIND_TRUST_PROXY=1` | believe `x-forwarded-for` from any peer (a proxy on this machine is trusted automatically) |
+| `KOREMIND_OPENCODE_BIN` | `opencode`; set the full path when running under a service manager (only used when an OpenCode provider is listed) |
+| `KOREMIND_OIDC_ISSUER` | unset = nobody can sign in. Set it to the Kore ID base URL; the other `KOREMIND_OIDC_*` and `KOREMIND_WEB_ORIGINS` settings are in [docs/kore-id.md](docs/kore-id.md) |
+| `KOREMIND_KORE_APPS` | unset; the other Kore apps for the web UI's app switcher, e.g. `kore=https://files.example.com,korecalendar=https://cal.example.com,flatline=https://status.example.com` |
+| `KOREMIND_FAKE_ENGINE=1` | run without any provider (scripted replies, and `note: …` / `read <chat title>` to exercise notes) for development |
+
+## Develop
+
+```bash
+bun test                                         # backend, shared, web, scripts
+cd android && ./gradlew :app:testDebugUnitTest   # Android logic
+cd android && ./gradlew :app:assembleDebug       # debug APK (app/build/outputs/apk/debug)
+bun run build                                    # production build of the web UI
+KOREMIND_TOKEN=<session token> bun run backend/scripts/latency.ts   # time to first token against a running backend
+bun run scripts/generate-icons.ts                # regenerate the mark everywhere
+bun scripts/version.ts set 0.2.0                 # bump the version everywhere (see docs/releasing.md)
+```
+
+CI (`.github/workflows/ci.yml`) runs the same checks on every pull request. Releases are made by pushing a `vX.Y.Z` tag.
+
+web and Android are kept 1:1: same features, same strings, same pure helpers with their own tests. When you change one, change the other.
+
+## Docs
+
+| Document | What it is |
+| --- | --- |
+| [DESIGN.md](DESIGN.md) | KoreMind's chat-specific design (chat, composer, model picker, settings, Android). Tokens, layout and components come from [kore-ui](https://github.com/qarasky/kore-ui) and its DESIGN.md. |
+| [docs/api.md](docs/api.md) | The REST + SSE contract. Source of truth is `shared/src/api.ts`. |
+| [docs/kore-id.md](docs/kore-id.md) | Single sign-on with Kore ID: setup, settings, migration of existing accounts, how the flow works. |
+| [docs/deployment-docker.md](docs/deployment-docker.md) | Running KoreMind from the GHCR images with Docker Compose. |
+| [docs/deployment-linux.md](docs/deployment-linux.md) | Running KoreMind on a Linux server with systemd. |
+| [docs/claude-integration.md](docs/claude-integration.md) | Planned, not built: how Claude could be added within Anthropic's terms (the owner's own subscription, and the rules for it). |
+| [docs/releasing.md](docs/releasing.md) | Versioning, the CI/CD pipelines, image tags, Android signing. How to cut a release. |
+| [docs/research/design-research.md](docs/research/design-research.md) | The design research behind Settings, the composer, the picker and motion. |
+| [docs/superpowers/specs/2026-11-02-koremind-design.md](docs/superpowers/specs/2026-11-02-koremind-design.md) | The original product design, with a list of later amendments at the top. |
+| [docs/superpowers/notes/engine-spike.md](docs/superpowers/notes/engine-spike.md) | What was learned about OpenCode (API shapes, quirks, how tools and titles work). |
+| [docs/superpowers/plans/2026-11-02-koremind.md](docs/superpowers/plans/2026-11-02-koremind.md) | The first build plan (historical). |

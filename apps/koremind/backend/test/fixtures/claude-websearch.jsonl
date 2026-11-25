@@ -1,0 +1,17 @@
+{"type": "system", "subtype": "init", "session_id": "11111111-1111-4111-8111-111111111111", "tools": ["WebSearch", "mcp__koremind__save_note"], "mcp_servers": [{"name": "koremind", "status": "connected"}], "model": "claude-haiku-5-5"}
+{"type": "system", "subtype": "status", "status": "requesting", "session_id": "11111111-1111-4111-8111-111111111111"}
+{"type": "stream_event", "event": {"type": "message_start", "message": {"id": "msg_1", "role": "assistant", "content": []}}, "session_id": "11111111-1111-4111-8111-111111111111"}
+{"type": "stream_event", "event": {"type": "content_block_start", "index": 0, "content_block": {"type": "tool_use", "id": "toolu_1", "name": "WebSearch", "input": {}}}, "session_id": "11111111-1111-4111-8111-111111111111"}
+{"type": "stream_event", "event": {"type": "content_block_delta", "index": 0, "delta": {"type": "input_json_delta", "partial_json": "{\"query\": \"bun\"}"}}, "session_id": "11111111-1111-4111-8111-111111111111"}
+{"type": "stream_event", "event": {"type": "content_block_stop", "index": 0}, "session_id": "11111111-1111-4111-8111-111111111111"}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_1", "name": "WebSearch", "input": {"query": "bun"}}]}, "session_id": "11111111-1111-4111-8111-111111111111"}
+{"type": "rate_limit_event", "rate_limit_info": {"status": "allowed", "rateLimitType": "five_hour"}, "session_id": "11111111-1111-4111-8111-111111111111"}
+{"type": "user", "message": {"role": "user", "content": [{"tool_use_id": "toolu_1", "type": "tool_result", "content": "Web search results for query: \"bun\"\n\nLinks: [{\"title\": \"Bun blog\", \"url\": \"https://bun.com/blog\"}, {\"title\": \"Bun blog\", \"url\": \"https://bun.com/blog\"}, {\"title\": \"npm\", \"url\": \"https://www.npmjs.com/package/bun\"}]\n\nBun 1.4.5 is the latest release."}]}, "session_id": "11111111-1111-4111-8111-111111111111"}
+{"type": "stream_event", "event": {"type": "content_block_start", "index": 0, "content_block": {"type": "thinking", "thinking": "", "signature": ""}}, "session_id": "11111111-1111-4111-8111-111111111111"}
+{"type": "stream_event", "event": {"type": "content_block_delta", "index": 0, "delta": {"type": "thinking_delta", "thinking": ""}}, "session_id": "11111111-1111-4111-8111-111111111111"}
+{"type": "stream_event", "event": {"type": "content_block_start", "index": 1, "content_block": {"type": "text", "text": ""}}, "session_id": "11111111-1111-4111-8111-111111111111"}
+{"type": "stream_event", "event": {"type": "content_block_delta", "index": 1, "delta": {"type": "text_delta", "text": "The latest "}}, "session_id": "11111111-1111-4111-8111-111111111111"}
+{"type": "stream_event", "event": {"type": "content_block_delta", "index": 1, "delta": {"type": "text_delta", "text": "is **1.4.5**."}}, "session_id": "11111111-1111-4111-8111-111111111111"}
+{"type": "stream_event", "event": {"type": "content_block_delta", "index": 1, "delta": {"type": "text_delta", "text": ""}}, "session_id": "11111111-1111-4111-8111-111111111111"}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "The latest is **1.4.5**."}]}, "session_id": "11111111-1111-4111-8111-111111111111"}
+{"type": "result", "subtype": "success", "is_error": false, "result": "The latest is **1.4.5**.", "session_id": "11111111-1111-4111-8111-111111111111"}

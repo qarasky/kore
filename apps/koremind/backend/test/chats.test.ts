@@ -1,0 +1,309 @@
+import { expect, test } from "bun:test";
+import type { StreamEvent } from "@koremind/shared";
+import { openDb } from "../src/db";
+import { createChats } from "../src/chats";
+import { FakeEngine } from "../src/engine/fake";
+import type { EngineEvent } from "../src/engine/types";
+
+const model = { providerId: "opencode", modelId: "fast" };
+const req = (text: string, over: object = {}) => ({ text, attachmentIds: [], model, ...over });
+const collect = async (it: AsyncIterable<StreamEvent>) => { const o: StreamEvent[] = []; for await (const e of it) o.push(e); return o; };
+
+function setup(engineOpts: ConstructorParameters<typeof FakeEngine>[0] = {}, deps: Partial<Parameters<typeof createChats>[2]> = {}) {
+  const db = openDb(":memory:");
+  for (const u of ["u1", "u2"]) db.run("insert into users(id,email,password_hash,is_owner,created_at) values(?,?,?,?,1)", [u, `${u}@x.co`, "h", u === "u1" ? 1 : 0]);
+  const engine = new FakeEngine(engineOpts);
+  const completed: string[][] = [];
+  const chats = createChats(db, engine, {
+    buildSystem: () => "SYSTEM",
+    readUpload: (id) => (id === "up1" ? { name: "a.png", mime: "image/png", dataUrl: "data:image/png;base64,AA==" } : null),
+    onTurnComplete: (_u, a, b) => { completed.push([a, b]); },
+    ...deps,
+  });
+  return { db, engine, chats, completed };
+}
+
+test("send persists the user message before the first event", async () => {
+  const { chats } = setup();
+  const c = chats.create("u1");
+  const it = chats.send("u1", c.id, req("hello"), new AbortController().signal)[Symbol.asyncIterator]();
+  await it.next();
+  expect(chats.get("u1", c.id)!.messages[0]).toMatchObject({ role: "user", text: "hello" });
+  await it.return?.();
+});
+
+test("send streams deltas then done and persists the assistant message", async () => {
+  const { chats } = setup({ reply: () => [{ type: "delta", text: "Hel" }, { type: "delta", text: "lo" }] });
+  const c = chats.create("u1");
+  const evs = await collect(chats.send("u1", c.id, req("hi"), new AbortController().signal));
+  expect(evs.map((e) => e.type)).toEqual(["status", "delta", "delta", "done"]);
+  const msgs = chats.get("u1", c.id)!.messages;
+  expect(msgs.map((m) => [m.role, m.text])).toEqual([["user", "hi"], ["assistant", "Hello"]]);
+  const done = evs[evs.length - 1];
+  expect(done.type === "done" && done.messageId).toBe(msgs[1].id);
+});
+
+test("a dropped stream saves the partial assistant text", async () => {
+  const { chats } = setup({ reply: () => [{ type: "delta", text: "part" }, { type: "delta", text: "ial" }, { type: "delta", text: "!" }] });
+  const c = chats.create("u1");
+  const it = chats.send("u1", c.id, req("hi"), new AbortController().signal)[Symbol.asyncIterator]();
+  await it.next(); await it.next(); await it.next(); // status, "part", "ial"
+  await it.return?.(); // client disconnects
+  const msgs = chats.get("u1", c.id)!.messages;
+  expect(msgs[1]).toMatchObject({ role: "assistant", text: "partial" });
+});
+
+test("a chat of another user is not readable", () => {
+  const { chats } = setup();
+  const c = chats.create("u1");
+  expect(chats.get("u2", c.id)).toBeNull();
+  expect(chats.has("u2", c.id)).toBe(false);
+  expect(chats.list("u2")).toEqual([]);
+});
+
+test("title is the first 48 chars of the first message", async () => {
+  const { chats } = setup();
+  const c = chats.create("u1");
+  const long = "x".repeat(80);
+  await collect(chats.send("u1", c.id, req(long), new AbortController().signal));
+  await collect(chats.send("u1", c.id, req("second"), new AbortController().signal));
+  expect(chats.get("u1", c.id)!.chat.title).toBe("x".repeat(48));
+});
+
+test("abort emits error aborted and keeps partial text", async () => {
+  const { chats } = setup({ reply: () => Array.from({ length: 30 }, (_, i) => ({ type: "delta", text: `${i}` }) as EngineEvent), delayMs: 10 });
+  const c = chats.create("u1");
+  const evs: StreamEvent[] = [];
+  for await (const e of chats.send("u1", c.id, req("go"), new AbortController().signal)) {
+    evs.push(e);
+    if (evs.length === 3) chats.abort(c.id);
+  }
+  const last = evs[evs.length - 1];
+  expect(last.type === "error" && last.code).toBe("aborted");
+  expect(chats.get("u1", c.id)!.messages[1].text.length).toBeGreaterThan(0);
+});
+
+test("onTurnComplete is called once after done and not on error", async () => {
+  const ok = setup({ reply: () => [{ type: "delta", text: "A" }] });
+  const c = ok.chats.create("u1");
+  await collect(ok.chats.send("u1", c.id, req("q"), new AbortController().signal));
+  expect(ok.completed).toEqual([["q", "A"]]);
+  const bad = setup({ reply: () => [{ type: "delta", text: "A" }, { type: "error", message: "boom" }] });
+  const c2 = bad.chats.create("u1");
+  await collect(bad.chats.send("u1", c2.id, req("q"), new AbortController().signal));
+  expect(bad.completed).toEqual([]);
+});
+
+test("engine noProvider error becomes no_provider", async () => {
+  const { chats } = setup({ reply: () => [{ type: "error", message: "Free usage limit reached", noProvider: true }] });
+  const c = chats.create("u1");
+  const evs = await collect(chats.send("u1", c.id, req("hi"), new AbortController().signal));
+  const last = evs[evs.length - 1];
+  expect(last.type === "error" && [last.code, last.message]).toEqual(["no_provider", "Free usage limit reached"]);
+});
+
+test("context goes only with the first prompt and attachments reach the engine", async () => {
+  const { chats, engine } = setup();
+  const c = chats.create("u1");
+  await collect(chats.send("u1", c.id, req("one", { attachmentIds: ["up1"] }), new AbortController().signal));
+  await collect(chats.send("u1", c.id, req("two"), new AbortController().signal));
+  expect(engine.prompts[0].system).toBe("SYSTEM");
+  expect(engine.prompts[0].files[0].name).toBe("a.png");
+  expect(engine.prompts[1].system).toBe("");
+});
+
+test("sources are saved with the assistant message", async () => {
+  const { chats } = setup({ reply: () => [{ type: "status", state: "searching" }, { type: "source", title: "Bun", url: "https://bun.sh" }, { type: "delta", text: "ok" }] });
+  const c = chats.create("u1");
+  await collect(chats.send("u1", c.id, req("news"), new AbortController().signal));
+  expect(chats.get("u1", c.id)!.messages[1].sources).toEqual([{ title: "Bun", url: "https://bun.sh" }]);
+});
+
+test("a source the engine reports twice is sent and saved once", async () => {
+  const { chats } = setup({ reply: () => [
+    { type: "source", title: "Bun", url: "https://bun.sh/" },
+    { type: "source", title: "Bun", url: "https://www.bun.sh?utm_source=x" },
+    { type: "source", title: "Node", url: "https://nodejs.org" },
+    { type: "delta", text: "ok" },
+  ] });
+  const c = chats.create("u1");
+  const evs = await collect(chats.send("u1", c.id, req("news"), new AbortController().signal));
+  expect(evs.filter((e: any) => e.type === "source").map((e: any) => e.url)).toEqual(["https://bun.sh/", "https://nodejs.org"]);
+  expect(chats.get("u1", c.id)!.messages[1].sources.map((s) => s.url)).toEqual(["https://bun.sh/", "https://nodejs.org"]);
+});
+
+test("remove deletes the chat and its engine session", async () => {
+  const { chats, engine } = setup();
+  const c = chats.create("u1");
+  await collect(chats.send("u1", c.id, req("hi"), new AbortController().signal));
+  expect(engine.sessions.size).toBe(1);
+  await chats.remove("u1", c.id);
+  expect(chats.get("u1", c.id)).toBeNull();
+  expect(engine.sessions.size).toBe(0);
+});
+
+test("after the first turn the chat is titled by the chosen model, and the title is streamed after done", async () => {
+  const { chats, engine, db } = setup({ reply: () => [{ type: "delta", text: "Sure, Lisbon is lovely in May." }], titleReply: '"Lisbon trip in May."\n' });
+  const c = chats.create("u1");
+  const evs = await collect(chats.send("u1", c.id, req("Plan a week in Lisbon", { model: { providerId: "claude", modelId: "claude-sonnet-5-5" } }), new AbortController().signal));
+  expect(evs.map((e) => e.type)).toEqual(["status", "delta", "done", "title"]);
+  expect(evs.at(-1)).toEqual({ type: "title", title: "Lisbon trip in May" });
+  expect(chats.get("u1", c.id)!.chat.title).toBe("Lisbon trip in May");
+  const call = engine.completes.find((x) => x.kind === "title")!;
+  expect(call.model).toEqual({ providerId: "claude", modelId: "claude-sonnet-5-5" });
+  expect(call.text).toContain("Plan a week in Lisbon");
+  expect(call.text).toContain("Lisbon is lovely");
+  expect((db.query("select title from chats where id=?").get(c.id) as { title: string }).title).toBe("Lisbon trip in May");
+});
+
+test("only the first turn is titled", async () => {
+  const { chats, engine } = setup({ titleReply: "First title" });
+  const c = chats.create("u1");
+  await collect(chats.send("u1", c.id, req("one"), new AbortController().signal));
+  await collect(chats.send("u1", c.id, req("two"), new AbortController().signal));
+  expect(engine.completes.filter((x) => x.kind === "title")).toHaveLength(1);
+});
+
+test("a failed or empty title keeps the first-words title and never breaks the chat", async () => {
+  const empty = setup({ titleReply: "  " });
+  const c1 = empty.chats.create("u1");
+  expect((await collect(empty.chats.send("u1", c1.id, req("hello world"), new AbortController().signal))).map((e) => e.type)).toEqual(["status", "delta", "done"]);
+  expect(empty.chats.get("u1", c1.id)!.chat.title).toBe("hello world");
+
+  const boom = setup({ titleReply: () => { throw new Error("quota"); } });
+  const c2 = boom.chats.create("u1");
+  expect((await collect(boom.chats.send("u1", c2.id, req("hello again"), new AbortController().signal))).at(-1)!.type).toBe("done");
+  expect(boom.chats.get("u1", c2.id)!.chat.title).toBe("hello again");
+});
+
+test("a title the owner typed while it was being generated is not overwritten", async () => {
+  const { chats } = setup({ titleReply: "Generated", completeDelayMs: 40 });
+  const c = chats.create("u1");
+  const evs: StreamEvent[] = [];
+  for await (const e of chats.send("u1", c.id, req("hello"), new AbortController().signal)) {
+    evs.push(e);
+    if (e.type === "done") chats.rename("u1", c.id, "Mine");
+  }
+  expect(evs.at(-1)!.type).toBe("done");
+  await Bun.sleep(80);
+  expect(chats.get("u1", c.id)!.chat.title).toBe("Mine");
+});
+
+test("the turn reports the model the chat used (memory falls back to it)", async () => {
+  const seen: unknown[] = [];
+  const { chats } = setup({}, { onTurnComplete: (_u, _a, _b, m) => { seen.push(m); } });
+  const c = chats.create("u1");
+  await collect(chats.send("u1", c.id, req("q", { model: { providerId: "claude", modelId: "claude-haiku-5-5" } }), new AbortController().signal));
+  expect(seen).toEqual([{ providerId: "claude", modelId: "claude-haiku-5-5" }]);
+});
+
+// ---- Edits and variants ----
+
+test("editing a message adds a variant with a new answer, in a fresh session told the conversation so far", async () => {
+  const { chats, engine } = setup({ reply: (a) => [{ type: "delta", text: `re: ${a.text}` }] });
+  const c = chats.create("u1");
+  await collect(chats.send("u1", c.id, req("first"), new AbortController().signal));
+  await collect(chats.send("u1", c.id, req("second"), new AbortController().signal));
+  const before = chats.get("u1", c.id)!.messages;
+  const second = before[2];
+  await collect(chats.send("u1", c.id, req("second, edited", { editOf: second.id }), new AbortController().signal));
+
+  const after = chats.get("u1", c.id)!.messages;
+  expect(after.map((m) => m.text)).toEqual(["first", "re: first", "second, edited", "re: second, edited"]);
+  expect(after[2].siblings).toEqual([second.id, after[2].id]);
+  expect(after[0].siblings).toBeUndefined();
+  // The edit went to a new engine session that got the earlier messages, not the replaced one.
+  const last = engine.prompts.at(-1)!;
+  expect(last.sessionId).not.toBe(engine.prompts[0].sessionId);
+  expect(last.system).toContain("SYSTEM");
+  expect(last.system).toContain("User: first\n\nAssistant: re: first");
+  expect(last.system).not.toContain("second");
+});
+
+test("switching variants shows the other branch, and new messages continue in that branch's session", async () => {
+  const { chats, engine } = setup({ reply: (a) => [{ type: "delta", text: `re: ${a.text}` }] });
+  const c = chats.create("u1");
+  await collect(chats.send("u1", c.id, req("q"), new AbortController().signal));
+  const original = chats.get("u1", c.id)!.messages[0];
+  await collect(chats.send("u1", c.id, req("q2", { editOf: original.id }), new AbortController().signal));
+  expect(chats.get("u1", c.id)!.messages.map((m) => m.text)).toEqual(["q2", "re: q2"]);
+
+  expect(chats.branch("u1", c.id, original.id)).toBe(true);
+  expect(chats.get("u1", c.id)!.messages.map((m) => m.text)).toEqual(["q", "re: q"]);
+  await collect(chats.send("u1", c.id, req("follow-up"), new AbortController().signal));
+  expect(chats.get("u1", c.id)!.messages.map((m) => m.text)).toEqual(["q", "re: q", "follow-up", "re: follow-up"]);
+  expect(engine.prompts.at(-1)!.sessionId).toBe(engine.prompts[0].sessionId);
+  expect(engine.prompts.at(-1)!.system).toBe("");
+  expect(chats.branch("u1", c.id, "nope")).toBe(false);
+  expect(chats.branch("u2", c.id, original.id)).toBe(false);
+});
+
+test("an edited message keeps the original's attachments", async () => {
+  const { chats, db, engine } = setup();
+  db.run("insert into attachments(id,user_id,message_id,name,mime,size,path) values('up1','u1',null,'a.png','image/png',1,'/x')");
+  const c = chats.create("u1");
+  await collect(chats.send("u1", c.id, req("look", { attachmentIds: ["up1"] }), new AbortController().signal));
+  const first = chats.get("u1", c.id)!.messages[0];
+  await collect(chats.send("u1", c.id, req("look again", { editOf: first.id }), new AbortController().signal));
+  const edited = chats.get("u1", c.id)!.messages[0];
+  expect(edited.attachments.map((a) => a.name)).toEqual(["a.png"]);
+  expect(edited.attachments[0].id).not.toBe("up1");
+  expect(engine.prompts.at(-1)!.files).toHaveLength(1);
+  chats.branch("u1", c.id, first.id);
+  expect(chats.get("u1", c.id)!.messages[0].attachments.map((a) => a.id)).toEqual(["up1"]);
+});
+
+test("an edit of something that is not a user message of this chat is refused", async () => {
+  const { chats } = setup();
+  const c = chats.create("u1");
+  await collect(chats.send("u1", c.id, req("q"), new AbortController().signal));
+  const answer = chats.get("u1", c.id)!.messages[1];
+  const evs = await collect(chats.send("u1", c.id, req("x", { editOf: answer.id }), new AbortController().signal));
+  expect(evs).toEqual([{ type: "error", code: "engine", message: "The message to edit was not found." }]);
+});
+
+// ---- Turns that outlive the connection ----
+
+test("a started turn finishes even when nobody reads it, and can be followed from the start", async () => {
+  const { chats } = setup({ reply: () => [{ type: "delta", text: "a" }, { type: "delta", text: "b" }], delayMs: 5 });
+  const c = chats.create("u1");
+  chats.start("u1", c.id, req("q"));
+  expect(chats.running(c.id)).toBe(true);
+  expect(chats.get("u1", c.id)!.running).toBe(true);
+  // A listener that goes away (a dropped connection) does not stop the answer.
+  const first = chats.follow(c.id)!;
+  await first.next();
+  await first.return(undefined);
+  // Someone re-attaching gets everything from the beginning.
+  const replay = await collect(chats.follow(c.id)!);
+  expect(replay.map((e) => e.type)).toEqual(["status", "delta", "delta", "done"]);
+  expect(chats.running(c.id)).toBe(false);
+  expect(chats.follow(c.id)).toBeNull();
+  expect(chats.get("u1", c.id)!.messages.map((m) => m.text)).toEqual(["q", "ab"]);
+});
+
+test("a second turn in the same chat is refused while one runs, and abort still stops it", async () => {
+  const { chats } = setup({ reply: () => [{ type: "delta", text: "a" }, { type: "delta", text: "b" }, { type: "delta", text: "c" }], delayMs: 20 });
+  const c = chats.create("u1");
+  chats.start("u1", c.id, req("q"));
+  expect(() => chats.start("u1", c.id, req("again"))).toThrow("still being written");
+  await Bun.sleep(30);
+  chats.abort(c.id);
+  const evs = await collect(chats.follow(c.id) ?? (async function* () {})());
+  expect(evs.at(-1)).toMatchObject({ type: "error", code: "aborted" });
+  expect(chats.running(c.id)).toBe(false);
+});
+
+test("switching provider mid-chat starts a fresh session that is told the conversation; switching model keeps it", async () => {
+  const { chats, engine } = setup({ reply: (a) => [{ type: "delta", text: `answer to ${a.text}` }] });
+  const c = chats.create("u1");
+  await collect(chats.send("u1", c.id, req("first", { model: { providerId: "opencode", modelId: "fast" } }), new AbortController().signal));
+  await collect(chats.send("u1", c.id, req("second", { model: { providerId: "opencode", modelId: "vision" } }), new AbortController().signal));
+  expect(engine.prompts[1].sessionId).toBe(engine.prompts[0].sessionId);
+  await collect(chats.send("u1", c.id, req("third", { model: { providerId: "claude", modelId: "claude-sonnet-5-5" } }), new AbortController().signal));
+  expect(engine.prompts[2].sessionId).not.toBe(engine.prompts[0].sessionId);
+  expect(engine.prompts[2].system).toContain("first");
+  expect(engine.prompts[2].system).toContain("answer to second");
+  await collect(chats.send("u1", c.id, req("fourth", { model: { providerId: "claude", modelId: "claude-haiku-5-5" } }), new AbortController().signal));
+  expect(engine.prompts[3].sessionId).toBe(engine.prompts[2].sessionId);
+});

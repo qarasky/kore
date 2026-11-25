@@ -1,0 +1,13 @@
+.git
+.github
+.superpowers
+node_modules
+**/node_modules
+data
+.env
+*.log
+android
+docs
+web/.next
+**/.next
+**/*.tsbuildinfo

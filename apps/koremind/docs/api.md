@@ -1,0 +1,94 @@
+# KoreMind API contract
+
+Source of truth: `shared/src/api.ts` (zod). All bodies are JSON unless noted. Authenticated routes need `Authorization: Bearer <token>`. Errors are `{ "error": { "code": string, "message": string, "retryAfterSec"?: number } }` with the matching HTTP status.
+
+## Routes
+
+| Route | Auth | Request | Response |
+| --- | --- | --- | --- |
+| `GET /health` | no | | `{name:"koremind",version,setupRequired,sso,koreId?:{issuer,accountUrl},apps?}`; `sso` = Kore ID is configured (the only sign-in), `setupRequired` = no account exists yet, `koreId` only with Kore ID, `apps` = `KOREMIND_KORE_APPS` (the web UI's app switcher) |
+| `POST /auth/logout` | yes | | `{ok:true, logoutUrl?}`; `logoutUrl` (Kore ID sessions) is where the client sends the browser to end the Kore ID session too |
+| `POST /auth/oidc/start` | no (token = link Kore ID to this account) | `{challenge, platform:"web"\|"android", returnTo?}` | `{url}` to open in the browser. 404 when Kore ID is off. See Kore ID below |
+| `GET /auth/callback` | no | Kore ID redirects the browser here | 302 to `<returnTo>#sso_ticket=…` (web) or `koremind://sso?ticket=…` (Android); `sso_error=<code>` / `error=<code>` on failure; `sso_linked=1` / `linked=1` after linking |
+| `POST /auth/oidc/exchange` | no | `{ticket, verifier}` | `{token,user}`; 401 `bad_code`; 429 `rate_limited` |
+| `POST /auth/backchannel-logout` | no (Kore ID, server to server) | form `logout_token=<JWT>` (OIDC Back-Channel Logout 1.0) | 200 (empty) after ending the sessions of that Kore ID `sid` (or of that `sub`); 400 `{error:"invalid_request"}` for an invalid or replayed token; 503 when Kore ID's keys can't be fetched; 404 when Kore ID is off |
+| `POST /auth/pair` | yes | | `PairStart` `{code,expiresAt,urls[],link}`. See Pairing. |
+| `POST /auth/pair/redeem` | no | `{code}` | `{token,user}`; 401 `bad_code`; 429 `rate_limited` |
+| `GET /me` | yes | | `{id,email,isOwner}` |
+| `GET /models` | yes | | `ProviderInfo[]` for this user. See Models and providers. |
+| `GET /favorites`, `PUT /favorites` | yes | `string[]` of `"providerId/modelId"` | `string[]` (entries the user can't use are dropped) |
+| `GET /providers` | yes | | `ProviderConnection[]` `{id,name,connected,supportsFreeFilter,hint}` for the providers in `KOREMIND_PROVIDERS`, in that order. `hint` says what to run on the server to sign one in (`""` when signed in). Providers are signed in on the server only: there are no key or sign-in routes (`/providers/:id/key` and `/providers/:id/signin` answer 404). |
+| `GET /chats` | yes | | `{id,title,updatedAt}[]` newest first |
+| `POST /chats` | yes | | `ChatSummary` |
+| `GET /chats/:id` | yes | | `{chat,messages:ChatMessage[],running}`: the messages of the branch on screen (an edited user message lists its versions in `siblings`); `running` is true while an answer is still being written. |
+| `PATCH /chats/:id` | yes | `{title}` | `{ok:true}` |
+| `DELETE /chats/:id` | yes | | `{ok:true}` (its notes go with it) |
+| `POST /chats/:id/messages` | yes | `{text,attachmentIds[],model:{providerId,modelId},thinking?,editOf?}` | `text/event-stream`. See StreamEvent. 400 `model_not_allowed` before any stream when the model isn't currently allowed; 409 `busy` while an answer is still running in the chat. `editOf` (a user message id) sends a new version of that message: it gets the original's files, a new answer and a fresh engine session told the conversation before it. The answer runs on the server on its own: a dropped connection does not stop it, only `abort` does. |
+| `GET /chats/:id/stream` | yes | | Re-attach after a dropped connection: the running answer as `text/event-stream`, replayed from its first event. 204 when nothing is running (the answer is saved; reload the chat). |
+| `POST /chats/:id/branch` | yes | `{messageId}` | Shows another version of an edited message: the chat's branch now runs through `messageId` to its newest message. Returns the chat like `GET /chats/:id`. 409 while an answer runs. |
+| `POST /chats/:id/abort` | yes | | `{ok:true}` |
+| `POST /chats/:id/approvals/:approvalId` | yes | `{allow:boolean}` | `{ok:true}`; 404 if unknown, already closed, or not this user's |
+| `POST /uploads` | yes | multipart field `file` | `{id,name,mime,size}`; 413 `attachment_too_large` |
+| `GET /uploads/:id` | yes (`?token=` also accepted) | | file bytes |
+| `GET /memory` | yes | | `{id,text,updatedAt}[]` |
+| `PUT /memory/:id`, `DELETE /memory/:id` | yes | `{text}` / none | `{ok:true}` |
+| `GET /settings`, `PUT /settings` | yes | `Settings` | `Settings` |
+| `POST /mcp` | **local engine only** | JSON-RPC (MCP) | The notes and memory tools for the local engines. OpenCode names the chat in `_meta["ai.opencode/sessionID"]`, Claude in the `x-koremind-session` header. Loopback peers only, and `Authorization: Bearer <per-run secret>`; never used by a client. Put a deny rule on it in any reverse proxy as well. |
+
+`Settings` = `{memoryEnabled, displayName, tone, about, disabledProviders: string[], freeOnlyProviders: string[]}`. The last two default to `[]`, so older clients that omit them keep working.
+
+**There is no password API.** `/auth/register` and `/auth/login` do not exist (404). Kore ID is the only human sign-in; session tokens and QR pairing are credentials, not a second login path.
+
+## Models and providers
+- `GET /models` returns **every provider in `KOREMIND_PROVIDERS`** (default `claude`; also `opencode`, `opencode-go`), in that order: `{id,name,connected,recommended,status,models}` (`recommended` is always false now, kept for older clients).
+  - `status` is `ready`, `needs_connection` (not signed in on the server; OpenCode counts as ready because its free tier needs no sign-in) or `disabled` (the user turned it off in Settings, or **Claude for anyone but the owner**: it runs on the owner's own subscription, see [claude-integration.md](claude-integration.md)).
+  - `models` is empty unless `ready`, and already honors the user's "only free models" choice. A model is `{id,name,vision,thinkingLevels[],isDefault,free}`; `free` means every price tier is zero.
+- Picker behavior (both clients): all providers appear in the rail; non-`ready` ones are dimmed and selecting one explains why ("X isn't signed in on the server yet." / "X is turned off in Settings.") with an Open Settings action. A saved choice that is no longer allowed falls back to the default of the first ready provider.
+
+## Pairing (QR sign-in)
+- `POST /auth/pair` (signed in) returns `{code, expiresAt, urls, link}`. Pairing is **Kore ID-backed**: the signed-in session it starts from came from a Kore ID sign-in. The code is 128-bit, single-use and valid for 2 minutes; one live code per user. `urls` are the backend's addresses, best first (local network, Tailscale, `KOREMIND_PUBLIC_URL`). `link` is `koremind://pair?c=<code>&u=<url>&u=<url>` (percent-encoded) and is what the QR contains.
+- `POST /auth/pair/redeem {code}` (no auth) trades the code for a normal session of the same account. It cannot create an account. Guessing is rate limited per address (10 attempts per 15 minutes).
+- Web shows the QR (Settings → Account → Connect your phone). Android scans it, or opens the `koremind://pair` link: it tries each url's `/health` in order, redeems against the first that answers, and saves the url and token.
+
+## StreamEvent (SSE `data:` lines)
+| Event | When |
+| --- | --- |
+| `{type:"status",state:"thinking"\|"searching"}` | immediately, and when web search starts |
+| `{type:"delta",text}` | answer text as it arrives |
+| `{type:"source",title,url}` | a web search source |
+| `{type:"activity",kind:"saved"\|"read"\|"edited"\|"denied",title,chat?}` | the assistant used (or was refused) the notes tools; `chat` is set when another chat was involved |
+| `{type:"approval",id,action:"read"\|"edit",chat}` | the assistant wants another chat's notes; the stream stays open until answered or 60 s pass |
+| `{type:"approval_closed",id,outcome:"allowed"\|"denied"\|"expired"}` | the card is resolved |
+| `{type:"done",messageId}` | the answer is complete |
+| `{type:"title",title}` | first turn of a chat only, best effort, after `done` |
+| `{type:"error",code,message}` | `code` is `no_provider`, `attachment_too_large`, `engine`, `aborted` or `model_not_allowed` (`network` is made by the apps for a broken connection; the server never sends it) |
+
+A stream ends after `error`, or after `done` (and on the first turn of a chat up to about 8 s later, after `title`). Clients treat the turn as finished at `done` and keep reading only for `title`. Assistant messages carry `activity: Activity[]` (same shape as the event, without `type`) so history shows what was done. Keep-alive `: ping` comment lines arrive every 15 s.
+
+## Notes and approvals
+- The assistant has three tools: `save_note`, `read_notes`, `edit_note`. A note belongs to one chat of one user; by default a tool only touches the current chat.
+- Touching another chat's notes (the `chat` argument names it by title) needs the user's approval: an `approval` event, answered with `POST /chats/:id/approvals/:approvalId`. Allowing covers that chat for the rest of the turn (edit covers read). Nothing about the other chat, not even whether a note exists, is revealed before the user agrees. Denied or expired requests return an error to the model and show as a `denied` activity.
+- Limits: title 120 characters, note 20,000 characters, 50 notes per chat.
+
+## Examples
+```
+POST /auth/oidc/start {"challenge":"<43-char PKCE S256>","platform":"web","returnTo":"https://koremind.example.com/login"}
+-> {"url":"https://id.kore.example/authorize?…"}      # open it; Kore ID redirects back with #sso_ticket=…
+
+POST /auth/oidc/exchange {"ticket":"…","verifier":"<the secret behind the challenge>"}
+-> {"token":"…","user":{"id":"u1","email":"me@home.lan","isOwner":true}}
+
+POST /chats/c1/messages {"text":"note: buy milk","attachmentIds":[],"model":{"providerId":"opencode","modelId":"big-pickle"}}
+-> data: {"type":"status","state":"thinking"}
+   data: {"type":"activity","kind":"saved","title":"buy milk"}
+   data: {"type":"delta","text":"Noted."}
+   data: {"type":"done","messageId":"m2"}
+   data: {"type":"title","title":"Shopping list"}
+```
+
+## Kore ID (single sign-on)
+
+Kore ID is the **only** human sign-in. `KOREMIND_OIDC_ISSUER` is required; `GET /health` reports `sso: true` when it is set. The backend is the OIDC client; clients only handle a one-time ticket. Details and settings: [kore-id.md](kore-id.md).
+
+- `Authorization: Bearer <Kore ID access token>` (header `typ: at+jwt`, audience `koremind`) is accepted next to KoreMind's own opaque session tokens, for accounts that are linked to that Kore ID `sub`. Anything whose `typ` isn't `at+jwt` (ID tokens, logout tokens) is refused. Unlinked subjects get 401; bearers never create accounts.
+- There is no password login or registration endpoint: `/auth/login` and `/auth/register` are gone (404).

@@ -1,0 +1,94 @@
+package dev.qarasky.koremind.data
+
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+
+val KoreMindJson = Json { ignoreUnknownKeys = true; explicitNulls = false; encodeDefaults = true }
+
+@Serializable data class User(val id: String, val email: String, val isOwner: Boolean, val ssoLinked: Boolean = false)
+@Serializable data class AuthResponse(val token: String, val user: User)
+@Serializable data class Health(val name: String, val version: String, val setupRequired: Boolean, val sso: Boolean = false)
+@Serializable data class SsoStartBody(val challenge: String, val platform: String)
+@Serializable data class SsoStartResponse(val url: String)
+@Serializable data class SsoExchangeBody(val ticket: String, val verifier: String)
+/** logoutUrl: Kore ID's RP-initiated logout page; only for sessions that came from a Kore ID sign-in. */
+@Serializable data class LogoutResponse(val ok: Boolean = true, val logoutUrl: String? = null)
+@Serializable data class ModelInfo(val id: String, val name: String, val vision: Boolean, val thinkingLevels: List<String>, val isDefault: Boolean, val free: Boolean = false)
+/** status: "ready", "needs_connection" (not signed in on the server) or "disabled" (turned off in Settings). Models are empty unless ready. */
+@Serializable data class ProviderInfo(val id: String, val name: String, val connected: Boolean, val models: List<ModelInfo>, val status: String = "ready", val recommended: Boolean = false)
+/** A provider set up on the server. The app only shows its status; [hint] says what to run on the server to sign it in. */
+@Serializable data class ProviderConnection(val id: String, val name: String, val connected: Boolean, val supportsFreeFilter: Boolean = false, val hint: String = "")
+@Serializable data class ChatSummary(val id: String, val title: String, val updatedAt: Long)
+@Serializable data class Attachment(val id: String, val name: String, val mime: String, val size: Long)
+@Serializable data class Source(val title: String, val url: String)
+/** What the assistant did with notes during a turn. [chat] is set when another chat's notes were involved. */
+@Serializable data class Activity(val kind: String, val title: String, val chat: String? = null)
+@Serializable data class ChatMessage(
+    val id: String,
+    val role: String,
+    val text: String,
+    val attachments: List<Attachment> = emptyList(),
+    val sources: List<Source> = emptyList(),
+    val activity: List<Activity> = emptyList(),
+    val createdAt: Long = 0,
+    /** The message this one follows; null at the start of the chat. */
+    val parentId: String? = null,
+    /** On an edited user message: every version's id (this one included), oldest first. Empty with one version. */
+    val siblings: List<String> = emptyList(),
+)
+@Serializable data class ModelRef(val providerId: String, val modelId: String)
+@Serializable data class SendMessageRequest(
+    val text: String, val attachmentIds: List<String>, val model: ModelRef, val thinking: String? = null,
+    /** Edit: the id of the user message this text replaces. The answer starts a new version next to it. */
+    val editOf: String? = null,
+)
+@Serializable data class MemoryEntry(val id: String, val text: String, val updatedAt: Long)
+/** The abstract profile written from memory, sent at the start of every chat. */
+@Serializable data class MemorySummary(val text: String, val updatedAt: Long)
+@Serializable data class MemorySummaryResponse(val summary: MemorySummary? = null)
+@Serializable data class Settings(
+    val memoryEnabled: Boolean = true, val displayName: String = "", val tone: String = "", val about: String = "",
+    val disabledProviders: List<String> = emptyList(), val freeOnlyProviders: List<String> = emptyList(),
+)
+/** A chat as the app opens it: the branch on screen, and whether an answer is still being written on the server. */
+@Serializable data class ChatDetail(val chat: ChatSummary, val messages: List<ChatMessage>, val running: Boolean = false)
+@Serializable data class BranchBody(val messageId: String)
+@Serializable data class TitleBody(val title: String)
+@Serializable data class TextBody(val text: String)
+@Serializable data class PairCodeBody(val code: String)
+@Serializable data class ApprovalAnswer(val allow: Boolean)
+
+sealed interface StreamEvent {
+    data class Status(val state: String) : StreamEvent
+    data class Delta(val text: String) : StreamEvent
+    data class Source(val title: String, val url: String) : StreamEvent
+    data class Done(val messageId: String) : StreamEvent
+    /** The assistant used (or was refused) the notes tools. Also stored on the finished message. */
+    data class Noted(val activity: Activity) : StreamEvent
+    /** The assistant wants another chat's notes; the stream stays open until the user answers or it expires. */
+    data class Approval(val id: String, val action: String, val chat: String) : StreamEvent
+    data class ApprovalClosed(val id: String, val outcome: String) : StreamEvent
+    /** Arrives after Done on a new chat, once the chosen model has named it. Best effort. */
+    data class Title(val title: String) : StreamEvent
+    data class Error(val code: String, val message: String) : StreamEvent
+}
+
+fun parseStreamEvent(json: String): StreamEvent? = try {
+    val o: JsonObject = KoreMindJson.parseToJsonElement(json).jsonObject
+    fun s(k: String) = o[k]?.jsonPrimitive?.content ?: ""
+    when (s("type")) {
+        "status" -> StreamEvent.Status(s("state"))
+        "delta" -> StreamEvent.Delta(s("text"))
+        "source" -> StreamEvent.Source(s("title"), s("url"))
+        "done" -> StreamEvent.Done(s("messageId"))
+        "title" -> StreamEvent.Title(s("title"))
+        "activity" -> StreamEvent.Noted(Activity(s("kind"), s("title"), o["chat"]?.jsonPrimitive?.content))
+        "approval" -> StreamEvent.Approval(s("id"), s("action"), s("chat"))
+        "approval_closed" -> StreamEvent.ApprovalClosed(s("id"), s("outcome"))
+        "error" -> StreamEvent.Error(s("code"), s("message"))
+        else -> null
+    }
+} catch (_: Exception) { null }
