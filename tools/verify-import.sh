@@ -12,7 +12,10 @@ src_tree=$(git -C "$tmp/src" rev-parse 'HEAD^{tree}')
 dst_tree=$(git -C "$root" rev-parse -q --verify "HEAD:$target" || echo missing)
 [ "$src_tree" = "$dst_tree" ] || { echo "FAIL tree: source $src_tree, $target $dst_tree"; fail=1; }
 src_n=$(git -C "$tmp/src" rev-list --count HEAD)
-dst_n=$(git -C "$root" rev-list --count HEAD -- "$target")
+# Count from the import merge's second parent: a path-limited rev-list would skip merges
+# that left the tree unchanged.
+merge=$(git -C "$root" log --merges --format=%H -1 --grep="^chore: import qarasky/$repo into $target\$" HEAD)
+dst_n=$([ -n "$merge" ] && git -C "$root" rev-list --count "$merge^2" || echo 0)
 [ "$src_n" = "$dst_n" ] || { echo "FAIL commits: source $src_n, $target $dst_n"; fail=1; }
 for t in $(git -C "$tmp/src" tag -l); do
   git -C "$root" rev-parse -q --verify "refs/tags/$prefix-$t" >/dev/null || { echo "FAIL tag: $prefix-$t missing"; fail=1; }
