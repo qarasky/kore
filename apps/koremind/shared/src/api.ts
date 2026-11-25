@@ -102,9 +102,17 @@ export type ChatMessage = z.infer<typeof ChatMessage>;
 export const ChatDetail = z.object({ chat: ChatSummary, messages: z.array(ChatMessage), running: z.boolean().default(false) });
 export type ChatDetail = z.infer<typeof ChatDetail>;
 
+/** Files one message may carry. Each is read into memory for the model, so the server enforces it. */
+export const MAX_ATTACHMENTS = 10;
+
 export const SendMessageRequest = z.object({
   text: z.string(),
-  attachmentIds: z.array(z.string()),
+  // Duplicates are dropped (each id is read once), then at most MAX_ATTACHMENTS distinct files.
+  attachmentIds: z
+    .array(z.string().max(100))
+    .max(200)
+    .transform((ids) => [...new Set(ids)])
+    .pipe(z.array(z.string()).max(MAX_ATTACHMENTS)),
   model: z.object({ providerId: z.string(), modelId: z.string() }),
   thinking: z.string().optional(),
   /** Edit: the id of the user message this text replaces. The answer starts a new variant next to it. */

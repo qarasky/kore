@@ -77,6 +77,32 @@ test("POST /uploads then send includes the file", async () => {
   expect((await call("GET", `/uploads/${att.id}?token=${token}`)).status).toBe(200);
 });
 
+test("a file listed many times in one message is read once", async () => {
+  const { call, engine, signIn } = setup();
+  const token = signIn();
+  const form = new FormData();
+  form.set("file", new File(["hello"], "note.txt", { type: "text/plain" }));
+  const att = (await (await call("POST", "/uploads", { token, form })).json()) as { id: string };
+  const chat = (await (await call("POST", "/chats", { token })).json()) as { id: string };
+  await frames(await call("POST", `/chats/${chat.id}/messages`, { token, body: { text: "x", attachmentIds: Array(50).fill(att.id), model } }));
+  expect(engine.prompts[0].files).toHaveLength(1);
+});
+
+test("more than 10 files in one message is refused", async () => {
+  const { call, engine, signIn } = setup();
+  const token = signIn();
+  const ids: string[] = [];
+  for (let i = 0; i < 11; i++) {
+    const form = new FormData();
+    form.set("file", new File([`f${i}`], `f${i}.txt`, { type: "text/plain" }));
+    ids.push(((await (await call("POST", "/uploads", { token, form })).json()) as { id: string }).id);
+  }
+  const chat = (await (await call("POST", "/chats", { token })).json()) as { id: string };
+  const res = await call("POST", `/chats/${chat.id}/messages`, { token, body: { text: "x", attachmentIds: ids, model } });
+  expect(res.status).toBe(400);
+  expect(engine.prompts).toHaveLength(0);
+});
+
 test("an oversized upload returns 413 with a message", async () => {
   const { call, signIn } = setup(undefined, 10);
   const token = signIn();
