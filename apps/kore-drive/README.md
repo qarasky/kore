@@ -424,21 +424,21 @@ cp kore.example.toml kore.toml          # set data_dir, public_url, [oidc]
 mkdir -p data && (cd api && go run ./cmd/kore init -config ../kore.toml)
 (cd api && go run ./cmd/kore -config ../kore.toml)    # API on 127.0.0.1:8080
 
-cd web && npm ci && npm run dev         # http://localhost:3000, /api proxied to the API
+cd web && bun install && bun run dev         # http://localhost:3000, /api proxied to the API
 ```
 
 ### Tests
 
 ```sh
 cd api && go vet ./... && go test -race ./...
-cd web && npm run typecheck && npm run lint && npx vitest run
-cd web && npx playwright test e2e/login.spec.ts   # one e2e spec
-cd web && npm run e2e                              # the whole e2e suite
+cd web && bun run typecheck && bun run lint && bunx vitest run
+cd web && bunx playwright test e2e/login.spec.ts   # one e2e spec
+cd web && bun run e2e                              # the whole e2e suite
 ```
 
 The e2e harness (`web/e2e/harness/`) builds the Go binary and a production
 Next build, starts both on fresh, throwaway data, and removes it afterwards
-(`npx playwright install chromium` once). `E2E_SKIP_BUILD=1` reuses the last
+(`bunx playwright install chromium` once). `E2E_SKIP_BUILD=1` reuses the last
 web build. The suite seeds accounts and sessions directly in the throwaway
 API's SQLite file (Kore ID is the only sign-in, and the harness runs no
 provider), so it does not run against an external deployment; see

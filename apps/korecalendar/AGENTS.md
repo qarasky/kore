@@ -19,9 +19,9 @@ everything the UI can. Same shape as Kore (`~/.t3/projects/kore`): Go API + SQLi
 ```sh
 cd api && go vet ./... && go test -race -count=1 ./...
 cd api && go test ./internal/recur/ -run DST -v      # one package / test
-cd web && npm run typecheck && npm run lint && npm test      # unit tests; pure logic lives in web/lib
-cd web && npm run e2e                                         # Playwright against the real API (builds both)
-cd web && E2E_BASE_URL=http://host:port E2E_RESET_CMD=./reset.sh npx playwright test auth   # against a stack you already run (e.g. Docker behind Caddy)
+cd web && bun run typecheck && bun run lint && bun run test      # unit tests; pure logic lives in web/lib
+cd web && bun run e2e                                         # Playwright against the real API (builds both)
+cd web && E2E_BASE_URL=http://host:port E2E_RESET_CMD=./reset.sh bunx playwright test auth   # against a stack you already run (e.g. Docker behind Caddy)
 ```
 
 TDD for behaviour: failing test first.

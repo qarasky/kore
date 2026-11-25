@@ -24,18 +24,18 @@ cd api && go vet ./... && go test -race -count=1 ./...
 cd api && go test ./internal/httpapi/ -run Branding     # one package / test
 
 # Web
-cd web && npm ci
-cd web && npm run typecheck && npm run lint && npx vitest run
-cd web && npx vitest run lib/__tests__/branding.test.ts
-cd web && npx playwright test e2e/browse.spec.ts          # one spec (builds first)
-cd web && E2E_SKIP_BUILD=1 npx playwright test e2e/x.spec.ts   # reuse last e2e build
-cd web && npm run e2e                                      # full suite: only before releases
+cd web && bun install
+cd web && bun run typecheck && bun run lint && bunx vitest run
+cd web && bunx vitest run lib/__tests__/branding.test.ts
+cd web && bunx playwright test e2e/browse.spec.ts          # one spec (builds first)
+cd web && E2E_SKIP_BUILD=1 bunx playwright test e2e/x.spec.ts   # reuse last e2e build
+cd web && bun run e2e                                      # full suite: only before releases
 ```
 
-`npx next typegen` creates the `PageProps`/`LayoutProps` globals if
+`bunx next typegen` creates the `PageProps`/`LayoutProps` globals if
 `typecheck` complains about them on a fresh checkout. One-time:
-`npx playwright install chromium`. The e2e build overwrites `web/.next`; do
-not run it next to `npm run dev`.
+`bunx playwright install chromium`. The e2e build overwrites `web/.next`; do
+not run it next to `bun run dev`.
 
 Testing conventions: TDD for behaviour (failing test first). Run targeted
 tests for what you touched; the full Playwright suite is slow and is for
@@ -99,8 +99,8 @@ restrictive CSP (`sandbox`). Nothing user-controlled becomes a filesystem path
 ## UI conventions
 
 - Every UI string lives in `web/lib/i18n/en.ts`, read with `t(key, vars)`.
-- UI is built from `@qarasky/kore-ui` (pinned tarball tag in `web/package.json`;
-  `kore-ui/DESIGN.md` is the design source of truth): AppShell, Button, Field,
+- UI is built from `@qarasky/kore-ui` (`packages/kore-ui` in this monorepo, `workspace:*`;
+  `packages/kore-ui/DESIGN.md` is the design source of truth): AppShell, Button, Field,
   Input, Select, Dialog, ConfirmDialog, Menu, Toast (`useToast`), Table, Meter,
   EmptyState, AuthScreen, AccountMenu. Icons are lucide. Don't re-create a
   primitive locally (a unit test guards the old ones and native

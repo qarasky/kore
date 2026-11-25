@@ -46,9 +46,9 @@ Component that fetches from the Go API with the user's `kore_session` cookie.
 ## Development
 
 ```sh
-npm install
+bun install
 # Go API on 127.0.0.1:8080 (see ../api and ../kore.example.toml), then:
-npm run dev            # http://localhost:3000, /api/* rewritten to API_URL
+bun run dev            # http://localhost:3000, /api/* rewritten to API_URL
 ```
 
 `API_URL` (default `http://127.0.0.1:8080`) is where the Go API listens. It
@@ -65,15 +65,15 @@ in `lib/i18n/index.ts` and resolve it in `activeLocale()`.
 ## Tests
 
 ```sh
-npm run test        # vitest unit tests (lib/__tests__)
-npm run e2e         # Playwright against the real stack
-npm run lint
-npm run typecheck
+bun run test        # vitest unit tests (lib/__tests__)
+bun run e2e         # Playwright against the real stack
+bun run lint
+bun run typecheck
 ```
 
-One-time setup for e2e: `npx playwright install chromium`. Go must be on `PATH`.
+One-time setup for e2e: `bunx playwright install chromium`. Go must be on `PATH`.
 
-`npm run e2e` starts two servers (see `playwright.config.ts`):
+`bun run e2e` starts two servers (see `playwright.config.ts`):
 
 - `e2e/harness/api-server.ts`: builds `../api/cmd/kore` into `$TMPDIR/kore-e2e`,
   wipes and creates a fresh data dir, writes a `kore.toml` (127.0.0.1:18080,
@@ -86,7 +86,7 @@ One-time setup for e2e: `npx playwright install chromium`. Go must be on `PATH`.
   then serves the production standalone server (`.next/standalone/server.js`)
   on 127.0.0.1:13000. A production build is used instead of `next dev` so tests
   exercise what ships and are not slowed or flaked by on-demand compilation.
-  `E2E_SKIP_BUILD=1 npm run e2e` reuses the previous e2e build. A second
+  `E2E_SKIP_BUILD=1 bun run e2e` reuses the previous e2e build. A second
   instance of the same build runs on 127.0.0.1:13001 with its runtime
   `API_URL` pointed at a closed port, for API-outage tests (`E2E.webDownUrl`;
   cookies are per host, so a session from :13000 works there).
@@ -113,4 +113,4 @@ Upload chunk size can be overridden per browser with
 `localStorage.koreChunkBytes` (clamped to 256 KiB to 64 MiB); `e2e/dnd.spec.ts`
 uses it to upload in 1 MiB chunks.
 
-Note: the e2e build overwrites `.next`; don't run it alongside `npm run dev`.
+Note: the e2e build overwrites `.next`; don't run it alongside `bun run dev`.

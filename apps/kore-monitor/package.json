@@ -12,7 +12,10 @@
     "//": "Node is a build/test tool here and the web app's runtime (apps/web, its own image); the backend is Rust and the agents are Go.",
     "scripts": {
         "fmt": "prettier --write .",
-        "fmt:check": "prettier --check ."
+        "fmt:check": "prettier --check .",
+        "test:web": "bun run --cwd apps/web test",
+        "typecheck:web": "bun run --cwd apps/web typecheck",
+        "build:web": "bun run --cwd apps/web build"
     },
     "devDependencies": {
         "prettier": "^3.8.1"

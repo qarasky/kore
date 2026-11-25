@@ -5,8 +5,8 @@ KoreMonitor (Flatline, uptime) and Kore ID (accounts and admin). This file is th
 design doc only covers what is specific to it (KoreMind's chat, KoreCalendar's time grid, Flatline's board) and
 defers to this one for everything else.
 
-The code is `@qarasky/kore-ui` (this repo): `theme.css` holds the tokens, `src/` the React components. The showcase
-(`npm run dev`) renders every component in every state; `docs/screenshots/` has the pictures.
+The code is `@qarasky/kore-ui` (`packages/kore-ui` in the Kore monorepo): `theme.css` holds the tokens, `src/` the React components. The showcase
+(`bun run showcase:dev`) renders every component in every state; `docs/screenshots/` has the pictures.
 
 ## 1. Principles
 

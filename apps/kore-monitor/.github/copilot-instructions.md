@@ -51,17 +51,17 @@ build and production server). Data is SQLite, migrated at startup from
 | Task                | Command                                                   |
 | ------------------- | --------------------------------------------------------- |
 | Backend tests       | `cargo test --manifest-path backend/Cargo.toml`           |
-| Formatting          | `npm run fmt:check`                                       |
-| Web app tests       | `npm run test:web`                                        |
-| Web app types       | `npm run typecheck:web`                                   |
-| Web app build       | `npm run build:web`                                       |
+| Formatting          | `bun run fmt:check`                                       |
+| Web app tests       | `bun run test:web`                                        |
+| Web app types       | `bun run typecheck:web`                                   |
+| Web app build       | `bun run build:web`                                       |
 | Agent build and vet | `cd superboard && go build ./... && go vet ./...`         |
 | Local stack         | `./dev.sh` (backend `:3001`, web app `:3003`, mock fleet) |
 
 ## Style
 
-- The repository is formatted by Prettier (`npm run fmt`, verified by
-  `npm run fmt:check`). Do not hand-format; run the formatter instead.
+- The repository is formatted by Prettier (`bun run fmt`, verified by
+  `bun run fmt:check`). Do not hand-format; run the formatter instead.
   `.prettierignore` covers the lockfile, local state and build output.
 - Keep pure presentation logic in `apps/web/lib/` so it can be tested without
   a DOM (Vitest, `apps/web/__tests__/`).

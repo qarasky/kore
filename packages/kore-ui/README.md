@@ -172,12 +172,12 @@ and QR codes), `koreDuration` / `koreEase` (the motion scale for JS animation).
 ## Develop
 
 ```sh
-npm install && npm run showcase:install
-npm run dev          # showcase at http://localhost:5173 (every component, app shell, table, settings, sign-in)
-npm test             # vitest + Testing Library
-npm run typecheck    # library + showcase
-npm run build        # builds the showcase
-npm run screenshots  # after build: writes docs/screenshots/*.png with Playwright
+bun install                # at the monorepo root (one install for every app and kore-ui)
+bun run showcase:dev       # showcase at http://localhost:5173 (every component, app shell, table, settings, sign-in)
+bun run test               # vitest + Testing Library
+bun run typecheck          # library + showcase
+bun run showcase:build     # builds the showcase
+bun run screenshots        # after showcase:build: writes docs/screenshots/*.png with Playwright
 ```
 
 The showcase depends on the package through `file:..` and imports it exactly like an app does (package exports,

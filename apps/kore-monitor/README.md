@@ -124,7 +124,7 @@ There is no single-binary mode. Run three things:
 
 - the backend: `cargo run --release --manifest-path backend/Cargo.toml`
   (data is SQLite in `./data`);
-- the web app: `npm run build:web`, then `npx next start` in `apps/web/` (or
+- the web app: `bun run build:web`, then `bunx next start` in `apps/web/` (or
   the standalone server `apps/web/server.js` from `.next/standalone/`, laid out
   as [`docker/web.dockerfile`](docker/web.dockerfile) does), with `API_URL`
   pointing at the backend;

@@ -13,21 +13,21 @@ Stack: Node ≥ 24 (built-in `node:sqlite`), Hono, jose. Passwords: scrypt (min 
 ## Run
 
 ```sh
-npm install
-npm run install:web && npm run build:web   # the web UI: web/dist (npm start serves it; build it first)
-npm run init-clients        # writes clients.json, prints each app's secret ONCE
+bun install                  # at the monorepo root (installs the server and the web UI)
+bun run build:web           # the web UI: web/dist (bun run start serves it; build it first)
+bun run init-clients        # writes clients.json, prints each app's secret ONCE
 # edit clients.json: set real redirectUris / postLogoutRedirectUris / backchannelLogoutUri / homeUrl per app
-ISSUER=https://id.kore.example PORT=4000 npm start
-npm test && npm run typecheck              # server
-npm run test:web && npm run typecheck:web  # web UI
+ISSUER=https://id.kore.example PORT=4000 bun run start
+bun run test && bun run typecheck              # server
+bun run test:web && bun run typecheck:web  # web UI
 ```
 
 Developing the web UI: run the server with the Vite origin as issuer, and Vite next to it (it proxies `/api`,
 `/authorize`, `/logout`, `/token`, `/userinfo` and `/.well-known` to the server on :4000):
 
 ```sh
-ISSUER=http://localhost:5173 npm run dev   # server on :4000
-npm run dev:web                            # http://localhost:5173
+ISSUER=http://localhost:5173 bun run dev   # server on :4000
+bun run dev:web                            # http://localhost:5173
 ```
 
 | Env | Default | |

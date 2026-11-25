@@ -33,6 +33,8 @@
     "README.md"
   ],
   "scripts": {
+    "showcase:dev": "bun run --cwd showcase dev",
+    "showcase:build": "bun run --cwd showcase build",
     "typecheck": "tsc --noEmit && tsc --noEmit -p showcase",
     "test": "vitest run",
     "test:watch": "vitest",

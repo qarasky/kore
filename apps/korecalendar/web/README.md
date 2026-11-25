@@ -4,10 +4,10 @@ The web UI: Next.js 16 (App Router, React 19), Tailwind v4, server-rendered, no 
 (see [`../docs/api.md`](../docs/api.md)); what it does is described in [`../docs/web.md`](../docs/web.md).
 
 ```sh
-npm ci
-npm run dev                 # needs the API on http://127.0.0.1:8080 (API_URL overrides it)
-npm run typecheck && npm run lint && npm test      # unit tests (pure logic in lib/)
-npm run e2e                 # Playwright against the real Go API; see below
+bun install
+bun run dev                 # needs the API on http://127.0.0.1:8080 (API_URL overrides it)
+bun run typecheck && bun run lint && bun run test      # unit tests (pure logic in lib/)
+bun run e2e                 # Playwright against the real Go API; see below
 ```
 
 - `lib/` is pure logic with unit tests (dates and time zones, layout, recurrence editing, drag geometry, shortcuts).
@@ -23,8 +23,8 @@ npm run e2e                 # Playwright against the real Go API; see below
 
 ## End-to-end tests
 
-`npm run e2e` builds the Go API into `$TMPDIR/korecal-e2e`, builds the production web app, starts both (API on 18180, web on 13100) and
+`bun run e2e` builds the Go API into `$TMPDIR/korecal-e2e`, builds the production web app, starts both (API on 18180, web on 13100) and
 runs every spec in `e2e/` against them, resetting the API's data per file. `E2E_SKIP_BUILD=1` reuses an existing web build. Chromium must be
-installed once: `npx playwright install chromium`. Specs import `test` from `e2e/fixtures.ts` (its `page.goto` waits for streamed
-segments). `E2E_OIDC=1` turns on "Continue with Kore ID" (and the app switcher) in the test API; `E2E_OIDC=1 SCREENSHOTS=after npx playwright
+installed once: `bunx playwright install chromium`. Specs import `test` from `e2e/fixtures.ts` (its `page.goto` waits for streamed
+segments). `E2E_OIDC=1` turns on "Continue with Kore ID" (and the app switcher) in the test API; `E2E_OIDC=1 SCREENSHOTS=after bunx playwright
 test screenshots` writes the main screens to `docs/screenshots/kore-ui-migration/`. To test a stack that is already running (for example the Docker install behind Caddy) set `E2E_BASE_URL` and `E2E_RESET_CMD` (a shell command that leaves the API empty); specs that must stop the API process skip themselves then.

@@ -74,8 +74,8 @@ go build -o korecalendar ./cmd/korecalendar
 cp ../korecalendar.example.toml korecal.toml    # edit data_dir if you like (default ./data)
 ./korecalendar init -config korecal.toml && ./korecalendar -config korecal.toml      # the API on :8080
 # in another terminal:
-cd web && npm ci && API_URL=http://127.0.0.1:8080 npm run dev      # the web app on :3000, talking to the API
-npm run typecheck && npm run lint && npm test && npm run e2e         # see web/README.md
+cd web && bun install && API_URL=http://127.0.0.1:8080 bun run dev      # the web app on :3000, talking to the API
+bun run typecheck && bun run lint && bun run test && bun run e2e         # see web/README.md
 ```
 
 Requires Go 1.26 or newer and Node 24. The API's configuration is a small TOML file (`korecalendar.example.toml`) or `KORECAL_*` environment variables.

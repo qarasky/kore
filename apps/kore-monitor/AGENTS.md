@@ -25,9 +25,9 @@ Run the ones that cover what you touched before calling work done.
 
 | Area         | Command                                                               |
 | ------------ | --------------------------------------------------------------------- |
-| Formatting   | `npm run fmt:check` (fix with `npm run fmt`; never hand-format)       |
+| Formatting   | `bun run fmt:check` (fix with `bun run fmt`; never hand-format)       |
 | Backend      | `cargo test --manifest-path backend/Cargo.toml`                       |
-| Web app      | `npm run test:web && npm run typecheck:web` (and `npm run build:web`) |
+| Web app      | `bun run test:web && bun run typecheck:web` (and `bun run build:web`) |
 | Agent        | `cd superboard && gofmt -l . && go vet ./... && go test ./...`        |
 | Backup agent | `cd backup-agent && go vet ./... && go test -race ./...`              |
 | Local stack  | `./dev.sh` (backend `:3001`, web `:3003`, mock fleet), `status`       |
