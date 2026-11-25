@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/qarasky/korecalendar/api/internal/auth"
 	"github.com/qarasky/korecalendar/api/internal/calendars"
 	"github.com/qarasky/korecalendar/api/internal/config"
 	"github.com/qarasky/korecalendar/api/internal/events"
@@ -201,6 +202,11 @@ func background(ctx context.Context, db *sql.DB, cfg config.Config, logger *log.
 				logger.Printf("purge deleted calendars: %v", err)
 			} else if c > 0 {
 				logger.Printf("purged %d calendars deleted more than 30 days ago", c)
+			}
+			if s, err := auth.PurgeExpiredSessions(ctx, db); err != nil && ctx.Err() == nil {
+				logger.Printf("purge expired sessions: %v", err)
+			} else if s > 0 {
+				logger.Printf("purged %d expired sessions", s)
 			}
 		})
 	})

@@ -65,3 +65,13 @@ func SessionIDToken(ctx context.Context, db *sql.DB, tok string) string {
 	db.QueryRowContext(ctx, `SELECT id_token FROM sessions WHERE token_hash=?`, hashToken(tok)).Scan(&t)
 	return t
 }
+
+// PurgeExpiredSessions deletes sessions past expires_at. UserForToken already
+// refuses them; without this they stayed in the table forever.
+func PurgeExpiredSessions(ctx context.Context, db *sql.DB) (int64, error) {
+	res, err := db.ExecContext(ctx, `DELETE FROM sessions WHERE expires_at<=?`, time.Now().Unix())
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}

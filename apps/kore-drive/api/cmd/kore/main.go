@@ -215,6 +215,15 @@ func serve(ctx context.Context, cfg config.Config, logger *log.Logger) error {
 	var wg sync.WaitGroup
 	wg.Go(func() { every(bg, time.Hour, func(ctx context.Context) { sweepUploads(ctx, db, cfg.DataDir, logger) }) })
 	wg.Go(func() {
+		every(bg, time.Hour, func(ctx context.Context) {
+			if n, err := auth.PurgeExpiredSessions(ctx, db); err != nil && ctx.Err() == nil {
+				logger.Printf("purge expired sessions: %v", err)
+			} else if n > 0 {
+				logger.Printf("purged %d expired sessions", n)
+			}
+		})
+	})
+	wg.Go(func() {
 		every(bg, 24*time.Hour, func(ctx context.Context) { sweepTrash(ctx, db, cfg.DataDir, logger) })
 	})
 	defer func() { stopBg(); wg.Wait() }()
