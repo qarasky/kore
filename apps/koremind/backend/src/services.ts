@@ -23,7 +23,7 @@ export function createServices(o: ServiceOptions) {
   const settings = createSettings(o.db);
   const memory = createMemory(join(o.dataDir, "users"), o.engine, (u) => settings.get(u).memoryEnabled, { emit: (chatId, a) => chats.emit(chatId, { type: "activity", ...a }) });
   const uploads = createUploads(o.db, join(o.dataDir, "uploads"), o.maxUploadBytes);
-  const models = createModels(o.db, o.engine, (u) => settings.get(u));
+  const models = createModels(o.db, o.engine, (u) => settings.get(u), (u) => !!(o.db.query("select is_owner from users where id=?").get(u) as { is_owner: number } | null)?.is_owner);
   const approvals = createApprovals({ emit: (chatId, ev) => chats.emit(chatId, ev), timeoutMs: o.approvalTimeoutMs });
   const notes = createNotes(o.db, { ask: (a) => approvals.ask(a), emit: (chatId, a) => chats.emit(chatId, { type: "activity", ...a }) });
   const mcp = createMcp({ resolveSession: (sid) => chats.bySession(sid), notes, memory: memory.tools });

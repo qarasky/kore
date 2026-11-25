@@ -102,12 +102,9 @@ test("memory and settings routes round trip", async () => {
   expect(((await (await call("GET", "/memory/summary", { token })).json()) as { summary: { text: string } }).summary.text).toBe("A fake profile of the user.");
 });
 
-test("provider key route never echoes the key and favorites validate", async () => {
-  const { call, engine, signIn } = setup();
+test("favorites validate against the models on offer", async () => {
+  const { call, signIn } = setup();
   const token = signIn();
-  const res = await call("PUT", "/providers/opencode/key", { token, body: { key: "sk-secret-123" } });
-  expect(await res.text()).not.toContain("sk-secret-123");
-  expect(engine.keys.get("opencode")).toBe("sk-secret-123");
   const fav = await call("PUT", "/favorites", { token, body: ["opencode/fast", "x/y"] });
   expect(await fav.json()).toEqual(["opencode/fast"]);
   const models = (await (await call("GET", "/models", { token })).json()) as { id: string }[];
@@ -120,14 +117,32 @@ test("CORS preflight is allowed", async () => {
   expect(res.headers.get("access-control-allow-origin")).toBe("*");
 });
 
-test("only the owner can change provider keys", async () => {
-  const { call, engine, signIn } = setup();
+test("connecting a provider from the app is gone", async () => {
+  const { call, signIn, engine } = setup();
   const owner = signIn();
-  const second = signIn("kid@home.lan", false);
-  expect((await call("PUT", "/providers/opencode/key", { token: second, body: { key: "sk-evil" } })).status).toBe(403);
-  expect((await call("DELETE", "/providers/opencode/key", { token: second })).status).toBe(403);
-  expect(engine.keys.has("opencode")).toBe(false);
-  expect((await call("PUT", "/providers/opencode/key", { token: owner, body: { key: "sk-ok" } })).status).toBe(200);
+  expect((await call("PUT", "/providers/claude/key", { token: owner, body: { key: "sk-x" } })).status).toBe(404);
+  expect((await call("DELETE", "/providers/claude/key", { token: owner })).status).toBe(404);
+  expect((await call("POST", "/providers/claude/signin", { token: owner })).status).toBe(404);
+  expect((await call("GET", "/providers/claude/signin/at_1", { token: owner })).status).toBe(404);
+  const list = (await (await call("GET", "/providers", { token: owner })).json()) as Record<string, unknown>[];
+  expect(list.map((p) => p.id)).toEqual(["claude", "opencode", "opencode-go"]);
+  for (const p of list) expect(Object.keys(p).sort()).toEqual(["connected", "hint", "id", "name", "supportsFreeFilter"]);
+  expect(list.find((p) => p.id === "claude")).toMatchObject({ connected: false });
+  expect(String(list.find((p) => p.id === "claude")!.hint)).toContain("claude auth login");
+  engine.connected.add("claude");
+  expect(((await (await call("GET", "/providers", { token: owner })).json()) as Record<string, unknown>[]).find((p) => p.id === "claude")).toMatchObject({ connected: true, hint: "" });
+});
+
+test("a non-owner can't send to Claude", async () => {
+  const { call, signIn, engine } = setup();
+  engine.connected.add("claude");
+  signIn();
+  const kid = signIn("kid@home.lan", false);
+  const chat = (await (await call("POST", "/chats", { token: kid })).json()) as { id: string };
+  const res = await call("POST", `/chats/${chat.id}/messages`, { token: kid, body: { text: "hi", attachmentIds: [], model: { providerId: "claude", modelId: "claude-sonnet-5-5" } } });
+  expect(res.status).toBe(400);
+  expect(await res.text()).toContain("model_not_allowed");
+  expect(engine.prompts).toHaveLength(0);
 });
 
 test("behind a local tunnel the forwarded address is used for pairing rate limits", async () => {
@@ -156,43 +171,25 @@ test("slow replies keep the stream alive with comment pings", async () => {
   expect(evs[evs.length - 1].type).toBe("done");
 });
 
-test("provider list shows login methods; sign-in is owner-only and reports progress", async () => {
-  const { call, engine, signIn } = setup();
-  const owner = signIn();
-  const list = (await (await call("GET", "/providers", { token: owner })).json()) as { id: string; methods: string[]; connected: boolean }[];
-  expect(list.map((p) => p.id)).toEqual(["groq", "openrouter", "opencode", "opencode-go", "openai"]);
-  expect(list.find((p) => p.id === "openai")?.methods).toEqual(["key", "signin"]);
-
-  const start = (await (await call("POST", "/providers/openai/signin", { token: owner })).json()) as { attemptId: string; url: string };
-  expect(start.url).toStartWith("https://");
-  expect(((await (await call("GET", `/providers/openai/signin/${start.attemptId}`, { token: owner })).json()) as { status: string }).status).toBe("pending");
-  engine.finishSignIn(start.attemptId);
-  expect(((await (await call("GET", `/providers/openai/signin/${start.attemptId}`, { token: owner })).json()) as { status: string }).status).toBe("complete");
-  expect(((await (await call("GET", "/providers", { token: owner })).json()) as { id: string; connected: boolean }[]).find((p) => p.id === "openai")?.connected).toBe(true);
-
-  const second = signIn("kid@home.lan", false);
-  expect((await call("POST", "/providers/openai/signin", { token: second })).status).toBe(403);
-});
-
 test("provider settings change what /models returns, and a disallowed model is refused before streaming", async () => {
   const { call, engine, signIn } = setup();
   const token = signIn();
-  await call("PUT", "/providers/openrouter/key", { token, body: { key: "sk-or" } });
+  engine.connected.add("opencode-go");
   const list = async () => (await (await call("GET", "/models", { token })).json()) as { id: string; status: string; models: { id: string; free: boolean }[] }[];
-  expect((await list()).map((p) => p.id)).toEqual(["groq", "openrouter", "opencode", "opencode-go", "openai"]);
-  expect((await list()).find((p) => p.id === "openrouter")!.status).toBe("ready");
+  expect((await list()).map((p) => p.id)).toEqual(["claude", "opencode", "opencode-go"]);
+  expect((await list()).find((p) => p.id === "opencode-go")!.status).toBe("ready");
 
   const put = (patch: object) => call("PUT", "/settings", { token, body: { memoryEnabled: true, displayName: "", tone: "", about: "", disabledProviders: [], freeOnlyProviders: [], ...patch } });
-  await put({ freeOnlyProviders: ["openrouter"] });
-  expect((await list()).find((p) => p.id === "openrouter")!.models.every((m) => m.free)).toBe(true);
+  await put({ freeOnlyProviders: ["opencode"] });
+  expect((await list()).find((p) => p.id === "opencode")!.models.every((m) => m.free)).toBe(true);
   const chat = (await (await call("POST", "/chats", { token })).json()) as { id: string };
-  const refused = await call("POST", `/chats/${chat.id}/messages`, { token, body: { text: "hi", attachmentIds: [], model: { providerId: "openrouter", modelId: "acme/pro" } } });
+  const refused = await call("POST", `/chats/${chat.id}/messages`, { token, body: { text: "hi", attachmentIds: [], model: { providerId: "opencode", modelId: "vision" } } });
   expect(refused.status).toBe(400);
   expect(await refused.text()).toContain("model_not_allowed");
   expect(engine.prompts).toHaveLength(0);
 
-  await put({ disabledProviders: ["openrouter"] });
-  expect((await list()).find((p) => p.id === "openrouter")!.status).toBe("disabled");
+  await put({ disabledProviders: ["opencode-go"] });
+  expect((await list()).find((p) => p.id === "opencode-go")!.status).toBe("disabled");
   const ok = await call("POST", `/chats/${chat.id}/messages`, { token, body: { text: "hi", attachmentIds: [], model } });
   expect(ok.status).toBe(200);
   await ok.text();

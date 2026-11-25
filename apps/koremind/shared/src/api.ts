@@ -52,28 +52,24 @@ export const ProviderInfo = z.object({
   name: z.string(),
   connected: z.boolean(),
   status: ProviderStatus,
-  /** KoreMind's suggested providers (Groq, OpenRouter); they are listed first and tagged "Recommended". */
+  /** Kept for older clients; no provider is recommended any more. */
   recommended: z.boolean().default(false),
   /** Empty unless status is "ready". Already filtered by the user's "free models only" choice. */
   models: z.array(ModelInfo),
 });
 export type ProviderInfo = z.infer<typeof ProviderInfo>;
 
-/** A provider the owner can connect in Settings. `signin` = browser sign-in (Codex uses ChatGPT). */
+/** A provider set up on the server (KOREMIND_PROVIDERS). The apps only show its status; signing in happens on the server. */
 export const ProviderConnection = z.object({
   id: z.string(),
   name: z.string(),
   connected: z.boolean(),
-  methods: z.array(z.enum(["key", "signin"])),
-  recommended: z.boolean().default(false),
-  /** Providers with paid and free models can be limited to free ones (OpenCode, OpenRouter). */
+  /** Providers with paid and free models can be limited to free ones (OpenCode). */
   supportsFreeFilter: z.boolean(),
+  /** What to run on the server to sign this provider in. "" when there is nothing to do. */
+  hint: z.string().default(""),
 });
 export type ProviderConnection = z.infer<typeof ProviderConnection>;
-export const SignInStart = z.object({ attemptId: z.string(), url: z.string(), instructions: z.string() });
-export type SignInStart = z.infer<typeof SignInStart>;
-export const SignInStatus = z.object({ status: z.enum(["pending", "complete", "failed"]) });
-export type SignInStatus = z.infer<typeof SignInStatus>;
 
 export const ChatSummary = z.object({ id: z.string(), title: z.string(), updatedAt: z.number() });
 export type ChatSummary = z.infer<typeof ChatSummary>;

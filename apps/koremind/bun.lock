@@ -7,7 +7,7 @@
     },
     "backend": {
       "name": "@koremind/backend",
-      "version": "0.2.2",
+      "version": "0.3.0",
       "dependencies": {
         "@koremind/shared": "workspace:*",
         "jose": "^6.2.15",
@@ -20,14 +20,14 @@
     },
     "shared": {
       "name": "@koremind/shared",
-      "version": "0.2.2",
+      "version": "0.3.0",
       "dependencies": {
         "zod": "^4.0.0",
       },
     },
     "web": {
       "name": "@koremind/web",
-      "version": "0.2.2",
+      "version": "0.3.0",
       "dependencies": {
         "@koremind/shared": "workspace:*",
         "@qarasky/kore-ui": "https://codeload.github.com/qarasky/kore-ui/tar.gz/refs/tags/v0.3.0",

@@ -158,7 +158,7 @@ test("a missing profile is written in the background when a chat starts", async 
 });
 
 test("when the memory model fails the profile falls back to the last chat model; when both fail it is logged and the old one stays", async () => {
-  const CHAT = { providerId: "openrouter", modelId: "a/b" };
+  const CHAT = { providerId: "claude", modelId: "claude-sonnet-5-5" };
   const { mem, engine } = setup({ fails: (m) => m?.providerId === "opencode-go" });
   mem.noteModel("u1", CHAT);
   mem.tools.remember(CTX, { text: "Likes tea" });

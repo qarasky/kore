@@ -2,11 +2,16 @@ import type { Database } from "bun:sqlite";
 import type { ProviderInfo, Settings } from "@koremind/shared";
 import type { Engine } from "./engine/types";
 
-export function createModels(db: Database, engine: Engine, getSettings: (userId: string) => Settings) {
+/** Providers that run on the owner's own subscription (docs/claude-integration.md, route C): nobody else may use them. */
+export const OWNER_ONLY = new Set(["claude"]);
+
+export function createModels(db: Database, engine: Engine, getSettings: (userId: string) => Settings, isOwner: (userId: string) => boolean) {
   /** Every offered provider for this user: disabled ones and unconnected ones come back empty, free-only ones are filtered. */
   const providers = async (userId: string): Promise<ProviderInfo[]> => {
     const s = getSettings(userId);
+    const owner = isOwner(userId);
     return (await engine.listProviders()).map((p): ProviderInfo => {
+      if (OWNER_ONLY.has(p.id) && !owner) return { ...p, status: "disabled", models: [] };
       if (s.disabledProviders.includes(p.id)) return { ...p, status: "disabled", models: [] };
       if (p.status !== "ready") return { ...p, models: [] };
       if (!s.freeOnlyProviders.includes(p.id)) return p;
@@ -21,10 +26,6 @@ export function createModels(db: Database, engine: Engine, getSettings: (userId:
       return (await providers(userId)).some((p) => p.id === providerId && p.status === "ready" && p.models.some((m) => m.id === modelId));
     },
     connections: () => engine.listConnections(),
-    startSignIn: (id: string) => engine.startSignIn(id),
-    signInStatus: (id: string, attemptId: string) => engine.signInStatus(id, attemptId),
-    connect: (id: string, key: string) => engine.setProviderKey(id, key),
-    disconnect: (id: string) => engine.removeProviderKey(id),
     favorites(userId: string): string[] {
       return (db.query("select model_key from favorites where user_id=? order by rowid").all(userId) as { model_key: string }[]).map((r) => r.model_key);
     },

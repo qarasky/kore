@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { FakeEngine } from "../src/engine/fake";
-import { AGENT_SYSTEM, credentialIdsFor, mapConnections, mapEvent, mapModels, parseServerBanner, separateAfterTools } from "../src/engine/opencode";
+import { AGENT_SYSTEM, mapConnections, mapEvent, mapModels, parseServerBanner, separateAfterTools } from "../src/engine/opencode";
 import type { EngineEvent, PromptArgs } from "../src/engine/types";
 
 const args = (over: Partial<PromptArgs> = {}): PromptArgs => ({
@@ -140,47 +140,34 @@ test("mapModels marks free models by their price tiers and gives every listed pr
   const free = { cost: [{ input: 0, output: 0, cache: { read: 0, write: 0 } }] };
   const paid = { cost: [{ input: 0.05, output: 0.5 }] };
   const mixed = { cost: [{ input: 0, output: 0 }, { input: 1, output: 2 }] };
-  const m = (id: string, extra: object) => ({ id, modelID: id, providerID: "openrouter", name: id, capabilities: { input: ["text"] }, variants: [], enabled: true, status: "active", ...extra });
-  const out = mapModels([{ id: "openrouter", name: "OpenRouter" }, { id: "openai", name: "Codex" }], [m("a:free", free), m("b", paid), m("c", mixed), m("d", {})], undefined, new Set(["openrouter"]));
-  const or = out.find((p) => p.id === "openrouter")!;
-  expect(or.models.map((x) => [x.id, x.free])).toEqual([["a:free", true], ["b", false], ["c", false], ["d", false]]);
-  expect(or.status).toBe("ready");
-  expect(out.find((p) => p.id === "openai")).toMatchObject({ status: "needs_connection", connected: false, models: [] });
+  const m = (id: string, extra: object) => ({ id, modelID: id, providerID: "opencode-go", name: id, capabilities: { input: ["text"] }, variants: [], enabled: true, status: "active", ...extra });
+  const out = mapModels([{ id: "opencode-go", name: "OpenCode Go" }, { id: "other", name: "Other" }], [m("a:free", free), m("b", paid), m("c", mixed), m("d", {})], undefined, new Set(["opencode-go"]));
+  const go = out.find((p) => p.id === "opencode-go")!;
+  expect(go.models.map((x) => [x.id, x.free])).toEqual([["a:free", true], ["b", false], ["c", false], ["d", false]]);
+  expect(go.status).toBe("ready");
+  expect(out.find((p) => p.id === "other")).toMatchObject({ status: "needs_connection", connected: false, models: [] });
   // OpenCode's free tier works without a key.
   expect(mapModels([{ id: "opencode", name: "OpenCode" }], [], undefined, new Set())[0]).toMatchObject({ status: "ready", connected: false });
 });
 
-test("Groq's safety classifiers are not offered as chat models", () => {
-  const m = (id: string) => ({ id, modelID: id, providerID: "groq", name: id, capabilities: { input: ["text"] }, variants: [], enabled: true, status: "active" });
-  const out = mapModels([{ id: "groq", name: "Groq" }], [m("openai/gpt-oss-120b"), m("meta-llama/llama-prompt-guard-2-86m"), m("openai/gpt-oss-safeguard-20b"), m("qwen/qwen3.8-27b")], undefined, new Set(["groq"]));
-  expect(out[0].models.map((x) => x.id)).toEqual(["openai/gpt-oss-120b", "qwen/qwen3.8-27b"]);
-});
-
-test("mapConnections offers Groq, OpenRouter, OpenCode, OpenCode Go and Codex (recommended first) with their login methods, and nothing else", () => {
+test("mapConnections offers only OpenCode and OpenCode Go, status only, with a server hint when Go is not signed in", () => {
   const integrations = [
     { id: "anthropic", name: "Anthropic", methods: [{ type: "key" }], connections: [] },
-    { id: "groq", name: "Groq", methods: [{ type: "key" }, { type: "env", names: ["GROQ_API_KEY"] }], connections: [] },
-    { id: "opencode", name: "OpenCode", methods: [{ type: "key" }, { id: "go", type: "oauth", label: "OpenCode account" }], connections: [] },
-    { id: "opencode-go", name: "OpenCode Go", methods: [{ type: "key" }, { type: "env", names: ["OPENCODE_API_KEY"] }], connections: [{ id: "c2" }] },
-    { id: "openrouter", name: "OpenRouter", methods: [{ type: "key" }, { type: "env", names: ["OPENROUTER_API_KEY"] }], connections: [{ id: "c1" }] },
-    { id: "openai", name: "OpenAI", methods: [{ type: "key" }, { id: "chatgpt-token-sharing", type: "oauth", label: "Sign in with ChatGPT" }], connections: [] },
+    { id: "groq", name: "Groq", methods: [{ type: "key" }], connections: [{ id: "g" }] },
+    { id: "opencode", name: "OpenCode", methods: [{ type: "key" }], connections: [] },
+    { id: "opencode-go", name: "OpenCode Go", methods: [{ type: "key" }, { type: "env", names: ["OPENCODE_API_KEY"] }], connections: [] },
+    { id: "openrouter", name: "OpenRouter", methods: [{ type: "key" }], connections: [{ id: "c1" }] },
+    { id: "openai", name: "OpenAI", methods: [{ type: "oauth" }], connections: [] },
   ];
   const out = mapConnections(integrations);
-  expect(out.map((c) => c.id)).toEqual(["groq", "openrouter", "opencode", "opencode-go", "openai"]);
-  expect(out.find((c) => c.id === "openai")).toEqual({ id: "openai", name: "Codex", connected: false, methods: ["key", "signin"], recommended: false, supportsFreeFilter: false });
-  expect(out.find((c) => c.id === "openrouter")).toEqual({ id: "openrouter", name: "OpenRouter", connected: true, methods: ["key"], recommended: true, supportsFreeFilter: true });
-  expect(out.find((c) => c.id === "opencode")?.methods).toEqual(["key"]);
-  // OpenCode Go is a subscription: every model is paid for by the plan, so there is no free filter, and it is connected by key.
-  expect(out.find((c) => c.id === "opencode-go")).toEqual({ id: "opencode-go", name: "OpenCode Go", connected: true, methods: ["key"], recommended: false, supportsFreeFilter: false });
-  expect(out.map((c) => [c.id, c.supportsFreeFilter])).toEqual([["groq", false], ["openrouter", true], ["opencode", true], ["opencode-go", false], ["openai", false]]);
-  expect(out.find((c) => c.id === "groq")).toEqual({ id: "groq", name: "Groq", connected: false, methods: ["key"], recommended: true, supportsFreeFilter: false });
-});
-
-test("disconnecting removes saved credentials by id; an env-only connection cannot be removed from the app", () => {
-  expect(credentialIdsFor({ connections: [{ type: "credential", id: "cred_1" }, { type: "env", name: "OPENROUTER_API_KEY" }, { type: "credential", id: "cred_2" }] })).toEqual({ ids: ["cred_1", "cred_2"], envOnly: false });
-  expect(credentialIdsFor({ connections: [{ type: "env", name: "OPENROUTER_API_KEY" }] })).toEqual({ ids: [], envOnly: true });
-  expect(credentialIdsFor({ connections: [] })).toEqual({ ids: [], envOnly: false });
-  expect(credentialIdsFor(undefined)).toEqual({ ids: [], envOnly: false });
+  expect(out).toEqual([
+    // The free tier needs no sign-in, so there is nothing to tell the owner.
+    { id: "opencode", name: "OpenCode", connected: false, supportsFreeFilter: true, hint: "" },
+    // OpenCode Go is a subscription: every model is paid for by the plan, so there is no free filter.
+    { id: "opencode-go", name: "OpenCode Go", connected: false, supportsFreeFilter: false, hint: "Run `opencode auth login` on the server." },
+  ]);
+  const signedIn = mapConnections([{ id: "opencode-go", connections: [{ id: "c2" }] }]);
+  expect(signedIn.find((c) => c.id === "opencode-go")).toMatchObject({ connected: true, hint: "" });
 });
 
 test("the assistant is told its tools and that memory is its own to manage", () => {
@@ -211,8 +198,18 @@ test("notes are read back when needed, not on every turn", () => {
   expect(AGENT_SYSTEM).not.toContain("read them back at the start of later turns");
 });
 
+/** A freshly started OpenCode loads its provider catalog for a moment; wait until OpenCode Go shows up signed in. */
+const goReady = async (eng: { listProviders(): Promise<{ id: string; status: string; models: { id: string }[] }[]> }) => {
+  for (let i = 0; i < 40; i++) {
+    const go = (await eng.listProviders()).find((p) => p.id === "opencode-go");
+    if (go?.status === "ready" && go.models.length) return go;
+    await Bun.sleep(250);
+  }
+  throw new Error("OpenCode Go never became ready");
+};
+
 // Real opencode against a local mock model server: no network, no account. Skipped when opencode isn't installed.
-test.skipIf(!Bun.which("opencode"))("opencode end to end on a mock OpenRouter: connect, answer with one tool-free-ish prompt, title on the chosen model, disconnect", async () => {
+test.skipIf(!Bun.which("opencode"))("opencode end to end on a mock OpenCode Go signed in through the server env: answer with one tool-free-ish prompt, title on the chosen model", async () => {
   const calls: { tools: string[]; system: string; last: string }[] = [];
   const mock = Bun.serve({
     port: 0,
@@ -228,15 +225,13 @@ test.skipIf(!Bun.which("opencode"))("opencode end to end on a mock OpenRouter: c
   });
   const eng = await createOpencodeEngine({
     dataDir: mkdtempSync(join(tmpdir(), "koremind-mock-")),
-    config: { providers: { openrouter: { settings: { baseURL: `http://127.0.0.1:${mock.port}/v1`, apiKey: "x" } } } },
+    env: { OPENCODE_API_KEY: "sk-test" },
+    config: { providers: { "opencode-go": { settings: { baseURL: `http://127.0.0.1:${mock.port}/v1`, apiKey: "x" } } } },
   });
   try {
-    expect((await eng.listConnections()).find((c) => c.id === "openrouter")?.connected).toBe(false);
-    await eng.setProviderKey("openrouter", "sk-test");
-    expect((await eng.listConnections()).find((c) => c.id === "openrouter")?.connected).toBe(true);
-    const or = (await eng.listProviders()).find((p) => p.id === "openrouter")!;
-    expect(or.models.length).toBeGreaterThan(10);
-    const model = { providerId: "openrouter", modelId: or.models[0].id };
+    const go = await goReady(eng);
+    expect((await eng.listConnections()).find((c) => c.id === "opencode-go")).toMatchObject({ connected: true, hint: "" });
+    const model = { providerId: "opencode-go", modelId: go.models[0].id };
 
     const sid = await eng.createSession(model);
     const evs = await collect(eng.prompt(args({ sessionId: sid, text: "hi", model })));
@@ -250,9 +245,6 @@ test.skipIf(!Bun.which("opencode"))("opencode end to end on a mock OpenRouter: c
     expect(title).toContain("Greeting Chat");
     // KoreMind names chats itself, so the engine must not add a naming call of its own.
     expect(calls.length - before).toBe(1);
-
-    await eng.removeProviderKey("openrouter");
-    expect((await eng.listConnections()).find((c) => c.id === "openrouter")?.connected).toBe(false);
   } finally { eng.close(); mock.stop(); }
 }, 90_000);
 
@@ -296,16 +288,16 @@ test.skipIf(!Bun.which("opencode"))("a model saves a note through OpenCode and K
   const koremind = Bun.serve({ port: 0, fetch: (req, srv) => app.fetch(req, srv.requestIP(req)?.address) });
   const engine = await createOpencodeEngine({
     dataDir: mkdtempSync(join(tmpdir(), "koremind-e2e-")),
+    env: { OPENCODE_API_KEY: "sk-test" },
     config: {
-      providers: { openrouter: { settings: { baseURL: `http://127.0.0.1:${mock.port}/v1`, apiKey: "x" } } },
+      providers: { "opencode-go": { settings: { baseURL: `http://127.0.0.1:${mock.port}/v1`, apiKey: "x" } } },
       mcp: { servers: { koremind: { type: "remote", url: `http://127.0.0.1:${koremind.port}/mcp`, oauth: false, codemode: false, headers: { authorization: `Bearer ${secret}` }, timeout: { execution: 60000 } } } },
     },
   });
   try {
     const services = createServices({ db: openDb(":memory:"), dataDir: mkdtempSync(join(tmpdir(), "koremind-e2e-d-")), engine, version: "t", mcpSecret: secret, approvalTimeoutMs: 20_000 });
     app = createApp(services);
-    await engine.setProviderKey("openrouter", "sk-test");
-    const model = { providerId: "openrouter", modelId: (await engine.listProviders()).find((p) => p.id === "openrouter")!.models[0].id };
+    const model = { providerId: "opencode-go", modelId: (await goReady(engine)).models[0].id };
     const owner = addUser(services.db, "me@home.lan", { owner: true, sub: "sub-owner" });
     const u = owner.id;
     const other = services.chats.create(u);

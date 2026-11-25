@@ -145,12 +145,12 @@ test("remove deletes the chat and its engine session", async () => {
 test("after the first turn the chat is titled by the chosen model, and the title is streamed after done", async () => {
   const { chats, engine, db } = setup({ reply: () => [{ type: "delta", text: "Sure, Lisbon is lovely in May." }], titleReply: '"Lisbon trip in May."\n' });
   const c = chats.create("u1");
-  const evs = await collect(chats.send("u1", c.id, req("Plan a week in Lisbon", { model: { providerId: "openrouter", modelId: "x/y" } }), new AbortController().signal));
+  const evs = await collect(chats.send("u1", c.id, req("Plan a week in Lisbon", { model: { providerId: "claude", modelId: "claude-sonnet-5-5" } }), new AbortController().signal));
   expect(evs.map((e) => e.type)).toEqual(["status", "delta", "done", "title"]);
   expect(evs.at(-1)).toEqual({ type: "title", title: "Lisbon trip in May" });
   expect(chats.get("u1", c.id)!.chat.title).toBe("Lisbon trip in May");
   const call = engine.completes.find((x) => x.kind === "title")!;
-  expect(call.model).toEqual({ providerId: "openrouter", modelId: "x/y" });
+  expect(call.model).toEqual({ providerId: "claude", modelId: "claude-sonnet-5-5" });
   expect(call.text).toContain("Plan a week in Lisbon");
   expect(call.text).toContain("Lisbon is lovely");
   expect((db.query("select title from chats where id=?").get(c.id) as { title: string }).title).toBe("Lisbon trip in May");
@@ -193,8 +193,8 @@ test("the turn reports the model the chat used (memory falls back to it)", async
   const seen: unknown[] = [];
   const { chats } = setup({}, { onTurnComplete: (_u, _a, _b, m) => { seen.push(m); } });
   const c = chats.create("u1");
-  await collect(chats.send("u1", c.id, req("q", { model: { providerId: "openai", modelId: "gpt" } }), new AbortController().signal));
-  expect(seen).toEqual([{ providerId: "openai", modelId: "gpt" }]);
+  await collect(chats.send("u1", c.id, req("q", { model: { providerId: "claude", modelId: "claude-haiku-5-5" } }), new AbortController().signal));
+  expect(seen).toEqual([{ providerId: "claude", modelId: "claude-haiku-5-5" }]);
 });
 
 // ---- Edits and variants ----

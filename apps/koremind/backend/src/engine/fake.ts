@@ -1,4 +1,4 @@
-import type { ModelInfo, ProviderConnection, ProviderInfo, SignInStart, SignInStatus } from "@koremind/shared";
+import type { ModelInfo, ProviderConnection, ProviderInfo } from "@koremind/shared";
 import type { Engine, EngineEvent, ModelRef, PromptArgs } from "./types";
 
 export type FakeOptions = {
@@ -19,48 +19,32 @@ export type FakeOptions = {
 export class FakeEngine implements Engine {
   sessions = new Set<string>();
   prompts: PromptArgs[] = [];
-  keys = new Map<string, string>();
   completes: { kind: "title" | "memory"; system: string; text: string; model?: ModelRef; thinking?: string }[] = [];
-  signIns = new Map<string, { providerId: string; done: boolean }>();
+  /** Providers signed in on the (pretend) server. OpenCode's free tier is usable without it. */
+  connected = new Set<string>();
   constructor(private o: FakeOptions = {}) {}
 
   async listConnections(): Promise<ProviderConnection[]> {
-    const conn = (id: string, name: string, methods: ProviderConnection["methods"], supportsFreeFilter: boolean, recommended = false): ProviderConnection => ({ id, name, connected: this.connected(id), methods, supportsFreeFilter, recommended });
-    return [conn("groq", "Groq", ["key"], false, true), conn("openrouter", "OpenRouter", ["key"], true, true), conn("opencode", "OpenCode", ["key"], true), conn("opencode-go", "OpenCode Go", ["key"], false), conn("openai", "Codex", ["key", "signin"], false)];
+    const conn = (id: string, name: string, supportsFreeFilter: boolean, hint: string): ProviderConnection => ({ id, name, connected: this.connected.has(id), supportsFreeFilter, hint: this.connected.has(id) ? "" : hint });
+    return [
+      conn("claude", "Claude", false, "Run `claude auth login` on the server, as the user KoreMind runs as."),
+      conn("opencode", "OpenCode", true, ""),
+      conn("opencode-go", "OpenCode Go", false, "Run `opencode auth login` on the server."),
+    ];
   }
-  async startSignIn(providerId: string): Promise<SignInStart> {
-    const attemptId = `at_${crypto.randomUUID()}`;
-    this.signIns.set(attemptId, { providerId, done: false });
-    return { attemptId, url: "https://auth.example.test/authorize", instructions: "Complete authorization in your browser." };
-  }
-  async signInStatus(_providerId: string, attemptId: string): Promise<SignInStatus> {
-    const a = this.signIns.get(attemptId);
-    return { status: !a ? "failed" : a.done ? "complete" : "pending" };
-  }
-  /** Test helper: the owner finished the browser step. */
-  finishSignIn(attemptId: string) { const a = this.signIns.get(attemptId); if (a) a.done = true; }
 
-  private signedIn() { return new Set([...this.signIns.values()].filter((x) => x.done).map((x) => x.providerId)); }
-  private connected(id: string) { return this.keys.has(id) || this.signedIn().has(id); }
-
-  /** OpenCode (free tier, always ready), OpenCode Go and Codex (empty until connected) and OpenRouter (a free and a paid model once connected). */
+  /** Claude and OpenCode Go are empty until signed in; OpenCode's free tier is always ready. */
   async listProviders(): Promise<ProviderInfo[]> {
     if (this.o.providers) return this.o.providers;
     const m = (id: string, name: string, over: Partial<ModelInfo> = {}): ModelInfo => ({ id, name, vision: false, thinkingLevels: [], isDefault: false, free: false, ...over });
-    const or = this.connected("openrouter");
-    const ai = this.connected("openai");
-    const gq = this.connected("groq");
-    const go = this.connected("opencode-go");
+    const cl = this.connected.has("claude");
+    const go = this.connected.has("opencode-go");
     return [
-      { id: "groq", name: "Groq", recommended: true, connected: gq, status: gq ? "ready" : "needs_connection", models: gq ? [m("llama-fast", "Llama Fast", { isDefault: true }), m("gpt-oss", "GPT OSS", { thinkingLevels: ["low", "medium", "high"] })] : [] },
-      { id: "openrouter", name: "OpenRouter", recommended: true, connected: or, status: or ? "ready" : "needs_connection", models: or ? [m("acme/free-model:free", "Free Model", { free: true, isDefault: true }), m("acme/pro", "Pro")] : [] },
-      { id: "opencode", name: "OpenCode", recommended: false, connected: this.connected("opencode"), status: "ready", models: [m("fast", "Fast", { isDefault: true, free: true }), m("vision", "Vision", { vision: true, thinkingLevels: ["low", "high"] })] },
+      { id: "claude", name: "Claude", recommended: false, connected: cl, status: cl ? "ready" : "needs_connection", models: cl ? [m("claude-sonnet-5-5", "Sonnet 5.5", { isDefault: true, vision: true, thinkingLevels: ["low", "high"] }), m("claude-haiku-5-5", "Haiku 5.5", { vision: true })] : [] },
+      { id: "opencode", name: "OpenCode", recommended: false, connected: this.connected.has("opencode"), status: "ready", models: [m("fast", "Fast", { isDefault: true, free: true }), m("vision", "Vision", { vision: true, thinkingLevels: ["low", "high"] })] },
       { id: "opencode-go", name: "OpenCode Go", recommended: false, connected: go, status: go ? "ready" : "needs_connection", models: go ? [m("deepseek-pro", "DeepSeek Pro", { isDefault: true }), m("glm", "GLM", { thinkingLevels: ["low", "high"] })] : [] },
-      { id: "openai", name: "Codex", recommended: false, connected: ai, status: ai ? "ready" : "needs_connection", models: ai ? [m("gpt", "GPT", { isDefault: true })] : [] },
     ];
   }
-  async setProviderKey(id: string, key: string) { this.keys.set(id, key); }
-  async removeProviderKey(id: string) { this.keys.delete(id); }
   async createSession() { const id = `fs_${crypto.randomUUID()}`; this.sessions.add(id); return id; }
   async deleteSession(id: string) { this.sessions.delete(id); }
   async complete(a: { kind?: "title" | "memory"; system: string; text: string; model?: ModelRef; thinking?: string }) {

@@ -65,45 +65,32 @@ export function mapEvent(sessionId: string, raw: Raw, ctx: { tool?: string } = {
 }
 
 /**
- * Providers KoreMind offers, in the order clients show them: the recommended ones first.
- * Everything else OpenCode knows about stays hidden: few providers, no config sprawl.
+ * OpenCode providers KoreMind can offer (KOREMIND_PROVIDERS picks which). Everything else OpenCode knows about stays hidden.
+ * They are signed in on the server (`opencode auth login`, or an env key); the apps only show their status.
  */
-export const OFFERED: { id: string; name: string; recommended: boolean }[] = [
-  { id: "groq", name: "Groq", recommended: true },
-  { id: "openrouter", name: "OpenRouter", recommended: true },
-  { id: "opencode", name: "OpenCode", recommended: false },
-  // The OpenCode Go subscription: its own catalog of paid-by-plan models, connected with the same kind of key.
-  { id: "opencode-go", name: "OpenCode Go", recommended: false },
-  { id: "openai", name: "Codex", recommended: false },
+export const OFFERED: { id: string; name: string }[] = [
+  { id: "opencode", name: "OpenCode" },
+  // The OpenCode Go subscription: its own catalog of paid-by-plan models.
+  { id: "opencode-go", name: "OpenCode Go" },
 ];
 
 export function mapConnections(integrations: any[]): ProviderConnection[] {
   return OFFERED.map((o) => {
     const i = integrations.find((x) => x?.id === o.id);
-    const methods: ProviderConnection["methods"] = [];
-    const types = new Set<string>((i?.methods ?? []).map((m: any) => String(m?.type)));
-    if (types.has("key") || o.id === "opencode" || o.id === "opencode-go") methods.push("key");
-    if (o.id === "openai" && types.has("oauth")) methods.push("signin"); // ChatGPT sign-in is for Codex only
-    return { id: o.id, name: o.name, connected: Array.isArray(i?.connections) && i.connections.length > 0, methods, recommended: o.recommended, supportsFreeFilter: o.id === "opencode" || o.id === "openrouter" };
+    const connected = Array.isArray(i?.connections) && i.connections.length > 0;
+    // OpenCode's free tier needs no sign-in, so there is nothing to tell the owner.
+    const hint = connected || o.id === "opencode" ? "" : "Run `opencode auth login` on the server.";
+    return { id: o.id, name: o.name, connected, supportsFreeFilter: o.id === "opencode", hint };
   });
-}
-
-/** Which saved credentials to delete to disconnect an integration. Env-based connections can't be removed from the app. */
-export function credentialIdsFor(integration: any): { ids: string[]; envOnly: boolean } {
-  const conns: any[] = Array.isArray(integration?.connections) ? integration.connections : [];
-  const ids = conns.filter((c) => c?.type === "credential" && c.id).map((c) => String(c.id));
-  return { ids, envOnly: ids.length === 0 && conns.some((c) => c?.type === "env") };
 }
 
 /** A model is free when it has price tiers and every one of them costs nothing. */
 export const isFree = (m: any): boolean => Array.isArray(m?.cost) && m.cost.length > 0 && m.cost.every((c: any) => c?.input === 0 && c?.output === 0);
 
-/** Groq also serves safety classifiers (Prompt Guard, Safety GPT OSS); they can't chat, so they stay out of the picker. */
-export const isChatModel = (m: any): boolean => !/prompt-guard|safeguard/i.test(String(m?.id ?? ""));
 
 export function mapModels(providers: { id: string; name: string; recommended?: boolean }[], models: any[], defaultModelId?: string, connected?: Set<string>): ProviderInfo[] {
   return providers.map((p): ProviderInfo => {
-    const ms = models.filter((m) => m.providerID === p.id && m.enabled !== false && m.status !== "disabled" && isChatModel(m));
+    const ms = models.filter((m) => m.providerID === p.id && m.enabled !== false && m.status !== "disabled");
     const defId = ms.find((m) => m.id === defaultModelId)?.id ?? ms[0]?.id;
     const out: ModelInfo[] = ms.map((m) => ({
       id: m.id,
@@ -167,12 +154,14 @@ export const koremindOpencodeConfig = {
 
 const IDLE_MS = 120_000;
 
-export async function createOpencodeEngine(opts: { dataDir: string; bin?: string; config?: Record<string, unknown> }): Promise<Engine> {
+/** `env` adds variables for the engine process (tests use it to sign a provider in with an env key). */
+export async function createOpencodeEngine(opts: { dataDir: string; bin?: string; config?: Record<string, unknown>; env?: Record<string, string> }): Promise<Engine> {
   const xdg = join(opts.dataDir, "opencode");
   for (const d of ["data", "config", "state", "cache"]) mkdirSync(join(xdg, d), { recursive: true });
   const proc = Bun.spawn([opts.bin ?? "opencode", "serve", "--hostname=127.0.0.1", "--port=0"], {
     env: {
       ...process.env,
+      ...opts.env,
       XDG_DATA_HOME: join(xdg, "data"), XDG_CONFIG_HOME: join(xdg, "config"),
       XDG_STATE_HOME: join(xdg, "state"), XDG_CACHE_HOME: join(xdg, "cache"),
       OPENCODE_CONFIG_CONTENT: JSON.stringify({ ...koremindOpencodeConfig, ...opts.config }),
@@ -238,18 +227,13 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
 
   const listProviders = async (): Promise<ProviderInfo[]> => {
     const [m, d, ig] = await Promise.all([call("GET", "/api/model"), call("GET", "/api/model/default"), call("GET", "/api/integration")]);
-    const providers = OFFERED.map((o) => ({ id: o.id, name: o.name, recommended: o.recommended }));
+    const providers = OFFERED.map((o) => ({ id: o.id, name: o.name }));
     const connected = new Set<string>((ig.json?.data ?? []).filter((i: any) => Array.isArray(i.connections) && i.connections.length > 0).map((i: any) => String(i.id)));
     const out = mapModels(providers, m.json?.data ?? [], d.json?.data?.id, connected);
     const home = out.find((x) => x.id === "opencode" && x.models.length) ?? out.find((x) => x.models.length) ?? out[0];
     const def = home?.models.find((x) => x.isDefault);
     if (def) defaultModel = { providerId: home.id, modelId: def.id };
     return out;
-  };
-
-  const oauthMethod = (integration: any): string | undefined => {
-    const ms: any[] = (integration?.methods ?? []).filter((m: any) => m?.type === "oauth");
-    return (ms.find((m) => m.id === "chatgpt-token-sharing") ?? ms[0])?.id;
   };
 
   const createSession = async (model?: { providerId: string; modelId: string }) => {
@@ -304,43 +288,6 @@ export async function createOpencodeEngine(opts: { dataDir: string; bin?: string
     async listConnections() {
       const ig = await call("GET", "/api/integration");
       return mapConnections(ig.json?.data ?? []);
-    },
-    async startSignIn(id) {
-      const ig = await call("GET", "/api/integration");
-      const methodID = oauthMethod((ig.json?.data ?? []).find((x: any) => x.id === id));
-      if (!methodID) throw new Error("This provider has no browser sign-in");
-      // The first OAuth call on a freshly started engine answers 500; the retry succeeds.
-      let r = await call("POST", `/api/integration/${encodeURIComponent(id)}/connect/oauth`, { methodID });
-      for (let n = 0; !r.ok && n < 3; n++) {
-        await Bun.sleep(300);
-        r = await call("POST", `/api/integration/${encodeURIComponent(id)}/connect/oauth`, { methodID });
-      }
-      if (!r.ok || !r.json?.data?.attemptID) throw new Error(`could not start sign-in (${r.status})`);
-      const d = r.json.data;
-      return { attemptId: String(d.attemptID), url: String(d.url), instructions: String(d.instructions ?? "") };
-    },
-    async signInStatus(id, attemptId) {
-      const r = await call("GET", `/api/integration/${encodeURIComponent(id)}/connect/oauth/${encodeURIComponent(attemptId)}`);
-      const st = r.json?.data?.status;
-      return { status: st === "complete" ? "complete" : st === "pending" ? "pending" : "failed" };
-    },
-    async setProviderKey(id, key) {
-      // A freshly started engine can answer 404 for a few seconds while its provider catalog loads.
-      let r = await call("POST", `/api/integration/${encodeURIComponent(id)}/connect/key`, { key });
-      for (let n = 0; r.status === 404 && n < 6; n++) {
-        await Bun.sleep(700);
-        r = await call("POST", `/api/integration/${encodeURIComponent(id)}/connect/key`, { key });
-      }
-      if (!r.ok) throw new Error(`Could not connect this provider (${r.status})`);
-    },
-    async removeProviderKey(id) {
-      const ig = await call("GET", `/api/integration/${encodeURIComponent(id)}`);
-      const { ids, envOnly } = credentialIdsFor(ig.json?.data);
-      if (envOnly) throw new Error("This provider is connected through an environment variable on the server. Remove the variable to disconnect it.");
-      for (const cid of ids) {
-        const r = await call("DELETE", `/api/credential/${encodeURIComponent(cid)}`);
-        if (!r.ok) throw new Error(`Could not disconnect (${r.status})`);
-      }
     },
     createSession,
     async deleteSession(id) { listeners.delete(id); sessionModel.delete(id); used.delete(id); await call("DELETE", `/api/session/${id}`); },
