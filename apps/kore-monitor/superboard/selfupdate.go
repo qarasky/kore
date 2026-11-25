@@ -164,7 +164,7 @@ func fetchManifest(ctx context.Context, cfg *Config) (*updateManifest, error) {
 	}
 	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
 	if err != nil {
-		return nil, err
+		return nil, redactToken(err, cfg.PushToken)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -232,7 +232,7 @@ func downloadAsset(ctx context.Context, cfg *Config, asset *updateAsset, dest st
 	}
 	resp, err := (&http.Client{Timeout: 10 * time.Minute}).Do(req)
 	if err != nil {
-		return err
+		return redactToken(err, cfg.PushToken)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {

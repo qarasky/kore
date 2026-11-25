@@ -97,7 +97,7 @@ func (c *pushClient) pushWithTimeout(payload *Payload, timeout time.Duration) er
 	sent := c.now()
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("push: %w", err)
+		return fmt.Errorf("push: %w", redactToken(err, c.cfg.PushToken))
 	}
 	defer resp.Body.Close()
 	received := c.now()
