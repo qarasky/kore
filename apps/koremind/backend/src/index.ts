@@ -5,7 +5,9 @@ import { listAddresses } from "./addresses";
 import { loadConfig } from "./config";
 import { openDb } from "./db";
 import { FakeEngine } from "./engine/fake";
+import { CLAUDE_TITLE_MODEL, createClaudeEngine } from "./engine/claude";
 import { createOpencodeEngine } from "./engine/opencode";
+import { createRouter, type Route } from "./engine/router";
 import { createApp } from "./http";
 import { createServices } from "./services";
 import { migrateLegacyDb } from "./legacy";
@@ -13,7 +15,7 @@ import { migrateLegacyDb } from "./legacy";
 const config = loadConfig(process.env);
 mkdirSync(config.dataDir, { recursive: true });
 migrateLegacyDb(config.dataDir);
-// The local OpenCode engine reaches KoreMind's notes tools over loopback with this per-run secret.
+// The local engines (Claude, OpenCode) reach KoreMind's notes tools over loopback with this per-run secret.
 const mcpSecret = Buffer.from(crypto.getRandomValues(new Uint8Array(24))).toString("base64url");
 const notesServer = { type: "remote", url: `http://127.0.0.1:${config.port}/mcp`, oauth: false, codemode: false, headers: { authorization: `Bearer ${mcpSecret}` }, timeout: { execution: 120_000 } };
 // Demo behaviour for the fake engine: "note: buy milk" saves a note, "read <chat title>" reads another chat's notes,
@@ -34,12 +36,29 @@ const engine = process.env.KOREMIND_FAKE_ENGINE
         if (recall) await callTool(a.sessionId, "recall_memory", recall[1] ? { query: recall[1] } : {});
       },
     })
-  : await createOpencodeEngine({ dataDir: config.dataDir, bin: process.env.KOREMIND_OPENCODE_BIN, config: { mcp: { servers: { koremind: notesServer } } } });
+  : await realEngine();
+
+/** One engine per kind of provider in KOREMIND_PROVIDERS; OpenCode's server only starts when one of its providers is listed. */
+async function realEngine() {
+  const routes: Route[] = [];
+  let opencode: Route | null = null;
+  for (const id of config.providers) {
+    if (id === "claude") {
+      routes.push({ providers: ["claude"], engine: createClaudeEngine({ bin: config.claude.bin, configDir: config.claude.configDir || undefined, dataDir: config.dataDir, mcpUrl: `http://127.0.0.1:${config.port}/mcp`, mcpSecret }) });
+    } else if (opencode) {
+      opencode.providers.push(id);
+    } else {
+      opencode = { providers: [id], engine: await createOpencodeEngine({ dataDir: config.dataDir, bin: process.env.KOREMIND_OPENCODE_BIN, config: { mcp: { servers: { koremind: notesServer } } } }) };
+      routes.push(opencode);
+    }
+  }
+  return createRouter(routes, { titleModel: CLAUDE_TITLE_MODEL });
+}
 
 const version = (await Bun.file(join(import.meta.dir, "../package.json")).json()).version ?? "0.1.0";
 let servicePort = config.port;
 // eslint-disable-next-line prefer-const
-const services = createServices({ db: openDb(join(config.dataDir, "koremind.sqlite")), dataDir: config.dataDir, engine, version, mcpSecret, oidc: config.oidc, apps: config.apps, addresses: () => listAddresses(networkInterfaces(), servicePort, process.env).map((a) => a.url) });
+const services = createServices({ db: openDb(join(config.dataDir, "koremind.sqlite")), dataDir: config.dataDir, engine, version, mcpSecret, oidc: config.oidc, apps: config.apps, addresses: () => listAddresses(networkInterfaces(), servicePort, process.env, config.host).map((a) => a.url) });
 const app = createApp(services, { trustProxy: process.env.KOREMIND_TRUST_PROXY === "1" });
 
 const server = Bun.serve({
@@ -56,8 +75,8 @@ if (config.oidc) {
   console.log(`  New accounts: ${o.autoProvision ? "anyone Kore ID lets into this app" : "first user and allow-list only"}${o.allowedEmails.length ? `, limited to ${o.allowedEmails.join(", ")}` : ""}. Owner of an empty instance: ${o.ownerEmail || "the first Kore ID account"}. Link by verified email: ${o.emailLink ? "on" : "off"}.`);
 }
 if (!config.oidc) console.log("Kore ID is not configured (KOREMIND_OIDC_ISSUER is empty). Nobody can sign in until it is set.");
-console.log(`KoreMind backend ${version} is running${process.env.KOREMIND_FAKE_ENGINE ? " (fake engine)" : ""}. Point the apps at:`);
-for (const a of listAddresses(networkInterfaces(), server.port ?? config.port, process.env)) console.log(`  ${a.label.padEnd(9)} ${a.url}`);
+console.log(`KoreMind backend ${version} is running${process.env.KOREMIND_FAKE_ENGINE ? " (fake engine)" : ` with ${config.providers.join(", ")}`} on ${config.host}. Point the apps at:`);
+for (const a of listAddresses(networkInterfaces(), server.port ?? config.port, process.env, config.host)) console.log(`  ${a.label.padEnd(9)} ${a.url}`);
 
 const stop = () => { engine.close(); server.stop(); process.exit(0); };
 process.on("SIGINT", stop);
