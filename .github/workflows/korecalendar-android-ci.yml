@@ -1,16 +1,17 @@
 # Checks the Android app: the version-code tests, Android lint, the JVM unit tests (which include
 # the contract tests against the real Go server) and a debug build. Runs on pull requests that touch
 # the app, and is called by android-release.yml before anything is signed.
-name: android-ci
+name: korecalendar android-ci
 
 on:
   pull_request:
     paths:
-      - android/**
-      - web/package.json
-      - web/app/icon.svg
-      - scripts/*android*
-      - .github/workflows/android-*.yml
+      - apps/korecalendar/android/**
+      - apps/korecalendar/web/package.json
+      - packages/kore-ui/theme.css
+      - apps/korecalendar/web/app/icon.svg
+      - apps/korecalendar/scripts/*android*
+      - .github/workflows/korecalendar-android-*.yml
   workflow_call:
 
 permissions:
@@ -19,6 +20,11 @@ permissions:
 concurrency:
   group: android-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Steps run from the app's directory (scripts/, android/, dist/).
+defaults:
+  run:
+    working-directory: apps/korecalendar
 
 jobs:
   check:
@@ -32,29 +38,25 @@ jobs:
       # The contract tests build and run the real server; with CI set they fail instead of skipping if Go is missing.
       - uses: actions/setup-go@v7
         with:
-          go-version-file: api/go.mod
-          cache-dependency-path: api/go.sum
+          go-version-file: apps/korecalendar/api/go.mod
+          cache-dependency-path: apps/korecalendar/api/go.sum
       - uses: android-actions/setup-android@v4
       - uses: gradle/actions/setup-gradle@v6
       - name: Version code tests
         run: bash scripts/test-android-version.sh
-      # PaletteTest compares the app's colours with kore-ui's theme.css at the version web/package.json pins.
-      - name: Fetch the kore-ui theme
-        run: |
-          url=$(sed -n 's/.*"@qarasky\/kore-ui": "\([^"]*\)".*/\1/p' web/package.json)
-          mkdir -p "$RUNNER_TEMP/kore-ui"
-          curl -fsSL "$url" | tar -xz -C "$RUNNER_TEMP/kore-ui" --strip-components=1 --wildcards '*/theme.css'
-          echo "KORE_UI_THEME=$RUNNER_TEMP/kore-ui/theme.css" >> "$GITHUB_ENV"
+      # PaletteTest compares the app's colours with kore-ui's theme.css (packages/kore-ui in this repo).
+      - name: Point PaletteTest at the kore-ui theme
+        run: echo "KORE_UI_THEME=$GITHUB_WORKSPACE/packages/kore-ui/theme.css" >> "$GITHUB_ENV"
       - name: Lint, unit and contract tests, debug build
-        working-directory: android
+        working-directory: apps/korecalendar/android
         run: ./gradlew --no-daemon lintDebug testDebugUnitTest assembleDebug
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: android-reports
           path: |
-            android/app/build/reports
-            android/app/build/test-results
+            apps/korecalendar/android/app/build/reports
+            apps/korecalendar/android/app/build/test-results
           retention-days: 7
 
   # The device tests and the UI flows on an emulator, against a real server (scripts/android-ui-test.sh).
@@ -70,8 +72,8 @@ jobs:
           java-version: 21
       - uses: actions/setup-go@v7
         with:
-          go-version-file: api/go.mod
-          cache-dependency-path: api/go.sum
+          go-version-file: apps/korecalendar/api/go.mod
+          cache-dependency-path: apps/korecalendar/api/go.sum
       - uses: android-actions/setup-android@v4
       - uses: gradle/actions/setup-gradle@v6
       - name: Enable KVM
@@ -85,10 +87,11 @@ jobs:
           arch: x86_64
           target: google_apis
           disable-animations: true
+          working-directory: apps/korecalendar
           script: bash scripts/android-ui-test.sh
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: android-ui-reports
-          path: android/app/build/reports
+          path: apps/korecalendar/android/app/build/reports
           retention-days: 7

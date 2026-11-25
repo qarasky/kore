@@ -1,0 +1,50 @@
+name: kore-drive ci
+
+# Runs on pull requests, and (via images.yml) before anything is published from
+# main or a tag.
+on:
+  pull_request:
+    paths:
+      - apps/kore-drive/**
+      - packages/kore-ui/**
+      - package.json
+      - bun.lock
+      - bunfig.toml
+      - turbo.json
+      - .github/workflows/kore-drive-ci.yml
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  api:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: apps/kore-drive/api/go.mod
+          cache-dependency-path: apps/kore-drive/api/go.sum
+      - run: go vet ./...
+        working-directory: apps/kore-drive/api
+      - run: go test -race -count=1 ./...
+        working-directory: apps/kore-drive/api
+
+  web:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: bun install --frozen-lockfile
+      # typecheck runs `next typegen` first (package.json).
+      - run: bunx turbo run typecheck lint test --filter=@kore/drive-web

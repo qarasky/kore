@@ -1,0 +1,86 @@
+# The checks AGENTS.md lists, run on every pull request and push, and called
+# by images.yml so nothing is published from a red main or tag.
+name: kore-monitor ci
+
+on:
+  pull_request:
+    paths:
+      - apps/kore-monitor/**
+      - packages/kore-ui/**
+      - package.json
+      - bun.lock
+      - bunfig.toml
+      - turbo.json
+      - .github/workflows/kore-monitor-ci.yml
+  push:
+    branches: [main]
+    paths:
+      - apps/kore-monitor/**
+      - packages/kore-ui/**
+      - package.json
+      - bun.lock
+      - bunfig.toml
+      - turbo.json
+      - .github/workflows/kore-monitor-ci.yml
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/kore-monitor/backend
+      - run: cargo test --manifest-path apps/kore-monitor/backend/Cargo.toml
+
+  web:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - run: bun install --frozen-lockfile
+      - run: bun run fmt:check
+        working-directory: apps/kore-monitor
+      - run: bunx turbo run test typecheck build --filter=@kore/monitor-web
+
+  agent:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/kore-monitor/superboard
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: apps/kore-monitor/superboard/go.mod
+          cache-dependency-path: apps/kore-monitor/superboard/go.sum
+      - run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go test ./...
+
+  backup-agent:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/kore-monitor/backup-agent
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: apps/kore-monitor/backup-agent/go.mod
+          cache-dependency-path: apps/kore-monitor/backup-agent/go.sum
+      - run: go vet ./...
+      - run: go test -race ./...

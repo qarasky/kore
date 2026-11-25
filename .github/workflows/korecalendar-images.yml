@@ -5,26 +5,32 @@
 #   tag v1.2.3        ->  :1.2.3 :1.2 :1 :latest   (v0.x.y: no :0; v1.0.0-rc.1: no :latest)
 #
 # A tag also creates the GitHub release. docs/releasing.md has the whole story.
-name: images
+name: korecalendar images
 
 on:
   pull_request:
     paths:
-      - api/**
-      - web/**
-      - scripts/smoke.sh
-      - docker-compose.yml
-      - Caddyfile
-      - .github/workflows/images.yml
+      - apps/korecalendar/api/**
+      - apps/korecalendar/web/**
+      - packages/kore-ui/**
+      - package.json
+      - bun.lock
+      - bunfig.toml
+      - turbo.json
+      - .dockerignore
+      - apps/korecalendar/scripts/smoke.sh
+      - apps/korecalendar/docker-compose.yml
+      - apps/korecalendar/Caddyfile
+      - .github/workflows/korecalendar-images.yml
   push:
     branches: [main]
-    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+    tags: ["korecalendar-v[0-9]+.[0-9]+.[0-9]+*"]
 
 permissions:
   contents: read
 
 concurrency:
-  group: images-${{ github.ref }}
+  group: korecalendar-images-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -34,7 +40,7 @@ jobs:
   # Pull requests get ci.yml on their own; main and tags must pass it before anything is published.
   ci:
     if: github.event_name != 'pull_request'
-    uses: ./.github/workflows/ci.yml
+    uses: ./.github/workflows/korecalendar-ci.yml
 
   build:
     needs: [ci]
@@ -43,10 +49,10 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - { component: api, platform: linux/amd64, arch: amd64, runner: ubuntu-24.04 }
-          - { component: api, platform: linux/arm64, arch: arm64, runner: ubuntu-24.04-arm }
-          - { component: web, platform: linux/amd64, arch: amd64, runner: ubuntu-24.04 }
-          - { component: web, platform: linux/arm64, arch: arm64, runner: ubuntu-24.04-arm }
+          - { component: api, context: apps/korecalendar/api, file: apps/korecalendar/api/Dockerfile, platform: linux/amd64, arch: amd64, runner: ubuntu-24.04 }
+          - { component: api, context: apps/korecalendar/api, file: apps/korecalendar/api/Dockerfile, platform: linux/arm64, arch: arm64, runner: ubuntu-24.04-arm }
+          - { component: web, context: ., file: apps/korecalendar/web/Dockerfile, platform: linux/amd64, arch: amd64, runner: ubuntu-24.04 }
+          - { component: web, context: ., file: apps/korecalendar/web/Dockerfile, platform: linux/arm64, arch: arm64, runner: ubuntu-24.04-arm }
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -57,7 +63,7 @@ jobs:
         run: |
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           echo "IMAGE=${REGISTRY}/${owner}/korecalendar-${{ matrix.component }}" >> "$GITHUB_ENV"
-          if [ "${GITHUB_REF_TYPE}" = tag ]; then v="${GITHUB_REF_NAME#v}"; else v=edge; fi
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then v="${GITHUB_REF_NAME#korecalendar-v}"; else v=edge; fi
           echo "VERSION=$v" >> "$GITHUB_ENV"
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
@@ -73,15 +79,16 @@ jobs:
       - id: build
         uses: docker/build-push-action@v7
         with:
-          context: ./${{ matrix.component }}
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
           platforms: ${{ matrix.platform }}
           build-args: |
             VERSION=${{ env.VERSION }}
             COMMIT=${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=${{ github.event_name != 'pull_request' }}
-          cache-from: type=gha,scope=${{ matrix.component }}-${{ matrix.arch }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.component }}-${{ matrix.arch }}
+          cache-from: type=gha,scope=korecalendar-${{ matrix.component }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=korecalendar-${{ matrix.component }}-${{ matrix.arch }}
       - name: Export the digest
         if: github.event_name != 'pull_request'
         run: |
@@ -110,8 +117,10 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - name: Image name
-        run: echo "IMAGE=${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/korecalendar-${{ matrix.component }}" >> "$GITHUB_ENV"
+      - name: Image name and version
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then echo "VERSION=${GITHUB_REF_NAME#korecalendar-v}" >> "$GITHUB_ENV"; fi
+          echo "IMAGE=${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/korecalendar-${{ matrix.component }}" >> "$GITHUB_ENV"
       - uses: actions/download-artifact@v8
         with:
           path: ${{ runner.temp }}/digests
@@ -128,9 +137,9 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
+            type=semver,pattern={{version}},value=${{ env.VERSION }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.VERSION }}
+            type=semver,pattern={{major}},value=${{ env.VERSION }},enable=${{ !startsWith(github.ref, 'refs/tags/korecalendar-v0.') }}
             type=edge,branch=main
             type=sha,prefix=sha-,enable=${{ github.ref_type == 'branch' }}
       - name: Create the multi-arch manifest
@@ -167,9 +176,9 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Smoke test the published images
         run: |
-          if [ "${GITHUB_REF_TYPE}" = tag ]; then KORECAL_VERSION="${GITHUB_REF_NAME#v}"; else KORECAL_VERSION=edge; fi
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then KORECAL_VERSION="${GITHUB_REF_NAME#korecalendar-v}"; else KORECAL_VERSION=edge; fi
           export KORECAL_VERSION
-          scripts/smoke.sh
+          apps/korecalendar/scripts/smoke.sh
 
   release:
     if: github.ref_type == 'tag'
@@ -183,7 +192,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          v="${GITHUB_REF_NAME#v}"
+          v="${GITHUB_REF_NAME#korecalendar-v}"
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           pre=""; case "$v" in *-*) pre="--prerelease" ;; esac
           gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" -f tag_name="${GITHUB_REF_NAME}" --jq .body > generated.md

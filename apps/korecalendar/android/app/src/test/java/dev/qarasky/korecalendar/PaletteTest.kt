@@ -10,15 +10,15 @@ import org.junit.Test
 
 /**
  * The app's colours are the Kore design tokens of kore-ui (the web app imports its theme.css); this keeps
- * them from drifting apart. The theme comes from $KORE_UI_THEME (CI downloads the version web/package.json
- * pins) or from web/node_modules after `npm ci` in web/. Without either it is skipped locally and fails on CI.
+ * them from drifting apart. The theme comes from $KORE_UI_THEME (CI points it at the monorepo's copy) or from
+ * packages/kore-ui/theme.css in the Kore monorepo. Without either it is skipped locally and fails on CI.
  */
 class PaletteTest {
     private val css: String by lazy {
-        val candidates = listOfNotNull(System.getenv("KORE_UI_THEME"), "../../web/node_modules/@qarasky/kore-ui/theme.css").map(::File)
+        val candidates = listOfNotNull(System.getenv("KORE_UI_THEME"), "../../../../packages/kore-ui/theme.css").map(::File)
         val file = candidates.firstOrNull { it.isFile }
         if (System.getenv("CI") != null) assertTrue("kore-ui theme.css not found (set KORE_UI_THEME)", file != null)
-        assumeTrue("kore-ui theme.css not found: run npm ci in web/ or set KORE_UI_THEME", file != null)
+        assumeTrue("kore-ui theme.css not found: expected packages/kore-ui/theme.css in the monorepo, or set KORE_UI_THEME", file != null)
         file!!.readText()
     }
 

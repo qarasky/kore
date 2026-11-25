@@ -1,0 +1,78 @@
+name: korecalendar ci
+
+# Runs on pull requests, and (via images.yml) before anything is published from
+# main or a tag.
+on:
+  pull_request:
+    paths:
+      - apps/korecalendar/**
+      - packages/kore-ui/**
+      - package.json
+      - bun.lock
+      - bunfig.toml
+      - turbo.json
+      - .github/workflows/korecalendar-ci.yml
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  api:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: apps/korecalendar/api/go.mod
+          cache-dependency-path: apps/korecalendar/api/go.sum
+      - run: go vet ./...
+        working-directory: apps/korecalendar/api
+      - run: go test -race -count=1 ./...
+        working-directory: apps/korecalendar/api
+
+  web:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: bun install --frozen-lockfile
+      - run: bunx turbo run typecheck lint test --filter=@kore/calendar-web
+
+  # The browser suite against the real API (it builds both).
+  e2e:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: apps/korecalendar/api/go.mod
+          cache-dependency-path: apps/korecalendar/api/go.sum
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium
+        working-directory: apps/korecalendar/web
+      - run: bun run e2e
+        working-directory: apps/korecalendar/web
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            apps/korecalendar/web/playwright-report
+            apps/korecalendar/web/test-results
+          retention-days: 7

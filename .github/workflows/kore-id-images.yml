@@ -1,30 +1,34 @@
-# Builds the api and web images for linux/amd64 and linux/arm64 (each on a
-# native runner), and on main or a release tag publishes them to ghcr.io:
+# Builds the Kore ID image for linux/amd64 and linux/arm64 (each on a native runner), and on main or a release
+# tag publishes it to ghcr.io/qarasky/kore-id:
 #
 #   push to main      ->  :edge and :sha-<short>
-#   tag v1.2.3        ->  :1.2.3 :1.2 :1 :latest   (v0.x.y: no :0; v1.0.0-rc.1: no :latest)
-#
-# A tag also creates the GitHub release. README.md ("Releases and images") has the whole story.
-name: images
+#   tag v1.2.3        ->  :1.2.3 :1.2 :1 :latest   (v0.x.y: no :0)
+name: kore-id images
 
 on:
   pull_request:
     paths:
-      - api/**
-      - web/**
-      - scripts/smoke.sh
-      - docker-compose.yml
-      - Caddyfile
-      - .github/workflows/images.yml
+      - apps/kore-id/src/**
+      - apps/kore-id/web/**
+      - apps/kore-id/scripts/**
+      - apps/kore-id/package.json
+      - apps/kore-id/Dockerfile
+      - packages/kore-ui/**
+      - package.json
+      - bun.lock
+      - bunfig.toml
+      - turbo.json
+      - .dockerignore
+      - .github/workflows/kore-id-images.yml
   push:
     branches: [main]
-    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+    tags: ["kore-id-v[0-9]+.[0-9]+.[0-9]+*"]
 
 permissions:
   contents: read
 
 concurrency:
-  group: images-${{ github.ref }}
+  group: kore-id-images-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -34,7 +38,7 @@ jobs:
   # Pull requests get ci.yml on their own; main and tags must pass it before anything is published.
   ci:
     if: github.event_name != 'pull_request'
-    uses: ./.github/workflows/ci.yml
+    uses: ./.github/workflows/kore-id-ci.yml
 
   build:
     needs: [ci]
@@ -43,22 +47,16 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - { component: api, platform: linux/amd64, arch: amd64, runner: ubuntu-24.04 }
-          - { component: api, platform: linux/arm64, arch: arm64, runner: ubuntu-24.04-arm }
-          - { component: web, platform: linux/amd64, arch: amd64, runner: ubuntu-24.04 }
-          - { component: web, platform: linux/arm64, arch: arm64, runner: ubuntu-24.04-arm }
+          - { platform: linux/amd64, arch: amd64, runner: ubuntu-24.04 }
+          - { platform: linux/arm64, arch: arm64, runner: ubuntu-24.04-arm }
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v7
-      - name: Image name and version
-        run: |
-          owner="${GITHUB_REPOSITORY_OWNER,,}"
-          echo "IMAGE=${REGISTRY}/${owner}/kore-${{ matrix.component }}" >> "$GITHUB_ENV"
-          if [ "${GITHUB_REF_TYPE}" = tag ]; then v="${GITHUB_REF_NAME#v}"; else v=edge; fi
-          echo "VERSION=$v" >> "$GITHUB_ENV"
+      - name: Image name
+        run: echo "IMAGE=${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/kore-id" >> "$GITHUB_ENV"
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
         if: github.event_name != 'pull_request'
@@ -73,15 +71,13 @@ jobs:
       - id: build
         uses: docker/build-push-action@v7
         with:
-          context: ./${{ matrix.component }}
+          context: .
+          file: apps/kore-id/Dockerfile
           platforms: ${{ matrix.platform }}
-          build-args: |
-            VERSION=${{ env.VERSION }}
-            COMMIT=${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=${{ github.event_name != 'pull_request' }}
-          cache-from: type=gha,scope=${{ matrix.component }}-${{ matrix.arch }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.component }}-${{ matrix.arch }}
+          cache-from: type=gha,scope=kore-id-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=kore-id-${{ matrix.arch }}
       - name: Export the digest
         if: github.event_name != 'pull_request'
         run: |
@@ -91,18 +87,15 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: github.event_name != 'pull_request'
         with:
-          name: digests-${{ matrix.component }}-${{ matrix.arch }}
+          name: digests-${{ matrix.arch }}
           path: ${{ runner.temp }}/digests/*
           if-no-files-found: error
           retention-days: 1
 
-  # One multi-arch tag per component, from the two per-architecture images.
+  # One multi-arch tag from the two per-architecture images.
   merge:
     if: github.event_name != 'pull_request'
     needs: [build]
-    strategy:
-      matrix:
-        component: [api, web]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -110,12 +103,14 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - name: Image name
-        run: echo "IMAGE=${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/kore-${{ matrix.component }}" >> "$GITHUB_ENV"
+      - name: Image name and version
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then echo "VERSION=${GITHUB_REF_NAME#kore-id-v}" >> "$GITHUB_ENV"; fi
+          echo "IMAGE=${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/kore-id" >> "$GITHUB_ENV"
       - uses: actions/download-artifact@v8
         with:
           path: ${{ runner.temp }}/digests
-          pattern: digests-${{ matrix.component }}-*
+          pattern: digests-*
           merge-multiple: true
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
@@ -128,9 +123,9 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
+            type=semver,pattern={{version}},value=${{ env.VERSION }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.VERSION }}
+            type=semver,pattern={{major}},value=${{ env.VERSION }},enable=${{ !startsWith(github.ref, 'refs/tags/kore-id-v0.') }}
             type=edge,branch=main
             type=sha,prefix=sha-,enable=${{ github.ref_type == 'branch' }}
       - name: Create the multi-arch manifest
@@ -151,7 +146,7 @@ jobs:
           subject-digest: ${{ steps.inspect.outputs.digest }}
           push-to-registry: true
 
-  # Run the published images the way an operator does.
+  # Run the published image the way an operator does.
   smoke:
     needs: [merge]
     runs-on: ubuntu-24.04
@@ -165,38 +160,7 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Smoke test the published images
+      - name: Smoke test the published image
         run: |
-          if [ "${GITHUB_REF_TYPE}" = tag ]; then KORE_VERSION="${GITHUB_REF_NAME#v}"; else KORE_VERSION=edge; fi
-          export KORE_VERSION
-          scripts/smoke.sh
-
-  release:
-    if: github.ref_type == 'tag'
-    needs: [smoke]
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v7
-      - name: Create the GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          v="${GITHUB_REF_NAME#v}"
-          owner="${GITHUB_REPOSITORY_OWNER,,}"
-          pre=""; case "$v" in *-*) pre="--prerelease" ;; esac
-          gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" -f tag_name="${GITHUB_REF_NAME}" --jq .body > generated.md
-          {
-            echo "## Images"
-            echo
-            echo '```'
-            echo "ghcr.io/${owner}/kore-api:${v}"
-            echo "ghcr.io/${owner}/kore-web:${v}"
-            echo '```'
-            echo
-            echo "Linux amd64 and arm64. To run it: set \`KORE_VERSION=${v}\` in \`.env\` and \`docker compose pull && docker compose up -d\` (see README.md)."
-            echo
-            cat generated.md
-          } > notes.md
-          gh release create "${GITHUB_REF_NAME}" --verify-tag --title "KoreDrive ${v}" --notes-file notes.md $pre
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then v="${GITHUB_REF_NAME#kore-id-v}"; else v=edge; fi
+          KORE_ID_IMAGE="${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/kore-id:${v}" apps/kore-id/scripts/smoke.sh

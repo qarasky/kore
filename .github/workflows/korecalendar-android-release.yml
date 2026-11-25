@@ -1,17 +1,22 @@
-# Publishes the Android app. Pushing a tag android-vX.Y.Z (or android-vX.Y.Z-rc.N), made by
+# Publishes the Android app. Pushing a tag korecalendar-android-vX.Y.Z (or …-rc.N), made by
 # scripts/release-android.sh, verifies it, runs the checks, builds the APK signed with the
 # release key, checks the signature against android/signing-fingerprint.txt, and creates the
 # GitHub release with the APK and its SHA-256. There is no unsigned fallback. docs/releasing.md.
-name: android-release
+name: korecalendar android-release
 
 on:
   push:
     tags:
-      - "android-v[0-9]+.[0-9]+.[0-9]+"
-      - "android-v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+"
+      - "korecalendar-android-v[0-9]+.[0-9]+.[0-9]+"
+      - "korecalendar-android-v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+"
 
 permissions:
   contents: read
+
+# Steps run from the app's directory (scripts/, android/, dist/).
+defaults:
+  run:
+    working-directory: apps/korecalendar
 
 jobs:
   verify:
@@ -23,7 +28,7 @@ jobs:
       - name: The tag matches the version files, is on main, and the fingerprint is recorded
         run: |
           set -euo pipefail
-          v="${GITHUB_REF_NAME#android-v}"
+          v="${GITHUB_REF_NAME#korecalendar-android-v}"
           name="$(sed -n 's/^versionName=//p' android/version.properties)"
           code="$(sed -n 's/^versionCode=//p' android/version.properties)"
           [ "$name" = "$v" ] || { echo "::error::The tag says $v but android/version.properties says $name. Release with scripts/release-android.sh."; exit 1; }
@@ -33,7 +38,7 @@ jobs:
 
   checks:
     needs: verify
-    uses: ./.github/workflows/android-ci.yml
+    uses: ./.github/workflows/korecalendar-android-ci.yml
 
   build:
     needs: checks
@@ -60,7 +65,7 @@ jobs:
           printf '%s' "$KS" | base64 --decode > "$RUNNER_TEMP/release.jks"
           echo "KORECAL_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
       - name: Build the signed release APK
-        working-directory: android
+        working-directory: apps/korecalendar/android
         env:
           KORECAL_KEYSTORE_PASSWORD: ${{ secrets.KORECAL_KEYSTORE_PASSWORD }}
           KORECAL_KEY_ALIAS: ${{ secrets.KORECAL_KEY_ALIAS }}
@@ -69,7 +74,7 @@ jobs:
       - name: Verify the signature, name the files
         run: |
           set -euo pipefail
-          v="${GITHUB_REF_NAME#android-v}"
+          v="${GITHUB_REF_NAME#korecalendar-android-v}"
           src=android/app/build/outputs/apk/release/app-release.apk
           [ -f "$src" ] || { echo "::error::No signed APK was produced (is the keystore wired in?)."; exit 1; }
           apksigner="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)"
@@ -89,7 +94,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: android-apk
-          path: dist/*
+          path: apps/korecalendar/dist/*
           if-no-files-found: error
           retention-days: 7
 
@@ -105,15 +110,15 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: android-apk
-          path: dist
+          path: apps/korecalendar/dist
       - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          v="${GITHUB_REF_NAME#android-v}"
+          v="${GITHUB_REF_NAME#korecalendar-android-v}"
           pre=""; case "$v" in *-*) pre="--prerelease" ;; esac
-          prev="$(git tag --list 'android-v*' --sort=-v:refname | grep -vx "$GITHUB_REF_NAME" | head -n1 || true)"
+          prev="$(git tag --list 'korecalendar-android-v*' --sort=-v:refname | grep -vx "$GITHUB_REF_NAME" | head -n1 || true)"
           args=(-f tag_name="$GITHUB_REF_NAME")
           [ -z "$prev" ] || args+=(-f previous_tag_name="$prev")
           gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" "${args[@]}" --jq .body > generated.md

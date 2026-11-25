@@ -1,114 +1,70 @@
-# Builds the backend, web and Caddy images for linux/amd64 and linux/arm64
-# (each on a native runner) and, on master or a release tag, publishes them
-# to ghcr.io:
+# Builds the api and web images for linux/amd64 and linux/arm64 (each on a
+# native runner), and on main or a release tag publishes them to ghcr.io:
 #
-#   push to master    ->  :edge and :sha-<short>
+#   push to main      ->  :edge and :sha-<short>
 #   tag v1.2.3        ->  :1.2.3 :1.2 :1 :latest   (v0.x.y: no :0; v1.0.0-rc.1: no :latest)
 #
-# Pull requests only build (nothing is pushed). A tag also creates the
-# GitHub release. Images are named ghcr.io/<owner>/<IMAGE_PREFIX>-<component>
-# (today ghcr.io/<owner>/kore-monitor-<component>).
-name: images
+# A tag also creates the GitHub release. README.md ("Releases and images") has the whole story.
+name: kore-drive images
 
 on:
   pull_request:
     paths:
-      - backend/**
-      - apps/web/**
-      - packages/shared/**
-      - superboard/**
-      - backup-agent/**
-      - docker/**
-      - docs/provisioning.md
-      - agent-install.sh
+      - apps/kore-drive/api/**
+      - apps/kore-drive/web/**
+      - packages/kore-ui/**
+      - package.json
+      - bun.lock
+      - bunfig.toml
+      - turbo.json
       - .dockerignore
-      - .github/workflows/images.yml
+      - apps/kore-drive/scripts/smoke.sh
+      - apps/kore-drive/docker-compose.yml
+      - apps/kore-drive/Caddyfile
+      - .github/workflows/kore-drive-images.yml
   push:
-    branches: [master, main]
-    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+    branches: [main]
+    tags: ["kore-drive-v[0-9]+.[0-9]+.[0-9]+*"]
 
 permissions:
   contents: read
 
 concurrency:
-  group: images-${{ github.ref }}
+  group: kore-drive-images-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: kore-monitor
 
 jobs:
-  # Pull requests get ci.yml on their own; master and tags must pass it
-  # before anything is published.
+  # Pull requests get ci.yml on their own; main and tags must pass it before anything is published.
   ci:
     if: github.event_name != 'pull_request'
-    uses: ./.github/workflows/ci.yml
+    uses: ./.github/workflows/kore-drive-ci.yml
 
   build:
     needs: [ci]
     if: ${{ !cancelled() && !failure() }}
-    name: ${{ matrix.component }} (${{ matrix.arch }})
     strategy:
       fail-fast: true
       matrix:
         include:
-          - {
-              component: backend,
-              file: docker/rust.dockerfile,
-              target: release,
-              platform: linux/amd64,
-              arch: amd64,
-              runner: ubuntu-24.04
-            }
-          - {
-              component: backend,
-              file: docker/rust.dockerfile,
-              target: release,
-              platform: linux/arm64,
-              arch: arm64,
-              runner: ubuntu-24.04-arm
-            }
-          - {
-              component: web,
-              file: docker/web.dockerfile,
-              target: release,
-              platform: linux/amd64,
-              arch: amd64,
-              runner: ubuntu-24.04
-            }
-          - {
-              component: web,
-              file: docker/web.dockerfile,
-              target: release,
-              platform: linux/arm64,
-              arch: arm64,
-              runner: ubuntu-24.04-arm
-            }
-          - {
-              component: caddy,
-              file: docker/caddy.dockerfile,
-              target: "",
-              platform: linux/amd64,
-              arch: amd64,
-              runner: ubuntu-24.04
-            }
-          - {
-              component: caddy,
-              file: docker/caddy.dockerfile,
-              target: "",
-              platform: linux/arm64,
-              arch: arm64,
-              runner: ubuntu-24.04-arm
-            }
+          - { component: api, context: apps/kore-drive/api, file: apps/kore-drive/api/Dockerfile, platform: linux/amd64, arch: amd64, runner: ubuntu-24.04 }
+          - { component: api, context: apps/kore-drive/api, file: apps/kore-drive/api/Dockerfile, platform: linux/arm64, arch: arm64, runner: ubuntu-24.04-arm }
+          - { component: web, context: ., file: apps/kore-drive/web/Dockerfile, platform: linux/amd64, arch: amd64, runner: ubuntu-24.04 }
+          - { component: web, context: ., file: apps/kore-drive/web/Dockerfile, platform: linux/arm64, arch: arm64, runner: ubuntu-24.04-arm }
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v7
-      - name: Image name
-        run: echo "IMAGE=${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_PREFIX}-${{ matrix.component }}" >> "$GITHUB_ENV"
+      - name: Image name and version
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "IMAGE=${REGISTRY}/${owner}/kore-${{ matrix.component }}" >> "$GITHUB_ENV"
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then v="${GITHUB_REF_NAME#kore-drive-v}"; else v=edge; fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
         if: github.event_name != 'pull_request'
@@ -120,23 +76,19 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE }}
-          labels: |
-            org.opencontainers.image.title=${{ env.IMAGE_PREFIX }}-${{ matrix.component }}
-            org.opencontainers.image.description=${{ env.IMAGE_PREFIX }} ${{ matrix.component }}
       - id: build
         uses: docker/build-push-action@v7
         with:
-          context: .
+          context: ${{ matrix.context }}
           file: ${{ matrix.file }}
-          target: ${{ matrix.target }}
           platforms: ${{ matrix.platform }}
-          # The web app compares this against /build to notice a deploy.
           build-args: |
-            KOREMONITOR_BUILD_ID=${{ github.sha }}
+            VERSION=${{ env.VERSION }}
+            COMMIT=${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=${{ github.event_name != 'pull_request' }}
-          cache-from: type=gha,scope=${{ matrix.component }}-${{ matrix.arch }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.component }}-${{ matrix.arch }}
+          cache-from: type=gha,scope=kore-drive-${{ matrix.component }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=kore-drive-${{ matrix.component }}-${{ matrix.arch }}
       - name: Export the digest
         if: github.event_name != 'pull_request'
         run: |
@@ -155,10 +107,9 @@ jobs:
   merge:
     if: github.event_name != 'pull_request'
     needs: [build]
-    name: publish ${{ matrix.component }}
     strategy:
       matrix:
-        component: [backend, web, caddy]
+        component: [api, web]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -166,8 +117,10 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - name: Image name
-        run: echo "IMAGE=${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_PREFIX}-${{ matrix.component }}" >> "$GITHUB_ENV"
+      - name: Image name and version
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then echo "VERSION=${GITHUB_REF_NAME#kore-drive-v}" >> "$GITHUB_ENV"; fi
+          echo "IMAGE=${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/kore-${{ matrix.component }}" >> "$GITHUB_ENV"
       - uses: actions/download-artifact@v8
         with:
           path: ${{ runner.temp }}/digests
@@ -184,14 +137,11 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
-            type=edge,branch=master
+            type=semver,pattern={{version}},value=${{ env.VERSION }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.VERSION }}
+            type=semver,pattern={{major}},value=${{ env.VERSION }},enable=${{ !startsWith(github.ref, 'refs/tags/kore-drive-v0.') }}
             type=edge,branch=main
             type=sha,prefix=sha-,enable=${{ github.ref_type == 'branch' }}
-          # `latest` only for a non-pre-release version tag.
-          flavor: latest=auto
       - name: Create the multi-arch manifest
         working-directory: ${{ runner.temp }}/digests
         run: |
@@ -210,8 +160,7 @@ jobs:
           subject-digest: ${{ steps.inspect.outputs.digest }}
           push-to-registry: true
 
-  # Run the published backend the way an operator does: start it on an empty
-  # data volume and wait for /healthz.
+  # Run the published images the way an operator does.
   smoke:
     needs: [merge]
     runs-on: ubuntu-24.04
@@ -219,22 +168,17 @@ jobs:
       contents: read
       packages: read
     steps:
+      - uses: actions/checkout@v7
       - uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Smoke test the published backend
+      - name: Smoke test the published images
         run: |
-          if [ "${GITHUB_REF_TYPE}" = tag ]; then tag="${GITHUB_REF_NAME#v}"; else tag=edge; fi
-          image="${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_PREFIX}-backend:${tag}"
-          docker run -d --name smoke -p 3001:3001 "$image"
-          for _ in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:3001/healthz >/dev/null; then echo "healthy"; exit 0; fi
-            sleep 2
-          done
-          docker logs smoke
-          exit 1
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then KORE_VERSION="${GITHUB_REF_NAME#kore-drive-v}"; else KORE_VERSION=edge; fi
+          export KORE_VERSION
+          apps/kore-drive/scripts/smoke.sh
 
   release:
     if: github.ref_type == 'tag'
@@ -248,7 +192,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          v="${GITHUB_REF_NAME#v}"
+          v="${GITHUB_REF_NAME#kore-drive-v}"
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           pre=""; case "$v" in *-*) pre="--prerelease" ;; esac
           gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" -f tag_name="${GITHUB_REF_NAME}" --jq .body > generated.md
@@ -256,11 +200,12 @@ jobs:
             echo "## Images"
             echo
             echo '```'
-            for c in backend web caddy; do echo "${REGISTRY}/${owner}/${IMAGE_PREFIX}-${c}:${v}"; done
+            echo "ghcr.io/${owner}/kore-api:${v}"
+            echo "ghcr.io/${owner}/kore-web:${v}"
             echo '```'
             echo
-            echo "Linux amd64 and arm64. To run it: set \`KOREMONITOR_VERSION=${v}\` in \`.env\` and \`docker compose pull && docker compose up -d\` (see docs/deployment.md)."
+            echo "Linux amd64 and arm64. To run it: set \`KORE_VERSION=${v}\` in \`.env\` and \`docker compose pull && docker compose up -d\` (see README.md)."
             echo
             cat generated.md
           } > notes.md
-          gh release create "${GITHUB_REF_NAME}" --verify-tag --title "${IMAGE_PREFIX} ${v}" --notes-file notes.md $pre
+          gh release create "${GITHUB_REF_NAME}" --verify-tag --title "KoreDrive ${v}" --notes-file notes.md $pre

@@ -1,0 +1,48 @@
+# Checks the design system on its own: its tests and types, the showcase build, and that the
+# workspace still installs one copy of react, react-dom and next. Every app's own workflow also
+# runs when packages/kore-ui changes, so a design change is checked in each app too.
+name: kore-ui ci
+
+on:
+  pull_request:
+    paths:
+      - packages/kore-ui/**
+      - tools/**
+      - package.json
+      - bun.lock
+      - bunfig.toml
+      - turbo.json
+      - .github/workflows/kore-ui-ci.yml
+  push:
+    branches: [main]
+    paths:
+      - packages/kore-ui/**
+      - tools/**
+      - package.json
+      - bun.lock
+      - bunfig.toml
+      - turbo.json
+      - .github/workflows/kore-ui-ci.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kore-ui-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  kore-ui:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - run: bun install --frozen-lockfile
+      - run: bun tools/check-single-copy.ts
+      - run: bun test tools
+      - run: bunx turbo run typecheck test build --filter=@qarasky/kore-ui --filter=@kore/ui-showcase
