@@ -198,6 +198,19 @@ func checkForUpdate(ctx context.Context, cfg *Config) (*updateManifest, *updateA
 	return manifest, pickAsset(manifest), nil
 }
 
+// maxAgentDownload caps one agent download. Real builds are a few tens of
+// megabytes; anything far larger is a broken or hostile server.
+var maxAgentDownload int64 = 256 << 20
+
+// checkAssetName refuses a file name that could leave the update directory:
+// the name comes from the server and is joined into a root-owned path.
+func checkAssetName(name string) error {
+	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) || filepath.Base(name) != name {
+		return fmt.Errorf("refusing agent asset name %q", name)
+	}
+	return nil
+}
+
 // downloadAsset streams an asset to dest, verifying the advertised sha256.
 // The bytes land in dest+".part" and are renamed on success, so a truncated
 // download can never be mistaken for a binary.
@@ -207,6 +220,9 @@ func checkForUpdate(ctx context.Context, cfg *Config) (*updateManifest, *updateA
 // this host (a proxy scheme, a public hostname the agent cannot resolve), and
 // the agent already knows where it pushes.
 func downloadAsset(ctx context.Context, cfg *Config, asset *updateAsset, dest string) error {
+	if err := checkAssetName(asset.File); err != nil {
+		return err
+	}
 	link := fmt.Sprintf("%s/agent/%s?token=%s",
 		strings.TrimRight(cfg.ServerURL, "/"), url.PathEscape(asset.File), url.QueryEscape(cfg.PushToken))
 
@@ -233,12 +249,20 @@ func downloadAsset(ctx context.Context, cfg *Config, asset *updateAsset, dest st
 	}
 
 	digest := sha256.New()
-	_, copyErr := io.Copy(io.MultiWriter(out, digest), resp.Body)
+	written, copyErr := io.Copy(io.MultiWriter(out, digest), io.LimitReader(resp.Body, maxAgentDownload+1))
 	syncErr := out.Sync()
 	closeErr := out.Close()
 	if copyErr != nil {
 		os.Remove(part)
 		return copyErr
+	}
+	if written > maxAgentDownload {
+		os.Remove(part)
+		return fmt.Errorf("download %s: larger than %d bytes", asset.File, maxAgentDownload)
+	}
+	if asset.Size > 0 && written != asset.Size {
+		os.Remove(part)
+		return fmt.Errorf("download %s: got %d bytes, the manifest says %d", asset.File, written, asset.Size)
 	}
 	if syncErr != nil || closeErr != nil {
 		os.Remove(part)
@@ -296,6 +320,9 @@ func applySelfUpdate(ctx context.Context, cfg *Config, manifest *updateManifest,
 		return err
 	}
 
+	if err := checkAssetName(asset.File); err != nil {
+		return err
+	}
 	staged := filepath.Join(selfUpdateDir, asset.File)
 	if err := downloadAsset(ctx, cfg, asset, staged); err != nil {
 		return err
