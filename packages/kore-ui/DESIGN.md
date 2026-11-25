@@ -678,7 +678,7 @@ One line each, so migrations know what changes.
 ```jsonc
 // package.json
 "dependencies": {
-  "@qarasky/kore-ui": "https://codeload.github.com/qarasky/kore-ui/tar.gz/refs/tags/v0.3.0",
+  "@qarasky/kore-ui": "workspace:*", // the app is in the Kore monorepo
   "lucide-react": "^1.67.0" // if the app imports icons itself
 }
 ```
@@ -694,8 +694,9 @@ Replace the app's `@theme` block, base layer and font setup with:
 ```css
 @import "tailwindcss";
 @import "@qarasky/kore-ui/theme.css";
-@source "../node_modules/@qarasky/kore-ui/src"; /* relative to this CSS file */
 ```
+
+theme.css carries its own `@source`, so the app needs none for kore-ui.
 
 Keep only app-specific CSS below it (markdown styles, the calendar grid, the monitor board). Remove any
 `@fontsource` import from the layout: theme.css brings Inter.

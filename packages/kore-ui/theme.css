@@ -2,14 +2,17 @@
  * Kore theme: design tokens + base styles for every Kore web UI.
  * Three themes (color, light, dark): `data-theme` on <html>. See DESIGN.md for what each token is for.
  *
- * Consumer CSS (path in @source is relative to that CSS file):
+ * Consumer CSS:
  *   @import "tailwindcss";
  *   @import "@qarasky/kore-ui/theme.css";
- *   @source "../node_modules/@qarasky/kore-ui/src";
+ * The @source below makes Tailwind scan kore-ui's components wherever the package lives.
  */
 
 /* Inter (variable), bundled: nothing is fetched from the network at runtime. */
 @import "@fontsource-variable/inter";
+
+/* Tailwind scans kore-ui's own source for class names (path relative to this file). */
+@source "./src";
 
 @theme static {
   /* Surfaces, darkest to lightest. */

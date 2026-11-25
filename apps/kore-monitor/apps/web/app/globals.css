@@ -7,7 +7,6 @@
  */
 @import "tailwindcss";
 @import "@qarasky/kore-ui/theme.css";
-@source "../node_modules/@qarasky/kore-ui/src";
 
 /* Tailwind v4 borders default to currentColor; Kore hairlines are the border token. */
 @layer base {

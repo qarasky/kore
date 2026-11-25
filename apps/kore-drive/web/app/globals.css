@@ -1,8 +1,6 @@
 @import "tailwindcss";
 /* Tokens, Inter and base styles come from the Kore design system (kore-ui/DESIGN.md). */
 @import "@qarasky/kore-ui/theme.css";
-/* Tailwind must scan kore-ui's source for class names (relative to this file). */
-@source "../node_modules/@qarasky/kore-ui/src";
 
 /* App-specific CSS only below. */
 

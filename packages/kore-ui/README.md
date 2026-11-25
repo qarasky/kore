@@ -10,18 +10,22 @@ The package ships TypeScript source and CSS, with no build step. Your bundler co
 
 ## Install
 
-Pin a release tag:
+kore-ui lives in the Kore monorepo (`packages/kore-ui`). Apps in the monorepo depend on it as a workspace package:
 
 ```jsonc
 // package.json
 "dependencies": {
-  "@qarasky/kore-ui": "https://codeload.github.com/qarasky/kore-ui/tar.gz/refs/tags/v0.3.0"
+  "@qarasky/kore-ui": "workspace:*"
 }
 ```
 
-Peer dependencies: `react` and `react-dom` ^19, `tailwindcss` ^4. Radix, cmdk, lucide-react, clsx, tailwind-merge,
-class-variance-authority and the Inter font (`@fontsource-variable/inter`) are regular dependencies. Add
-`lucide-react` to your own dependencies too if you import icons yourself.
+A change here reaches every app in the same commit; there is no tag to bump. Run `bun run check` at the repo root,
+and build the web apps (`bun run build`), before committing a design change.
+
+Peer dependencies: `react` and `react-dom` ^19, `tailwindcss` ^4. In the monorepo the root catalog pins one version of
+each for every app. Radix, cmdk, lucide-react, clsx, tailwind-merge, class-variance-authority and the Inter font
+(`@fontsource-variable/inter`) are regular dependencies. Add `lucide-react` to your own dependencies too if you import
+icons yourself.
 
 ## CSS
 
@@ -30,9 +34,10 @@ In your main stylesheet (e.g. `app/globals.css`):
 ```css
 @import "tailwindcss";
 @import "@qarasky/kore-ui/theme.css";
-/* Tailwind must scan kore-ui's source for class names. Path is relative to this CSS file. */
-@source "../node_modules/@qarasky/kore-ui/src";
 ```
+
+`theme.css` carries its own `@source "./src"`, so Tailwind scans kore-ui's components wherever the package is installed.
+Don't add an `@source` for kore-ui in the app.
 
 `theme.css` defines the tokens (`bg-surface`, `text-muted`, `h-row`, `max-w-form`, …), loads Inter, and sets base
 styles (15px root, focus ring, selection, scrollbars, reduced motion). Don't redefine these tokens in the app.
