@@ -66,7 +66,7 @@ export function mapEvent(sessionId: string, raw: Raw, ctx: { tool?: string } = {
 
 /**
  * OpenCode providers KoreMind can offer (KOREMIND_PROVIDERS picks which). Everything else OpenCode knows about stays hidden.
- * They are signed in on the server (`opencode auth login`, or an env key); the apps only show their status.
+ * They are signed in on the server (OPENCODE_API_KEY in KoreMind's environment, or credentials already in its OpenCode data); the apps only show their status.
  */
 export const OFFERED: { id: string; name: string }[] = [
   { id: "opencode", name: "OpenCode" },
@@ -79,7 +79,8 @@ export function mapConnections(integrations: any[]): ProviderConnection[] {
     const i = integrations.find((x) => x?.id === o.id);
     const connected = Array.isArray(i?.connections) && i.connections.length > 0;
     // OpenCode's free tier needs no sign-in, so there is nothing to tell the owner.
-    const hint = connected || o.id === "opencode" ? "" : "Run `opencode auth login` on the server.";
+    // KoreMind runs OpenCode in its own data folder, so a plain `opencode auth login` would sign in the wrong one: use the env key.
+    const hint = connected || o.id === "opencode" ? "" : "Set OPENCODE_API_KEY in KoreMind's server environment.";
     return { id: o.id, name: o.name, connected, supportsFreeFilter: o.id === "opencode", hint };
   });
 }

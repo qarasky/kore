@@ -30,10 +30,12 @@ COPY package.json ./
 COPY backend ./backend
 COPY shared ./shared
 
+# Claude is never bundled (Anthropic's terms); it needs the native install, so the image offers OpenCode.
 ENV NODE_ENV=production \
     KOREMIND_DATA_DIR=/data \
     KOREMIND_PORT=8787 \
-    KOREMIND_OPENCODE_BIN=/opt/opencode/.opencode/bin/opencode
+    KOREMIND_OPENCODE_BIN=/opt/opencode/.opencode/bin/opencode \
+    KOREMIND_PROVIDERS=opencode,opencode-go
 USER koremind
 VOLUME /data
 EXPOSE 8787

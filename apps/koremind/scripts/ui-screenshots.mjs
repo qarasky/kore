@@ -34,18 +34,17 @@ try {
   await until(`${api}/health`);
   await until(`${web}/login`);
 
-  // Seed: the owner, a connected provider, one conversation (markdown + a saved note), a favorite.
+  // Seed: the owner, one conversation (markdown + a saved note), a favorite.
   const call = async (method, path, body, token) => {
     const r = await fetch(api + path, { method, headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
     if (!r.ok) throw new Error(`${method} ${path}: ${r.status} ${await r.text()}`);
     return r;
   };
   const { token } = await (await call("POST", "/auth/register", { email: "anna@example.com", password: "correct horse battery" })).json();
-  await call("PUT", "/providers/groq/key", { key: "gsk_fake" }, token);
-  await call("PUT", "/favorites", ["groq/llama-fast", "opencode/fast"], token);
+  await call("PUT", "/favorites", ["opencode/fast"], token);
   await call("PUT", "/settings", { ...(await (await call("GET", "/settings", undefined, token)).json()), displayName: "Anna", tone: "Short and direct. No filler." }, token);
   const chat = await (await call("POST", "/chats", undefined, token)).json();
-  const say = async (text) => { const r = await call("POST", `/chats/${chat.id}/messages`, { text, attachmentIds: [], model: { providerId: "groq", modelId: "llama-fast" } }, token); await r.text(); };
+  const say = async (text) => { const r = await call("POST", `/chats/${chat.id}/messages`, { text, attachmentIds: [], model: { providerId: "opencode", modelId: "fast" } }, token); await r.text(); };
   await say("Plan a **three-day** trip to Lisbon:\n\n1. Day one: Alfama and the castle\n2. Day two: Belém, `pastéis de nata`\n3. Day three: Sintra\n\n> Keep it walkable.");
   await say("note: book the Sintra train");
 

@@ -1,6 +1,14 @@
-# Claude in KoreMind (not built yet)
+# Claude in KoreMind
 
-**Status: documented, not implemented.** This records what was researched on 2026-11-03 so the work can be picked up later without redoing it. Nothing in the code uses the Claude Agent SDK today.
+**Status: built on 2026-11-26 as route C, through `claude -p`** (not the Agent SDK). Design: [superpowers/specs/2026-11-26-claude-engine-host-cli-design.md](superpowers/specs/2026-11-26-claude-engine-host-cli-design.md). What it does today:
+
+- Provider id `claude`, named "Claude", listed when `KOREMIND_PROVIDERS` includes it (the default). **Owner-only**, enforced on the server (`models.ts` `OWNER_ONLY`; others get `disabled` and `model_not_allowed`).
+- Each answer runs the server's own, unmodified `claude` (`KOREMIND_CLAUDE_BIN`) as the service user, signed in by its owner with `claude auth login`. KoreMind has no login UI and never reads the token; it only reads `loggedIn` and `projectsDirectory` from `claude auth status --json`.
+- Locked down with `--setting-sources "" --strict-mcp-config --tools WebSearch --allowedTools "WebSearch mcp__koremind__*" --permission-prompts none --system-prompt …`; never `--bare` (it refuses subscription logins). The notes and memory tools come from KoreMind's `/mcp`, with the chat in the `x-koremind-session` header. Titles and memory summaries run with `--tools "" --no-session-persistence`; titles always on Haiku.
+- Not in the Docker image (no bundling); it needs the native install.
+- KoreMind is a single-owner deployment; the rules below still apply as written.
+
+The research below (2026-11-03) is kept as the reasoning behind those rules.
 
 Anthropic restricts how Claude can be used inside other products, so the way Claude is added matters as much as the code. Re-read the sources below before building anything; the terms can change. This is our reading of the published text, not legal advice.
 

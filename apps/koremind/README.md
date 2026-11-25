@@ -15,14 +15,14 @@ A personal assistant that feels like the ChatGPT app, with its own apps instead 
 ## What it does
 
 - **Chat** with streaming Markdown (tables, code with a Copy button, images) and rich cards ([docs/rich-messages.md](docs/rich-messages.md)), photos and files, a model picker (provider rail, favorites, thinking level) and web search. Chats are named automatically by the model you chose.
-- **Providers:** **Groq** and **OpenRouter** (the recommended ones, an API key each), OpenCode (free models need no key), **OpenCode Go** (your Go subscription, with its API key) and **Codex** (OpenAI: sign in with ChatGPT or paste an API key). Each can be turned off, and OpenCode and OpenRouter can be limited to free models, in **Settings → Providers**.
+- **Providers**, chosen on the server with `KOREMIND_PROVIDERS` and signed in there, never in the apps: **Claude** (the server's own `claude` CLI and its owner's subscription, owner-only; see [docs/claude-integration.md](docs/claude-integration.md)), **OpenCode** (free models need no sign-in) and **OpenCode Go** (your Go subscription). Each can be turned off per person, and OpenCode can be limited to free models, in **Settings → Providers**.
 - **Memory** you can see and edit. The assistant decides what is worth remembering; it is written in the background so it never slows an answer.
 - **Notes:** the assistant can save, read and edit notes, per chat and per user. Asking it to use another chat's notes shows an **Allow / Deny** card. Notes live in KoreMind's own database.
 - **Phone pairing:** Settings → Account → **Show QR code** on the web, then **Scan QR code** in the Android app. The code is minted from your signed-in (Kore ID) web session and signs the phone in as you, no typing.
 
 ## Run it (development, one machine)
 
-You need [Bun](https://bun.sh) and the `opencode` CLI (v2) on your PATH.
+You need [Bun](https://bun.sh) and, for the default provider, the [Claude Code](https://code.claude.com) CLI signed in (`claude auth login`). For OpenCode providers also the `opencode` CLI (v2); OpenCode Go signs in with `OPENCODE_API_KEY` in the server's environment.
 
 ```bash
 bun install
@@ -44,15 +44,19 @@ The product used to be called Zero. A `zero.sqlite` database in your data direct
 | Setting | Default |
 | --- | --- |
 | `KOREMIND_PORT` | `8787` (backend) |
-| `KOREMIND_DATA_DIR` | `./data` relative to where you start it. Holds the database, uploads, memory and OpenCode's state, **including provider keys**. |
+| `KOREMIND_DATA_DIR` | `./data` relative to where you start it. Holds the database, uploads, memory and OpenCode's state, **including OpenCode's sign-ins**. |
+| `KOREMIND_HOST` | `0.0.0.0`. Set `127.0.0.1` when only a tunnel or proxy on the same machine should reach the backend (required with `KOREMIND_TRUST_PROXY=1` on a host other apps can reach). |
+| `KOREMIND_PROVIDERS` | `claude`. Comma list, in the order the apps show them: `claude`, `opencode`, `opencode-go`. OpenCode's engine only starts when one of its providers is listed. |
+| `KOREMIND_CLAUDE_BIN` | `claude`; set the full path (e.g. `/home/you/.local/bin/claude`) under a service manager |
+| `KOREMIND_CLAUDE_CONFIG_DIR` | unset = the service user's `~/.claude`. A separate folder gives KoreMind its own Claude login (`CLAUDE_CONFIG_DIR=… claude auth login`). |
 | `KOREMIND_WEB_PORT` | `3210` |
 | `KOREMIND_WEB_MODE` | `start` (production build). `dev` runs Next.js in dev mode. |
 | `KOREMIND_PUBLIC_URL` | unset; shown as the `domain` address and put into phone-pairing QR codes |
 | `KOREMIND_TRUST_PROXY=1` | believe `x-forwarded-for` from any peer (a proxy on this machine is trusted automatically) |
-| `KOREMIND_OPENCODE_BIN` | `opencode`; set the full path when running under a service manager |
+| `KOREMIND_OPENCODE_BIN` | `opencode`; set the full path when running under a service manager (only used when an OpenCode provider is listed) |
 | `KOREMIND_OIDC_ISSUER` | unset = nobody can sign in. Set it to the Kore ID base URL; the other `KOREMIND_OIDC_*` and `KOREMIND_WEB_ORIGINS` settings are in [docs/kore-id.md](docs/kore-id.md) |
 | `KOREMIND_KORE_APPS` | unset; the other Kore apps for the web UI's app switcher, e.g. `kore=https://files.example.com,korecalendar=https://cal.example.com,flatline=https://status.example.com` |
-| `KOREMIND_FAKE_ENGINE=1` | run without OpenCode (scripted replies, and `note: …` / `read <chat title>` to exercise notes) for development |
+| `KOREMIND_FAKE_ENGINE=1` | run without any provider (scripted replies, and `note: …` / `read <chat title>` to exercise notes) for development |
 
 ## Develop
 

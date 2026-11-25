@@ -17,7 +17,7 @@ docker compose ps                         # both should become "healthy"
 curl http://localhost:8787/health         # {"name":"koremind","version":"0.1.0","setupRequired":true,"sso":true}
 ```
 
-Open <http://localhost:3210>, enter `http://localhost:8787` when asked, and choose **Continue with Kore ID**. Kore ID is the only sign-in: the first account (the one matching `KOREMIND_OIDC_OWNER_EMAIL`) becomes the owner, and everyone else is created automatically on their first Kore ID sign-in. There is no password setup or registration form. Then add providers in **Settings → Providers**.
+Open <http://localhost:3210>, enter `http://localhost:8787` when asked, and choose **Continue with Kore ID**. Kore ID is the only sign-in: the first account (the one matching `KOREMIND_OIDC_OWNER_EMAIL`) becomes the owner, and everyone else is created automatically on their first Kore ID sign-in. There is no password setup or registration form. Providers are set on the server, not in the apps (see below).
 
 `KOREMIND_VERSION` can be a full version (`0.1.0`, recommended), a minor line (`0.1`, gets patch fixes), `latest` (newest stable release) or `edge` (current `main`, for trying things). Put the variables in a `.env` file next to the compose file if you prefer.
 
@@ -29,13 +29,15 @@ Open <http://localhost:3210>, enter `http://localhost:8787` when asked, and choo
 | `KOREMIND_PORT`, `KOREMIND_WEB_PORT` | Host ports. Defaults `8787` and `3210`. |
 | `KOREMIND_PUBLIC_URL` | The address phones and browsers use to reach the backend (`https://api.example.com`). **Set it** if you use QR sign-in: inside a container the backend only knows its internal Docker address, which a phone cannot reach. |
 | `KOREMIND_TRUST_PROXY=1` | Only when a proxy on another machine terminates TLS in front of the backend. |
+| `KOREMIND_PROVIDERS` | `opencode,opencode-go` in the image. Claude is not available in Docker: it needs the server's own `claude` CLI, so use [the Linux install](deployment-linux.md) for it. |
+| `OPENCODE_API_KEY` | Signs in OpenCode Go (your Go subscription). OpenCode's free models need nothing. |
 | `KOREMIND_OIDC_*`, `KOREMIND_WEB_ORIGINS` | Kore ID single sign-on. `KOREMIND_OIDC_ISSUER` is **required** (it is the only sign-in); see [kore-id.md](kore-id.md). |
 
 Kore ID needs `KOREMIND_PUBLIC_URL` (the callback is `<it>/auth/callback`) and `KOREMIND_WEB_ORIGINS` (the address you open the web UI at), then `docker compose up -d` again. Put the secret in the `.env` file next to the compose file, not in the compose file.
 
 ## Data and backups
 
-Everything lives in the `koremind-data` volume, mounted at `/data`: accounts, chats, notes, uploads and the engine state, **including provider API keys and sign-ins**. Back it up and treat the backup as a secret.
+Everything lives in the `koremind-data` volume, mounted at `/data`: accounts, chats, notes, uploads and the engine state, **including OpenCode's sign-ins**. Back it up and treat the backup as a secret.
 
 ```bash
 docker run --rm -v koremind-data:/data -v "$PWD":/out alpine tar czf /out/koremind-$(date +%F).tgz -C /data .
@@ -54,9 +56,9 @@ Database migrations run at start. To go back, start the older tag, but restore a
 
 Same options as the Linux guide ([Tailscale or a domain](deployment-linux.md)). Put TLS in front of both ports, keep `/mcp` unreachable from outside (it is for the engine inside the container only), and set `KOREMIND_PUBLIC_URL`.
 
-## Sign in with ChatGPT (Codex) on a server
+## Claude
 
-The sign-in callback listens on a port inside the container, so on a headless host use an API key for Codex, or sign in on a machine with a browser. This is untested in Docker.
+Not in Docker. Claude runs through the server's own, unmodified `claude` CLI and its owner's login, and Anthropic's terms rule out bundling Claude Code into an image. Run the backend natively ([deployment-linux.md](deployment-linux.md)) for Claude; the web UI can stay in Docker.
 
 ## Building the images yourself
 

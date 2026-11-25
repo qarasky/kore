@@ -11,7 +11,7 @@ services:
     ports:
       - "${KOREMIND_PORT:-8787}:8787"
     volumes:
-      # Chats, accounts, notes, uploads and the OpenCode engine state (provider keys!). Back this up.
+      # Chats, accounts, notes, uploads and the OpenCode engine state (its sign-ins!). Back this up.
       - koremind-data:/data
     environment:
       # Set when KoreMind is reachable at a public address; it goes into the phone-pairing QR codes.

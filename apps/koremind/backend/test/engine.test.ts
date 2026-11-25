@@ -164,7 +164,7 @@ test("mapConnections offers only OpenCode and OpenCode Go, status only, with a s
     // The free tier needs no sign-in, so there is nothing to tell the owner.
     { id: "opencode", name: "OpenCode", connected: false, supportsFreeFilter: true, hint: "" },
     // OpenCode Go is a subscription: every model is paid for by the plan, so there is no free filter.
-    { id: "opencode-go", name: "OpenCode Go", connected: false, supportsFreeFilter: false, hint: "Run `opencode auth login` on the server." },
+    { id: "opencode-go", name: "OpenCode Go", connected: false, supportsFreeFilter: false, hint: "Set OPENCODE_API_KEY in KoreMind's server environment." },
   ]);
   const signedIn = mapConnections([{ id: "opencode-go", connections: [{ id: "c2" }] }]);
   expect(signedIn.find((c) => c.id === "opencode-go")).toMatchObject({ connected: true, hint: "" });

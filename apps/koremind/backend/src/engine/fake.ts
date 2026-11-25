@@ -29,7 +29,7 @@ export class FakeEngine implements Engine {
     return [
       conn("claude", "Claude", false, "Run `claude auth login` on the server, as the user KoreMind runs as."),
       conn("opencode", "OpenCode", true, ""),
-      conn("opencode-go", "OpenCode Go", false, "Run `opencode auth login` on the server."),
+      conn("opencode-go", "OpenCode Go", false, "Set OPENCODE_API_KEY in KoreMind's server environment."),
     ];
   }
 

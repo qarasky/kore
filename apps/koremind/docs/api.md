@@ -17,11 +17,7 @@ Source of truth: `shared/src/api.ts` (zod). All bodies are JSON unless noted. Au
 | `GET /me` | yes | | `{id,email,isOwner}` |
 | `GET /models` | yes | | `ProviderInfo[]` for this user. See Models and providers. |
 | `GET /favorites`, `PUT /favorites` | yes | `string[]` of `"providerId/modelId"` | `string[]` (entries the user can't use are dropped) |
-| `GET /providers` | yes | | `ProviderConnection[]` `{id,name,connected,methods:("key"\|"signin")[],supportsFreeFilter,recommended}` for Groq, OpenRouter, OpenCode and Codex (`openai`), in that order |
-| `POST /providers/:id/signin` | owner | | `{attemptId,url,instructions}`: open `url` in a browser **on the server's computer** (the engine listens for the callback on its own localhost) |
-| `GET /providers/:id/signin/:attemptId` | owner | | `{status:"pending"\|"complete"\|"failed"}` |
-| `PUT /providers/:id/key` | owner | `{key}` | `{ok:true}` (never echoes the key) |
-| `DELETE /providers/:id/key` | owner | | `{ok:true}`; 4xx with a reason if the connection comes from a server environment variable |
+| `GET /providers` | yes | | `ProviderConnection[]` `{id,name,connected,supportsFreeFilter,hint}` for the providers in `KOREMIND_PROVIDERS`, in that order. `hint` says what to run on the server to sign one in (`""` when signed in). Providers are signed in on the server only: there are no key or sign-in routes (`/providers/:id/key` and `/providers/:id/signin` answer 404). |
 | `GET /chats` | yes | | `{id,title,updatedAt}[]` newest first |
 | `POST /chats` | yes | | `ChatSummary` |
 | `GET /chats/:id` | yes | | `{chat,messages:ChatMessage[],running}`: the messages of the branch on screen (an edited user message lists its versions in `siblings`); `running` is true while an answer is still being written. |
@@ -37,17 +33,17 @@ Source of truth: `shared/src/api.ts` (zod). All bodies are JSON unless noted. Au
 | `GET /memory` | yes | | `{id,text,updatedAt}[]` |
 | `PUT /memory/:id`, `DELETE /memory/:id` | yes | `{text}` / none | `{ok:true}` |
 | `GET /settings`, `PUT /settings` | yes | `Settings` | `Settings` |
-| `POST /mcp` | **local engine only** | JSON-RPC (MCP) | The notes tools for OpenCode. Loopback peers only, and `Authorization: Bearer <per-run secret>`; never used by a client. Put a deny rule on it in any reverse proxy as well. |
+| `POST /mcp` | **local engine only** | JSON-RPC (MCP) | The notes and memory tools for the local engines. OpenCode names the chat in `_meta["ai.opencode/sessionID"]`, Claude in the `x-koremind-session` header. Loopback peers only, and `Authorization: Bearer <per-run secret>`; never used by a client. Put a deny rule on it in any reverse proxy as well. |
 
 `Settings` = `{memoryEnabled, displayName, tone, about, disabledProviders: string[], freeOnlyProviders: string[]}`. The last two default to `[]`, so older clients that omit them keep working.
 
 **There is no password API.** `/auth/register` and `/auth/login` do not exist (404). Kore ID is the only human sign-in; session tokens and QR pairing are credentials, not a second login path.
 
 ## Models and providers
-- `GET /models` returns **every offered provider** (Groq, OpenRouter, OpenCode, Codex = `openai`, in that order: the recommended providers first): `{id,name,connected,recommended,status,models}`. Groq's safety classifiers (Prompt Guard, Safety GPT OSS) are not listed because they cannot chat.
-  - `status` is `ready`, `needs_connection` (no key / not signed in; OpenCode counts as ready because its free tier needs no key) or `disabled` (the user turned it off in Settings).
+- `GET /models` returns **every provider in `KOREMIND_PROVIDERS`** (default `claude`; also `opencode`, `opencode-go`), in that order: `{id,name,connected,recommended,status,models}` (`recommended` is always false now, kept for older clients).
+  - `status` is `ready`, `needs_connection` (not signed in on the server; OpenCode counts as ready because its free tier needs no sign-in) or `disabled` (the user turned it off in Settings, or **Claude for anyone but the owner**: it runs on the owner's own subscription, see [claude-integration.md](claude-integration.md)).
   - `models` is empty unless `ready`, and already honors the user's "only free models" choice. A model is `{id,name,vision,thinkingLevels[],isDefault,free}`; `free` means every price tier is zero.
-- Picker behavior (both clients): all providers appear in the rail; non-`ready` ones are dimmed and selecting one explains why ("Connect X in Settings." / "X is turned off in Settings.") with an Open Settings action. A saved choice that is no longer allowed falls back to the default of the first ready provider.
+- Picker behavior (both clients): all providers appear in the rail; non-`ready` ones are dimmed and selecting one explains why ("X isn't signed in on the server yet." / "X is turned off in Settings.") with an Open Settings action. A saved choice that is no longer allowed falls back to the default of the first ready provider.
 
 ## Pairing (QR sign-in)
 - `POST /auth/pair` (signed in) returns `{code, expiresAt, urls, link}`. Pairing is **Kore ID-backed**: the signed-in session it starts from came from a Kore ID sign-in. The code is 128-bit, single-use and valid for 2 minutes; one live code per user. `urls` are the backend's addresses, best first (local network, Tailscale, `KOREMIND_PUBLIC_URL`). `link` is `koremind://pair?c=<code>&u=<url>&u=<url>` (percent-encoded) and is what the QR contains.
