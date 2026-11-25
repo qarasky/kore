@@ -1,6 +1,6 @@
 /**
  * Builds the web app and serves the production standalone server
- * (`.next/standalone/server.js`, the artifact we ship) on 127.0.0.1:13000,
+ * (`.next/standalone/apps/kore-drive/web/server.js`, the artifact we ship) on 127.0.0.1:13000,
  * talking to the e2e API at 127.0.0.1:18080. A second instance of the same
  * build on 127.0.0.1:13001 has its runtime API_URL pointed at a closed port,
  * for API-outage tests.
@@ -13,18 +13,23 @@
  */
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, rmSync } from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { E2E } from "./env.ts";
 import { serve, type Proc } from "./proc.ts";
 
 const webDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const standalone = path.join(webDir, ".next/standalone");
+// Next traces the standalone output from the monorepo root (next.config.ts), so the app sits at
+// .next/standalone/apps/kore-drive/web/ inside it.
+const standalone = path.join(webDir, ".next/standalone", path.relative(path.resolve(webDir, "../../.."), webDir));
+// next is hoisted to the monorepo's node_modules; resolve it like an import.
+const nextBin = path.join(path.dirname(createRequire(import.meta.url).resolve("next/package.json")), "dist/bin/next");
 const env = { ...process.env, API_URL: E2E.apiUrl, NEXT_TELEMETRY_DISABLED: "1" };
 
 if (!process.env.E2E_SKIP_BUILD) {
   console.log("[e2e web] next build");
-  execFileSync(process.execPath, [path.join(webDir, "node_modules/next/dist/bin/next"), "build"], {
+  execFileSync(process.execPath, [nextBin, "build"], {
     cwd: webDir,
     env,
     stdio: "inherit",
