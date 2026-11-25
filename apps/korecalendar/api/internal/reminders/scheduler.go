@@ -80,7 +80,12 @@ func (s *Scheduler) Tick(ctx context.Context) error {
 	}
 	if now.After(from) {
 		due, err := ComputeDue(ctx, s.db, from, now)
-		if err != nil {
+		var partial *PartialError
+		if errors.As(err, &partial) {
+			// One user's calendar could not be expanded: deliver everyone else's
+			// reminders and move on, rather than holding the cursor for all users.
+			log.Printf("reminders: %v (users %v)", partial, partial.Users)
+		} else if err != nil {
 			return err // the cursor stays put, so the next tick covers this window again
 		}
 		for _, d := range due {

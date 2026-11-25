@@ -5,6 +5,7 @@ package reminders
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"sort"
 	"strconv"
 	"time"
@@ -42,9 +43,24 @@ func reference(o events.Occurrence) time.Time {
 	return d.UTC()
 }
 
+// PartialError reports users whose calendars could not be expanded. ComputeDue
+// still returns everyone else's reminders, so one broken calendar cannot hold
+// back the cursor for all users.
+type PartialError struct {
+	Users []string
+	Err   error
+}
+
+func (e *PartialError) Error() string {
+	return fmt.Sprintf("reminders skipped for %d user(s): %v", len(e.Users), e.Err)
+}
+
+func (e *PartialError) Unwrap() error { return e.Err }
+
 // ComputeDue returns the reminders firing in (from, to], for every user,
 // sorted by fire time. Deleted events, excluded occurrences and overrides are
-// already applied by events.Occurrences.
+// already applied by events.Occurrences. A user whose calendar cannot be
+// expanded is skipped and named in a *PartialError next to the result.
 func ComputeDue(ctx context.Context, db *sql.DB, from, to time.Time) ([]Due, error) {
 	rows, err := db.QueryContext(ctx, `SELECT DISTINCT e.user_id FROM events e JOIN event_reminders r ON r.event_id=e.id WHERE e.deleted_at IS NULL`)
 	if err != nil {
@@ -67,8 +83,11 @@ func ComputeDue(ctx context.Context, db *sql.DB, from, to time.Time) ([]Due, err
 	// references can differ from the occurrence's UTC start by a zone offset.
 	lo, hi := from.Add(-24*time.Hour), to.Add(maxOffset+24*time.Hour)
 	var out []Due
+	var partial *PartialError
+users:
 	for _, uid := range userIDs {
 		seen := map[string]bool{}
+		var mine []Due
 		for start := lo; start.Before(hi); start = start.Add(chunk) {
 			end := start.Add(chunk)
 			if end.After(hi) {
@@ -76,7 +95,14 @@ func ComputeDue(ctx context.Context, db *sql.DB, from, to time.Time) ([]Due, err
 			}
 			occs, err := events.Occurrences(ctx, db, uid, events.OccQuery{From: start, To: end})
 			if err != nil {
-				return nil, err
+				if ctx.Err() != nil {
+					return nil, err
+				}
+				if partial == nil {
+					partial = &PartialError{Err: err}
+				}
+				partial.Users = append(partial.Users, uid)
+				continue users
 			}
 			for _, o := range occs {
 				ref := reference(o)
@@ -90,11 +116,12 @@ func ComputeDue(ctx context.Context, db *sql.DB, from, to time.Time) ([]Due, err
 						continue
 					}
 					seen[id] = true
-					out = append(out, Due{UserID: uid, EventID: o.EventID, Key: o.Key, Title: o.Title, Start: o.Start,
+					mine = append(mine, Due{UserID: uid, EventID: o.EventID, Key: o.Key, Title: o.Title, Start: o.Start,
 						StartUTC: o.StartUTC, FireAt: fire, MinutesBefore: r.MinutesBefore})
 				}
 			}
 		}
+		out = append(out, mine...)
 	}
 	sort.Slice(out, func(i, j int) bool {
 		a, b := out[i], out[j]
@@ -106,5 +133,8 @@ func ComputeDue(ctx context.Context, db *sql.DB, from, to time.Time) ([]Due, err
 		}
 		return a.Key < b.Key
 	})
+	if partial != nil {
+		return out, partial
+	}
 	return out, nil
 }

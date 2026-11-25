@@ -31,6 +31,11 @@ const MaxReminderMinutes = 40320
 // maxReminders caps reminders per event.
 const maxReminders = 20
 
+// MaxRDates caps the extra dates of one event. Without it a single event could
+// expand to more than MaxOccurrences in a week and fail every expansion of its
+// owner's calendar (reminders, the week view, CalDAV).
+const MaxRDates = 1000
+
 // Reminder fires MinutesBefore minutes before an occurrence starts.
 type Reminder struct {
 	MinutesBefore int `json:"minutes_before"`

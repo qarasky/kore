@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -61,6 +62,9 @@ func normalize(in Input, userTZ string) (Input, error) {
 // validateSeries maps recur's errors to this package's: an unsupported rule
 // stays itself (so the API can name it), everything else is a ValidationError.
 func validateSeries(s recur.Series) error {
+	if len(s.RDates) > MaxRDates {
+		return invalid(fmt.Sprintf("at most %d extra dates per event", MaxRDates))
+	}
 	if err := s.Validate(); err != nil {
 		if errors.Is(err, recur.ErrUnsupportedRule) {
 			return err
