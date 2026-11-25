@@ -1,6 +1,9 @@
-import type { ModelInfo } from "@koremind/shared";
-import { AGENT_SYSTEM } from "./opencode";
-import type { EngineEvent, EngineFile, ModelRef } from "./types";
+import { mkdirSync, readdirSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import type { ModelInfo, ProviderConnection, ProviderInfo } from "@koremind/shared";
+import { AGENT_SYSTEM, separateAfterTools } from "./opencode";
+import { CLOSED, IDLE, Pump } from "./pump";
+import type { Engine, EngineEvent, EngineFile, ModelRef, PromptArgs } from "./types";
 
 // Claude through the server's own, unmodified Claude Code CLI (`claude -p`), signed in by its owner on the server.
 // See docs/claude-integration.md (route C) and docs/superpowers/specs/2026-11-26-claude-engine-host-cli-design.md.
@@ -138,5 +141,160 @@ export function createClaudeMapper(): (line: unknown) => EngineEvent[] {
       default:
         return [];
     }
+  };
+}
+
+const NOT_INSTALLED = "Claude isn't installed on the server.";
+const HINT = "Run `claude auth login` on the server, as the user KoreMind runs as.";
+const STATUS_TTL_MS = 30_000;
+
+/** The child's environment: never a parent Claude Code session's variables (KoreMind may itself be started from one). */
+function childEnv(configDir?: string): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) if (v !== undefined && k !== "CLAUDECODE" && !k.startsWith("CLAUDE_CODE_")) env[k] = v;
+  env.CLAUDE_CODE_ENTRYPOINT = "koremind";
+  env.MCP_TOOL_TIMEOUT = "120000"; // an approval card waits up to 60 s inside a notes tool call
+  if (configDir) env.CLAUDE_CONFIG_DIR = configDir;
+  return env;
+}
+
+type Run = { events: AsyncIterable<EngineEvent>; kill(): void };
+
+export function createClaudeEngine(o: { bin: string; configDir?: string; dataDir: string; mcpUrl?: string; mcpSecret?: string; idleMs?: number }): Engine {
+  const cwd = join(o.dataDir, "claude-work");
+  mkdirSync(cwd, { recursive: true });
+  const idleMs = o.idleMs ?? 120_000;
+  /** Sessions created here that Claude hasn't opened yet: their first prompt uses --session-id and carries the context block. */
+  const fresh = new Set<string>();
+  let status: { at: number; loggedIn: boolean; projects: string } | null = null;
+
+  async function authStatus() {
+    if (status && Date.now() - status.at < STATUS_TTL_MS) return status;
+    let loggedIn = false, projects = "";
+    try {
+      const p = Bun.spawn([o.bin, "auth", "status", "--json"], { cwd, env: childEnv(o.configDir), stdout: "pipe", stderr: "ignore", stdin: "ignore" });
+      const out = await new Response(p.stdout).text();
+      await p.exited;
+      // Only these two fields are read; the rest (account details) is left alone.
+      const j = JSON.parse(out);
+      loggedIn = j?.loggedIn === true;
+      projects = typeof j?.projectsDirectory === "string" ? j.projectsDirectory : "";
+    } catch { /* not installed, or not JSON: not signed in */ }
+    status = { at: Date.now(), loggedIn, projects };
+    return status;
+  }
+
+  /** Starts one `claude -p` run and maps its output. Never throws: a failed start is an error event. */
+  function start(args: string[], input: string, onInit?: () => void): Run {
+    let proc: ReturnType<typeof Bun.spawn> | null = null;
+    try {
+      proc = Bun.spawn([o.bin, ...args], { cwd, env: childEnv(o.configDir), stdin: "pipe", stdout: "pipe", stderr: "pipe" });
+    } catch {
+      return { events: (async function* () { yield { type: "error", message: NOT_INSTALLED, noProvider: true } as EngineEvent; })(), kill() {} };
+    }
+    const p = proc;
+    const stdin = p.stdin as import("bun").FileSink;
+    stdin.write(input + "\n");
+    stdin.end();
+    let stderr = "";
+    (async () => { for await (const c of p.stderr as ReadableStream<Uint8Array>) stderr = (stderr + new TextDecoder().decode(c)).slice(-4000); })().catch(() => {});
+    const pump = new Pump<EngineEvent | { type: "exit" }>(idleMs);
+    const map = createClaudeMapper();
+    (async () => {
+      const dec = new TextDecoder();
+      let buf = "";
+      try {
+        for await (const chunk of p.stdout as ReadableStream<Uint8Array>) {
+          pump.touch();
+          buf += dec.decode(chunk, { stream: true });
+          let i: number;
+          while ((i = buf.indexOf("\n")) >= 0) {
+            const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+            if (!line) continue;
+            let j: unknown; try { j = JSON.parse(line); } catch { continue; }
+            if ((j as any)?.type === "system" && (j as any)?.subtype === "init") onInit?.();
+            for (const ev of map(j)) pump.push(ev);
+          }
+        }
+      } catch { /* the stream ends when the process is killed */ }
+      await p.exited;
+      pump.push({ type: "exit" });
+    })();
+    async function* events(): AsyncIterable<EngineEvent> {
+      for (;;) {
+        const v = await pump.next();
+        if (v === CLOSED) return;
+        if (v === IDLE) { p.kill("SIGTERM"); yield { type: "error", message: "The assistant stopped responding. Try again." }; return; }
+        if (v.type === "exit") {
+          const last = stderr.trim().split("\n").filter(Boolean).at(-1) ?? "";
+          const message = (last || `Claude stopped (exit code ${p.exitCode ?? "?"}).`).slice(0, 300);
+          yield /log ?in|logged|auth/i.test(message) ? { type: "error", message, noProvider: true } : { type: "error", message };
+          return;
+        }
+        yield v;
+        if (v.type === "done" || v.type === "error") { p.kill("SIGTERM"); return; }
+      }
+    }
+    return { events: events(), kill: () => { pump.close(); p.kill("SIGTERM"); } };
+  }
+
+  async function* prompt(a: PromptArgs): AsyncIterable<EngineEvent> {
+    if (a.signal.aborted) return;
+    const first = fresh.has(a.sessionId);
+    const text = first && a.system ? `<context>\n${a.system}\n</context>\n\n${a.text}` : a.text;
+    const args = claudeArgs({
+      model: a.model.modelId, effort: a.thinking, sessionId: a.sessionId, resume: !first, system: CLAUDE_SYSTEM, tools: "chat", persist: true,
+      mcpConfig: o.mcpUrl && o.mcpSecret ? mcpConfigJson(o.mcpUrl, o.mcpSecret, a.sessionId) : undefined,
+    });
+    // Once Claude has started the run the conversation exists on disk, so later prompts resume it.
+    const run = start(args, userMessage(text, a.files), () => fresh.delete(a.sessionId));
+    const onAbort = () => run.kill();
+    a.signal.addEventListener("abort", onAbort);
+    const join_ = separateAfterTools();
+    try {
+      yield { type: "status", state: "thinking" };
+      for await (const ev of run.events) {
+        if (a.signal.aborted) return;
+        yield join_(ev);
+      }
+    } finally {
+      a.signal.removeEventListener("abort", onAbort);
+      run.kill();
+    }
+  }
+
+  const provider = (loggedIn: boolean): ProviderInfo => ({ id: "claude", name: "Claude", recommended: false, connected: loggedIn, status: loggedIn ? "ready" : "needs_connection", models: loggedIn ? CLAUDE_MODELS : [] });
+
+  return {
+    async listProviders() { return [provider((await authStatus()).loggedIn)]; },
+    async listConnections(): Promise<ProviderConnection[]> {
+      const { loggedIn } = await authStatus();
+      return [{ id: "claude", name: "Claude", connected: loggedIn, supportsFreeFilter: false, hint: loggedIn ? "" : HINT }];
+    },
+    async createSession() { const id = crypto.randomUUID(); fresh.add(id); return id; },
+    async deleteSession(id) {
+      fresh.delete(id);
+      if (!/^[0-9a-f-]{36}$/i.test(id)) return; // only our own uuids; never a path
+      const projects = (await authStatus()).projects;
+      if (!projects) return;
+      try {
+        for (const d of readdirSync(projects, { withFileTypes: true })) if (d.isDirectory()) rmSync(join(projects, d.name, `${id}.jsonl`), { force: true });
+      } catch { /* nothing to clean */ }
+    },
+    prompt,
+    async complete({ system, text, model, thinking }) {
+      const args = claudeArgs({ model: model?.modelId ?? CLAUDE_DEFAULT, effort: thinking, sessionId: "", resume: false, system, tools: "none", persist: false });
+      const run = start(args, userMessage(text, []));
+      let out = "";
+      try {
+        for await (const e of run.events) {
+          if (e.type === "delta") out += e.text;
+          if (e.type === "error") throw new Error(e.message);
+          if (e.type === "done") break;
+        }
+      } finally { run.kill(); }
+      return out;
+    },
+    close() {},
   };
 }

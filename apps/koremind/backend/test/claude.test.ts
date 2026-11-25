@@ -114,3 +114,181 @@ test("linksFrom reads the Links array, dedupes, caps at 8 and survives junk", ()
   expect(linksFrom("Links: [broken")).toEqual([]);
   expect(linksFrom(42)).toEqual([]);
 });
+
+// ---- The process side, against a stand-in CLI ----
+import { mkdirSync, mkdtempSync, existsSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { createClaudeEngine } from "../src/engine/claude";
+
+const FAKE = join(import.meta.dir, "fixtures/fake-claude.ts");
+const engineFor = (env: Record<string, string> = {}, o: { bin?: string; configDir?: string; idleMs?: number } = {}) => {
+  const dir = mkdtempSync(join(tmpdir(), "koremind-claude-"));
+  const logFile = join(dir, "calls.jsonl");
+  const saved: Record<string, string | undefined> = {};
+  for (const [k, v] of Object.entries({ FAKE_CLAUDE_LOG: logFile, ...env })) { saved[k] = process.env[k]; process.env[k] = v; }
+  const engine = createClaudeEngine({ bin: o.bin ?? FAKE, configDir: o.configDir, dataDir: dir, mcpUrl: "http://127.0.0.1:1/mcp", mcpSecret: "sek", idleMs: o.idleMs });
+  const calls = () => existsSync(logFile) ? readFileSync(logFile, "utf8").trim().split("\n").map((l) => JSON.parse(l)) : [];
+  const restore = () => { for (const [k, v] of Object.entries(saved)) v === undefined ? delete process.env[k] : (process.env[k] = v); };
+  return { engine, calls, dir, restore };
+};
+const send = (engine: ReturnType<typeof createClaudeEngine>, sessionId: string, o: { text?: string; system?: string; signal?: AbortSignal } = {}) =>
+  engine.prompt({ sessionId, system: o.system ?? "", text: o.text ?? "hi", files: [], model: { providerId: "claude", modelId: "claude-haiku-5-5" }, signal: o.signal ?? new AbortController().signal });
+const all = async (it: AsyncIterable<EngineEvent>) => { const out: EngineEvent[] = []; for await (const e of it) out.push(e); return out; };
+
+test("a reply streams and the first prompt opens the session with the context block", async () => {
+  const t = engineFor();
+  try {
+    const sid = await t.engine.createSession({ providerId: "claude", modelId: "claude-haiku-5-5" });
+    const evs = await all(send(t.engine, sid, { text: "latest bun?", system: "The user's name is Sky." }));
+    expect(evs[0]).toEqual({ type: "status", state: "thinking" });
+    expect(evs.at(-1)).toEqual({ type: "done" });
+    expect(evs.filter((e) => e.type === "source")).toHaveLength(2);
+    const [c] = t.calls();
+    expect(c.args[c.args.indexOf("--session-id") + 1]).toBe(sid);
+    expect(c.args[c.args.indexOf("--model") + 1]).toBe("claude-haiku-5-5");
+    const msg = JSON.parse(c.stdin.trim());
+    expect(msg.message.content.at(-1).text).toStartWith("<context>\nThe user's name is Sky.\n</context>\n\nlatest bun?");
+    const mcp = JSON.parse(c.args[c.args.indexOf("--mcp-config") + 1]);
+    expect(mcp.mcpServers.koremind.headers["x-koremind-session"]).toBe(sid);
+    expect(c.cwd).toBe(join(t.dir, "claude-work"));
+    expect(c.env.CLAUDE_CODE_ENTRYPOINT).toBe("koremind");
+    expect(c.env.MCP_TOOL_TIMEOUT).toBe("120000");
+  } finally { t.restore(); }
+});
+
+test("the second prompt resumes and sends no context", async () => {
+  const t = engineFor();
+  try {
+    const sid = await t.engine.createSession();
+    await all(send(t.engine, sid, { system: "ctx" }));
+    await all(send(t.engine, sid, { text: "again", system: "ctx" }));
+    const c = t.calls()[1];
+    expect(c.args[c.args.indexOf("--resume") + 1]).toBe(sid);
+    expect(c.args).not.toContain("--session-id");
+    expect(JSON.parse(c.stdin.trim()).message.content.at(-1).text).toBe("again");
+  } finally { t.restore(); }
+});
+
+test("a session this process never opened (after a restart) is resumed", async () => {
+  const t = engineFor();
+  try {
+    await all(send(t.engine, "22222222-2222-4222-8222-222222222222"));
+    const c = t.calls()[0];
+    expect(c.args[c.args.indexOf("--resume") + 1]).toBe("22222222-2222-4222-8222-222222222222");
+  } finally { t.restore(); }
+});
+
+test("thinking levels go to --effort", async () => {
+  const t = engineFor();
+  try {
+    const sid = await t.engine.createSession();
+    await all(t.engine.prompt({ sessionId: sid, system: "", text: "hi", files: [], model: { providerId: "claude", modelId: "claude-sonnet-5-5" }, thinking: "high", signal: new AbortController().signal }));
+    const c = t.calls()[0];
+    expect(c.args[c.args.indexOf("--effort") + 1]).toBe("high");
+  } finally { t.restore(); }
+});
+
+test("stop kills the process", async () => {
+  const t = engineFor({ FAKE_CLAUDE_MODE: "hang" });
+  try {
+    const sid = await t.engine.createSession();
+    const ac = new AbortController();
+    const started = Date.now();
+    const evs: EngineEvent[] = [];
+    let pid = 0;
+    for await (const e of send(t.engine, sid, { signal: ac.signal })) {
+      evs.push(e);
+      for (let i = 0; i < 50 && !pid; i++) { pid = t.calls()[0]?.pid ?? 0; if (!pid) await Bun.sleep(100); }
+      ac.abort();
+    }
+    expect(Date.now() - started).toBeLessThan(8000);
+    expect(pid).toBeGreaterThan(0);
+    await Bun.sleep(300);
+    expect(() => process.kill(pid, 0)).toThrow();
+    expect(evs.some((e) => e.type === "done")).toBe(false);
+  } finally { t.restore(); }
+});
+
+test("a reply that goes quiet is stopped by the idle watchdog", async () => {
+  const t = engineFor({ FAKE_CLAUDE_MODE: "hang" }, { idleMs: 400 });
+  try {
+    const evs = await all(send(t.engine, await t.engine.createSession()));
+    expect(evs.at(-1)).toEqual({ type: "error", message: "The assistant stopped responding. Try again." });
+  } finally { t.restore(); }
+});
+
+test("a crash becomes an error with stderr", async () => {
+  const t = engineFor({ FAKE_CLAUDE_MODE: "crash" });
+  try {
+    const evs = await all(send(t.engine, await t.engine.createSession()));
+    const err = evs.at(-1) as { type: string; message: string };
+    expect(err.type).toBe("error");
+    expect(err.message).toContain("boom: something failed");
+  } finally { t.restore(); }
+});
+
+test("a missing binary is a clear error and not connected", async () => {
+  const t = engineFor({}, { bin: "/nonexistent/claude" });
+  try {
+    expect(await all(send(t.engine, await t.engine.createSession()))).toEqual([{ type: "status", state: "thinking" }, { type: "error", message: "Claude isn't installed on the server.", noProvider: true }]);
+    const [p] = await t.engine.listProviders();
+    expect(p).toMatchObject({ id: "claude", name: "Claude", status: "needs_connection", connected: false, models: [] });
+    await expect(t.engine.complete({ system: "", text: "x" })).rejects.toThrow("Claude isn't installed on the server.");
+  } finally { t.restore(); }
+});
+
+test("signed in: Claude is ready with its models; logged out shows the hint", async () => {
+  const t = engineFor();
+  try {
+    const [p] = await t.engine.listProviders();
+    expect(p).toMatchObject({ id: "claude", status: "ready", connected: true });
+    expect(p.models.map((m) => m.id)).toEqual(CLAUDE_MODELS.map((m) => m.id));
+    expect(await t.engine.listConnections()).toEqual([{ id: "claude", name: "Claude", connected: true, supportsFreeFilter: false, hint: "" }]);
+  } finally { t.restore(); }
+  const out = engineFor({ FAKE_CLAUDE_LOGGED_OUT: "1" });
+  try {
+    const [c] = await out.engine.listConnections();
+    expect(c.connected).toBe(false);
+    expect(c.hint).toBe("Run `claude auth login` on the server, as the user KoreMind runs as.");
+    expect(JSON.stringify(await out.engine.listProviders())).not.toContain("someone@example.test");
+  } finally { out.restore(); }
+});
+
+test("complete runs without tools and returns the text", async () => {
+  const t = engineFor();
+  try {
+    expect(await t.engine.complete({ kind: "title", system: "Name it", text: "User: hi", model: CLAUDE_TITLE_MODEL })).toBe("The latest is **1.4.5**.");
+    const c = t.calls()[0];
+    expect(c.args[c.args.indexOf("--tools") + 1]).toBe("");
+    expect(c.args).toContain("--no-session-persistence");
+    expect(c.args).not.toContain("--mcp-config");
+    expect(c.args[c.args.indexOf("--model") + 1]).toBe("claude-haiku-5-5");
+    expect(c.args[c.args.indexOf("--system-prompt") + 1]).toBe("Name it");
+  } finally { t.restore(); }
+});
+
+test("the parent's Claude Code env does not leak; a config dir is passed on", async () => {
+  const t = engineFor({ CLAUDECODE: "1" }, { configDir: "/srv/claude-cfg" });
+  try {
+    await all(send(t.engine, await t.engine.createSession()));
+    const c = t.calls()[0];
+    expect(c.env.CLAUDECODE).toBeNull();
+    expect(c.env.CLAUDE_CONFIG_DIR).toBe("/srv/claude-cfg");
+  } finally { t.restore(); }
+});
+
+test("deleting a session removes its transcript", async () => {
+  const projects = mkdtempSync(join(tmpdir(), "koremind-projects-"));
+  const t = engineFor({ FAKE_CLAUDE_PROJECTS: projects });
+  try {
+    const sid = await t.engine.createSession();
+    mkdirSync(join(projects, "-some-cwd"), { recursive: true });
+    writeFileSync(join(projects, "-some-cwd", `${sid}.jsonl`), "{}\n");
+    writeFileSync(join(projects, "-some-cwd", "other.jsonl"), "{}\n");
+    await t.engine.listConnections(); // learns where transcripts live
+    await t.engine.deleteSession(sid);
+    expect(existsSync(join(projects, "-some-cwd", `${sid}.jsonl`))).toBe(false);
+    expect(existsSync(join(projects, "-some-cwd", "other.jsonl"))).toBe(true);
+    await t.engine.deleteSession("../../etc/passwd"); // never leaves the projects folder
+  } finally { t.restore(); }
+});
