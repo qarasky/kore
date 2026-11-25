@@ -55,7 +55,8 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
     if (!r.success) throw new HttpError(400, "bad_request", r.error.issues[0]?.message ?? "Invalid request");
     return r.data;
   }
-  const tokenOf = (req: Request, url: URL) => req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? url.searchParams.get("token") ?? "";
+  // Only the Authorization header: a token in the URL ends up in proxy logs, browser history and Referer headers.
+  const tokenOf = (req: Request) => req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
 
   async function route(req: Request, socketIp?: string): Promise<Response> {
     const url = new URL(req.url);
@@ -69,7 +70,7 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
 
     // A tunnel (cloudflared, tailscale serve) on this machine arrives from loopback: believe its forwarded address, nobody else's.
     const ip = (opts.trustProxy || isLoopback(socketIp) ? req.headers.get("x-forwarded-for")?.split(",")[0].trim() : undefined) ?? socketIp ?? "unknown";
-    const bearer = tokenOf(req, url);
+    const bearer = tokenOf(req);
     // KoreMind's own opaque session token, or (when Kore ID is on) a Kore ID access token for this app: a JWT has two dots, ours has none.
     const caller = s.auth.verify(bearer) ?? (s.sso && bearer.split(".").length === 3 ? await s.sso.verifyBearer(bearer) : null);
 

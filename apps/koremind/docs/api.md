@@ -29,7 +29,7 @@ Source of truth: `shared/src/api.ts` (zod). All bodies are JSON unless noted. Au
 | `POST /chats/:id/abort` | yes | | `{ok:true}` |
 | `POST /chats/:id/approvals/:approvalId` | yes | `{allow:boolean}` | `{ok:true}`; 404 if unknown, already closed, or not this user's |
 | `POST /uploads` | yes | multipart field `file` | `{id,name,mime,size}`; 413 `attachment_too_large` |
-| `GET /uploads/:id` | yes (`?token=` also accepted) | | file bytes |
+| `GET /uploads/:id` | yes (`Authorization` header only; tokens in URLs are refused) | | file bytes |
 | `GET /memory` | yes | | `{id,text,updatedAt}[]` |
 | `PUT /memory/:id`, `DELETE /memory/:id` | yes | `{text}` / none | `{ok:true}` |
 | `GET /settings`, `PUT /settings` | yes | `Settings` | `Settings` |

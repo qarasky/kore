@@ -62,7 +62,13 @@ export function createApi(baseUrl: string, getToken: () => string | null) {
     deleteChat: (id: string) => req<{ ok: true }>("DELETE", `/chats/${id}`),
     abort: (id: string) => req<{ ok: true }>("POST", `/chats/${id}/abort`),
     upload: (file: File) => { const f = new FormData(); f.set("file", file); return req<Attachment>("POST", "/uploads", undefined, f); },
-    uploadUrl: (id: string) => `${baseUrl}/uploads/${id}?token=${encodeURIComponent(getToken() ?? "")}`,
+    /** An attachment's bytes, fetched with the Authorization header (the server takes no token in URLs). */
+    uploadBlob: async (id: string): Promise<Blob> => {
+      const token = getToken();
+      const res = await fetch(`${baseUrl}/uploads/${encodeURIComponent(id)}`, { headers: token ? { authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) throw new ApiError(res.status, "error", `Could not load the attachment (${res.status})`);
+      return res.blob();
+    },
     memory: () => req<MemoryEntry[]>("GET", "/memory"),
     memorySummary: () => req<{ summary: MemorySummary | null }>("GET", "/memory/summary").then((r) => r.summary),
     updateMemory: (id: string, text: string) => req<{ ok: true }>("PUT", `/memory/${id}`, { text }),

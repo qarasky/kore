@@ -74,7 +74,9 @@ test("POST /uploads then send includes the file", async () => {
   await frames(await call("POST", `/chats/${chat.id}/messages`, { token, body: { text: "see file", attachmentIds: [att.id], model } }));
   expect(engine.prompts[0].files[0]).toMatchObject({ name: "note.txt", mime: "text/plain" });
   expect((await call("GET", `/uploads/${att.id}`, { token })).status).toBe(200);
-  expect((await call("GET", `/uploads/${att.id}?token=${token}`)).status).toBe(200);
+  // The session token is accepted only in the Authorization header: tokens in URLs end up in logs and history.
+  expect((await call("GET", `/uploads/${att.id}?token=${token}`)).status).toBe(401);
+  expect((await call("GET", `/me?token=${token}`)).status).toBe(401);
 });
 
 test("a file listed many times in one message is read once", async () => {

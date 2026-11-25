@@ -123,7 +123,7 @@ function UserBubble({ m, api, busy, onEdit, onVariant }: { m: ChatMessage; api: 
       {m.attachments.length > 0 && (
         <div className="flex flex-wrap justify-end gap-2">
           {m.attachments.map((a) => a.mime.startsWith("image/") && api
-            ? <img key={a.id} src={api.uploadUrl(a.id)} alt={a.name} className="max-h-48 rounded-overlay border border-border object-cover" />
+            ? <AttachmentImage key={a.id} id={a.id} name={a.name} load={api.uploadBlob} />
             : <span key={a.id} className="flex h-control-sm items-center gap-1.5 rounded-ui border border-border bg-raised px-2 text-meta"><FileText className="size-4 text-muted" aria-hidden />{a.name}</span>)}
         </div>
       )}
@@ -241,4 +241,22 @@ function Sources({ sources }: { sources: { title: string; url: string }[] }) {
       </AnimatePresence>
     </div>
   );
+}
+
+/** An image attachment, loaded with the session's Authorization header and shown from a blob URL. */
+function AttachmentImage({ id, name, load }: { id: string; name: string; load: (id: string) => Promise<Blob> }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let url: string | null = null;
+    let live = true;
+    load(id).then((blob) => {
+      if (!live) return;
+      url = URL.createObjectURL(blob);
+      setSrc(url);
+    }).catch(() => {});
+    return () => { live = false; if (url) URL.revokeObjectURL(url); };
+  }, [id, load]);
+  return src
+    ? <img src={src} alt={name} className="max-h-48 rounded-overlay border border-border object-cover" />
+    : <span className="flex h-control-sm items-center gap-1.5 rounded-ui border border-border bg-raised px-2 text-meta"><FileText className="size-4 text-muted" aria-hidden />{name}</span>;
 }
