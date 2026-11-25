@@ -41,12 +41,12 @@ class ContractJsonTest {
         assertFalse(ps[0].models[0].free)
     }
 
-    @Test fun `provider connections carry the free-filter capability`() {
-        val c = KoreMindJson.decodeFromString(ListSerializer(ProviderConnection.serializer()), """[{"id":"openrouter","name":"OpenRouter","connected":true,"methods":["key"],"supportsFreeFilter":true,"recommended":true},{"id":"openai","name":"Codex","connected":false,"methods":["key","signin"]}]""")
-        assertTrue(c[0].supportsFreeFilter)
-        assertTrue(c[0].recommended)
-        assertFalse(c[1].recommended)
-        assertFalse(c[1].supportsFreeFilter)
+    @Test fun `provider connections are status only with a server hint`() {
+        val c = KoreMindJson.decodeFromString(ListSerializer(ProviderConnection.serializer()), """[{"id":"claude","name":"Claude","connected":false,"supportsFreeFilter":false,"hint":"Run `claude auth login` on the server, as the user KoreMind runs as."},{"id":"opencode","name":"OpenCode","connected":true,"supportsFreeFilter":true}]""")
+        assertFalse(c[0].connected)
+        assertEquals("Run `claude auth login` on the server, as the user KoreMind runs as.", c[0].hint)
+        assertTrue(c[1].supportsFreeFilter)
+        assertEquals("", c[1].hint)
     }
 
     @Test fun `settings with and without the new provider lists round trip`() {

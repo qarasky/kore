@@ -3,7 +3,6 @@ package dev.qarasky.koremind.ui.settings
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.togetherWith
@@ -45,7 +44,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -81,10 +79,8 @@ import dev.qarasky.koremind.ui.theme.LocalMotion
 import dev.qarasky.koremind.ui.theme.UiShape
 import dev.qarasky.koremind.ui.theme.KoreMindColors
 import dev.qarasky.koremind.ui.theme.animateRow
-import dev.qarasky.koremind.ui.theme.enterExpand
 import dev.qarasky.koremind.ui.theme.enterRise
 import dev.qarasky.koremind.ui.theme.exitFade
-import dev.qarasky.koremind.ui.theme.exitShrink
 import dev.qarasky.koremind.ui.theme.layoutSpec
 import dev.qarasky.koremind.ui.theme.quickSpec
 import kotlinx.coroutines.delay
@@ -212,21 +208,16 @@ private fun ModelsSection(vm: AppViewModel) {
 
 // ---- Providers ------------------------------------------------------------------------------
 
+/** Providers are set up and signed in on the server; here each one shows its status and the per-person switches. */
 @Composable
 private fun ProvidersSection(vm: AppViewModel, settings: Settings?, onChange: (Settings) -> Unit) {
-    val scope = rememberCoroutineScope()
     var list by remember { mutableStateOf<List<ProviderConnection>>(emptyList()) }
-    var keyOpen by remember { mutableStateOf<String?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    val keys = remember { mutableStateMapOf<String, String>() }
-    suspend fun load() { list = try { vm.api?.providers() ?: emptyList() } catch (_: Exception) { emptyList() } }
-    LaunchedEffect(Unit) { load() }
+    LaunchedEffect(Unit) { list = try { vm.api?.providers() ?: emptyList() } catch (_: Exception) { emptyList() } }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(ScreenPadding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SectionHeader(stringResource(R.string.section_providers), stringResource(R.string.providers_hint))
         list.forEach { p ->
             val state = providerStatus(p.id, p.connected)
-            val open = keyOpen == p.id
             val dot by animateColorAsState(
                 when (state) { ProviderState.On -> KoreMindColors.Accent; ProviderState.Free -> KoreMindColors.Warning; ProviderState.Off -> KoreMindColors.StatusOff },
                 quickSpec(LocalMotion.current), label = "dot",
@@ -235,53 +226,23 @@ private fun ProvidersSection(vm: AppViewModel, settings: Settings?, onChange: (S
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(Modifier.size(36.dp).background(KoreMindColors.Raised, UiShape), contentAlignment = Alignment.Center) { ProviderIcon(p.id, p.name, 20.dp) }
                     Column {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(p.name, fontWeight = FontWeight.Medium, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
-                            if (p.recommended) Text(
-                                stringResource(R.string.recommended), color = KoreMindColors.Accent, style = MaterialTheme.typography.labelSmall,
-                                modifier = Modifier.border(1.dp, KoreMindColors.Accent.copy(alpha = 0.4f), CircleShape).padding(horizontal = 8.dp, vertical = 1.dp),
-                            )
-                        }
+                        Text(p.name, fontWeight = FontWeight.Medium, maxLines = 1)
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Box(Modifier.size(6.dp).background(dot, CircleShape))
                             Text(
-                                stringResource(when (state) { ProviderState.On -> R.string.connected; ProviderState.Free -> R.string.free_tier; ProviderState.Off -> R.string.not_connected }),
+                                stringResource(when (state) { ProviderState.On -> R.string.signed_in_on_server; ProviderState.Free -> R.string.free_tier; ProviderState.Off -> R.string.not_signed_in_on_server }),
                                 color = KoreMindColors.Muted, style = MaterialTheme.typography.bodySmall,
                             )
                         }
                     }
                 }
+                if (!p.connected && p.hint.isNotEmpty()) Text(p.hint, color = KoreMindColors.Muted, style = MaterialTheme.typography.bodySmall)
                 if (settings != null) Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     SwitchRow(stringResource(R.string.use_in_picker), null, providerEnabled(settings, p.id)) { onChange(withProviderEnabled(settings, p.id, it)) }
                     if (p.supportsFreeFilter) SwitchRow(stringResource(R.string.only_free_models), stringResource(R.string.only_free_hint), freeOnly(settings, p.id)) { onChange(withFreeOnly(settings, p.id, it)) }
                 }
-                if ("signin" in p.methods && !p.connected) Text(stringResource(R.string.sign_in_on_web), color = KoreMindColors.Muted, style = MaterialTheme.typography.bodySmall)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if ("key" in p.methods) KoreMindButton(
-                        stringResource(if (open) R.string.hide_key else if (p.connected) R.string.replace_key else R.string.add_key),
-                        ghost = true, onClick = { keyOpen = if (open) null else p.id },
-                    )
-                    if (p.connected) KoreMindButton(stringResource(R.string.disconnect), ghost = true, onClick = {
-                        error = null
-                        scope.launch { try { vm.api?.removeProviderKey(p.id); vm.refreshModels(); load() } catch (e: Exception) { error = e.message } }
-                    })
-                }
-                val motion = LocalMotion.current
-                AnimatedVisibility(open, enter = enterExpand(motion), exit = exitShrink(motion)) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        KoreMindField(stringResource(R.string.api_key), keys[p.id] ?: "", { keys[p.id] = it }, password = true)
-                        KoreMindButton(stringResource(R.string.save_key), enabled = !keys[p.id].isNullOrBlank(), onClick = {
-                            error = null
-                            scope.launch {
-                                try { vm.api?.setProviderKey(p.id, keys[p.id].orEmpty()); keys[p.id] = ""; keyOpen = null; vm.refreshModels(); load() }
-                                catch (e: Exception) { error = e.message }
-                            }
-                        })
-                    }
-                }
             }
         }
-        ErrorText(error)
     }
 }
 

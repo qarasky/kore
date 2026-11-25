@@ -28,56 +28,54 @@ import org.junit.Test
 class ProviderUiTest {
     private fun m(id: String, free: Boolean = false, default: Boolean = false) = ModelInfo(id, id.uppercase(), false, emptyList(), default, free)
     private val opencode = ProviderInfo("opencode", "OpenCode", false, listOf(m("big", free = true, default = true)), "ready")
-    private val codex = ProviderInfo("openai", "Codex", false, emptyList(), "needs_connection")
-    private val router = ProviderInfo("openrouter", "OpenRouter", true, listOf(m("a/free:free", free = true), m("b/paid")), "disabled")
-    private val all = listOf(opencode, codex, router)
+    private val claude = ProviderInfo("claude", "Claude", false, emptyList(), "needs_connection")
+    private val go = ProviderInfo("opencode-go", "OpenCode Go", true, listOf(m("a/free:free", free = true), m("b/paid")), "disabled")
+    private val all = listOf(opencode, claude, go)
 
-    @Test fun `each known provider has a real logo and unknown ones fall back to the initial`() {
-        assertEquals(R.drawable.ic_provider_groq, providerIconRes("groq"))
+    @Test fun `OpenCode has its logo and Claude and unknown providers fall back to the initial`() {
         assertEquals(R.drawable.ic_provider_opencode, providerIconRes("opencode"))
-        assertEquals(R.drawable.ic_provider_openai, providerIconRes("openai"))
-        assertEquals(R.drawable.ic_provider_openrouter, providerIconRes("openrouter"))
         assertEquals(R.drawable.ic_provider_opencode, providerIconRes("opencode-go")) // Go is OpenCode's plan: same mark
-        assertNull(providerIconRes("something-else"))
+        assertNull(providerIconRes("claude")) // no Anthropic logo without permission
+        for (gone in listOf("groq", "openai", "openrouter", "something-else")) assertNull(providerIconRes(gone))
     }
 
-    @Test fun `a provider that is turned off is not on the rail at all and one that just needs a key stays dimmed`() {
-        assertEquals(listOf("opencode", "openai"), railProviders(all).map { it.id })
-        assertEquals(emptyList<ProviderInfo>(), railProviders(listOf(router)))
+    @Test fun `a provider that is turned off is not on the rail at all and one that isn't signed in stays dimmed`() {
+        assertEquals(listOf("opencode", "claude"), railProviders(all).map { it.id })
+        assertEquals(emptyList<ProviderInfo>(), railProviders(listOf(go)))
     }
 
     @Test fun `only ready providers are full strength and the others explain why`() {
         assertEquals(1f, railAlpha(opencode), 0f)
-        assertEquals(0.4f, railAlpha(codex), 0f)
-        assertEquals(0.4f, railAlpha(router), 0f)
+        assertEquals(0.4f, railAlpha(claude), 0f)
+        assertEquals(0.4f, railAlpha(go), 0f)
         assertNull(railNoticeRes(opencode))
-        assertEquals(R.string.provider_needs_connection, railNoticeRes(codex))
-        assertEquals(R.string.provider_disabled, railNoticeRes(router))
+        assertEquals(R.string.provider_needs_connection, railNoticeRes(claude))
+        assertEquals(R.string.provider_disabled, railNoticeRes(go))
     }
 
     @Test fun `favorites and provider rails never list models of a provider that is not ready`() {
-        val favs = setOf("opencode/big", "openrouter/b/paid")
+        val favs = setOf("opencode/big", "opencode-go/b/paid")
         assertEquals(listOf("opencode/big"), filterModels(all, favs, "favorites", "").map { it.key })
-        assertEquals(emptyList<String>(), filterModels(all, favs, "openrouter", "").map { it.key })
+        assertEquals(emptyList<String>(), filterModels(all, favs, "opencode-go", "").map { it.key })
     }
 
     @Test fun `the picker opens on favorites when a ready provider has one, else on the current or first ready provider`() {
         assertEquals("favorites", initialRail(all, setOf("opencode/big"), null))
-        assertEquals("opencode", initialRail(all, setOf("openrouter/b/paid"), Choice("opencode", "big")))
-        assertEquals("opencode", initialRail(all, emptySet(), Choice("openai", "x")))
+        assertEquals("opencode", initialRail(all, setOf("opencode-go/b/paid"), Choice("opencode", "big")))
+        assertEquals("opencode", initialRail(all, emptySet(), Choice("claude", "x")))
         assertEquals("favorites", initialRail(emptyList(), emptySet(), null))
     }
 
     @Test fun `a saved choice is allowed only while its provider is ready and the model still listed`() {
         assertTrue(isChoiceAllowed(all, "opencode", "big"))
         assertFalse(isChoiceAllowed(all, "opencode", "gone"))
-        assertFalse(isChoiceAllowed(all, "openrouter", "a/free:free"))
+        assertFalse(isChoiceAllowed(all, "opencode-go", "a/free:free"))
         assertFalse(isChoiceAllowed(all, "openai", "x"))
     }
 
     @Test fun `the fallback is the default model of the first ready provider`() {
         assertEquals("opencode" to "big", defaultChoice(all))
-        assertNull(defaultChoice(listOf(codex, router)))
+        assertNull(defaultChoice(listOf(claude, go)))
         val p = ProviderInfo("opencode", "OpenCode", true, listOf(m("x"), m("y", default = true)))
         assertEquals("opencode" to "y", defaultChoice(listOf(p)))
     }

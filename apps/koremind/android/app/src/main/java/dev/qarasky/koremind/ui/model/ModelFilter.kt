@@ -25,13 +25,10 @@ fun lacksVision(attachments: List<Attachment>, model: ModelInfo?): Boolean =
 
 fun isReady(p: ProviderInfo): Boolean = p.status == "ready"
 
-/** Real logos for the providers KoreMind offers. Unknown ids get the initial-letter fallback. */
+/** Real logos for the providers KoreMind offers. Claude has none (Anthropic's mark needs permission) and gets the initial, like unknown ids. */
 @androidx.annotation.DrawableRes
 fun providerIconRes(id: String): Int? = when (id) {
-    "groq" -> R.drawable.ic_provider_groq
     "opencode", "opencode-go" -> R.drawable.ic_provider_opencode // Go is OpenCode's subscription: same mark
-    "openai" -> R.drawable.ic_provider_openai
-    "openrouter" -> R.drawable.ic_provider_openrouter
     else -> null
 }
 

@@ -71,8 +71,6 @@ class KoreMindApi(val baseUrl: String, private val token: () -> String?) {
     suspend fun providers(): List<ProviderConnection> = get("/providers")
     suspend fun favorites(): List<String> = get("/favorites")
     suspend fun setFavorites(keys: List<String>): List<String> = send("PUT", "/favorites", keys)
-    suspend fun setProviderKey(id: String, key: String): Ok = send("PUT", "/providers/$id/key", KeyBody(key))
-    suspend fun removeProviderKey(id: String): Ok = delete("/providers/$id/key")
     suspend fun chats(): List<ChatSummary> = get("/chats")
     suspend fun createChat(): ChatSummary = call("POST", "/chats", null, serializer())
     suspend fun chat(id: String): ChatDetail = get("/chats/$id")

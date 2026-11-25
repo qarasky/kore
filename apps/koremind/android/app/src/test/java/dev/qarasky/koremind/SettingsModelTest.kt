@@ -36,9 +36,9 @@ class SettingsModelTest {
 
     @Test fun `provider status explains the state`() {
         assertEquals(ProviderState.Free, providerStatus("opencode", false))
-        assertEquals(ProviderState.Off, providerStatus("openai", false))
-        assertEquals(ProviderState.Off, providerStatus("opencode-go", false)) // a subscription: no free tier without a key
-        assertEquals(ProviderState.On, providerStatus("openrouter", true))
+        assertEquals(ProviderState.Off, providerStatus("claude", false))
+        assertEquals(ProviderState.Off, providerStatus("opencode-go", false)) // a subscription: no free tier without signing in
+        assertEquals(ProviderState.On, providerStatus("claude", true))
     }
 
     @Test fun `a settings link opens the right section and falls back to models`() {
