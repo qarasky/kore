@@ -21,6 +21,7 @@ export interface ApiDeps {
   endCurrentSession: (c: Context) => SessionRow | undefined;
   safeReturnTo: (v: unknown) => string;
   loginLimiter: RateLimiter;
+  loginIpLimiter: RateLimiter;
   setupLimiter: RateLimiter;
 }
 
@@ -102,15 +103,20 @@ export function registerApi(app: Hono, d: ApiDeps) {
     const b = await readBody(c);
     const email = typeof b.email === 'string' ? b.email.trim().toLowerCase() : '';
     const password = typeof b.password === 'string' ? b.password : '';
-    const key = `${d.ip(c)}|${email}`;
-    if (d.loginLimiter.blocked(key)) return fail(c, 429, 'rate_limited', 'Too many attempts. Try again later.');
+    const ipKey = d.ip(c);
+    const key = `${ipKey}|${email}`;
+    // Count the attempt before the slow password check, so parallel requests cannot all pass;
+    // a successful sign-in gives both back.
+    if (d.loginIpLimiter.blocked(ipKey) || !d.loginLimiter.allow(key)) return fail(c, 429, 'rate_limited', 'Too many attempts. Try again later.');
+    d.loginIpLimiter.hit(ipKey);
     const user = email ? core.getUserByEmail(email) : undefined;
     const ok = await verifyPassword(password, user?.password_hash ?? DUMMY_HASH);
     if (!user || !ok || !user.password_hash || user.disabled) {
-      d.loginLimiter.hit(key);
       core.audit({ actor: null, action: 'login_failed', targetId: user?.id, target: email.slice(0, 254) || null, ...meta(c), detail: user?.disabled ? { reason: 'disabled' } : null });
       return fail(c, 401, 'invalid_credentials', 'Invalid email or password.');
     }
+    d.loginLimiter.release(key);
+    d.loginIpLimiter.release(ipKey);
     d.startSession(c, user);
     core.audit({ actor: user, action: 'login', targetId: user.id, target: user.email, ...meta(c) });
     return c.json({ redirect: d.safeReturnTo(b.returnTo) || '/account' });
@@ -167,9 +173,10 @@ export function registerApi(app: Hono, d: ApiDeps) {
   api.post('/me/password', authed(async (c, { user, session }) => {
     const b = await readBody(c);
     const key = `${d.ip(c)}|${user.email}`;
-    if (d.loginLimiter.blocked(key)) return fail(c, 429, 'rate_limited', 'Too many attempts. Try again later.');
+    if (!d.loginLimiter.allow(key)) return fail(c, 429, 'rate_limited', 'Too many attempts. Try again later.');
     const ok = user.password_hash && await verifyPassword(typeof b.current === 'string' ? b.current : '', user.password_hash);
-    if (!ok) { d.loginLimiter.hit(key); return fail(c, 400, 'invalid_current_password', 'Current password is incorrect.'); }
+    if (!ok) return fail(c, 400, 'invalid_current_password', 'Current password is incorrect.');
+    d.loginLimiter.release(key);
     const next = vPassword(b.next);
     if (!next) return fail(c, 400, 'invalid_password', 'Password must be at least 10 characters.');
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(await hashPassword(next), user.id);

@@ -37,7 +37,7 @@ bun run dev:web                            # http://localhost:5173
 | `CLIENTS_FILE` | `clients.json` | Registered apps |
 | `KORE_ID_ADMIN_EMAIL` | `sky@qarasky.dev` | Bootstrap admin (see below) |
 | `WEB_DIR` | `web/dist` | Built web UI (SPA). Without it, `/login`, `/account`… show "web UI not built" |
-| `TRUST_PROXY` | `false` | Use `X-Forwarded-For` for rate limiting and the audit log (set behind a reverse proxy) |
+| `TRUST_PROXY` | `false` (`true` in `compose.yaml`) | Behind exactly one reverse proxy (Caddy, nginx, cloudflared): take the client address for rate limiting and the audit log from the **last** `X-Forwarded-For` entry, the one that proxy added. Leave it off when Kore ID is reached directly |
 
 Run it behind TLS. Ideally serve it on a sibling subdomain (`id.…`).
 

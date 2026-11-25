@@ -23,17 +23,30 @@ export class RateLimiter {
   private hits = new Map<string, number[]>();
   private max: number;
   private windowSec: number;
-  constructor(max: number, windowSec: number) { this.max = max; this.windowSec = windowSec; }
+  private maxKeys: number;
+  constructor(max: number, windowSec: number, maxKeys = 10000) { this.max = max; this.windowSec = windowSec; this.maxKeys = maxKeys; }
   private recent(key: string) { const t = now(); return (this.hits.get(key) ?? []).filter((x) => x > t - this.windowSec); }
   /** True if the key is currently over the limit (does not record). */
   blocked(key: string) { return this.recent(key).length >= this.max; }
   /** Record one hit. */
   hit(key: string) {
     const r = this.recent(key); r.push(now()); this.hits.set(key, r);
-    if (this.hits.size > 10000) this.hits.clear();
+    if (this.hits.size > this.maxKeys) this.evict();
   }
-  /** Returns true if the action is allowed (and records it). */
+  /** Returns true if the action is allowed (and records it). Synchronous, so parallel requests cannot all pass. */
   allow(key: string): boolean { if (this.blocked(key)) return false; this.hit(key); return true; }
+  /** Give back the most recent hit (a login that succeeded should not count against the limit). */
+  release(key: string) { const r = this.hits.get(key); if (r?.length) r.pop(); }
+  /**
+   * Over capacity: drop expired keys, then keys that are not blocked, oldest first. Blocked keys go
+   * last, so flooding the limiter with new keys cannot unblock someone who is being rate limited.
+   */
+  private evict() {
+    const target = Math.floor(this.maxKeys * 0.9);
+    for (const [k] of this.hits) { if (this.recent(k).length === 0) this.hits.delete(k); }
+    for (const [k] of this.hits) { if (this.hits.size <= target) return; if (!this.blocked(k)) this.hits.delete(k); }
+    for (const [k] of this.hits) { if (this.hits.size <= target) return; this.hits.delete(k); }
+  }
 }
 
 export interface CurrentSession { session: SessionRow; user: UserRow }
@@ -42,6 +55,8 @@ export function createApp(config: Config, db: Db, keys: Keys, opts: AppOptions =
   const app = new Hono();
   const core = createCore(config, db, keys, opts);
   const loginLimiter = new RateLimiter(10, 900);
+  // Failed sign-ins from one address across all emails (password spraying).
+  const loginIpLimiter = new RateLimiter(100, 900);
   const setupLimiter = new RateLimiter(30, 900);
   const tokenLimiter = new RateLimiter(120, 60);
   const localJwks = createLocalJWKSet(keys.jwks);
@@ -49,8 +64,10 @@ export function createApp(config: Config, db: Db, keys: Keys, opts: AppOptions =
 
   // ---------- helpers ----------
   const ip = (c: Context) => {
+    // Behind one reverse proxy (TRUST_PROXY=true), the address that proxy saw is the LAST entry it
+    // appended to X-Forwarded-For. Earlier entries come from the client and can be anything.
     if (config.trustProxy) {
-      const x = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
+      const x = c.req.header('x-forwarded-for')?.split(',').at(-1)?.trim();
       if (x) return x;
     }
     try { return getConnInfo(c).remote.address ?? 'unknown'; } catch { return 'unknown'; }
@@ -162,7 +179,7 @@ export function createApp(config: Config, db: Db, keys: Keys, opts: AppOptions =
   });
 
   // ---------- JSON API for the web UI ----------
-  registerApi(app, { config, db, core, ip, ua, csrfToken, currentSession, startSession, endCurrentSession, safeReturnTo, loginLimiter, setupLimiter });
+  registerApi(app, { config, db, core, ip, ua, csrfToken, currentSession, startSession, endCurrentSession, safeReturnTo, loginLimiter, loginIpLimiter, setupLimiter });
 
   // ---------- logout ----------
   const verifyIdTokenHint = async (hint: string | undefined) => {
