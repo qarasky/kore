@@ -130,19 +130,28 @@ export function openDb(dataDir: string): Db {
     CREATE INDEX IF NOT EXISTS setup_user ON setup_tokens(user_id);
     CREATE INDEX IF NOT EXISTS audit_actor ON audit_log(actor_id);
     CREATE INDEX IF NOT EXISTS audit_target ON audit_log(target_id);
+    CREATE INDEX IF NOT EXISTS audit_created ON audit_log(created_at);
   `);
   return db;
 }
 
 /** Purge rows that can no longer matter. Ended sessions are kept until their natural expiry so introspection can
  * still report tokens from them as inactive. */
-export function purgeExpired(db: Db, t = Math.floor(Date.now() / 1000)) {
+/** Audit retention: failed sign-ins are written by unauthenticated requests, so they go first. */
+const AUDIT_DAYS = 180;
+const FAILED_LOGIN_DAYS = 30;
+const MAX_AUDIT_ROWS = 200_000;
+
+export function purgeExpired(db: Db, t = Math.floor(Date.now() / 1000), o: { maxAuditRows?: number } = {}) {
   db.prepare('DELETE FROM session_clients WHERE sid IN (SELECT sid FROM sessions WHERE expires_at < ?) AND sid NOT IN (SELECT sid FROM refresh_tokens WHERE sid IS NOT NULL AND revoked = 0 AND expires_at >= ?)').run(t, t);
   db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(t);
   db.prepare('DELETE FROM auth_codes WHERE expires_at < ?').run(t);
   db.prepare('DELETE FROM refresh_tokens WHERE expires_at < ?').run(t);
   db.prepare('DELETE FROM setup_tokens WHERE expires_at < ?').run(t);
   db.prepare('DELETE FROM revoked_jti WHERE expires_at < ?').run(t);
+  db.prepare("DELETE FROM audit_log WHERE created_at < ? OR (action = 'login_failed' AND created_at < ?)").run(t - AUDIT_DAYS * 86400, t - FAILED_LOGIN_DAYS * 86400);
+  const max = o.maxAuditRows ?? MAX_AUDIT_ROWS;
+  db.prepare('DELETE FROM audit_log WHERE id NOT IN (SELECT id FROM audit_log ORDER BY created_at DESC, id DESC LIMIT ?)').run(max);
 }
 
 export type Role = 'admin' | 'user';

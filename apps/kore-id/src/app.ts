@@ -1,4 +1,5 @@
 import { Hono, type Context } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import { SignJWT, jwtVerify, createLocalJWKSet, type JWTPayload } from 'jose';
@@ -61,6 +62,9 @@ export function createApp(config: Config, db: Db, keys: Keys, opts: AppOptions =
   const tokenLimiter = new RateLimiter(120, 60);
   const localJwks = createLocalJWKSet(keys.jwks);
   const cookieOpts = { httpOnly: true, sameSite: 'Lax' as const, secure: config.secureCookies, path: '/' };
+
+  // No request needs more than a few kilobytes; refuse large bodies before anything reads them.
+  app.use('*', bodyLimit({ maxSize: 64 * 1024, onError: (c) => c.json({ error: 'payload_too_large', message: 'Request body too large.' }, 413) }));
 
   // ---------- helpers ----------
   const ip = (c: Context) => {
