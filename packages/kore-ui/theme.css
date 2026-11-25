@@ -1,0 +1,339 @@
+/*
+ * Kore theme: design tokens + base styles for every Kore web UI.
+ * Three themes (color, light, dark): `data-theme` on <html>. See DESIGN.md for what each token is for.
+ *
+ * Consumer CSS (path in @source is relative to that CSS file):
+ *   @import "tailwindcss";
+ *   @import "@qarasky/kore-ui/theme.css";
+ *   @source "../node_modules/@qarasky/kore-ui/src";
+ */
+
+/* Inter (variable), bundled: nothing is fetched from the network at runtime. */
+@import "@fontsource-variable/inter";
+
+@theme static {
+  /* Surfaces, darkest to lightest. */
+  --color-bg: #16181d;
+  --color-surface: #1d2026;
+  --color-raised: #23262d;
+  /* Hairlines. */
+  --color-border: #2c3038;
+  --color-border-strong: #3a3f49;
+  /* Text. */
+  --color-text: #e6e8ee;
+  --color-muted: #8a8f9a;
+  /* The one brand colour. */
+  --color-accent: #5b8def;
+  --color-accent-hover: #7aa3f2;
+  /* Accent as text or a thin line (links, the active nav icon, accent badges). Equals `accent` where that
+   * reads on the surface; the Light theme darkens it to pass AA. Fills and focus rings use `accent`. */
+  --color-accent-fg: #5b8def;
+  /* Feedback. `danger` is text/borders; `danger-solid` fills destructive buttons. */
+  --color-danger: #f2777a;
+  --color-danger-solid: #c94b4f;
+  --color-danger-solid-hover: #d65b5f;
+  --color-warning: #e5a54b;
+  /* Status (monitoring, connections). Semantic: never derived from the accent. */
+  --color-status-up: #3fb950;
+  --color-status-warn: #f0c54b;
+  --color-status-down: #e5484d;
+  /* An acknowledged (muted) outage: still a down diamond, in a dim red. */
+  --color-status-down-muted: #8a3a3d;
+  --color-status-maint: #a371f7;
+  --color-status-off: #5b616d;
+  /* A severity deeper than `status-down`, for meters and gauges past a critical threshold. Status only. */
+  --color-status-critical: #c0262c;
+
+  /* Text and icons on an accent or danger-solid fill. */
+  --color-on-accent: #ffffff;
+
+  /* Interaction overlays: white tints over whatever surface is below, never new colours.
+   * hover: controls, menu rows, nav pills · hover-subtle: large rows (table rows, nav items, the active
+   * app tile) · active: pressed or current row in a list · track: the empty part of a bar, skeletons,
+   * neutral badges. */
+  --color-hover: rgb(255 255 255 / 0.05);
+  --color-hover-subtle: rgb(255 255 255 / 0.04);
+  --color-active: rgb(255 255 255 / 0.1);
+  --color-track: rgb(255 255 255 / 0.06);
+
+  /* Categorical series for charts (up to four lines or bars). Quiet on purpose; status colours stay for status. */
+  --color-chart-1: #e0d9c9;
+  --color-chart-2: #9eb8cd;
+  --color-chart-3: #b5c8a1;
+  --color-chart-4: #c4acd2;
+
+  /* One corner radius for controls and cards; overlays use radius-overlay. */
+  --radius-ui: 6px;
+  --radius-overlay: 8px;
+
+  /* Type scale. Body text is the html font-size (15px). */
+  --text-2xs: 12px;
+  --text-meta: 13px;
+  --text-sub: 14px;
+  --text-heading: 16px;
+  --text-title: 17px;
+  --text-brand: 18px;
+  --text-display: 24px;
+
+  /* Sizes: list/table rows, standard and compact controls, list icons, chrome. */
+  --spacing-row: 48px;
+  --spacing-control: 40px;
+  --spacing-control-sm: 32px;
+  --spacing-icon: 22px;
+  --spacing-topbar: 60px;
+  --spacing-header: 52px;
+  --spacing-sidebar: 256px;
+  --spacing-sidebar-collapsed: 64px;
+  --spacing-settings-nav: 200px;
+
+  /* Content widths (max-w-form, max-w-reading, max-w-content). */
+  --container-form: 576px;
+  --container-reading: 768px;
+  --container-content: 1040px;
+
+  /* Breakpoints in px, so they don't move with the 15px root size. */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+
+  /* The dim layer behind dialogs, sheets and the mobile drawer. */
+  --color-scrim: rgb(0 0 0 / 0.6);
+
+  /* Elevation: only overlays cast shadows. The colours are variables so each theme sets its own strength. */
+  --shadow-ink-overlay: rgb(0 0 0 / 0.7);
+  --shadow-ink-dialog: rgb(0 0 0 / 0.8);
+  --shadow-ink-card: rgb(0 0 0 / 0.6);
+  --shadow-edge: rgb(255 255 255 / 0.03);
+  --shadow-overlay: 0 12px 32px -8px var(--shadow-ink-overlay);
+  --shadow-dialog: 0 24px 64px -12px var(--shadow-ink-dialog);
+  --shadow-card: 0 1px 0 var(--shadow-edge) inset, 0 12px 32px -12px var(--shadow-ink-card);
+
+  /* Motion: enter on the standard curve, leave faster on the exit curve. */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --animate-kore-pop-in: kore-pop-in 140ms var(--ease-standard);
+  --animate-kore-pop-out: kore-pop-out 100ms var(--ease-exit) forwards;
+  --animate-kore-fade-in: kore-fade-in 160ms var(--ease-standard);
+  --animate-kore-fade-out: kore-fade-out 120ms var(--ease-exit) forwards;
+  --animate-kore-dialog-in: kore-dialog-in 220ms var(--ease-standard);
+  --animate-kore-dialog-out: kore-dialog-out 140ms var(--ease-exit) forwards;
+  --animate-kore-drawer-in: kore-drawer-in 250ms var(--ease-standard);
+  --animate-kore-drawer-out: kore-drawer-out 180ms var(--ease-exit) forwards;
+  --animate-kore-toast-in: kore-toast-in 220ms var(--ease-standard);
+  --animate-kore-toast-out: kore-fade-out 120ms var(--ease-exit) forwards;
+  --animate-kore-sheet-right-in: kore-sheet-right-in 250ms var(--ease-standard);
+  --animate-kore-sheet-right-out: kore-sheet-right-out 180ms var(--ease-exit) forwards;
+  --animate-kore-sheet-left-in: kore-drawer-in 250ms var(--ease-standard);
+  --animate-kore-sheet-left-out: kore-drawer-out 180ms var(--ease-exit) forwards;
+  --animate-kore-sheet-bottom-in: kore-sheet-bottom-in 250ms var(--ease-standard);
+  --animate-kore-sheet-bottom-out: kore-sheet-bottom-out 180ms var(--ease-exit) forwards;
+  --animate-kore-indeterminate: kore-indeterminate 1.2s var(--ease-standard) infinite;
+
+  --font-sans:
+    "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+
+  @keyframes kore-pop-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+  @keyframes kore-pop-out {
+    to {
+      opacity: 0;
+      transform: scale(0.98);
+    }
+  }
+  @keyframes kore-fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes kore-fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes kore-dialog-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+  }
+  @keyframes kore-dialog-out {
+    to {
+      opacity: 0;
+      transform: scale(0.98);
+    }
+  }
+  @keyframes kore-drawer-in {
+    from {
+      transform: translateX(-100%);
+    }
+  }
+  @keyframes kore-drawer-out {
+    to {
+      transform: translateX(-100%);
+    }
+  }
+  @keyframes kore-sheet-right-in {
+    from {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes kore-sheet-right-out {
+    to {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes kore-sheet-bottom-in {
+    from {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes kore-sheet-bottom-out {
+    to {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes kore-indeterminate {
+    from {
+      left: -33%;
+    }
+    to {
+      left: 100%;
+    }
+  }
+  @keyframes kore-toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+}
+
+@layer base {
+  /* ---- Themes ----------------------------------------------------------------------------------------
+   * The tokens above are the Color theme (the default). `data-theme` on <html> (or on any element, to scope
+   * one subtree) swaps the tokens that differ; everything else is shared. The same palettes exist as hex in
+   * src/lib/theme.ts (KORE_THEMES) and a test keeps the two equal.
+   *   color: the original blue-grey dark theme.
+   *   light: white surfaces, the same accent. Semantic colours are darkened so text on white passes AA.
+   *   dark:  pure black for OLED screens, the same accent and semantic colours as Color. */
+  :root {
+    color-scheme: dark;
+  }
+
+  [data-theme="light"] {
+    color-scheme: light;
+    --color-bg: #f7f8fa;
+    --color-surface: #ffffff;
+    --color-raised: #ffffff;
+    --color-border: #e2e4ea;
+    --color-border-strong: #c9ccd5;
+    --color-text: #16181d;
+    --color-muted: #5a606c;
+    --color-accent-hover: #4a7ae0;
+    --color-accent-fg: #2c5fc9;
+    --color-danger: #c0262c;
+    --color-danger-solid: #c43d41;
+    --color-danger-solid-hover: #b3282c;
+    --color-warning: #8f5200;
+    --color-status-up: #176f31;
+    --color-status-warn: #8a6100;
+    --color-status-down: #cf222e;
+    --color-status-down-muted: #d9a3a5;
+    --color-status-maint: #7c4bd6;
+    --color-status-off: #8b919c;
+    --color-status-critical: #9b1c2c;
+    --color-hover: rgb(0 0 0 / 0.05);
+    --color-hover-subtle: rgb(0 0 0 / 0.04);
+    --color-active: rgb(0 0 0 / 0.1);
+    --color-track: rgb(0 0 0 / 0.07);
+    --color-chart-1: #6f6550;
+    --color-chart-2: #4a7a9e;
+    --color-chart-3: #5f8a43;
+    --color-chart-4: #8a62a6;
+    --color-scrim: rgb(15 17 23 / 0.45);
+    --shadow-ink-overlay: rgb(16 24 40 / 0.18);
+    --shadow-ink-dialog: rgb(16 24 40 / 0.24);
+    --shadow-ink-card: rgb(16 24 40 / 0.1);
+    --shadow-edge: rgb(255 255 255 / 0.7);
+  }
+
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --color-bg: #000000;
+    --color-surface: #0b0b0d;
+    --color-raised: #161619;
+    --color-border: #232327;
+    --color-border-strong: #36363c;
+    --color-text: #ececf0;
+    --color-muted: #8d929d;
+    --color-scrim: rgb(0 0 0 / 0.75);
+    --shadow-ink-overlay: rgb(0 0 0 / 0.9);
+    --shadow-ink-dialog: rgb(0 0 0 / 0.95);
+    --shadow-ink-card: rgb(0 0 0 / 0.8);
+    --shadow-edge: rgb(255 255 255 / 0.05);
+  }
+
+  /* Stacking order, for app-specific layers that must sit with kore-ui's (`z-(--z-toast)` in Tailwind).
+   * kore-ui's own components use the same numbers. */
+  :root {
+    --z-sticky: 10;
+    --z-drawer: 40;
+    --z-overlay: 50;
+    --z-toast: 60;
+    --z-tooltip: 70;
+  }
+
+  html {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.45;
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    min-height: 100dvh;
+  }
+
+  ::selection {
+    background-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  /* Thin, dark scrollbars where the engine supports them. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
