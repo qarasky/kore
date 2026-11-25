@@ -1,3 +1,12 @@
+// Writes clients.json with one confidential client per Kore app, using the callback and logout
+// paths each app really serves, and prints the secrets once.
+//
+//   KORE_DRIVE_URL=https://drive.example.com KORECALENDAR_URL=https://calendar.example.com \
+//   KOREMIND_URL=https://koremind.example.com KOREMIND_API_URL=https://api.koremind.example.com \
+//   KOREMONITOR_URL=https://monitor.example.com node scripts/init-clients.ts
+//
+// Each *_URL is the app's public address (the defaults are the apps' local defaults). KoreMind's
+// backend does the sign-in, so its callback lives on KOREMIND_API_URL; its web UI is KOREMIND_URL.
 import { writeFileSync, existsSync } from 'node:fs';
 import { randomBytes, createHash } from 'node:crypto';
 
@@ -7,12 +16,19 @@ if (existsSync(file) && !process.argv.includes('--force')) {
   process.exit(1);
 }
 
-// Edit the URLs afterwards. "flatline" becomes "koremonitor" after the rename: add a new entry, keep both during migration.
+const base = (name: string, fallback: string) => (process.env[name] || fallback).replace(/\/+$/, '');
+const drive = base('KORE_DRIVE_URL', 'http://localhost:8080');
+const calendar = base('KORECALENDAR_URL', 'http://localhost:8081');
+const mind = base('KOREMIND_URL', 'http://localhost:3210');
+const mindApi = base('KOREMIND_API_URL', 'http://localhost:8787');
+const monitor = base('KOREMONITOR_URL', 'http://localhost:3001');
+
+// id = the client id and app key each app expects by default. KoreMonitor still uses "flatline".
 const apps = [
-  { id: 'kore', name: 'Kore', port: 3001 },
-  { id: 'koremind', name: 'KoreMind', port: 3002 },
-  { id: 'korecalendar', name: 'KoreCalendar', port: 3003 },
-  { id: 'flatline', name: 'Flatline (KoreMonitor)', port: 3004 },
+  { id: 'kore', name: 'Kore Drive', callback: `${drive}/api/auth/oidc/callback`, backchannel: `${drive}/api/auth/oidc/backchannel-logout`, afterLogout: `${drive}/login`, home: `${drive}/` },
+  { id: 'korecalendar', name: 'KoreCalendar', callback: `${calendar}/api/auth/oidc/callback`, backchannel: `${calendar}/api/auth/oidc/backchannel-logout`, afterLogout: `${calendar}/login`, home: `${calendar}/` },
+  { id: 'koremind', name: 'KoreMind', callback: `${mindApi}/auth/callback`, backchannel: `${mindApi}/auth/backchannel-logout`, afterLogout: `${mind}/login`, home: `${mind}/` },
+  { id: 'flatline', name: 'KoreMonitor', callback: `${monitor}/api/v1/auth/sso/callback`, backchannel: `${monitor}/api/v1/auth/sso/backchannel-logout`, afterLogout: `${monitor}/sign-in`, home: `${monitor}/` },
 ];
 
 const secrets: Record<string, string> = {};
@@ -24,13 +40,15 @@ const clients: Record<string, unknown>[] = apps.map((a) => {
     name: a.name,
     app: a.id,
     secretHash: createHash('sha256').update(secret).digest('hex'),
-    redirectUris: [`http://localhost:${a.port}/auth/callback`],
-    postLogoutRedirectUris: [`http://localhost:${a.port}/`],
-    backchannelLogoutUri: `http://localhost:${a.port}/auth/backchannel-logout`,
-    homeUrl: `http://localhost:${a.port}/`,
+    redirectUris: [a.callback],
+    postLogoutRedirectUris: [a.afterLogout],
+    backchannelLogoutUri: a.backchannel,
+    homeUrl: a.home,
   };
 });
-// Native Android app: public client (PKCE only, no secret), shares KoreCalendar's app access.
+// KoreCalendar's Android app talks to Kore ID itself: a public client (PKCE only, no secret) that
+// shares KoreCalendar's app access. Set KORECAL_OIDC_EXTRA_AUDIENCES=korecalendar-android on the API.
+// KoreMind's Android app signs in through its backend and needs no client of its own.
 clients.push({
   id: 'korecalendar-android',
   name: 'KoreCalendar (Android)',

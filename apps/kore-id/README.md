@@ -15,8 +15,9 @@ Stack: Node ≥ 24 (built-in `node:sqlite`), Hono, jose. Passwords: scrypt (min 
 ```sh
 bun install                  # at the monorepo root (installs the server and the web UI)
 bun run build:web           # the web UI: web/dist (bun run start serves it; build it first)
-bun run init-clients        # writes clients.json, prints each app's secret ONCE
-# edit clients.json: set real redirectUris / postLogoutRedirectUris / backchannelLogoutUri / homeUrl per app
+KORE_DRIVE_URL=https://drive.kore.example bun run init-clients   # writes clients.json, prints each app's secret ONCE
+# each app's public address: KORE_DRIVE_URL, KORECALENDAR_URL, KOREMIND_URL, KOREMIND_API_URL, KOREMONITOR_URL
+# (see "clients.json" below for what each one registers)
 ISSUER=https://id.kore.example PORT=4000 bun run start
 bun run test && bun run typecheck              # server
 bun run test:web && bun run typecheck:web  # web UI
@@ -44,14 +45,15 @@ Run it behind TLS. Ideally serve it on a sibling subdomain (`id.…`).
 ## Deploy (Docker)
 
 Images: `ghcr.io/qarasky/kore-id` for linux/amd64 and arm64. `:edge` and `:sha-<short>` follow main; release tags
-`vX.Y.Z` publish `:X.Y.Z`, `:X.Y` and `:latest`. The image runs `node src/server.ts` as the non-root `node` user,
+publish `:X.Y.Z`, `:X.Y` and `:latest`. The image runs `node src/server.ts` as the non-root `node` user,
 keeps everything in the `/data` volume (`DATA_DIR=/data`, `CLIENTS_FILE=/data/clients.json`) and has a
-`HEALTHCHECK` on `/healthz`. `compose.yaml` runs it behind your reverse proxy:
+`HEALTHCHECK` on `/healthz`. Release tags are `kore-id-vX.Y.Z` in the Kore monorepo. `compose.yaml` runs it behind
+your reverse proxy:
 
 ```sh
 mkdir -p data
-docker compose run --rm kore-id node scripts/init-clients.ts   # writes data/clients.json, prints secrets ONCE
-# edit data/clients.json for your apps
+docker compose run --rm -e KORE_DRIVE_URL=https://drive.kore.example -e KORECALENDAR_URL=https://cal.kore.example \
+  kore-id node scripts/init-clients.ts   # writes data/clients.json, prints secrets ONCE (see "clients.json" below)
 echo ISSUER=https://id.kore.example >> .env
 docker compose up -d
 docker compose logs kore-id | grep -A1 'setup link'             # the first admin's one-time setup link
@@ -100,14 +102,27 @@ Sign-ins, failed sign-ins and admin actions go to the audit log (`/admin` → Ac
   "name": "KoreCalendar",
   "app": "korecalendar",                // access-control key (default: id)
   "secretHash": "<sha256 hex>",         // omit for public clients (native apps: PKCE only)
-  "redirectUris": ["https://cal.kore.example/auth/callback"],
-  "postLogoutRedirectUris": ["https://cal.kore.example/"],
-  "backchannelLogoutUri": "https://cal.kore.example/auth/backchannel-logout",
+  "redirectUris": ["https://cal.kore.example/api/auth/oidc/callback"],
+  "postLogoutRedirectUris": ["https://cal.kore.example/login"],
+  "backchannelLogoutUri": "https://cal.kore.example/api/auth/oidc/backchannel-logout",
   "homeUrl": "https://cal.kore.example/" // app launcher on /account
 }
 ```
 
 Clients are read-only in the admin UI; edit the file (it holds secrets) and restart.
+
+What each app registers (`scripts/init-clients.ts` writes exactly this; `<url>` is the env var in brackets):
+
+| Client id (`app`) | Redirect URI | Back-channel logout URI | Post-logout redirect | Notes |
+|---|---|---|---|---|
+| `kore` (Kore Drive) | `<KORE_DRIVE_URL>/api/auth/oidc/callback` | `<KORE_DRIVE_URL>/api/auth/oidc/backchannel-logout` | `<KORE_DRIVE_URL>/login` | |
+| `korecalendar` | `<KORECALENDAR_URL>/api/auth/oidc/callback` | `<KORECALENDAR_URL>/api/auth/oidc/backchannel-logout` | `<KORECALENDAR_URL>/login` | |
+| `korecalendar-android` (`korecalendar`) | `dev.qarasky.korecalendar:/oauth2redirect` | | | public client; set `KORECAL_OIDC_EXTRA_AUDIENCES=korecalendar-android` on the API |
+| `koremind` | `<KOREMIND_API_URL>/auth/callback` | `<KOREMIND_API_URL>/auth/backchannel-logout` | `<KOREMIND_URL>/login` | the backend does the sign-in; the Android app needs no client |
+| `flatline` (KoreMonitor) | `<KOREMONITOR_URL>/api/v1/auth/sso/callback` | `<KOREMONITOR_URL>/api/v1/auth/sso/backchannel-logout` | `<KOREMONITOR_URL>/sign-in` | still `flatline`, see "Renaming" below |
+
+`homeUrl` is each app's address with a trailing `/` (KoreMind: `KOREMIND_URL`). Kore ID must reach every
+back-channel URI server to server.
 
 ## Integrating an app
 
