@@ -1,0 +1,64 @@
+import path from "node:path";
+
+import type { NextConfig } from "next";
+
+// Where the Rust backend listens. In production Caddy routes /api and /agent
+// to it before a request reaches Next, so these rewrites only matter when
+// Next is hit directly (local development). Server-side `api()` calls read
+// API_URL at runtime (lib/api.ts).
+const apiUrl = (process.env.API_URL || "http://127.0.0.1:3001").replace(/\/+$/, "");
+
+// The dev server only trusts localhost; dev.sh also opens it at 127.0.0.1 and
+// on the LAN address (KOREMONITOR_DEV_ORIGINS; the pre-rename FLATLINE_DEV_ORIGINS
+// is still read), and without these entries it blocks the app's scripts there,
+// so pages never hydrate. Dev only.
+const devOrigins = [
+    "127.0.0.1",
+    ...(process.env.KOREMONITOR_DEV_ORIGINS ?? process.env.FLATLINE_DEV_ORIGINS ?? "").split(",").filter(Boolean),
+];
+
+// The repository root: `@flatline/shared` lives in packages/, outside this
+// app, and Turbopack resolves nothing outside its root. The standalone
+// output traces from the same root (so its server is at apps/web/server.js).
+const repoRoot = path.resolve(__dirname, "../..");
+
+// The build's id, baked into the client bundle; `/build` answers the running
+// server's, so an open tab notices a deploy (lib/build-id.ts). The image sets
+// KOREMONITOR_BUILD_ID (the commit; the pre-rename FLATLINE_BUILD_ID is still
+// read); a local build uses its build time. The dev server has none: nothing
+// to compare.
+const buildId =
+    process.env.KOREMONITOR_BUILD_ID ||
+    process.env.FLATLINE_BUILD_ID ||
+    (process.env.NODE_ENV === "production" ? new Date().toISOString() : "");
+
+const nextConfig: NextConfig = {
+    env: { NEXT_PUBLIC_KOREMONITOR_BUILD: buildId },
+    output: "standalone",
+    outputFileTracingRoot: repoRoot,
+    turbopack: { root: repoRoot },
+    // kore-ui ships TypeScript source (no build step); Next compiles it.
+    transpilePackages: ["@flatline/shared", "@qarasky/kore-ui"],
+    poweredByHeader: false,
+    allowedDevOrigins: devOrigins,
+    // Status pages are advisory-noindexed in their headers too (docs/status-pages.md, "Indexing").
+    async headers() {
+        return [
+            {
+                source: "/status/:path*",
+                headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive, nosnippet" }],
+            },
+        ];
+    },
+    async rewrites() {
+        return [
+            { source: "/api/:path*", destination: `${apiUrl}/api/:path*` },
+            { source: "/agent/:path*", destination: `${apiUrl}/agent/:path*` },
+            // The onboarding runbook and its pointer file, which the Tokens page links to.
+            { source: "/add-push-server.md", destination: `${apiUrl}/add-push-server.md` },
+            { source: "/llms.txt", destination: `${apiUrl}/llms.txt` },
+        ];
+    },
+};
+
+export default nextConfig;

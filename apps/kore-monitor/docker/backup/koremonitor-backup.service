@@ -1,0 +1,19 @@
+# Nightly KoreMonitor database backup; started by koremonitor-backup.timer.
+# Install: docs/operations.md#nightly-backups
+[Unit]
+Description=KoreMonitor database backup (SQLite backup API + integrity_check)
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/koremonitor-backup.env
+ExecStart=/usr/local/sbin/koremonitor-backup
+# Background work: yield CPU and disk to the backend.
+Nice=10
+IOSchedulingClass=idle
+# Light hardening that leaves /home (database, backups) and ssh keys usable.
+PrivateTmp=true
+ProtectSystem=full
+NoNewPrivileges=true
+UMask=0077

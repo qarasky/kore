@@ -1,0 +1,153 @@
+# KoreMonitor: three containers behind one published port.
+#
+#   caddy    the only published service; routes the backend's paths to
+#            `backend` and everything else to `web` (docker/Caddyfile)
+#   backend  the Rust backend: API, check engine, agent downloads
+#   web      the Next.js web app: operator UI, Superboard, status pages
+#
+#   docker compose pull && docker compose up -d     published images (ghcr.io)
+#   docker compose up -d --build                    build from this checkout
+#
+# Images are ghcr.io/qarasky/kore-monitor-{backend,web,caddy}:${KOREMONITOR_VERSION:-edge},
+# published by .github/workflows/images.yml. KOREMONITOR_IMAGE_PREFIX (the part
+# before "-backend") and KOREMONITOR_VERSION override them; see .env.example.
+# The environment accepts the pre-rename FLATLINE_* spellings, so an existing
+# .env keeps working.
+#
+# First run: configure Kore ID (KORE_ID_ISSUER, KORE_ID_CLIENT_SECRET) and
+# sign in with it. The first person Kore ID admits becomes a full operator;
+# there is no seed script and no first-account token. KOREMONITOR_BIND/KOREMONITOR_PORT
+# choose where Caddy listens (default 0.0.0.0:3001); KOREMONITOR_SUBNET is the
+# address range Caddy trusts X-Forwarded-* from (the Docker host reaching it),
+# change it if it collides with a network you already use. That trust assumes
+# rootful Docker keeps a remote client's address (published ports are DNAT'd);
+# under rootless Docker, Docker Desktop or "iptables": false every client
+# arrives from the gateway and is trusted, so bind to loopback behind your own
+# proxy there.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  caddy:
+    build:
+      context: .
+      dockerfile: docker/caddy.dockerfile
+    image: ${KOREMONITOR_IMAGE_PREFIX:-${FLATLINE_IMAGE_PREFIX:-ghcr.io/qarasky/kore-monitor}}-caddy:${KOREMONITOR_VERSION:-${FLATLINE_VERSION:-edge}}
+    restart: unless-stopped
+    ports:
+      - "${KOREMONITOR_BIND:-${FLATLINE_BIND:-0.0.0.0}}:${KOREMONITOR_PORT:-${FLATLINE_PORT:-3001}}:80"
+    environment:
+      # Must match networks.edge below.
+      KOREMONITOR_SUBNET: ${KOREMONITOR_SUBNET:-${FLATLINE_SUBNET:-172.31.254.0/24}}
+    tmpfs:
+      - /data
+      - /config
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    networks: [edge, internal]
+    # Caddy drains for up to 10 s (grace_period in the Caddyfile).
+    stop_grace_period: 20s
+    mem_limit: 256m
+    pids_limit: 256
+    # Started, not healthy: Caddy is the only way in, and it answers 502
+    # until an upstream is up. Waiting on the backend's health would keep
+    # status pages and /healthz itself unreachable while the backend is
+    # unhealthy.
+    depends_on:
+      backend:
+        condition: service_started
+      web:
+        condition: service_started
+    # Caddy and the web app behind it; the backend has its own healthcheck.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/build"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging: *logging
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/rust.dockerfile
+      target: release
+    image: ${KOREMONITOR_IMAGE_PREFIX:-${FLATLINE_IMAGE_PREFIX:-ghcr.io/qarasky/kore-monitor}}-backend:${KOREMONITOR_VERSION:-${FLATLINE_VERSION:-edge}}
+    restart: unless-stopped
+    environment:
+      # Absolute public origin (https://uptime.example): used in provisioning
+      # scripts and as the base of the Kore ID callback address.
+      KOREMONITOR_PUBLIC_URL: ${KOREMONITOR_PUBLIC_URL:-${FLATLINE_PUBLIC_URL:-}}
+      # Kore ID single sign-on (docs/sso.md). It is the ONLY browser sign-in;
+      # with KORE_ID_ISSUER empty the sign-in page says no method is configured.
+      KORE_ID_ISSUER: ${KORE_ID_ISSUER:-}
+      KORE_ID_CLIENT_ID: ${KORE_ID_CLIENT_ID:-flatline}
+      KORE_ID_CLIENT_SECRET: ${KORE_ID_CLIENT_SECRET:-}
+      KORE_ID_CLIENT_AUTH: ${KORE_ID_CLIENT_AUTH:-basic}
+      KORE_ID_REDIRECT_URI: ${KORE_ID_REDIRECT_URI:-}
+      KORE_ID_POST_LOGOUT_REDIRECT_URI: ${KORE_ID_POST_LOGOUT_REDIRECT_URI:-}
+      KORE_ID_AUTO_PROVISION: ${KORE_ID_AUTO_PROVISION:-true}
+      KORE_ID_ALLOWED_EMAILS: ${KORE_ID_ALLOWED_EMAILS:-}
+      KORE_ID_ALLOWED_SUBS: ${KORE_ID_ALLOWED_SUBS:-}
+      KORE_APP_URLS: ${KORE_APP_URLS:-}
+      KORE_ID_ACCOUNT_URL: ${KORE_ID_ACCOUNT_URL:-}
+    volumes:
+      - ./data:/app/data
+    # Not published: Caddy reaches it over `internal`; `egress` is for the
+    # checks themselves (HTTP, ping, DNS) and Telegram.
+    networks: [internal, egress]
+    # Backend graceful shutdown finishes within ~20 s (streams close, engine
+    # and metrics jobs flush); Docker's default 10 s would SIGKILL it.
+    stop_grace_period: 30s
+    # The backend runs as uid 10001 (see docker/entrypoint.sh). ICMP ping
+    # monitors use unprivileged ICMP sockets, allowed here for every group,
+    # with the ping binary's cap_net_raw as the fallback.
+    sysctls:
+      net.ipv4.ping_group_range: "0 2147483647"
+    # Bounded resources: a leak or runaway fork cannot take the host down.
+    mem_limit: 1g
+    pids_limit: 1024
+    logging: *logging
+    # Healthcheck comes from the image: GET /healthz (database + engine).
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.dockerfile
+    image: ${KOREMONITOR_IMAGE_PREFIX:-${FLATLINE_IMAGE_PREFIX:-ghcr.io/qarasky/kore-monitor}}-web:${KOREMONITOR_VERSION:-${FLATLINE_VERSION:-edge}}
+    restart: unless-stopped
+    environment:
+      API_URL: http://backend:3001
+    tmpfs:
+      - /tmp
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    networks: [internal]
+    stop_grace_period: 20s
+    mem_limit: 512m
+    pids_limit: 256
+    logging: *logging
+    # Healthcheck comes from the image: GET /build. It does not wait for the
+    # backend: pages that need it show their own retrying error until it is up.
+
+networks:
+  # Only Caddy is on a network with a published port; its fixed subnet is
+  # what the Caddyfile trusts.
+  edge:
+    ipam:
+      config:
+        - subnet: ${KOREMONITOR_SUBNET:-${FLATLINE_SUBNET:-172.31.254.0/24}}
+  # Caddy, the backend and the web app; no way out.
+  internal:
+    internal: true
+  # The backend's way out, for the checks and alerts.
+  egress: {}
