@@ -28,8 +28,8 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.4.2",
-    "sharp": "^0.34.0",
+    "eslint-config-next": "catalog:",
+    "sharp": "^0.35.5",
     "tailwindcss": "catalog:",
     "typescript": "^5",
     "vitest": "^5.0.5"
