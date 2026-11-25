@@ -35,11 +35,17 @@ const PENDING_COLOR: &str = "#f8a306";
 const MAINTENANCE_COLOR: &str = "#1747f5";
 const PING_COLOR: &str = "blue";
 
-fn svg_response(svg: String) -> Response {
+/// A badge is a picture: opened on its own it must not run anything, and it
+/// must never be sniffed as another type.
+pub(crate) const BADGE_CSP: &str = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+
+pub(crate) fn svg_response(svg: String) -> Response {
     (
         [
             (header::CONTENT_TYPE, "image/svg+xml"),
             (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"),
+            (header::CONTENT_SECURITY_POLICY, BADGE_CSP),
+            (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
         ],
         svg,
     )
@@ -498,4 +504,18 @@ pub async fn response(
         label_color: badges::query_string(&params, "labelColor"),
         style,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn badge_responses_forbid_scripts_and_sniffing() {
+        let response = svg_response("<svg/>".into());
+        let headers = response.headers();
+        assert_eq!(headers[header::CONTENT_TYPE], "image/svg+xml");
+        assert_eq!(headers[header::CONTENT_SECURITY_POLICY], BADGE_CSP);
+        assert_eq!(headers[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
+    }
 }

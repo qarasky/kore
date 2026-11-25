@@ -25,16 +25,10 @@ const NA_COLOR: &str = "#999";
 pub fn render(badge: &Badge) -> String {
     let label = xml_escape(badge.label);
     let message = xml_escape(badge.message);
-    let label_color = if badge.label_color.is_empty() {
-        LABEL_BG
-    } else {
-        badge.label_color
-    };
-    let color = if badge.color.is_empty() {
-        NA_COLOR
-    } else {
-        badge.color
-    };
+    // Colours come from the query string and go into attributes unescaped:
+    // anything that is not plainly a colour falls back to the default.
+    let label_color = colour_or(badge.label_color, LABEL_BG);
+    let color = colour_or(badge.color, NA_COLOR);
     let flat_square = badge.style == "flat-square";
 
     let label_width = if badge.label.is_empty() {
@@ -115,6 +109,28 @@ fn text_width(text: &str) -> i64 {
         })
         .sum::<i64>()
         + 1
+}
+
+/// `value` when it is a colour badge-maker accepts (hex with or without `#`,
+/// a CSS colour name, or `rgb()`/`rgba()`/`hsl()`/`hsla()` of numbers),
+/// otherwise `default`. Nothing else may reach an SVG attribute.
+fn colour_or<'a>(value: &'a str, default: &'a str) -> &'a str {
+    let is_colour = if let Some(hex) = value.strip_prefix('#') {
+        matches!(hex.len(), 3 | 4 | 6 | 8) && hex.chars().all(|c| c.is_ascii_hexdigit())
+    } else if let Some(args) = ["rgb(", "rgba(", "hsl(", "hsla("]
+        .iter()
+        .find_map(|f| value.strip_prefix(f))
+    {
+        args.strip_suffix(')').is_some_and(|inner| {
+            inner.len() <= 40
+                && inner
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || matches!(c, ',' | '.' | '%' | ' '))
+        })
+    } else {
+        (1..=30).contains(&value.len()) && value.chars().all(|c| c.is_ascii_alphabetic())
+    };
+    if is_colour { value } else { default }
 }
 
 fn xml_escape(text: &str) -> String {
@@ -332,6 +348,43 @@ mod tests {
         });
         assert!(svg.contains("&lt;x&gt;"));
         assert!(svg.contains("a &amp; b"));
+    }
+
+    #[test]
+    fn a_colour_that_is_not_a_colour_cannot_break_out_of_the_attribute() {
+        for evil in [
+            "#4c1\"/><script>alert(1)</script><rect x=\"",
+            "red' onload='alert(1)",
+            "url(javascript:alert(1))",
+            "#4c1;</style>",
+        ] {
+            let svg = render(&Badge {
+                label: "a",
+                message: "b",
+                color: evil,
+                label_color: evil,
+                style: "flat",
+            });
+            assert!(!svg.contains("<script"), "{evil}");
+            assert!(!svg.contains("onload"), "{evil}");
+            assert!(!svg.contains("javascript"), "{evil}");
+            assert!(svg.contains("fill=\"#999\""), "message colour falls back: {evil}");
+            assert!(svg.contains("fill=\"#555\""), "label colour falls back: {evil}");
+        }
+    }
+
+    #[test]
+    fn real_colours_pass_through() {
+        for ok in ["#4c1", "#66C20A", "#66c20a80", "blue", "brightgreen", "rgb(1, 2, 3)", "hsl(90, 90%, 40%)", "rgba(0,0,0,.5)"] {
+            let svg = render(&Badge {
+                label: "a",
+                message: "b",
+                color: ok,
+                label_color: ok,
+                style: "flat",
+            });
+            assert!(svg.contains(&format!("fill=\"{ok}\"")), "{ok}");
+        }
     }
 
     #[test]

@@ -305,7 +305,7 @@ pub async fn badge(
         label_color: "",
         style,
     });
-    ([(header::CONTENT_TYPE, "image/svg+xml")], svg).into_response()
+    crate::api::badges::svg_response(svg)
 }
 
 /// POST /api/v1/status-pages/unlock/{slug}
