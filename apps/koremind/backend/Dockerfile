@@ -1,14 +1,18 @@
-# KoreMind backend + the OpenCode engine it owns. Build from the repository root:
-#   docker build -f backend/Dockerfile -t koremind-backend .
-ARG BUN_VERSION=1.4.3  # keep in sync with .bun-version
+# KoreMind backend + the OpenCode engine it owns. Build from the Kore monorepo root:
+#   docker build -f apps/koremind/backend/Dockerfile -t koremind-backend .
+ARG BUN_VERSION=1.4.3  # keep in sync with .bun-version at the monorepo root
+
+# Only the backend's workspace slice of the monorepo, with a matching bun.lock.
+FROM oven/bun:${BUN_VERSION}-debian AS prune
+WORKDIR /repo
+COPY . .
+RUN bun x turbo@2.11.11 prune @koremind/backend --docker
 
 FROM oven/bun:${BUN_VERSION}-debian AS deps
 WORKDIR /app
-COPY package.json bun.lock ./
-COPY backend/package.json backend/
-COPY shared/package.json shared/
-COPY web/package.json web/
-RUN bun install --frozen-lockfile --production --filter './backend' --filter './shared'
+COPY --from=prune /repo/out/json/ ./
+COPY --from=prune /repo/bunfig.toml ./
+RUN bun install --frozen-lockfile --production
 
 FROM oven/bun:${BUN_VERSION}-debian
 # KoreMind needs OpenCode v2. Pinned so an image is reproducible; bump it deliberately.
@@ -23,12 +27,9 @@ RUN apt-get update \
 RUN useradd --system --uid 10001 --create-home --home-dir /home/koremind koremind \
  && mkdir /data && chown koremind:koremind /data
 WORKDIR /app
+# The monorepo layout, so node_modules/@koremind/shared still points at apps/koremind/shared.
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/backend/node_modules ./backend/node_modules
-COPY --from=deps /app/shared/node_modules ./shared/node_modules
-COPY package.json ./
-COPY backend ./backend
-COPY shared ./shared
+COPY --from=prune /repo/out/full/ ./
 
 # Claude is never bundled (Anthropic's terms); it needs the native install, so the image offers OpenCode.
 ENV NODE_ENV=production \
@@ -42,4 +43,4 @@ EXPOSE 8787
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD ["bun", "-e", "const r = await fetch('http://127.0.0.1:' + (process.env.KOREMIND_PORT ?? 8787) + '/health'); process.exit(r.ok ? 0 : 1)"]
 ENTRYPOINT ["tini", "--"]
-CMD ["bun", "run", "backend/src/index.ts"]
+CMD ["bun", "run", "apps/koremind/backend/src/index.ts"]

@@ -6,16 +6,17 @@ import java.io.InputStream
 import java.security.MessageDigest
 
 /**
- * What a release publishes next to its APK as koremind-android.json (written by .github/workflows/android.yml).
- * The app reads it from https://github.com/<repo>/releases/latest/download/koremind-android.json, so only
- * full releases are offered, never pre-releases.
+ * What a release publishes as koremind-android.json (written by koremind-android.yml in the Kore monorepo).
+ * The monorepo holds every Kore app's releases, so "latest" could be another app's: the release workflow
+ * copies the manifest of each full KoreMind release onto the rolling release koremind-android-latest, and
+ * the app reads it from there. Pre-releases never update it, so they are never offered.
  */
 @Serializable data class UpdateInfo(val version: String, val versionCode: Long, val apk: String, val sha256: String)
 
 /** The app looks for a new release at most this often on its own; "Check for updates" in Settings always looks. */
 const val UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
 
-fun updateManifestUrl(repo: String) = "https://github.com/$repo/releases/latest/download/koremind-android.json"
+fun updateManifestUrl(repo: String) = "https://github.com/$repo/releases/download/koremind-android-latest/koremind-android.json"
 
 /** Reads the manifest; null when it is malformed or points anywhere but this repo's GitHub releases. */
 fun parseUpdateInfo(json: String, repo: String): UpdateInfo? {

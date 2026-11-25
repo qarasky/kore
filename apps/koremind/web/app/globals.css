@@ -1,8 +1,6 @@
 @import "tailwindcss";
 /* Kore design system: tokens, Inter, base styles (see node_modules/@qarasky/kore-ui/DESIGN.md). Don't redefine them here. */
 @import "@qarasky/kore-ui/theme.css";
-/* Tailwind must scan kore-ui's source for class names. Relative to this file: web/node_modules (a symlink under bun). */
-@source "../node_modules/@qarasky/kore-ui/src";
 
 /* KoreMind-only CSS: rendered markdown in answers and the "thinking" dots. Everything else is utilities on kore-ui tokens. */
 @layer components {

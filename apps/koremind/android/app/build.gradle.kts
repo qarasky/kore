@@ -24,7 +24,7 @@ android {
         versionCode = (findProperty("versionCode") as String?)?.toInt() ?: versionProps.getProperty("versionCode").toInt()
         versionName = (findProperty("versionName") as String?) ?: versionProps.getProperty("versionName")
         // The GitHub repo whose releases the app updates itself from. CI builds from a fork update from that fork.
-        val updateRepo = (findProperty("updateRepo") as String?) ?: System.getenv("GITHUB_REPOSITORY")?.takeIf { it.isNotBlank() } ?: "qarasky/koremind"
+        val updateRepo = (findProperty("updateRepo") as String?) ?: System.getenv("GITHUB_REPOSITORY")?.takeIf { it.isNotBlank() } ?: "qarasky/kore"
         buildConfigField("String", "UPDATE_REPO", "\"$updateRepo\"")
     }
     signingConfigs {

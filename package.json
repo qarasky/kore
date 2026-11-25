@@ -12,7 +12,11 @@
       "apps/kore-id/web",
       "apps/kore-monitor",
       "apps/kore-monitor/apps/web",
-      "apps/kore-monitor/packages/shared"
+      "apps/kore-monitor/packages/shared",
+      "apps/koremind",
+      "apps/koremind/backend",
+      "apps/koremind/shared",
+      "apps/koremind/web"
     ],
     "catalog": {
       "react": "19.3.1",

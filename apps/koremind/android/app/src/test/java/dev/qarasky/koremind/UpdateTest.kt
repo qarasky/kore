@@ -16,17 +16,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class UpdateTest {
-    private val repo = "qarasky/koremind"
+    private val repo = "qarasky/kore"
     private val sha = "a".repeat(64)
-    private fun manifest(apk: String = "https://github.com/$repo/releases/download/v0.2.0/koremind-android-0.2.0.apk", sha256: String = sha, code: Long = 20099) =
+    private fun manifest(apk: String = "https://github.com/$repo/releases/download/koremind-v0.2.0/koremind-android-0.2.0.apk", sha256: String = sha, code: Long = 20099) =
         """{"version":"0.2.0","versionCode":$code,"apk":"$apk","sha256":"$sha256"}"""
 
-    @Test fun `the manifest is read from the latest full release`() {
-        assertEquals("https://github.com/qarasky/koremind/releases/latest/download/koremind-android.json", updateManifestUrl(repo))
+    @Test fun `the manifest is read from the rolling koremind-android-latest release of the monorepo`() {
+        assertEquals("https://github.com/qarasky/kore/releases/download/koremind-android-latest/koremind-android.json", updateManifestUrl(repo))
     }
 
     @Test fun `a valid manifest parses`() {
-        assertEquals(UpdateInfo("0.2.0", 20099, "https://github.com/$repo/releases/download/v0.2.0/koremind-android-0.2.0.apk", sha), parseUpdateInfo(manifest(), repo))
+        assertEquals(UpdateInfo("0.2.0", 20099, "https://github.com/$repo/releases/download/koremind-v0.2.0/koremind-android-0.2.0.apk", sha), parseUpdateInfo(manifest(), repo))
         assertEquals(sha, parseUpdateInfo(manifest(sha256 = "A".repeat(64)), repo)!!.sha256)
     }
 
