@@ -115,14 +115,36 @@ export function createCore(config: Config, db: Db, keys: Keys, opts: AppOptions 
     }
   }
 
+  /** Fire-and-forget back-channel logout of one client for session `sid`, tracked for idle(). */
+  const notifyClient = (client: Client, sub: string, sid: string) => {
+    if (!client.backchannelLogoutUri) return;
+    const p: Promise<void> = deliver(client, sub, sid).catch((e) => log(`back-channel logout error: ${(e as Error).message}`)).finally(() => pending.delete(p));
+    pending.add(p);
+  };
   /** Fire-and-forget: notify every client that got tokens in session `sid`. */
   const notifyLogout = (sid: string, sub: string) => {
     const rows = db.prepare('SELECT client_id FROM session_clients WHERE sid = ?').all(sid) as { client_id: string }[];
     for (const { client_id } of rows) {
       const client = config.clients.get(client_id);
-      if (!client?.backchannelLogoutUri) continue;
-      const p: Promise<void> = deliver(client, sub, sid).catch((e) => log(`back-channel logout error: ${(e as Error).message}`)).finally(() => pending.delete(p));
-      pending.add(p);
+      if (client) notifyClient(client, sub, sid);
+    }
+  };
+  /**
+   * The user lost access to `apps`: sign them out of those apps only. Their refresh tokens for the
+   * apps' clients are revoked and each client that took part in one of their live sessions gets a
+   * back-channel logout. The Kore ID session and the other apps stay signed in.
+   */
+  const signOutOfApps = (userId: string, apps: string[]) => {
+    const ids = [...new Set(apps.flatMap((a) => clientsOfApp(a).map((c) => c.id)))];
+    if (!ids.length) return;
+    const ph = ids.map(() => '?').join(',');
+    db.prepare(`UPDATE refresh_tokens SET revoked = 1 WHERE user_id = ? AND revoked = 0 AND client_id IN (${ph})`).run(userId, ...ids);
+    const rows = db.prepare(`SELECT sc.sid, sc.client_id FROM session_clients sc JOIN sessions s ON s.sid = sc.sid
+      WHERE s.user_id = ? AND s.ended_at IS NULL AND sc.client_id IN (${ph})`).all(userId, ...ids) as { sid: string; client_id: string }[];
+    db.prepare(`DELETE FROM session_clients WHERE client_id IN (${ph}) AND sid IN (SELECT sid FROM sessions WHERE user_id = ?)`).run(...ids, userId);
+    for (const { sid, client_id } of rows) {
+      const client = config.clients.get(client_id);
+      if (client) notifyClient(client, userId, sid);
     }
   };
   /** Resolves once all in-flight back-channel deliveries settled (tests, graceful shutdown). */
@@ -150,7 +172,7 @@ export function createCore(config: Config, db: Db, keys: Keys, opts: AppOptions 
 
   return {
     getUser, getActiveUser, getUserByEmail, appKeys, clientsOfApp, appInfo, grantedApps, setApps, effectiveApps, hasAccess,
-    activeAdminCount, userJson, createSetupLink, audit, endSessions, endUserEverywhere, sessionEnded, idle, iso,
+    activeAdminCount, userJson, createSetupLink, audit, endSessions, endUserEverywhere, signOutOfApps, sessionEnded, idle, iso,
   };
 }
 export type Core = ReturnType<typeof createCore>;

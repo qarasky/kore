@@ -281,9 +281,15 @@ export function registerApi(app: Hono, d: ApiDeps) {
     }
     if (isLastActiveAdmin(u) && (role !== 'admin' || disabled)) return lastAdmin(c);
 
+    const appsBefore = core.effectiveApps(u);
     db.prepare('UPDATE users SET email = ?, name = ?, role = ?, disabled = ? WHERE id = ?').run(email, name, role, disabled ? 1 : 0, u.id);
     if (apps) core.setApps(u.id, apps);
     if (disabled && !u.disabled) core.endUserEverywhere(u.id);
+    else if (!disabled) {
+      // A removed grant or a demotion: sign them out of the apps they no longer have.
+      const appsAfter = core.effectiveApps(core.getUser(u.id)!);
+      core.signOutOfApps(u.id, appsBefore.filter((a) => !appsAfter.includes(a)));
+    }
     const m = meta(c);
     if ('disabled' in changes) core.audit({ actor, action: disabled ? 'user_disabled' : 'user_enabled', targetId: u.id, target: email, ...m });
     const { disabled: _d, ...rest } = changes;
