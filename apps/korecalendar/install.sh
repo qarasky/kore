@@ -25,7 +25,7 @@
 #   KORECAL_DIR=~/korecalendar     where the compose files and .env go (default: the
 #                                  checkout when run from one, else ~/korecalendar)
 #   KORECAL_DATA_DIR=<dir>-data    where the database lives (default: next to it)
-#   KORECAL_BIND=127.0.0.1|0.0.0.0 KORECAL_PORT=8080
+#   KORECAL_BIND=127.0.0.1|0.0.0.0 KORECAL_PORT=8081
 #   KORECAL_PUBLIC_URL=https://calendar.example.com
 #   KORECAL_OIDC_ISSUER=https://id.kore.example   Kore ID (the only sign-in)
 #   KORECAL_OIDC_CLIENT_SECRET=<secret>           the client secret Kore ID printed
@@ -125,7 +125,7 @@ step "Configuring KoreCalendar"
 ask KORECAL_DIR "Install directory (compose files and .env)" "$KORECAL_DIR"
 ask KORECAL_DATA_DIR "Data directory (the database)" "${KORECAL_DIR%/}-data"
 ask KORECAL_BIND "Listen on (127.0.0.1 = this machine only, 0.0.0.0 = LAN/Tailscale too)" "127.0.0.1"
-ask KORECAL_PORT "Port" "8080"
+ask KORECAL_PORT "Port" "8081"
 ask KORECAL_PUBLIC_URL "Public address (https://calendar.example.com; required for Kore ID)" ""
 ask KORECAL_OIDC_ISSUER "Kore ID issuer (its public address, e.g. https://id.kore.example)" ""
 if [ -n "$KORECAL_OIDC_ISSUER" ]; then

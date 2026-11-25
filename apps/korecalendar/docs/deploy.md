@@ -14,7 +14,7 @@ Three containers, started with Docker Compose from released images (`ghcr.io/qar
 
 | Container | What it is | Reachable from |
 | --- | --- | --- |
-| `caddy` | the only published service: routes `/api/*`, `/dav/*` and `/.well-known/caldav` to the API, everything else to the web app, and adds security headers | the host, on `KORECAL_BIND:KORECAL_PORT` (default `127.0.0.1:8080`) |
+| `caddy` | the only published service: routes `/api/*`, `/dav/*` and `/.well-known/caldav` to the API, everything else to the web app, and adds security headers | the host, on `KORECAL_BIND:KORECAL_PORT` (default `127.0.0.1:8081`) |
 | `web` | the Next.js app (server-rendered), calls the API over the internal network | only `caddy` |
 | `api` | the Go API (REST and CalDAV) with SQLite | `caddy` and `web` over the internal network; it also has an outbound-capable network so it can deliver browser push notifications (it refuses private addresses) |
 
@@ -73,7 +73,7 @@ Non-interactive (scripts, provisioning): set the answers as environment variable
 A directory you cannot create (for example under `/srv` or `/opt`) is created with `sudo` and handed to you:
 
 ```sh
-KORECAL_YES=1 KORECAL_DATA_DIR=/srv/korecalendar KORECAL_BIND=127.0.0.1 KORECAL_PORT=8080 \
+KORECAL_YES=1 KORECAL_DATA_DIR=/srv/korecalendar KORECAL_BIND=127.0.0.1 KORECAL_PORT=8081 \
   KORECAL_PUBLIC_URL=https://calendar.example.com KORECAL_OIDC_ISSUER=https://id.kore.example \
   KORECAL_OIDC_CLIENT_SECRET=... KORECAL_OIDC_OWNER_EMAIL=you@example.com ./install.sh
 ```
@@ -104,7 +104,7 @@ docker compose up -d --wait
 
 # 4. Check.
 docker compose ps                                   # all three "healthy"
-curl -s http://127.0.0.1:8080/api/healthz           # {"ok":true}
+curl -s http://127.0.0.1:8081/api/healthz           # {"ok":true}
 ```
 
 ### Build from source
@@ -126,11 +126,11 @@ unless you pass `--build-arg VERSION=...`.
 | --- | --- | --- |
 | `KORECAL_DATA_DIR` | (required) | host directory with the database; must exist and contain the marker (`init` writes it) |
 | `KORECAL_BIND` | `127.0.0.1` | host address Caddy is published on |
-| `KORECAL_PORT` | `8080` | host port |
+| `KORECAL_PORT` | `8081` | host port (8081 so it can run next to Kore Drive, which uses 8080) |
 | `KORECAL_UID`, `KORECAL_GID` | `1000` | user and group the API runs as; they must own `KORECAL_DATA_DIR` |
 | `KORECAL_VERSION` | `latest` | image tag for both the api and the web image: a release number (`0.1.0`, **recommended**: pin it), `latest` (the newest stable release) or `edge` (the tip of `main`). See [releasing.md](releasing.md#image-tags) |
 | `KORECAL_PUBLIC_URL` | empty | your public `https://` address; required for Kore ID (it builds the redirect URI) and sent to push services as the operator contact for browser notifications |
-| `KORECAL_SUBNET` | `172.31.255.0/24` | subnet of Caddy's network, also the range whose forwarded headers are trusted (see below); change it only if it collides with a network you already use |
+| `KORECAL_SUBNET` | `172.31.253.0/24` | subnet of Caddy's network, also the range whose forwarded headers are trusted (see below); change it only if it collides with a network you already use |
 
 | `KORECAL_OIDC_ISSUER` | empty | the [Kore ID](#sign-in-with-kore-id) provider's public address, e.g. `https://id.kore.example`; the only sign-in method (with no issuer nobody can sign in) |
 | `KORECAL_OIDC_CLIENT_ID` | `korecalendar` | the client id registered in Kore ID |
@@ -236,7 +236,7 @@ Run `cloudflared` on the host and point a hostname at the loopback port (example
 ```yaml
 ingress:
   - hostname: calendar.example.com
-    service: http://127.0.0.1:8080
+    service: http://127.0.0.1:8081
   - service: http_status:404
 ```
 
@@ -249,7 +249,7 @@ Publish the stack on loopback only and let a host-level proxy terminate TLS. Exa
 ```caddyfile
 # /etc/caddy/Caddyfile on the host (Caddy gets the certificate by itself)
 calendar.example.com {
-	reverse_proxy 127.0.0.1:8080 {
+	reverse_proxy 127.0.0.1:8081 {
 		# See "Forwarded headers" below: this is how the API learns the real client address.
 		header_up CF-Connecting-IP {remote_host}
 	}
@@ -260,7 +260,7 @@ calendar.example.com {
 # nginx, inside a server { listen 443 ssl; server_name calendar.example.com; ... } block
 client_max_body_size 6m;                     # .ics imports and CalDAV PUTs are capped at 5 MB
 location / {
-    proxy_pass http://127.0.0.1:8080;
+    proxy_pass http://127.0.0.1:8081;
     proxy_http_version 1.1;
     proxy_set_header Host              $host;
     proxy_set_header X-Forwarded-For   $remote_addr;
@@ -285,7 +285,7 @@ network, `KORECAL_SUBNET`. Anyone else's forwarded headers are overwritten with 
   `CF-Connecting-IP` is believed. Cloudflare Tunnel sets and overwrites it for you. A Tailscale-only setup is fine without it (the people behind it are your own devices and share one bucket).
 - A proxy on **another** machine is not trusted: its clients all appear as the proxy's address, and `X-Forwarded-Proto: https` is ignored (so cookies are not marked `Secure`).
   Put the proxy on the same host, or terminate TLS there and keep the hop local.
-- If `172.31.255.0/24` collides with a network you use, change `KORECAL_SUBNET` in `.env` before the first start.
+- If `172.31.253.0/24` collides with a network you use, change `KORECAL_SUBNET` in `.env` before the first start.
 
 ## Start on boot
 
@@ -313,6 +313,11 @@ sudo systemctl daemon-reload
 - **No local passwords.** Sign-in, password changes and resets all live in Kore ID. Keep your backups and a second administrator account for lockout recovery.
 
 ## Updating
+
+> **Default port and subnet changed (2026-11).** New installs listen on `127.0.0.1:8081` and use the subnet
+> `172.31.253.0/24`, so KoreCalendar can run next to Kore Drive (8080, `172.31.255.0/24`). An existing install keeps
+> its port (the installer wrote `KORECAL_PORT` into `.env`). Its Docker network moves to the new subnet on the next
+> `docker compose up -d` unless `.env` sets `KORECAL_SUBNET`; compose recreates the network on its own.
 
 Run these in the installation directory. **Take a backup first** ([below](#backups)): migrations are applied automatically when the API starts and only go forward.
 Read the [release notes](https://github.com/qarasky/kore/releases) first; while the version is `0.x`, a minor release may change things.
@@ -379,7 +384,7 @@ Separately from backups, a deleted event or calendar can be brought back for 30 
 ```sh
 docker compose ps                    # state and health of the three containers
 docker compose logs -f api           # the API's log (also: web, caddy)
-curl -s http://127.0.0.1:8080/api/healthz
+curl -s http://127.0.0.1:8081/api/healthz
 ```
 
 Logs are rotated by Docker (10 MB × 3 files per container).
@@ -388,7 +393,7 @@ Logs are rotated by Docker (10 MB × 3 files per container).
 | --- | --- |
 | `api` keeps restarting, log says `volume marker .korecal-volume missing` | the data directory is empty, wrong, or not mounted yet: mount the disk, or run `docker compose run --rm --no-deps api korecalendar init` once on a new directory |
 | `permission denied` on the database | the data directory is not owned by `KORECAL_UID:KORECAL_GID`: `sudo chown -R UID:GID /srv/korecalendar` |
-| `Bind for 127.0.0.1:8080 failed: port is already allocated` | another service uses the port: change `KORECAL_PORT` and `docker compose up -d` |
+| `Bind for 127.0.0.1:8081 failed: port is already allocated` | another service uses the port: change `KORECAL_PORT` and `docker compose up -d` |
 | `Pool overlaps with other one on this address space` | `KORECAL_SUBNET` collides with an existing Docker network: pick another range |
 | The web app says "Can't reach the server" | the API is down or unhealthy: `docker compose ps`, then `logs api`; your data is safe |
 | Settings says browser notifications need HTTPS | open the app from an `https://` address (see HTTPS above) |

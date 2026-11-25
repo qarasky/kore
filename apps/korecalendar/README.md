@@ -39,13 +39,13 @@ Run the installer, configure Kore ID in `.env` (`KORECAL_OIDC_ISSUER`, `KORECAL_
 curl -fsSL https://raw.githubusercontent.com/qarasky/kore/main/apps/korecalendar/install.sh | bash
 ```
 
-It installs the newest release: it asks where to put things and which address and port to listen on (default `127.0.0.1:8080`), pulls the matching images
+It installs the newest release: it asks where to put things and which address and port to listen on (default `127.0.0.1:8081`), pulls the matching images
 (`ghcr.io/qarasky/korecalendar-api` and `-web`, linux amd64 and arm64, pinned to the exact version), initializes the data directory and starts everything.
 Then, for an AI agent or a script, create an access token under Settings; see the [API guide](docs/api.md#get-a-token).
 To run your own changes instead, clone the repository and run `./install.sh` there: it builds from the checkout.
 
 **[docs/deploy.md](docs/deploy.md)** covers everything around that: the manual install, `.env` options, reaching it over HTTPS (Tailscale, Cloudflare Tunnel, your own reverse
-proxy), starting on boot, updating, backups and restore, troubleshooting, and the Docker/firewall caveat. The calendar listens on `127.0.0.1:8080` by default
+proxy), starting on boot, updating, backups and restore, troubleshooting, and the Docker/firewall caveat. The calendar listens on `127.0.0.1:8081` by default
 (`KORECAL_BIND` / `KORECAL_PORT`); Caddy sends `/api/*`, `/dav/*` and `/.well-known/caldav` to the API and everything else to the web app.
 
 ### HTTPS and notifications

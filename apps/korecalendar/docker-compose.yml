@@ -14,7 +14,7 @@ services:
     image: caddy:2.11-alpine
     restart: unless-stopped
     ports:
-      - "${KORECAL_BIND:-127.0.0.1}:${KORECAL_PORT:-8080}:80"
+      - "${KORECAL_BIND:-127.0.0.1}:${KORECAL_PORT:-8081}:80"
     volumes:
       - type: bind
         source: ./Caddyfile
@@ -24,7 +24,7 @@ services:
           create_host_path: false
     environment:
       # Trusted proxy range in the Caddyfile: must match networks.edge.
-      KORECAL_SUBNET: ${KORECAL_SUBNET:-172.31.255.0/24}
+      KORECAL_SUBNET: ${KORECAL_SUBNET:-172.31.253.0/24}
     tmpfs:
       - /data
       - /config
@@ -127,7 +127,7 @@ networks:
   edge:
     ipam:
       config:
-        - subnet: ${KORECAL_SUBNET:-172.31.255.0/24}
+        - subnet: ${KORECAL_SUBNET:-172.31.253.0/24}
   # Caddy, web and api talk here; nothing on it can reach the internet.
   internal:
     internal: true
