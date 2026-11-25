@@ -78,3 +78,19 @@ test("memory tools reach the memory store with the session's user and chat", asy
   const bad = (await mcp.handle(rpc("tools/call", { name: "update_memory", arguments: { id: "a1" }, _meta: meta }))).body as any;
   expect(bad.result.isError).toBe(true);
 });
+
+test("a tools/call without _meta uses the header session (Claude sends the chat that way)", async () => {
+  const { mcp, calls } = setup();
+  const r = await mcp.handle(rpc("tools/call", { name: "save_note", arguments: { title: "Milk", body: "2 l" } }), sess);
+  expect((r.body as any).result.content[0].text).toBe("Saved");
+  expect(calls).toEqual([["save", { userId: "u1", chatId: "c1" }, { title: "Milk", body: "2 l" }]]);
+  const none = await mcp.handle(rpc("tools/call", { name: "save_note", arguments: { title: "a", body: "b" } }));
+  expect((none.body as any).result.isError).toBe(true);
+});
+
+test("_meta wins over the header", async () => {
+  const { mcp, calls } = setup();
+  const r = await mcp.handle(rpc("tools/call", { name: "read_notes", arguments: {}, _meta: { "ai.opencode/sessionID": "ses_unknown" } }), sess);
+  expect((r.body as any).result.isError).toBe(true);
+  expect(calls).toEqual([]);
+});

@@ -15,6 +15,8 @@ type NoteTools = {
 };
 
 const SESSION_KEY = "ai.opencode/sessionID";
+/** Claude Code can't put the session in `_meta`, so KoreMind gives each `claude -p` run this header with its session id. */
+export const MCP_SESSION_HEADER = "x-koremind-session";
 const PROTOCOL = "2025-06-18";
 
 const TOOLS = [
@@ -86,7 +88,8 @@ export function createMcp(o: { resolveSession(sessionId: string): NoteCtx | null
   const toolError = (id: unknown, text: string) => ok(id, { content: [{ type: "text", text }], isError: true });
 
   return {
-    async handle(raw: unknown): Promise<{ status: number; body?: unknown }> {
+    /** `headerSession` is the x-koremind-session header (Claude); OpenCode's `_meta` session wins when both are there. */
+    async handle(raw: unknown, headerSession?: string): Promise<{ status: number; body?: unknown }> {
       const parsed = Req.safeParse(raw);
       if (!parsed.success) return bad(null, -32600, "Invalid request");
       const { id, method, params } = parsed.data;
@@ -98,8 +101,9 @@ export function createMcp(o: { resolveSession(sessionId: string): NoteCtx | null
 
       const name = String(params?.name ?? "");
       if (!(name in Args)) return bad(id, -32602, `Unknown tool: ${name}`);
-      const sessionId = (params?._meta as Record<string, unknown> | undefined)?.[SESSION_KEY];
-      const ctx = typeof sessionId === "string" ? o.resolveSession(sessionId) : null;
+      const metaSession = (params?._meta as Record<string, unknown> | undefined)?.[SESSION_KEY];
+      const sessionId = typeof metaSession === "string" ? metaSession : headerSession;
+      const ctx = sessionId ? o.resolveSession(sessionId) : null;
       if (!ctx) return toolError(id, "These tools are only available inside a chat.");
       const args = Args[name as keyof typeof Args].safeParse(params?.arguments ?? {});
       if (!args.success) return toolError(id, `Invalid arguments: ${args.error.issues[0]?.message ?? "check the tool's input"}`);

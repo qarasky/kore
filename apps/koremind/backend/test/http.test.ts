@@ -265,3 +265,20 @@ test("variants: edit over HTTP, then switch back with /branch", async () => {
   expect(back.messages.map((m) => m.text)).toEqual(["a", "re: a"]);
   expect((await call("POST", `/chats/${chat.id}/branch`, { token, body: { messageId: "nope" } })).status).toBe(404);
 });
+
+test("/mcp passes x-koremind-session through", async () => {
+  const { services, signIn } = setup();
+  const app = createApp(services, { trustProxy: true });
+  signIn();
+  const me = services.db.query("select id from users limit 1").get() as { id: string };
+  const chat = services.chats.create(me.id);
+  services.db.run("update chats set engine_session_id=? where id=?", ["claude-sess-1", chat.id]);
+  const res = await app.fetch(new Request("http://koremind.test/mcp", {
+    method: "POST",
+    headers: { authorization: `Bearer ${services.mcpSecret}`, "content-type": "application/json", "x-koremind-session": "claude-sess-1" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "save_note", arguments: { title: "Milk", body: "2 litres" } } }),
+  }), "127.0.0.1");
+  expect(res.status).toBe(200);
+  expect(((await res.json()) as any).result.isError).toBeUndefined();
+  expect((await services.notes.read({ userId: me.id, chatId: chat.id }, {})).text).toContain("2 litres");
+});

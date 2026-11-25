@@ -1,5 +1,6 @@
 import { ApprovalAnswer, PairRedeem, Settings, SsoExchange, SsoStart, SendMessageRequest, type PairStart, type StreamEvent } from "@koremind/shared";
 import { z } from "zod";
+import { MCP_SESSION_HEADER } from "./mcp";
 import { AuthError } from "./auth";
 import { BACKCHANNEL_LOGOUT_PATH } from "./config";
 import { OidcError } from "./oidc";
@@ -108,14 +109,14 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
 
     // Kore ID is the only human sign-in. There is deliberately no /auth/login or /auth/register.
 
-    // The local OpenCode engine reaches the notes tools here. Loopback only, and it must know the per-run secret.
+    // The local engines (OpenCode, Claude) reach the notes tools here. Loopback only, and it must know the per-run secret.
     if (path === "/mcp") {
       if (!isLoopback(socketIp)) return fail(403, "forbidden", "Local only");
       if (req.headers.get("authorization") !== `Bearer ${s.mcpSecret}`) return fail(401, "unauthorized", "Bad secret");
       if (m !== "POST") return new Response(null, { status: m === "DELETE" ? 200 : 405 });
       let raw: unknown;
       try { raw = await req.json(); } catch { return json(400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }); }
-      const r = await s.mcp.handle(raw);
+      const r = await s.mcp.handle(raw, req.headers.get(MCP_SESSION_HEADER) ?? undefined);
       return r.body === undefined ? new Response(null, { status: r.status }) : json(r.status, r.body);
     }
 
