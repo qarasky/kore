@@ -17,10 +17,11 @@ const devOrigins = [
     ...(process.env.KOREMONITOR_DEV_ORIGINS ?? process.env.FLATLINE_DEV_ORIGINS ?? "").split(",").filter(Boolean),
 ];
 
-// The repository root: `@flatline/shared` lives in packages/, outside this
-// app, and Turbopack resolves nothing outside its root. The standalone
-// output traces from the same root (so its server is at apps/web/server.js).
-const repoRoot = path.resolve(__dirname, "../..");
+// The Kore monorepo root: `@flatline/shared` lives in packages/, outside this
+// app, next and kore-ui are hoisted to the monorepo's node_modules, and
+// Turbopack resolves nothing outside its root. The standalone output traces
+// from the same root (so its server is at apps/kore-monitor/apps/web/server.js).
+const repoRoot = path.resolve(__dirname, "../../../..");
 
 // The build's id, baked into the client bundle; `/build` answers the running
 // server's, so an open tab notices a deploy (lib/build-id.ts). The image sets
