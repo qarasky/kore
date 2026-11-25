@@ -368,14 +368,29 @@ mod tests {
             assert!(!svg.contains("<script"), "{evil}");
             assert!(!svg.contains("onload"), "{evil}");
             assert!(!svg.contains("javascript"), "{evil}");
-            assert!(svg.contains("fill=\"#999\""), "message colour falls back: {evil}");
-            assert!(svg.contains("fill=\"#555\""), "label colour falls back: {evil}");
+            assert!(
+                svg.contains("fill=\"#999\""),
+                "message colour falls back: {evil}"
+            );
+            assert!(
+                svg.contains("fill=\"#555\""),
+                "label colour falls back: {evil}"
+            );
         }
     }
 
     #[test]
     fn real_colours_pass_through() {
-        for ok in ["#4c1", "#66C20A", "#66c20a80", "blue", "brightgreen", "rgb(1, 2, 3)", "hsl(90, 90%, 40%)", "rgba(0,0,0,.5)"] {
+        for ok in [
+            "#4c1",
+            "#66C20A",
+            "#66c20a80",
+            "blue",
+            "brightgreen",
+            "rgb(1, 2, 3)",
+            "hsl(90, 90%, 40%)",
+            "rgba(0,0,0,.5)",
+        ] {
             let svg = render(&Badge {
                 label: "a",
                 message: "b",

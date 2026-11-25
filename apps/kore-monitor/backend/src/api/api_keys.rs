@@ -123,11 +123,7 @@ pub async fn create(
         .get("active")
         .and_then(Value::as_bool)
         .unwrap_or(true);
-    let expires = payload
-        .get("expires")
-        .and_then(Value::as_str)
-        .filter(|expires| !expires.is_empty())
-        .map(str::to_string);
+    let expires = parse_expires(payload)?;
 
     let (maker_id, maker_name) = crate::accounts::maker(&state.pool, &authed.principal)
         .await?
@@ -225,4 +221,47 @@ pub async fn delete(
 fn internal(error: sqlx::Error) -> ApiError {
     tracing::error!("api-keys api: {error}");
     ApiError::server()
+}
+
+/// The optional `expires` of a new key: absent or empty means never. A value
+/// that is not a date is refused, because a key the server cannot read the
+/// expiry of must not end up valid forever.
+fn parse_expires(payload: &serde_json::Map<String, Value>) -> Result<Option<String>, ApiError> {
+    match payload
+        .get("expires")
+        .and_then(Value::as_str)
+        .map(str::trim)
+    {
+        None | Some("") => Ok(None),
+        Some(text) if metric_time(text).is_some() => Ok(Some(text.to_string())),
+        Some(_) => Err(ApiError::bad(
+            "`expires` must be a date and time, e.g. 2027-01-01T00:00:00Z.",
+        )),
+    }
+}
+
+#[cfg(test)]
+mod expiry_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn an_unreadable_expiry_is_refused_on_create() {
+        assert!(parse_expires(json!({"expires": "next tuesday"}).as_object().unwrap()).is_err());
+        assert_eq!(parse_expires(json!({}).as_object().unwrap()).unwrap(), None);
+        assert_eq!(
+            parse_expires(json!({"expires": ""}).as_object().unwrap()).unwrap(),
+            None
+        );
+        assert_eq!(
+            parse_expires(
+                json!({"expires": "2027-01-01T00:00:00Z"})
+                    .as_object()
+                    .unwrap()
+            )
+            .unwrap()
+            .as_deref(),
+            Some("2027-01-01T00:00:00Z")
+        );
+    }
 }

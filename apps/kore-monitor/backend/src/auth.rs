@@ -314,13 +314,13 @@ pub(crate) fn token_usable(active: i64, expires: Option<&str>) -> bool {
     if active == 0 {
         return false;
     }
-    if let Some(expires) = expires
-        && let Some(at) = crate::metrics::metric_time(expires)
-        && at < chrono::Utc::now().timestamp_millis()
-    {
-        return false;
+    match expires {
+        None => true,
+        // An expiry the server cannot read counts as expired: failing open would
+        // turn a typo into a key that never expires.
+        Some(expires) => crate::metrics::metric_time(expires)
+            .is_some_and(|at| at >= chrono::Utc::now().timestamp_millis()),
     }
-    true
 }
 
 /// Verify a monitor push token.
@@ -955,6 +955,16 @@ pub fn unauthorized() -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_token_with_an_unreadable_expiry_is_not_usable() {
+        assert!(!token_usable(1, Some("not a date")));
+        assert!(!token_usable(1, Some("2026-13-45")));
+        assert!(token_usable(1, None));
+        assert!(token_usable(1, Some("2999-01-01T00:00:00Z")));
+        assert!(!token_usable(1, Some("2001-01-01T00:00:00Z")));
+        assert!(!token_usable(0, None));
+    }
 
     async fn test_pool() -> SqlitePool {
         let dir = tempfile::tempdir().unwrap();
