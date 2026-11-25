@@ -31,6 +31,24 @@ on:
       - .github/workflows/kore-monitor-images.yml
   push:
     branches: [main]
+    # Path filters are not evaluated for tag pushes, so a release tag always runs.
+    paths:
+      - apps/kore-monitor/backend/**
+      - apps/kore-monitor/apps/web/**
+      - apps/kore-monitor/packages/shared/**
+      - packages/kore-ui/**
+      - package.json
+      - bun.lock
+      - bunfig.toml
+      - turbo.json
+      - apps/kore-monitor/superboard/**
+      - apps/kore-monitor/backup-agent/**
+      - apps/kore-monitor/docker/**
+      - apps/kore-monitor/docs/provisioning.md
+      - apps/kore-monitor/agent-install.sh
+      - apps/kore-monitor/.dockerignore
+      - .dockerignore
+      - .github/workflows/kore-monitor-images.yml
     tags: ["kore-monitor-v[0-9]+.[0-9]+.[0-9]+*"]
 
 permissions:

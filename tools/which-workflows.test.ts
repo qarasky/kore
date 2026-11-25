@@ -28,3 +28,15 @@ test("globs follow GitHub's rules: * stays within a path segment, ** crosses the
   expect(globToRegExp("apps/x/**").test("apps/x/a/b/c.ts")).toBe(true);
   expect(globToRegExp("apps/x/**").test("apps/xy/c.ts")).toBe(false);
 });
+
+test("a push to main runs only the image builds of the app that changed", () => {
+  expect(workflowsFor(["apps/kore-id/src/server.ts"], undefined, "push")).toEqual(["kore-id-images"]);
+  expect(workflowsFor(["apps/korecalendar/api/main.go"], undefined, "push")).toEqual(["korecalendar-images"]);
+});
+
+test("a kore-ui change pushed to main rebuilds every web image and re-checks kore-ui", () => {
+  const got = workflowsFor(["packages/kore-ui/theme.css"], undefined, "push");
+  for (const wf of ["kore-drive-images", "korecalendar-images", "kore-id-images", "kore-monitor-images", "kore-monitor-ci", "kore-ui-ci"]) {
+    expect(got).toContain(wf);
+  }
+});

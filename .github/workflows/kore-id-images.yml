@@ -11,6 +11,7 @@ on:
       - apps/kore-id/src/**
       - apps/kore-id/web/**
       - apps/kore-id/scripts/**
+      - apps/kore-id/sdk/**
       - apps/kore-id/package.json
       - apps/kore-id/Dockerfile
       - packages/kore-ui/**
@@ -22,6 +23,21 @@ on:
       - .github/workflows/kore-id-images.yml
   push:
     branches: [main]
+    # Path filters are not evaluated for tag pushes, so a release tag always runs.
+    paths:
+      - apps/kore-id/src/**
+      - apps/kore-id/web/**
+      - apps/kore-id/scripts/**
+      - apps/kore-id/sdk/**
+      - apps/kore-id/package.json
+      - apps/kore-id/Dockerfile
+      - packages/kore-ui/**
+      - package.json
+      - bun.lock
+      - bunfig.toml
+      - turbo.json
+      - .dockerignore
+      - .github/workflows/kore-id-images.yml
     tags: ["kore-id-v[0-9]+.[0-9]+.[0-9]+*"]
 
 permissions:
