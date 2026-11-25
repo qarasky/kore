@@ -55,16 +55,17 @@ For OpenCode the version must start with `v2`. KoreMind needs OpenCode **v2**; t
 
 ```bash
 # 3.4 Get the code and build the web UI
-sudo -u koremind git clone git@github.com:qarasky/koremind.git /opt/koremind      # or your remote
-sudo -iu koremind bash -c 'cd /opt/koremind && bun install && bun run build'
+# KoreMind is apps/koremind in the Kore monorepo; the service runs from /opt/kore/apps/koremind.
+sudo -u koremind git clone https://github.com/qarasky/kore.git /opt/kore          # or your remote
+sudo -iu koremind bash -c 'cd /opt/kore/apps/koremind && bun install && bun run build:web'
 
 # 3.5 Configuration
-sudo cp /opt/koremind/deploy/koremind.env.example /etc/koremind/koremind.env
+sudo cp /opt/kore/apps/koremind/deploy/koremind.env.example /etc/koremind/koremind.env
 sudo chown root:koremind /etc/koremind/koremind.env && sudo chmod 640 /etc/koremind/koremind.env
 sudoedit /etc/koremind/koremind.env              # KOREMIND_PROVIDERS, KOREMIND_CLAUDE_BIN, the Kore ID settings
 
 # 3.6 The service
-sudo cp /opt/koremind/deploy/koremind.service /etc/systemd/system/koremind.service
+sudo cp /opt/kore/apps/koremind/deploy/koremind.service /etc/systemd/system/koremind.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now koremind
 ```

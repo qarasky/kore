@@ -1,5 +1,5 @@
 # Builds the signed release APK. Called by release.yml for a v* tag; it is not meant to run on its own.
-name: Android release build
+name: koremind android
 
 on:
   workflow_call:
@@ -15,6 +15,11 @@ on:
 
 permissions:
   contents: read
+
+# Steps run from the app's directory (scripts/, android/, dist/).
+defaults:
+  run:
+    working-directory: apps/koremind
 
 jobs:
   build:
@@ -49,10 +54,10 @@ jobs:
           echo "$KS" | base64 --decode > "$RUNNER_TEMP/release.jks"
           echo "KOREMIND_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
       - name: Unit tests
-        working-directory: android
+        working-directory: apps/koremind/android
         run: ./gradlew --no-daemon testDebugUnitTest
       - name: Build the signed release APK
-        working-directory: android
+        working-directory: apps/koremind/android
         env:
           KOREMIND_KEYSTORE_PASSWORD: ${{ secrets.KOREMIND_KEYSTORE_PASSWORD }}
           KOREMIND_KEY_ALIAS: ${{ secrets.KOREMIND_KEY_ALIAS }}
@@ -86,7 +91,7 @@ jobs:
           # The app updates itself from this file: it reads releases/latest/download/koremind-android.json
           # (full releases only), checks versionCode, downloads the APK and verifies its SHA-256.
           jq -n --arg version "$version" --argjson versionCode "$code" \
-            --arg apk "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${version}/${out}" \
+            --arg apk "https://github.com/${GITHUB_REPOSITORY}/releases/download/koremind-v${version}/${out}" \
             --arg sha256 "$(cut -d' ' -f1 "dist/$out.sha256")" \
             '{version: $version, versionCode: $versionCode, apk: $apk, sha256: $sha256}' > dist/koremind-android.json
           cat dist/koremind-android.json
@@ -94,5 +99,5 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: android-release
-          path: dist/*
+          path: apps/koremind/dist/*
           if-no-files-found: error

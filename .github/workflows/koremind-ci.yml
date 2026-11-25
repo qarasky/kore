@@ -1,12 +1,31 @@
-name: CI
+name: koremind ci
 
 on:
   pull_request:
+    paths:
+      - apps/koremind/**
+      - packages/kore-ui/**
+      - package.json
+      - bun.lock
+      - bunfig.toml
+      - turbo.json
+      - .dockerignore
+      - .github/workflows/koremind-*.yml
   push:
     branches: [main]
+    paths:
+      - apps/koremind/**
+      - packages/kore-ui/**
+      - package.json
+      - bun.lock
+      - bunfig.toml
+      - turbo.json
+      - .dockerignore
+      - .github/workflows/koremind-*.yml
+  workflow_call:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: koremind-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -21,14 +40,17 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
       - run: bun install --frozen-lockfile
       - name: Tests (backend, shared, web, scripts)
+        working-directory: apps/koremind
         run: bun test backend shared web scripts
-      - name: Typecheck web
-        run: bunx --bun tsc --noEmit -p web
-      - name: Build web
-        run: bun run build
+      - name: Typecheck and build web
+        run: bunx turbo run typecheck build --filter=@koremind/web
       - name: Versions agree
+        working-directory: apps/koremind
         run: bun scripts/version.ts verify "$(bun scripts/version.ts show)"
 
   android:
@@ -43,18 +65,18 @@ jobs:
       - uses: android-actions/setup-android@v4
       - uses: gradle/actions/setup-gradle@v6
       - name: Unit tests and debug APK
-        working-directory: android
+        working-directory: apps/koremind/android
         run: ./gradlew --no-daemon testDebugUnitTest assembleDebug
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: android-test-reports
-          path: android/app/build/reports/tests
+          path: apps/koremind/android/app/build/reports/tests
           if-no-files-found: ignore
       - uses: actions/upload-artifact@v7
         with:
           name: koremind-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: apps/koremind/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
 
   docker:
@@ -72,7 +94,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: ${{ matrix.image }}/Dockerfile
+          file: apps/koremind/${{ matrix.image }}/Dockerfile
           push: false
-          cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          cache-from: type=gha,scope=koremind-${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=koremind-${{ matrix.image }}

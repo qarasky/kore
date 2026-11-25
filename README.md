@@ -9,6 +9,7 @@ Each app runs on its own with Docker; Kore ID signs you in to all of them.
 | **KoreCalendar** | Personal calendar whose API is the product, with an Android app | [`apps/korecalendar`](apps/korecalendar) | [docs/deploy.md](apps/korecalendar/docs/deploy.md) |
 | **Kore ID** | Single sign-on (OpenID Connect) for the Kore apps | [`apps/kore-id`](apps/kore-id) | [README](apps/kore-id/README.md) |
 | **KoreMonitor** | Uptime monitoring, live server telemetry and Telegram alerts | [`apps/kore-monitor`](apps/kore-monitor) | [docs/deployment.md](apps/kore-monitor/docs/deployment.md) |
+| **KoreMind** | A personal assistant that feels like the ChatGPT app, with web and Android apps | [`apps/koremind`](apps/koremind) | [Docker](apps/koremind/docs/deployment-docker.md) |
 | **kore-ui** | The design system every web UI is built from | [`packages/kore-ui`](packages/kore-ui) | [DESIGN.md](packages/kore-ui/DESIGN.md) |
 
 Images are published to `ghcr.io/qarasky/<image>`; releases are tagged `<app>-vX.Y.Z` on the

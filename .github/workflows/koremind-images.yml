@@ -3,11 +3,20 @@
 #   - called by release.yml for a v* tag -> :X.Y.Z, :X.Y, :X and :latest (pre-releases only get :X.Y.Z-rc.N)
 # Each architecture is built on a native runner (QEMU is slow and unreliable for Bun), then the per-arch
 # images are stitched into one multi-arch tag.
-name: Docker images
+name: koremind images
 
 on:
   push:
     branches: [main]
+    paths:
+      - apps/koremind/**
+      - packages/kore-ui/**
+      - package.json
+      - bun.lock
+      - bunfig.toml
+      - turbo.json
+      - .dockerignore
+      - .github/workflows/koremind-*.yml
   workflow_call:
 
 permissions:
@@ -52,12 +61,12 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: ${{ matrix.image }}/Dockerfile
+          file: apps/koremind/${{ matrix.image }}/Dockerfile
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=gha,scope=${{ matrix.image }}-${{ matrix.arch }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ matrix.arch }}
+          cache-from: type=gha,scope=koremind-${{ matrix.image }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=koremind-${{ matrix.image }}-${{ matrix.arch }}
       - name: Export digest
         run: |
           mkdir -p "${RUNNER_TEMP}/digests"
@@ -94,16 +103,18 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Image name
-        run: echo "IMAGE=${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/koremind-${{ matrix.image }}" >> "$GITHUB_ENV"
+      - name: Image name and version
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then echo "VERSION=${GITHUB_REF_NAME#koremind-v}" >> "$GITHUB_ENV"; fi
+          echo "IMAGE=${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/koremind-${{ matrix.image }}" >> "$GITHUB_ENV"
       - id: meta
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
+            type=semver,pattern={{version}},value=${{ env.VERSION }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.VERSION }}
+            type=semver,pattern={{major}},value=${{ env.VERSION }}
             type=edge,branch=main
             type=sha,prefix=sha-
           # `latest` is only added for non-pre-release version tags.

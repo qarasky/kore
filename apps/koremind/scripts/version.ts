@@ -3,7 +3,7 @@
 //
 //   bun scripts/version.ts show
 //   bun scripts/version.ts set 0.2.0          (or 0.2.0-rc.1, 0.2.0-beta.3)
-//   bun scripts/version.ts verify v0.2.0      (fails unless every file agrees with the tag)
+//   bun scripts/version.ts verify koremind-v0.2.0   (fails unless every file agrees with the tag)
 //   bun scripts/version.ts meta               (key=value lines for CI: version, prerelease, android_version_code)
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -11,9 +11,11 @@ import { join } from "node:path";
 export type Semver = { major: number; minor: number; patch: number; pre: { label: "beta" | "rc"; n: number } | null };
 
 const RE = /^(\d+)\.(\d+)\.(\d+)(?:-(beta|rc)\.(\d+))?$/;
+// Tags in the Kore monorepo are koremind-vX.Y.Z; plain vX.Y.Z is still read (tags from before the merge).
+const TAG_PREFIX = /^(?:koremind-)?v/;
 
 export function parseSemver(input: string): Semver {
-  const m = RE.exec(input.replace(/^v/, ""));
+  const m = RE.exec(input.replace(TAG_PREFIX, ""));
   if (!m) throw new Error(`"${input}" is not a version like 1.2.3, 1.2.3-rc.1 or 1.2.3-beta.2`);
   const [major, minor, patch] = [Number(m[1]), Number(m[2]), Number(m[3])];
   if (minor > 99 || patch > 99 || major > 2000) throw new Error("minor and patch must be 0-99 and major at most 2000 (Android versionCode limit)");
@@ -56,7 +58,7 @@ export function setVersion(root: string, v: string): void {
 
 /** Returns a list of problems; empty means every file carries exactly `expected`. */
 export function verifyVersion(root: string, expected: string): string[] {
-  const want = expected.replace(/^v/, "");
+  const want = expected.replace(TAG_PREFIX, "");
   const problems: string[] = [];
   try { parseSemver(want); } catch (e) { return [(e as Error).message]; }
   for (const p of PACKAGES) {
@@ -80,11 +82,11 @@ if (import.meta.main) {
   const [cmd, arg] = process.argv.slice(2);
   try {
     if (cmd === "show") console.log(String(readJson(join(root, "package.json")).version));
-    else if (cmd === "set" && arg) { setVersion(root, arg.replace(/^v/, "")); console.log(`Version set to ${arg.replace(/^v/, "")}. Commit it, then tag v${arg.replace(/^v/, "")}.`); }
+    else if (cmd === "set" && arg) { const v = arg.replace(TAG_PREFIX, ""); setVersion(root, v); console.log(`Version set to ${v}. Commit it, then tag koremind-v${v}.`); }
     else if (cmd === "verify" && arg) {
       const problems = verifyVersion(root, arg);
       if (problems.length) { console.error(problems.join("\n")); process.exit(1); }
-      console.log(`All files are at ${arg.replace(/^v/, "")}.`);
+      console.log(`All files are at ${arg.replace(TAG_PREFIX, "")}.`);
     } else if (cmd === "meta") for (const [k, v] of Object.entries(meta(root))) console.log(`${k}=${v}`);
     else { console.error("usage: version.ts show | set <version> | verify <tag> | meta"); process.exit(2); }
   } catch (e) { console.error((e as Error).message); process.exit(1); }

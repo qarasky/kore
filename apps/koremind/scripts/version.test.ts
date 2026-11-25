@@ -38,3 +38,11 @@ test("the committed files agree with each other", () => {
   const v = meta(repo).version;
   expect(verifyVersion(repo, v)).toEqual([]);
 });
+
+test("monorepo tags carry the app's name: koremind-v1.2.3 reads as 1.2.3", () => {
+  expect(parseSemver("koremind-v1.2.3")).toEqual({ major: 1, minor: 2, patch: 3, pre: null });
+  expect(parseSemver("koremind-v0.4.0-rc.2").pre).toEqual({ label: "rc", n: 2 });
+  expect(() => parseSemver("korecalendar-v1.2.3")).toThrow();
+  const repo = join(import.meta.dir, "..");
+  expect(verifyVersion(repo, `koremind-v${meta(repo).version}`)).toEqual([]);
+});

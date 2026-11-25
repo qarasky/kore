@@ -10,7 +10,7 @@ Type=simple
 # The user whose `claude auth login` (and OpenCode state) KoreMind uses. Claude runs as this user.
 User=koremind
 Group=koremind
-WorkingDirectory=/opt/koremind
+WorkingDirectory=/opt/kore/apps/koremind
 EnvironmentFile=/etc/koremind/koremind.env
 # systemd gives services a minimal PATH: bun, claude and opencode live in that user's home.
 Environment=PATH=/home/koremind/.bun/bin:/home/koremind/.local/bin:/home/koremind/.opencode/bin:/usr/local/bin:/usr/bin:/bin

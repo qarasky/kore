@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { globToRegExp, workflowsFor } from "./which-workflows";
 
-const appCi = ["kore-drive-ci", "kore-id-ci", "kore-monitor-ci", "korecalendar-ci"];
+const appCi = ["kore-drive-ci", "kore-id-ci", "kore-monitor-ci", "korecalendar-ci", "koremind-ci"];
 
 test("a kore-ui change runs every app's CI and every web image build", () => {
   const got = workflowsFor(["packages/kore-ui/src/components/Button.tsx"]);
@@ -36,7 +36,12 @@ test("a push to main runs only the image builds of the app that changed", () => 
 
 test("a kore-ui change pushed to main rebuilds every web image and re-checks kore-ui", () => {
   const got = workflowsFor(["packages/kore-ui/theme.css"], undefined, "push");
-  for (const wf of ["kore-drive-images", "korecalendar-images", "kore-id-images", "kore-monitor-images", "kore-monitor-ci", "kore-ui-ci"]) {
+  for (const wf of ["kore-drive-images", "korecalendar-images", "kore-id-images", "kore-monitor-images", "koremind-images", "kore-monitor-ci", "koremind-ci", "kore-ui-ci"]) {
     expect(got).toContain(wf);
   }
+});
+
+test("a KoreMind change runs only KoreMind's CI on a pull request, and its images on main", () => {
+  expect(workflowsFor(["apps/koremind/backend/src/index.ts"])).toEqual(["koremind-ci"]);
+  expect(workflowsFor(["apps/koremind/backend/src/index.ts"], undefined, "push")).toEqual(["koremind-ci", "koremind-images"]);
 });

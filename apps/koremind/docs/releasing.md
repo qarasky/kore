@@ -6,34 +6,35 @@ One version number covers everything: the backend and web Docker images, the And
 
 | Trigger | Workflow | Result |
 |---|---|---|
-| Pull request | `ci.yml` | Tests, web typecheck and build, Android unit tests and debug APK (kept as a 7-day artifact), Docker images build (not pushed). |
-| Push to `main` | `ci.yml` + `docker.yml` | Same checks, then images `:edge` and `:sha-<short>` on GHCR. |
-| Tag `vX.Y.Z` or `vX.Y.Z-rc.N` | `release.yml` | Verify, test, publish images, build and sign the APK, create the GitHub Release. |
+| Pull request | `koremind-ci.yml` | Tests, web typecheck and build, Android unit tests and debug APK (kept as a 7-day artifact), Docker images build (not pushed). |
+| Push to `main` | `koremind-ci.yml` + `koremind-images.yml` | Same checks, then images `:edge` and `:sha-<short>` on GHCR. |
+| Tag `koremind-vX.Y.Z` or `koremind-vX.Y.Z-rc.N` | `koremind-release.yml` | Verify, test, publish images, build and sign the APK, create the GitHub Release, and (full releases only) update `koremind-android.json` on the rolling release `koremind-android-latest`, where installed apps look for updates. |
 
 ## Cutting a release
 
 ```bash
 git checkout main && git pull
+cd apps/koremind
 bun scripts/version.ts set 0.2.0            # edits the 4 package.json files and android/version.properties
-git commit -am "release: 0.2.0"
+git commit -am "release: koremind 0.2.0"
 # open a PR / merge to main as usual, then on the merge commit:
-git tag v0.2.0
-git push origin v0.2.0
+git tag koremind-v0.2.0
+git push origin koremind-v0.2.0
 ```
 
-`release.yml` refuses to continue when:
+`koremind-release.yml` refuses to continue when:
 
-- the tag does not match the version in **every** file (`bun scripts/version.ts verify v0.2.0`),
+- the tag does not match the version in **every** file (`bun scripts/version.ts verify koremind-v0.2.0`),
 - the tagged commit is not on `main`,
 - the tests fail,
 - the Android signing secrets are missing.
 - the APK is not signed by the certificate recorded in `android/signing-fingerprint.txt` (run the **Android signing check** workflow to print the stored key's SHA-256).
 
-When it finishes you have a GitHub Release `KoreMind 0.2.0` with the signed APK and its `.sha256`, auto-generated notes grouped by label (`.github/release.yml`), and install commands.
+When it finishes you have a GitHub Release `KoreMind 0.2.0` with the signed APK and its `.sha256`, auto-generated notes grouped by label (`.github/release.yml` at the monorepo root), and install commands.
 
 ### Pre-releases
 
-`v0.2.0-beta.1` and `v0.2.0-rc.1` (only `beta.N` and `rc.N`, N from 1 to 48) go through the same pipeline. The GitHub Release is marked *pre-release*, and the images get **only** the exact tag: no `:latest`, `:0.2` or `:0`.
+`koremind-v0.2.0-beta.1` and `koremind-v0.2.0-rc.1` (only `beta.N` and `rc.N`, N from 1 to 48) go through the same pipeline. The GitHub Release is marked *pre-release*, and the images get **only** the exact tag: no `:latest`, `:0.2` or `:0`.
 
 ## Docker images
 
@@ -61,6 +62,8 @@ So `0.2.0-rc.1` (20051) < `0.2.0` (20099) < `0.2.1` (20199). Android refuses to 
 
 ### Android signing key
 
+The key was replaced on 2026-11-26 (the old one was lost): an app installed from an earlier release must be uninstalled once and the new release installed; updates install over it from then on.
+
 An Android app must be signed with the same key for every update, or phones refuse to upgrade it. **Create the key once and back it up outside GitHub** (a password manager works). If you lose it, the only way out is to uninstall and reinstall on every phone.
 
 ```bash
@@ -68,10 +71,10 @@ keytool -genkeypair -v -keystore koremind-release.jks -alias koremind \
   -keyalg RSA -keysize 4096 -validity 10000
 # answer the prompts; remember the store password and the key password
 
-base64 -i koremind-release.jks | gh secret set KOREMIND_KEYSTORE_BASE64 --repo qarasky/koremind
-gh secret set KOREMIND_KEYSTORE_PASSWORD --repo qarasky/koremind
-gh secret set KOREMIND_KEY_ALIAS --repo qarasky/koremind --body koremind
-gh secret set KOREMIND_KEY_PASSWORD --repo qarasky/koremind
+base64 -i koremind-release.jks | gh secret set KOREMIND_KEYSTORE_BASE64 --repo qarasky/kore
+gh secret set KOREMIND_KEYSTORE_PASSWORD --repo qarasky/kore
+gh secret set KOREMIND_KEY_ALIAS --repo qarasky/kore --body koremind
+gh secret set KOREMIND_KEY_PASSWORD --repo qarasky/kore
 ```
 
 Local release builds use the same variables (`KOREMIND_KEYSTORE_FILE` as a path instead of base64). Without them `assembleRelease` produces an unsigned APK, which phones will not install.

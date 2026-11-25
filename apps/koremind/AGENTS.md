@@ -24,9 +24,11 @@ The `users.password_hash` column is legacy. It stays in the schema so existing d
 
 ## Checks
 
+KoreMind is `apps/koremind` in the Kore monorepo; read the root `AGENTS.md` too. Run `bun install` once at the monorepo root.
+
 ```bash
-bun test backend shared web scripts
-bunx --bun tsc --noEmit -p web
+bun test backend shared web scripts          # from apps/koremind
+bunx turbo run typecheck --filter=@koremind/web
 cd android && ./gradlew :app:testDebugUnitTest
 ```
 

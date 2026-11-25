@@ -1,17 +1,23 @@
 # Cutting a release: bump the version, commit, tag.
-#   bun scripts/version.ts set 0.2.0 && git commit -am "release: 0.2.0" && git tag v0.2.0 && git push --follow-tags
+#   cd apps/koremind && bun scripts/version.ts set 0.2.0 && git commit -am "release: koremind 0.2.0" \
+#     && git tag koremind-v0.2.0 && git push origin main koremind-v0.2.0
 # Pushing the tag verifies the version, runs the tests, publishes the Docker images and the signed APK,
 # and creates the GitHub Release. See docs/releasing.md.
-name: Release
+name: koremind release
 
 on:
   push:
     tags:
-      - "v[0-9]+.[0-9]+.[0-9]+"
-      - "v[0-9]+.[0-9]+.[0-9]+-*"
+      - "koremind-v[0-9]+.[0-9]+.[0-9]+"
+      - "koremind-v[0-9]+.[0-9]+.[0-9]+-*"
 
 permissions:
   contents: read
+
+# Steps run from the app's directory (scripts/, dist/).
+defaults:
+  run:
+    working-directory: apps/koremind
 
 jobs:
   verify:
@@ -46,14 +52,14 @@ jobs:
       packages: write
       id-token: write
       attestations: write
-    uses: ./.github/workflows/docker.yml
+    uses: ./.github/workflows/koremind-images.yml
 
   android:
     name: Android APK
     needs: verify
     permissions:
       contents: read
-    uses: ./.github/workflows/android.yml
+    uses: ./.github/workflows/koremind-android.yml
     secrets: inherit
 
   release:
@@ -69,7 +75,7 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: android-release
-          path: dist
+          path: apps/koremind/dist
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -86,10 +92,24 @@ jobs:
           docker pull ghcr.io/${owner}/koremind-backend:${VERSION}
           docker pull ghcr.io/${owner}/koremind-web:${VERSION}
           \`\`\`
-          See \`deploy/docker-compose.yml\` and \`docs/deployment-docker.md\`.
+          See \`apps/koremind/deploy/docker-compose.yml\` and \`apps/koremind/docs/deployment-docker.md\`.
 
           **Android**: download \`koremind-android-${VERSION}.apk\` below and install it. Check it with the \`.sha256\` file. Installed apps update themselves from here (Settings → Account → Updates).
           NOTES
           flags=(--verify-tag --generate-notes --notes-file notes-footer.md --title "KoreMind ${VERSION}")
-          [ "$PRERELEASE" = "true" ] && flags+=(--prerelease) || flags+=(--latest)
+          [ "$PRERELEASE" = "true" ] && flags+=(--prerelease)
           gh release create "$GITHUB_REF_NAME" dist/* "${flags[@]}"
+      # The app reads koremind-android.json from the rolling release koremind-android-latest: in the monorepo
+      # the repository's "latest" release can belong to another app. Pre-releases never touch it.
+      - name: Point installed apps at this release
+        if: needs.verify.outputs.prerelease != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rolling=koremind-android-latest
+          if ! gh release view "$rolling" >/dev/null 2>&1; then
+            gh release create "$rolling" --target "$GITHUB_SHA" --prerelease --latest=false \
+              --title "KoreMind for Android: update manifest" \
+              --notes "Installed KoreMind apps read koremind-android.json here to find the newest release. The APKs are on the koremind-v* releases."
+          fi
+          gh release upload "$rolling" dist/koremind-android.json --clobber

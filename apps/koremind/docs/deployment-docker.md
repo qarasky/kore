@@ -10,7 +10,7 @@ The same thing as [the Linux guide](deployment-linux.md), without installing Bun
 ## Start
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/qarasky/koremind/main/deploy/docker-compose.yml
+curl -fsSLO https://raw.githubusercontent.com/qarasky/kore/main/apps/koremind/deploy/docker-compose.yml
 # Set the Kore ID variables from the table below in a .env file next to compose.yml first.
 KOREMIND_VERSION=0.1.0 docker compose up -d
 docker compose ps                         # both should become "healthy"

@@ -4,7 +4,7 @@
 # SHA-256 fingerprint (public, not a secret): that value belongs in
 # android/signing-fingerprint.txt, and every Android release is checked against it.
 # It builds and publishes nothing.
-name: Android signing check
+name: koremind Android signing check
 
 on: workflow_dispatch
 

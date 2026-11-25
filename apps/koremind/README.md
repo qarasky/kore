@@ -2,15 +2,15 @@
 
 # KoreMind
 
-[![CI](https://github.com/qarasky/koremind/actions/workflows/ci.yml/badge.svg)](https://github.com/qarasky/koremind/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/qarasky/koremind?include_prereleases)](https://github.com/qarasky/koremind/releases)
+[![CI](https://github.com/qarasky/kore/actions/workflows/koremind-ci.yml/badge.svg)](https://github.com/qarasky/kore/actions/workflows/koremind-ci.yml)
+[![Releases](https://img.shields.io/badge/releases-koremind--v*-blue)](https://github.com/qarasky/kore/releases)
 
 A personal assistant that feels like the ChatGPT app, with its own apps instead of a bot inside Telegram or Discord. Fast, few settings, and it remembers you.
 
 - **Backend** (`backend/`): Bun + TypeScript. Accounts, chats, memory, notes, streaming. It drives a local [OpenCode](https://opencode.ai) server for the models.
 - **Web UI** (`web/`): Next.js, runs as its own process on the same machine.
 - **Android app** (`android/`): native Kotlin + Jetpack Compose. Same features and wording as the web UI.
-- Dark only, with [Kore](https://github.com/qarasky/kore)'s palette.
+- Dark only, with the Kore design system's palette ([kore-ui](https://github.com/qarasky/kore/tree/main/packages/kore-ui)).
 
 ## What it does
 
@@ -33,7 +33,7 @@ The first run builds the web UI. The backend prints the addresses it is reachabl
 
 For the phone: install the app, scan the QR code from the web UI (or type one of the printed addresses into **Backend URL**) and sign in. KoreMind does no tunnel or TLS setup; use Tailscale, a Cloudflare tunnel or your own domain for access away from home.
 
-To run it on a server: **[Docker](docs/deployment-docker.md)** (prebuilt images on GHCR, the easy way) or **[a Linux service with systemd](docs/deployment-linux.md)**. Android builds come with each [GitHub Release](https://github.com/qarasky/koremind/releases) as a signed APK.
+To run it on a server: **[Docker](docs/deployment-docker.md)** (prebuilt images on GHCR, the easy way) or **[a Linux service with systemd](docs/deployment-linux.md)**. Android builds come with each `koremind-v*` [GitHub Release](https://github.com/qarasky/kore/releases) as a signed APK.
 
 ### Coming from the Zero days
 
@@ -64,13 +64,13 @@ The product used to be called Zero. A `zero.sqlite` database in your data direct
 bun test                                         # backend, shared, web, scripts
 cd android && ./gradlew :app:testDebugUnitTest   # Android logic
 cd android && ./gradlew :app:assembleDebug       # debug APK (app/build/outputs/apk/debug)
-bun run build                                    # production build of the web UI
+bun run build:web                                # production build of the web UI
 KOREMIND_TOKEN=<session token> bun run backend/scripts/latency.ts   # time to first token against a running backend
 bun run scripts/generate-icons.ts                # regenerate the mark everywhere
 bun scripts/version.ts set 0.2.0                 # bump the version everywhere (see docs/releasing.md)
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same checks on every pull request. Releases are made by pushing a `vX.Y.Z` tag.
+KoreMind lives in the Kore monorepo (`apps/koremind`); run `bun install` once at its root. CI (`.github/workflows/koremind-ci.yml` at the monorepo root) runs the same checks on every pull request that touches KoreMind or kore-ui. Releases are made by pushing a `koremind-vX.Y.Z` tag.
 
 web and Android are kept 1:1: same features, same strings, same pure helpers with their own tests. When you change one, change the other.
 
@@ -78,7 +78,7 @@ web and Android are kept 1:1: same features, same strings, same pure helpers wit
 
 | Document | What it is |
 | --- | --- |
-| [DESIGN.md](DESIGN.md) | KoreMind's chat-specific design (chat, composer, model picker, settings, Android). Tokens, layout and components come from [kore-ui](https://github.com/qarasky/kore-ui) and its DESIGN.md. |
+| [DESIGN.md](DESIGN.md) | KoreMind's chat-specific design (chat, composer, model picker, settings, Android). Tokens, layout and components come from kore-ui (`packages/kore-ui` in the monorepo) and its [DESIGN.md](../../packages/kore-ui/DESIGN.md). |
 | [docs/api.md](docs/api.md) | The REST + SSE contract. Source of truth is `shared/src/api.ts`. |
 | [docs/kore-id.md](docs/kore-id.md) | Single sign-on with Kore ID: setup, settings, migration of existing accounts, how the flow works. |
 | [docs/deployment-docker.md](docs/deployment-docker.md) | Running KoreMind from the GHCR images with Docker Compose. |
