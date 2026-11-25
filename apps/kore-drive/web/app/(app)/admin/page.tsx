@@ -1,0 +1,71 @@
+import { Stat } from "@qarasky/kore-ui";
+import Link from "next/link";
+import { DiskCard } from "@/components/admin/DiskCard";
+import { UsageBar } from "@/components/admin/UsageBar";
+import { usagePercent } from "@/lib/usage";
+import type { AdminUser, UsageRow } from "@/lib/admin";
+import { api } from "@/lib/api";
+import type { DiskInfo } from "@/lib/disk";
+import { formatBytes } from "@/lib/format";
+import { t } from "@/lib/i18n";
+import { requireAdmin } from "@/lib/session";
+
+export const metadata = { title: t("admin.overview.title") };
+
+/** `/admin`: the disk, totals and a usage bar per user (no file names, ever). */
+export default async function AdminOverview() {
+  await requireAdmin();
+  const [usage, users, disk] = await Promise.all([
+    api<UsageRow[]>("/api/admin/usage"),
+    api<AdminUser[]>("/api/admin/users"),
+    // Only informational: the rest of the page works without it.
+    api<DiskInfo>("/api/admin/disk").catch(() => null),
+  ]);
+  const used = usage.reduce((n, u) => n + u.used_bytes, 0);
+  const quota = usage.reduce((n, u) => n + u.quota_bytes, 0);
+  const admins = users.filter((u) => u.role === "admin").length;
+  const byUse = [...usage].sort(
+    (a, b) => usagePercent(b.used_bytes, b.quota_bytes) - usagePercent(a.used_bytes, a.quota_bytes) || b.used_bytes - a.used_bytes,
+  );
+
+  return (
+    <div className="mx-auto max-w-content space-y-6 p-4 md:p-6">
+      <h2 className="sr-only">{t("admin.overview.title")}</h2>
+      <DiskCard disk={disk} />
+      <div className="grid grid-cols-2 gap-3">
+        <Stat
+          label={t("admin.overview.totalUsed")}
+          value={<span data-testid="total-used">{formatBytes(used)}</span>}
+          hint={t("admin.overview.allocated", { quota: formatBytes(quota) })}
+        />
+        <Stat
+          label={t("admin.overview.users")}
+          value={<span data-testid="user-count">{usage.length}</span>}
+          hint={admins === 1 ? t("admin.overview.adminsOne") : t("admin.overview.adminsMany", { count: admins })}
+        />
+      </div>
+
+      <section aria-labelledby="usage-heading">
+        <div className="mb-3 flex items-baseline justify-between gap-4">
+          <h3 id="usage-heading" className="text-title font-semibold tracking-[-0.01em]">
+            {t("admin.overview.usage")}
+          </h3>
+          <Link href="/admin/users" className="text-meta text-accent-fg hover:underline">
+            {t("admin.overview.manageUsers")}
+          </Link>
+        </div>
+        <p className="mb-3 text-meta text-muted">{t("admin.overview.privacy")}</p>
+        <ul className="divide-y divide-border rounded-overlay border border-border">
+          {byUse.map((u) => (
+            <li key={u.user_id} data-testid="usage-row" className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] items-center gap-4 px-4 py-2.5">
+              <span className="truncate" title={u.email}>
+                {u.email}
+              </span>
+              <UsageBar used={u.used_bytes} quota={u.quota_bytes} label={t("admin.usage.bar", { email: u.email })} />
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  );
+}

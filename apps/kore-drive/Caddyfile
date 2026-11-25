@@ -1,0 +1,78 @@
+# Kore reverse proxy: the only published service (see docker-compose.yml).
+# TLS is terminated in front of Caddy (Cloudflare Tunnel) or not at all
+# (LAN/Tailscale), so Caddy itself speaks plain HTTP.
+{
+	admin off
+	auto_https off
+	# On stop, let in-flight uploads/downloads finish (docker-compose.yml
+	# allows 40 s before SIGKILL).
+	grace_period 30s
+	servers {
+		# Trust X-Forwarded-* only from connections the Docker host makes
+		# itself: cloudflared (or anything else) on the host reaches the
+		# published port through docker-proxy and arrives from the gateway
+		# of Caddy's own network, KORE_SUBNET. LAN/Tailscale clients keep
+		# their real source address through Docker's port forwarding (even
+		# private ones like 192.168.x.x), so they are not trusted: their
+		# X-Forwarded-For/Proto/Host are overwritten with what Caddy sees
+		# and an upstream "X-Forwarded-Proto: https" (which makes the session
+		# cookie Secure) is honoured only from the host.
+		trusted_proxies static 127.0.0.0/8 ::1 {$KORE_SUBNET:172.31.255.0/24}
+	}
+}
+
+:80 {
+	# The API uses CF-Connecting-IP (for login rate limiting) because its
+	# own peer, Caddy, is private. Keep the header only when it comes from
+	# the same trusted sources as above; anyone else could otherwise pick a
+	# fresh "client IP" for every request.
+	@untrustedCF {
+		header CF-Connecting-IP *
+		not remote_ip 127.0.0.0/8 ::1 {$KORE_SUBNET:172.31.255.0/24}
+	}
+	request_header @untrustedCF -CF-Connecting-IP
+
+	# Nothing here is meant for search engines (UI, API and files alike);
+	# see also app/robots.ts and the robots metadata in the root layout.
+	header X-Robots-Tag "noindex, nofollow"
+
+	# API: no body size limit, no request buffering, responses flushed as
+	# they are written (chunked uploads, streaming file and zip downloads).
+	# No compression here: files and zips are passed through untouched.
+	handle /api/* {
+		reverse_proxy api:8080 {
+			flush_interval -1
+		}
+	}
+
+	# UI (Next.js SSR).
+	handle {
+		encode zstd gzip
+		header {
+			X-Content-Type-Options nosniff
+			Referrer-Policy same-origin
+			X-Frame-Options DENY
+			# Next.js App Router streams its payload in inline <script>
+			# tags and React sets inline styles, so 'unsafe-inline' is
+			# needed without per-request nonces. Everything else is
+			# limited to this origin; no external hosts, no eval, no
+			# plugins, no framing by other sites. The preview shows images
+			# with img-src 'self' and PDFs in an <iframe> (frame-src 'self';
+			# object-src stays 'none'); /api responses are not covered by
+			# this block and send their own headers (see transfer/view.go).
+			Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		}
+		# Public share pages (/s/<token>): never indexed or cached, and the
+		# token in the URL is never sent on as a referrer. Deferred so these
+		# win over the block above and over Next's own Cache-Control.
+		header /s/* {
+			defer
+			X-Robots-Tag "noindex, nofollow"
+			Cache-Control "private, no-store"
+			Referrer-Policy no-referrer
+		}
+		reverse_proxy web:3000 {
+			flush_interval -1
+		}
+	}
+}
