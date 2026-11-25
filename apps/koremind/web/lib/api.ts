@@ -1,5 +1,5 @@
 import type {
-  Attachment, AuthResponse, ChatDetail, ChatMessage, ChatSummary, Health, LogoutResponse, MemoryEntry, MemorySummary, PairStart, ProviderConnection, ProviderInfo, SendMessageRequest, Settings, SignInStart, SsoStart, SsoStartResponse, SignInStatus, StreamEvent, User,
+  Attachment, AuthResponse, ChatDetail, ChatMessage, ChatSummary, Health, LogoutResponse, MemoryEntry, MemorySummary, PairStart, ProviderConnection, ProviderInfo, SendMessageRequest, Settings, SsoStart, SsoStartResponse, StreamEvent, User,
 } from "@koremind/shared";
 import { parseStream } from "./stream";
 
@@ -52,12 +52,8 @@ export function createApi(baseUrl: string, getToken: () => string | null) {
     startPair: () => req<PairStart>("POST", "/auth/pair"),
     answerApproval: (chatId: string, id: string, allow: boolean) => req<{ ok: true }>("POST", `/chats/${encodeURIComponent(chatId)}/approvals/${encodeURIComponent(id)}`, { allow }),
     providers: () => req<ProviderConnection[]>("GET", "/providers"),
-    startSignIn: (id: string) => req<SignInStart>("POST", `/providers/${encodeURIComponent(id)}/signin`),
-    signInStatus: (id: string, attempt: string) => req<SignInStatus>("GET", `/providers/${encodeURIComponent(id)}/signin/${encodeURIComponent(attempt)}`),
     favorites: () => req<string[]>("GET", "/favorites"),
     setFavorites: (keys: string[]) => req<string[]>("PUT", "/favorites", keys),
-    setProviderKey: (id: string, key: string) => req<{ ok: true }>("PUT", `/providers/${encodeURIComponent(id)}/key`, { key }),
-    removeProviderKey: (id: string) => req<{ ok: true }>("DELETE", `/providers/${encodeURIComponent(id)}/key`),
     chats: () => req<ChatSummary[]>("GET", "/chats"),
     createChat: () => req<ChatSummary>("POST", "/chats"),
     chat: (id: string) => req<ChatDetail>("GET", `/chats/${id}`),

@@ -20,9 +20,9 @@ export const lacksVision = (attachments: { mime: string }[], model: ModelInfo | 
 
 export const isReady = (p: ProviderInfo) => p.status === "ready";
 
-/** Which bundled logo a provider uses. Codex runs on OpenAI, so it shares OpenAI's mark. */
-export type ProviderIconKey = "groq" | "opencode" | "openai" | "openrouter";
-const ICON_KEYS: readonly string[] = ["groq", "opencode", "openai", "openrouter"];
+/** Which bundled logo a provider uses. Claude has none (Anthropic's mark needs permission), so it shows its initial. */
+export type ProviderIconKey = "opencode";
+const ICON_KEYS: readonly string[] = ["opencode"];
 /** OpenCode Go is OpenCode's subscription, so it wears the OpenCode mark. */
 const ICON_ALIASES: Record<string, string> = { "opencode-go": "opencode" };
 export const providerIconKey = (id: string): ProviderIconKey | null => {
@@ -33,7 +33,7 @@ export const providerIconKey = (id: string): ProviderIconKey | null => {
 /** A provider turned off in Settings is left off the rail entirely. */
 export const railProviders = (providers: ProviderInfo[]) => providers.filter((p) => p.status !== "disabled");
 
-/** Providers that can't be used right now (no key yet) stay on the rail but are dimmed. */
+/** Providers that can't be used right now (not signed in on the server) stay on the rail but are dimmed. */
 export const railDimmed = (p: ProviderInfo) => !isReady(p);
 
 /** The explanation shown instead of model rows for a provider that isn't ready; null when it is. */
