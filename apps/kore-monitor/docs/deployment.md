@@ -144,13 +144,15 @@ Use `:edge` only for a test instance: it moves with every push to `master`.
 release you want to tag yourself:
 
 ```bash
+# From apps/kore-monitor:
 docker build --target release -f docker/rust.dockerfile \
     -t ghcr.io/qarasky/kore-monitor-backend:local .
-docker build -f docker/web.dockerfile \
-    --build-arg KOREMONITOR_BUILD_ID="$(git rev-parse --short HEAD)" \
-    -t ghcr.io/qarasky/kore-monitor-web:local .
 docker build -f docker/caddy.dockerfile \
     -t ghcr.io/qarasky/kore-monitor-caddy:local .
+# The web image builds from the Kore monorepo root (it uses packages/kore-ui):
+docker build -f apps/kore-monitor/docker/web.dockerfile \
+    --build-arg KOREMONITOR_BUILD_ID="$(git rev-parse --short HEAD)" \
+    -t ghcr.io/qarasky/kore-monitor-web:local ../..
 ```
 
 Set `KOREMONITOR_VERSION=local` so the compose file uses those tags. With a

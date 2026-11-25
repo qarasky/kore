@@ -10,7 +10,10 @@
 services:
   kore-id:
     image: ghcr.io/qarasky/kore-id:${KORE_ID_VERSION:-latest}
-    build: .
+    build:
+      # Builds from the Kore monorepo root (the web UI uses packages/kore-ui).
+      context: ../..
+      dockerfile: apps/kore-id/Dockerfile
     restart: unless-stopped
     # Files in ./data belong to this user (default: the image's `node` user, 1000:1000).
     user: "${KORE_ID_UID:-1000}:${KORE_ID_GID:-1000}"

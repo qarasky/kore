@@ -119,8 +119,9 @@ services:
 
   web:
     build:
-      context: .
-      dockerfile: docker/web.dockerfile
+      # The web image builds from the Kore monorepo root (it uses packages/kore-ui).
+      context: ../..
+      dockerfile: apps/kore-monitor/docker/web.dockerfile
     image: ${KOREMONITOR_IMAGE_PREFIX:-${FLATLINE_IMAGE_PREFIX:-ghcr.io/qarasky/kore-monitor}}-web:${KOREMONITOR_VERSION:-${FLATLINE_VERSION:-edge}}
     restart: unless-stopped
     environment:

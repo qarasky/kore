@@ -50,7 +50,9 @@ services:
 
   web:
     build:
-      context: ./web
+      # The web image builds from the Kore monorepo root (it uses packages/kore-ui).
+      context: ../..
+      dockerfile: apps/korecalendar/web/Dockerfile
       args:
         API_URL: http://api:8080
     image: ghcr.io/qarasky/korecalendar-web:${KORECAL_VERSION:-latest}

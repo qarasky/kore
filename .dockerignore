@@ -1,0 +1,12 @@
+# Build context is the repo root for the JS images: send sources only.
+.git
+.superpowers
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/target
+**/android
+**/.env
+**/*.jks
+**/*.keystore
