@@ -29,10 +29,19 @@ export type OidcConfig = {
   webOrigins: string[];
 };
 
+/** Providers KoreMind knows how to run. Which ones exist on a server is KOREMIND_PROVIDERS. */
+export const KNOWN_PROVIDERS = ["claude", "opencode", "opencode-go"] as const;
+export type ProviderId = (typeof KNOWN_PROVIDERS)[number];
+
 export type Config = {
   port: number;
   dataDir: string;
-  host: "0.0.0.0";
+  /** Interface to listen on. 0.0.0.0 by default; 127.0.0.1 when only a local tunnel or proxy may reach it. */
+  host: string;
+  /** Providers on offer, in the order the apps list them. */
+  providers: ProviderId[];
+  /** The server's own Claude Code CLI. `configDir` empty = its user's ~/.claude. */
+  claude: { bin: string; configDir: string };
   /** This is the only way in. Null when Kore ID is not configured (KOREMIND_OIDC_ISSUER unset); the server then refuses every sign-in. */
   oidc: OidcConfig | null;
   /** Other Kore apps for the web UI's app switcher, from KOREMIND_KORE_APPS (`kore=https://…,korecalendar=https://…`). */
@@ -77,5 +86,16 @@ export function loadConfig(env: Record<string, string | undefined>, readFile: (p
     if (!/^https?:\/\//.test(url)) throw new Error(`KOREMIND_KORE_APPS: ${key} needs an http(s) URL`);
     apps[key as keyof Config["apps"]] = url;
   }
-  return { port, dataDir: env.KOREMIND_DATA_DIR ?? "./data", host: "0.0.0.0", oidc, apps };
+  const providers: ProviderId[] = [];
+  for (const raw of (env.KOREMIND_PROVIDERS ?? "").split(",")) {
+    const id = raw.trim().toLowerCase();
+    if (!id) continue;
+    if (!(KNOWN_PROVIDERS as readonly string[]).includes(id)) throw new Error(`KOREMIND_PROVIDERS: unknown provider "${id}" (${KNOWN_PROVIDERS.join(", ")})`);
+    if (!providers.includes(id as ProviderId)) providers.push(id as ProviderId);
+  }
+  if (!providers.length) providers.push("claude");
+  return {
+    port, dataDir: env.KOREMIND_DATA_DIR ?? "./data", host: env.KOREMIND_HOST?.trim() || "0.0.0.0", oidc, apps, providers,
+    claude: { bin: env.KOREMIND_CLAUDE_BIN?.trim() || "claude", configDir: env.KOREMIND_CLAUDE_CONFIG_DIR?.trim() ?? "" },
+  };
 }
