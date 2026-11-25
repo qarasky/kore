@@ -14,7 +14,7 @@ export type ChatsDeps = {
   onTurnEnd?(chatId: string): void;
 };
 
-type ChatRow = { id: string; user_id: string; title: string; engine_session_id: string | null; leaf_id: string | null; updated_at: number };
+type ChatRow = { id: string; user_id: string; title: string; engine_session_id: string | null; leaf_id: string | null; updated_at: number; model?: string | null };
 type MsgRow = { id: string; chat_id: string; role: "user" | "assistant"; text: string; sources_json: string; activity_json: string | null; created_at: number; parent_id: string | null; session_id: string | null };
 const node = (m: MsgRow): Node & { row: MsgRow } => ({ id: m.id, parentId: m.parent_id, role: m.role, text: m.text, createdAt: m.created_at, row: m });
 
@@ -171,7 +171,9 @@ export function createChats(db: Database, engine: Engine, deps: ChatsDeps) {
       if (req.editOf && !edited) { yield { type: "error", code: "engine", message: "The message to edit was not found." }; return; }
       const parentId = edited ? edited.parentId : (onScreen.at(-1)?.id ?? null);
       const before = parentId ? branchTo(parentId, new Map(all.map((m) => [m.id, m]))) : [];
-      const reuse = edited ? null : (onScreen.at(-1)?.row.session_id ?? (onScreen.length ? chat.engine_session_id : null));
+      // A session belongs to one engine (Claude's CLI or OpenCode): switching provider starts a fresh one that is told the conversation.
+      const sameProvider = !chat.model || chat.model.split("/")[0] === req.model.providerId;
+      const reuse = edited || !sameProvider ? null : (onScreen.at(-1)?.row.session_id ?? (onScreen.length ? chat.engine_session_id : null));
       const attachmentIds = edited
         ? (db.query("select id from attachments where message_id=?").all(edited.id) as { id: string }[]).map((a) => a.id)
         : req.attachmentIds;
@@ -222,7 +224,7 @@ export function createChats(db: Database, engine: Engine, deps: ChatsDeps) {
         const fresh = !sessionId;
         if (!sessionId) sessionId = await engine.createSession(req.model);
         // The chat's current session lets the notes and memory tools find this chat.
-        db.run("update chats set engine_session_id=? where id=?", [sessionId, chatId]);
+        db.run("update chats set engine_session_id=?, model=? where id=?", [sessionId, `${req.model.providerId}/${req.model.modelId}`, chatId]);
         db.run("update messages set session_id=? where id=?", [sessionId, userMsgId]);
         const system = fresh ? [deps.buildSystem(userId), transcriptOf(before)].filter(Boolean).join("\n\n") : "";
         let sinceFlush = 0;

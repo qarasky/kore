@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 // A stand-in for the `claude` CLI in tests. It logs how it was called, then behaves as FAKE_CLAUDE_MODE says.
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const args = process.argv.slice(2);
@@ -13,7 +13,10 @@ if (args[0] === "auth" && args[1] === "status") {
 }
 
 const stdin = await new Response(Bun.stdin.stream()).text();
-log({ args, stdin, cwd: process.cwd(), env: { CLAUDECODE: process.env.CLAUDECODE ?? null, CLAUDE_CODE_ENTRYPOINT: process.env.CLAUDE_CODE_ENTRYPOINT ?? null, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR ?? null, MCP_TOOL_TIMEOUT: process.env.MCP_TOOL_TIMEOUT ?? null }, pid: process.pid });
+const mcpPath = args.includes("--mcp-config") ? args[args.indexOf("--mcp-config") + 1] : "";
+let mcp: any = null, mcpMode = "";
+try { mcp = JSON.parse(readFileSync(mcpPath, "utf8")); mcpMode = (statSync(mcpPath).mode & 0o777).toString(8); } catch { /* not a file */ }
+log({ args, stdin, mcp, mcpMode, cwd: process.cwd(), env: { CLAUDECODE: process.env.CLAUDECODE ?? null, CLAUDE_CODE_ENTRYPOINT: process.env.CLAUDE_CODE_ENTRYPOINT ?? null, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR ?? null, MCP_TOOL_TIMEOUT: process.env.MCP_TOOL_TIMEOUT ?? null }, pid: process.pid });
 
 const mode = process.env.FAKE_CLAUDE_MODE ?? "ok";
 if (mode === "crash") { console.error("starting"); console.error("boom: something failed"); process.exit(1); }

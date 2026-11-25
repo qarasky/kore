@@ -47,13 +47,13 @@ test("a provider with no route gets a noProvider error instead of a crash", asyn
   expect(evs).toEqual([{ type: "error", message: "That provider isn't enabled on this server.", noProvider: true }]);
 });
 
-test("titles run on the title model when it is routed, otherwise on the chat's model", async () => {
+test("Claude chats are titled on the title model; other providers' chats on their own model (Claude stays owner-only)", async () => {
   const { router, claude, oc } = setup();
-  expect(await router.complete({ kind: "title", system: "", text: "t", model: { providerId: "opencode", modelId: "opencode-m" } })).toBe("claude title");
+  expect(await router.complete({ kind: "title", system: "", text: "t", model: { providerId: "claude", modelId: "claude-sonnet-5-5" } })).toBe("claude title");
   expect(claude.completes.at(-1)!.model).toEqual({ providerId: "claude", modelId: "claude-haiku-5-5" });
-  const noClaude = createRouter([{ providers: ["opencode"], engine: oc }], { titleModel: { providerId: "claude", modelId: "claude-haiku-5-5" } });
-  expect(await noClaude.complete({ kind: "title", system: "", text: "t", model: { providerId: "opencode", modelId: "opencode-m" } })).toBe("oc title");
+  expect(await router.complete({ kind: "title", system: "", text: "t", model: { providerId: "opencode", modelId: "opencode-m" } })).toBe("oc title");
   expect(oc.completes.at(-1)!.model).toEqual({ providerId: "opencode", modelId: "opencode-m" });
+  expect(claude.completes).toHaveLength(1);
 });
 
 test("memory summaries run on the given model; an unrouted provider throws so memory can fall back", async () => {

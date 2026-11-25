@@ -50,7 +50,8 @@ export function createRouter(routes: Route[], opts: { titleModel?: ModelRef } = 
       yield* engine.prompt(a);
     },
     complete(a) {
-      const title = a.kind === "title" && opts.titleModel && byProvider.has(opts.titleModel.providerId) ? opts.titleModel : null;
+      // Only a chat already on the title model's provider is titled there: Claude is owner-only, so nobody else's chat goes to it.
+      const title = a.kind === "title" && opts.titleModel && a.model?.providerId === opts.titleModel.providerId && byProvider.has(opts.titleModel.providerId) ? opts.titleModel : null;
       const model = title ?? a.model;
       const engine = model ? byProvider.get(model.providerId) : first();
       if (!engine) return Promise.reject(new Error(`provider not enabled: ${model?.providerId ?? "(none)"}`));

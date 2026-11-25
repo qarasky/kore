@@ -148,8 +148,13 @@ test("a reply streams and the first prompt opens the session with the context bl
     expect(c.args[c.args.indexOf("--model") + 1]).toBe("claude-haiku-5-5");
     const msg = JSON.parse(c.stdin.trim());
     expect(msg.message.content.at(-1).text).toStartWith("<context>\nThe user's name is Sky.\n</context>\n\nlatest bun?");
-    const mcp = JSON.parse(c.args[c.args.indexOf("--mcp-config") + 1]);
-    expect(mcp.mcpServers.koremind.headers["x-koremind-session"]).toBe(sid);
+    // The MCP secret never goes on the command line (other local users can read argv): it is in a private file.
+    const mcpArg = c.args[c.args.indexOf("--mcp-config") + 1];
+    expect(c.args.join(" ")).not.toContain("sek");
+    expect(c.mcp?.mcpServers.koremind.headers["x-koremind-session"]).toBe(sid);
+    expect(c.mcp?.mcpServers.koremind.headers.authorization).toBe("Bearer sek");
+    expect(c.mcpMode).toBe("600");
+    expect(existsSync(mcpArg)).toBe(false); // removed once the run is over
     expect(c.cwd).toBe(join(t.dir, "claude-work"));
     expect(c.env.CLAUDE_CODE_ENTRYPOINT).toBe("koremind");
     expect(c.env.MCP_TOOL_TIMEOUT).toBe("120000");

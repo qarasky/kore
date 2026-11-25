@@ -293,3 +293,17 @@ test("a second turn in the same chat is refused while one runs, and abort still 
   expect(evs.at(-1)).toMatchObject({ type: "error", code: "aborted" });
   expect(chats.running(c.id)).toBe(false);
 });
+
+test("switching provider mid-chat starts a fresh session that is told the conversation; switching model keeps it", async () => {
+  const { chats, engine } = setup({ reply: (a) => [{ type: "delta", text: `answer to ${a.text}` }] });
+  const c = chats.create("u1");
+  await collect(chats.send("u1", c.id, req("first", { model: { providerId: "opencode", modelId: "fast" } }), new AbortController().signal));
+  await collect(chats.send("u1", c.id, req("second", { model: { providerId: "opencode", modelId: "vision" } }), new AbortController().signal));
+  expect(engine.prompts[1].sessionId).toBe(engine.prompts[0].sessionId);
+  await collect(chats.send("u1", c.id, req("third", { model: { providerId: "claude", modelId: "claude-sonnet-5-5" } }), new AbortController().signal));
+  expect(engine.prompts[2].sessionId).not.toBe(engine.prompts[0].sessionId);
+  expect(engine.prompts[2].system).toContain("first");
+  expect(engine.prompts[2].system).toContain("answer to second");
+  await collect(chats.send("u1", c.id, req("fourth", { model: { providerId: "claude", modelId: "claude-haiku-5-5" } }), new AbortController().signal));
+  expect(engine.prompts[3].sessionId).toBe(engine.prompts[2].sessionId);
+});

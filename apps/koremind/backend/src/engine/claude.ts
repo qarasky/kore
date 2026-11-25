@@ -1,4 +1,4 @@
-import { mkdirSync, readdirSync, rmSync } from "node:fs";
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ModelInfo, ProviderConnection, ProviderInfo } from "@koremind/shared";
 import { AGENT_SYSTEM, separateAfterTools } from "./opencode";
@@ -163,6 +163,10 @@ type Run = { events: AsyncIterable<EngineEvent>; kill(): void };
 export function createClaudeEngine(o: { bin: string; configDir?: string; dataDir: string; mcpUrl?: string; mcpSecret?: string; idleMs?: number }): Engine {
   const cwd = join(o.dataDir, "claude-work");
   mkdirSync(cwd, { recursive: true });
+  const mcpDir = join(o.dataDir, "claude-mcp");
+  mkdirSync(mcpDir, { recursive: true, mode: 0o700 });
+  // Files left by a run that was cut off (a crash, a restart) hold an old secret: clear them.
+  for (const f of readdirSync(mcpDir)) rmSync(join(mcpDir, f), { force: true });
   const idleMs = o.idleMs ?? 120_000;
   /** Sessions created here that Claude hasn't opened yet: their first prompt uses --session-id and carries the context block. */
   const fresh = new Set<string>();
@@ -242,10 +246,13 @@ export function createClaudeEngine(o: { bin: string; configDir?: string; dataDir
     if (a.signal.aborted) return;
     const first = fresh.has(a.sessionId);
     const text = first && a.system ? `<context>\n${a.system}\n</context>\n\n${a.text}` : a.text;
-    const args = claudeArgs({
-      model: a.model.modelId, effort: a.thinking, sessionId: a.sessionId, resume: !first, system: CLAUDE_SYSTEM, tools: "chat", persist: true,
-      mcpConfig: o.mcpUrl && o.mcpSecret ? mcpConfigJson(o.mcpUrl, o.mcpSecret, a.sessionId) : undefined,
-    });
+    // The MCP secret goes in a file only this user can read: command lines are visible to every local user.
+    let mcpFile: string | undefined;
+    if (o.mcpUrl && o.mcpSecret) {
+      mcpFile = join(mcpDir, `${crypto.randomUUID()}.json`);
+      writeFileSync(mcpFile, mcpConfigJson(o.mcpUrl, o.mcpSecret, a.sessionId), { mode: 0o600 });
+    }
+    const args = claudeArgs({ model: a.model.modelId, effort: a.thinking, sessionId: a.sessionId, resume: !first, system: CLAUDE_SYSTEM, tools: "chat", persist: true, mcpConfig: mcpFile });
     // Once Claude has started the run the conversation exists on disk, so later prompts resume it.
     const run = start(args, userMessage(text, a.files), () => fresh.delete(a.sessionId));
     const onAbort = () => run.kill();
@@ -260,6 +267,7 @@ export function createClaudeEngine(o: { bin: string; configDir?: string; dataDir
     } finally {
       a.signal.removeEventListener("abort", onAbort);
       run.kill();
+      if (mcpFile) rmSync(mcpFile, { force: true });
     }
   }
 
