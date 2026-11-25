@@ -16,6 +16,7 @@ One version number covers everything: the backend and web Docker images, the And
 git checkout main && git pull
 cd apps/koremind
 bun scripts/version.ts set 0.2.0            # edits the 4 package.json files and android/version.properties
+(cd ../.. && bun install)                   # the monorepo's bun.lock records each workspace's version
 git commit -am "release: koremind 0.2.0"
 # open a PR / merge to main as usual, then on the merge commit:
 git tag koremind-v0.2.0
