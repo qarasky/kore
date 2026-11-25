@@ -1,5 +1,5 @@
 {
-    "name": "flatline",
+    "name": "@kore/monitor",
     "version": "2.0.0",
     "private": true,
     "description": "KoreMonitor — Rust backend, Go fleet agent and backup agent, Next.js web app.",
@@ -12,10 +12,7 @@
     "//": "Node is a build/test tool here and the web app's runtime (apps/web, its own image); the backend is Rust and the agents are Go.",
     "scripts": {
         "fmt": "prettier --write .",
-        "fmt:check": "prettier --check .",
-        "test:web": "npm --prefix apps/web test",
-        "typecheck:web": "npm --prefix apps/web run typecheck",
-        "build:web": "npm --prefix apps/web run build"
+        "fmt:check": "prettier --check ."
     },
     "devDependencies": {
         "prettier": "^3.8.1"

@@ -22,7 +22,9 @@ describe("storage categories", () => {
 
   it("draw from kore-ui theme tokens (so they follow the theme), not typed colours", async () => {
     const { readFile } = await import("node:fs/promises");
-    const css = await readFile(new URL("../../node_modules/@qarasky/kore-ui/theme.css", import.meta.url), "utf8");
+    const { createRequire } = await import("node:module");
+    // Resolved like an import, so it works wherever the package manager put kore-ui.
+    const css = await readFile(createRequire(import.meta.url).resolve("@qarasky/kore-ui/theme.css"), "utf8");
     for (const k of CATEGORY_KEYS) {
       const m = /^var\((--color-[\w-]+)\)$/.exec(categoryColor(k));
       expect(m, k).not.toBeNull();

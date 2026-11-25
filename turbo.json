@@ -1,0 +1,19 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "env": ["API_URL", "KORE_ID_URL", "KOREMONITOR_BUILD_ID", "FLATLINE_BUILD_ID", "KOREMONITOR_DEV_ORIGINS", "FLATLINE_DEV_ORIGINS"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+    },
+    "typecheck": {},
+    "lint": {},
+    "test": {
+      "env": ["CI"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

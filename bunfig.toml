@@ -1,0 +1,5 @@
+[install]
+# A flat node_modules: Next standalone tracing and Tailwind's scanning stay simple.
+linker = "hoisted"
+# Don't install a version published less than 7 days ago (was kore-monitor's min-release-age=7).
+minimumReleaseAge = 604800
