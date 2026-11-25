@@ -87,5 +87,8 @@ The release key lives only in four repository **secrets**: `KORECAL_KEYSTORE_BAS
 `android/signing-fingerprint.txt` holds the certificate's SHA-256 (public, not a secret). To check the secrets after changing them, run the **Android signing check** workflow by hand: it opens the keystore,
 confirms the alias and the key password and prints the fingerprint. It publishes nothing.
 
+The key was replaced on 2026-11-26 (the old one was lost): an app installed from an earlier release must be uninstalled once
+and the new release installed; updates install over it from then on.
+
 **Keep a copy of the keystore file and its passwords outside GitHub.** GitHub never shows a secret again. If the key is lost you can never publish an update that installs over the existing app: every phone
 would have to uninstall it (losing the local copy) and install a new one signed with a new key.
