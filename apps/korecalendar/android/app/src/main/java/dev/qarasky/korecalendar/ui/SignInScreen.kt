@@ -1,0 +1,103 @@
+package dev.qarasky.korecalendar.ui
+
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import dev.qarasky.korecalendar.R
+import dev.qarasky.korecalendar.data.KoreIdRedirects
+import dev.qarasky.korecalendar.data.SignInResult
+import dev.qarasky.korecalendar.data.normalizeServerUrl
+import dev.qarasky.korecalendar.ui.theme.Palette
+import kotlinx.coroutines.launch
+
+@Composable
+fun SignInScreen(
+    state: AppState.SignedOut,
+    onKoreId: suspend (url: String, browse: suspend (String) -> String) -> SignInResult,
+) {
+    val context = LocalContext.current
+    var url by rememberSaveable(state.server) { mutableStateOf(state.server) }
+    var working by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    val badUrl = stringResource(R.string.err_bad_url)
+    val offline = stringResource(R.string.err_offline)
+    val rateLimited = stringResource(R.string.err_rate_limited, "%s")
+    val failed = stringResource(R.string.err_failed, "%s")
+    val noKoreId = stringResource(R.string.err_no_koreid)
+    val koreIdCancelled = stringResource(R.string.err_koreid_cancelled)
+    val cleartext = normalizeServerUrl(url)?.cleartext == true
+
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Spacer(Modifier.height(32.dp))
+        Text(stringResource(R.string.sign_in_title), style = MaterialTheme.typography.headlineMedium)
+        Text(
+            stringResource(if (state.revoked) R.string.session_ended else R.string.sign_in_intro),
+            color = if (state.revoked) Palette.warning else Palette.muted,
+        )
+        OutlinedTextField(
+            value = url, onValueChange = { url = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.server_address)) },
+            placeholder = { Text(stringResource(R.string.server_address_hint)) },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+        )
+        if (cleartext) Text(stringResource(R.string.cleartext_warning), color = Palette.warning, style = MaterialTheme.typography.bodySmall)
+        error?.let { Text(it, color = Palette.danger) }
+        Button(
+            shape = MaterialTheme.shapes.small,
+            enabled = !working && url.isNotBlank(),
+            onClick = {
+                working = true
+                error = null
+                scope.launch {
+                    val r = onKoreId(url) { authUrl ->
+                        // The system browser signs the person in; MainActivity hands the redirect back (KoreIdRedirects).
+                        val back = KoreIdRedirects.expect()
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(authUrl)))
+                        back.await()
+                    }
+                    working = false
+                    error = when (r) {
+                        is SignInResult.Ok -> null
+                        SignInResult.BadUrl -> badUrl
+                        is SignInResult.RateLimited -> rateLimited.replace("%s", r.message)
+                        SignInResult.Offline -> offline
+                        is SignInResult.Failed -> failed.replace("%s", r.message)
+                        SignInResult.NoKoreId -> noKoreId
+                        SignInResult.Cancelled -> koreIdCancelled
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+        ) { Text(stringResource(if (working) R.string.signing_in else R.string.sign_in_koreid)) }
+    }
+}

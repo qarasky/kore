@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Calendar</string>
+
+    <!-- Sign-in -->
+    <string name="sign_in_title">Sign in</string>
+    <string name="sign_in_intro">Connect to your KoreCalendar server.</string>
+    <string name="server_address">Server address</string>
+    <string name="server_address_hint">cal.example.com or 192.168.1.5:8080</string>
+    <string name="sign_in_koreid">Sign in with Kore ID</string>
+    <string name="err_no_koreid">This server does not offer Kore ID sign-in.</string>
+    <string name="err_koreid_cancelled">Sign-in with Kore ID was cancelled.</string>
+    <string name="signing_in">Signing in…</string>
+    <string name="cleartext_warning">This address is not encrypted (http). Your sign-in and your calendar travel unprotected. That is fine at home or over Tailscale; avoid it on public Wi-Fi.</string>
+    <string name="session_ended">Your sign-in ended. Sign in again to keep the calendar up to date.</string>
+    <string name="err_bad_url">That is not a server address the app can use.</string>
+    <string name="err_rate_limited">Too many attempts. %1$s</string>
+    <string name="err_offline">Cannot reach the server. Check the address and your connection.</string>
+    <string name="err_failed">The server answered with an error: %1$s</string>
+
+    <!-- Agenda -->
+    <string name="agenda_title">Agenda</string>
+    <string name="today">Today</string>
+    <string name="tomorrow">Tomorrow</string>
+    <string name="all_day">All day</string>
+    <string name="until">until</string>
+    <string name="settings">Settings</string>
+    <string name="updated_hours_ago">Updated %1$d h ago</string>
+    <string name="never_synced">Not updated yet</string>
+    <string name="offline_note">Offline: showing the last copy</string>
+    <string name="sync_failed_note">Could not update: %1$s</string>
+    <string name="syncing">Updating…</string>
+    <string name="nothing_upcoming">Nothing in the next 60 days</string>
+    <string name="refresh">Refresh</string>
+
+    <!-- Details -->
+    <string name="event_details">Event</string>
+    <string name="back">Back</string>
+    <string name="calendar_label">Calendar</string>
+    <string name="location_label">Location</string>
+    <string name="notes_label">Notes</string>
+    <string name="repeats">Repeats</string>
+    <string name="no_title">(No title)</string>
+
+    <!-- Settings -->
+    <string name="server">Server</string>
+    <string name="account">Account</string>
+    <string name="clock">Clock</string>
+    <string name="clock_24">24-hour</string>
+    <string name="clock_12">12-hour</string>
+    <string name="calendars">Calendars</string>
+    <string name="calendars_hint">Hidden calendars disappear from the agenda and the widget. Their events stay on the server.</string>
+    <string name="sign_out">Sign out</string>
+    <string name="sign_out_title">Sign out of this phone?</string>
+    <string name="sign_out_body">The copy of your calendar on this phone is deleted. Your events stay on the server.</string>
+    <string name="cancel">Cancel</string>
+    <string name="version">Version %1$s</string>
+    <string name="time_zone_note">Times are shown in your account\'s time zone: %1$s</string>
+
+    <!-- Widget -->
+    <string name="widget_description">The next events from your calendar, as an agenda.</string>
+    <string name="widget_empty">Nothing in the next 60 days</string>
+    <string name="widget_sign_in">Open Calendar to sign in</string>
+    <!-- Repeat rules -->
+    <string name="rrule_none">Doesn\'t repeat</string>
+    <string name="rrule_daily">Every day</string>
+    <string name="rrule_daily_n">Every %1$d days</string>
+    <string name="rrule_weekly_on">Every week on %1$s</string>
+    <string name="rrule_weekly_n_on">Every %1$d weeks on %2$s</string>
+    <string name="rrule_monthly_day">Every month on day %1$d</string>
+    <string name="rrule_monthly_day_n">Every %1$d months on day %2$d</string>
+    <string name="rrule_monthly_nth">Every month on the %1$s %2$s</string>
+    <string name="rrule_monthly_nth_n">Every %1$d months on the %2$s %3$s</string>
+    <string name="rrule_yearly">Every year on %1$s</string>
+    <string name="rrule_yearly_n">Every %1$d years on %2$s</string>
+    <string name="rrule_weekdays">Every weekday (Mon–Fri)</string>
+    <string name="rrule_until">until %1$s</string>
+    <string name="rrule_times">%1$d times</string>
+    <string name="rrule_custom">Custom rule: %1$s</string>
+    <string name="rrule_ordinal_1">first</string>
+    <string name="rrule_ordinal_2">second</string>
+    <string name="rrule_ordinal_3">third</string>
+    <string name="rrule_ordinal_4">fourth</string>
+    <string name="rrule_ordinal_last">last</string>
+
+    <!-- Reminders -->
+    <string name="reminder_at_start">At time of event</string>
+    <string name="reminder_at_midnight">At midnight on the day</string>
+    <string name="reminder_before">%1$s before</string>
+    <string name="reminder_before_midnight">%1$s before (at midnight)</string>
+    <string name="unit_minute_one">%1$d minute</string>
+    <string name="unit_minute_other">%1$d minutes</string>
+    <string name="unit_hour_one">%1$d hour</string>
+    <string name="unit_hour_other">%1$d hours</string>
+    <string name="unit_day_one">%1$d day</string>
+    <string name="unit_day_other">%1$d days</string>
+    <string name="unit_week_one">%1$d week</string>
+    <string name="unit_week_other">%1$d weeks</string>
+
+    <!-- Errors while editing -->
+    <string name="edit_err_unreachable">Can\'t reach the server. Check your connection and try again.</string>
+    <string name="edit_err_generic">Something went wrong. Try again.</string>
+    <string name="edit_err_validation">Some of the values aren\'t valid. Check the form and try again.</string>
+    <string name="edit_err_unsupported_rrule">That repeat rule isn\'t supported.</string>
+    <string name="edit_err_invalid_json">The request couldn\'t be read. Try again.</string>
+    <string name="edit_err_unauthorized">Your sign-in ended. Sign in again.</string>
+    <string name="edit_err_forbidden">That needs a signed-in session, not an access token.</string>
+    <string name="edit_err_not_found">That doesn\'t exist any more, or it isn\'t yours.</string>
+    <string name="edit_err_rate_limited">Too many attempts. Try again in a moment.</string>
+    <string name="edit_err_version_conflict">This event was changed somewhere else. Reload to see the latest.</string>
+    <string name="edit_err_idempotency">That request was already sent with different details.</string>
+    <string name="edit_err_range">That time range is too large.</string>
+    <string name="edit_err_busy">The server is busy. Try again in a moment.</string>
+    <string name="edit_err_internal">The server hit an error. Try again.</string>
+
+    <!-- Editor messages -->
+    <string name="toast_created">Event created</string>
+    <string name="toast_saved">Event saved</string>
+    <string name="toast_deleted">Event deleted</string>
+    <string name="toast_restored">Event restored</string>
+    <string name="toast_dropped_one">1 changed occurrence no longer fit the new schedule and was reset.</string>
+    <string name="toast_dropped_many">%1$d changed occurrences no longer fit the new schedule and were reset.</string>
+    <string name="editor_error_title">Enter a title</string>
+    <string name="editor_error_end_before_start">The end can\'t be before the start</string>
+    <string name="editplan_warn_cannot_move_day">This repeat rule can\'t follow a move to another day, so only this event can be moved.</string>
+
+    <!-- Editor -->
+    <string name="new_event">New event</string>
+    <string name="editor_new_title">New event</string>
+    <string name="editor_edit_title">Edit event</string>
+    <string name="editor_title">Title</string>
+    <string name="editor_title_placeholder">Add a title</string>
+    <string name="editor_all_day">All day</string>
+    <string name="editor_start">Start</string>
+    <string name="editor_end">End</string>
+    <string name="editor_timezone">Time zone</string>
+    <string name="editor_calendar">Calendar</string>
+    <string name="editor_repeat">Repeat</string>
+    <string name="editor_reminders">Reminders</string>
+    <string name="editor_add_reminder">Add a reminder</string>
+    <string name="editor_remove_reminder">Remove reminder: %1$s</string>
+    <string name="editor_location">Location</string>
+    <string name="editor_notes">Notes</string>
+    <string name="editor_save">Save</string>
+    <string name="editor_saving">Saving…</string>
+    <string name="editor_loading">Loading event…</string>
+    <string name="editor_reload">Reload</string>
+    <string name="editor_close">Close</string>
+    <string name="editor_no_calendar">Create a calendar on the server first.</string>
+    <string name="editor_conflict_hint">Reloading shows the latest version and discards what you changed.</string>
+    <string name="edit">Edit</string>
+    <string name="delete">Delete</string>
+    <string name="ok">OK</string>
+    <string name="undo">Undo</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="add">Add</string>
+    <string name="done">Done</string>
+    <string name="delete_title">Delete event?</string>
+    <string name="delete_body">%1$s will be deleted. You can undo this for a short while.</string>
+    <string name="scope_edit_title">Edit repeating event</string>
+    <string name="scope_delete_title">Delete repeating event</string>
+    <string name="scope_this">This event</string>
+    <string name="scope_following">This and following events</string>
+    <string name="scope_all">All events</string>
+    <string name="scope_confirm_edit">Save</string>
+    <string name="scope_confirm_delete">Delete</string>
+    <string name="repeat_custom">Custom…</string>
+    <string name="repeat_every">Repeat every</string>
+    <string name="repeat_unit_day">days</string>
+    <string name="repeat_unit_week">weeks</string>
+    <string name="repeat_unit_month">months</string>
+    <string name="repeat_unit_year">years</string>
+    <string name="repeat_on_days">Repeat on</string>
+    <string name="repeat_monthly_on">Repeat monthly on</string>
+    <string name="repeat_ends">Ends</string>
+    <string name="repeat_ends_never">Never</string>
+    <string name="repeat_ends_on">On a date</string>
+    <string name="repeat_ends_after">After a number of times</string>
+    <string name="repeat_times_label">times</string>
+    <string name="repeat_raw_note">This repeat rule is kept exactly as it is.</string>
+    <string name="reminder_custom">Custom…</string>
+    <string name="reminder_amount">Amount</string>
+    <string name="reminder_unit_minutes">minutes</string>
+    <string name="reminder_unit_hours">hours</string>
+    <string name="reminder_unit_days">days</string>
+    <string name="reminder_unit_weeks">weeks</string>
+    <string name="reminder_too_long">Reminders can be at most 4 weeks ahead.</string>
+    <string name="timezone_search">Search time zones</string>
+    <string name="timezone_none">No time zone matches.</string>
+    <string name="pick_date">Choose a date</string>
+    <string name="pick_time">Choose a time</string>
+
+    <string name="discard_title">Discard changes?</string>
+    <string name="discard_body">What you typed will be lost.</string>
+    <string name="discard">Discard</string>
+    <string name="keep_editing">Keep editing</string>
+    <string name="notice_undo_hint">Deleted</string>
+
+    <!-- Views -->
+    <string name="app_bar_title">Calendar</string>
+    <string name="view_agenda">Agenda</string>
+    <string name="view_day">Day</string>
+    <string name="view_week">Week</string>
+    <string name="view_month">Month</string>
+    <string name="previous">Previous</string>
+    <string name="next">Next</string>
+    <string name="search">Search</string>
+    <string name="search_hint">Search events</string>
+    <string name="search_prompt">Type to search titles, notes and places.</string>
+    <string name="search_none">Nothing found for \"%1$s\".</string>
+    <string name="search_count">Results: %1$d (%2$s to %3$s)</string>
+    <string name="search_count_offline">Results: %1$d</string>
+    <string name="search_offline_note">Offline: searching the copy on this phone only.</string>
+    <string name="range_offline_note">Offline: this part is not on the phone, so it may be incomplete.</string>
+    <string name="range_loading">Loading…</string>
+    <string name="more_events">+%1$d more</string>
+    <string name="week_starts_on">The week starts on</string>
+    <string name="week_start_mon">Monday</string>
+    <string name="week_start_sun">Sunday</string>
+    <string name="week_start_sat">Saturday</string>
+    <string name="day_cell_description">%1$s, events: %2$d</string>
+    <string name="new_event_here">New event here</string>
+    <string name="grid_slot_description">%1$s, time zone %2$s: tap an empty slot for a new event</string>
+
+    <!-- Reminders and updates -->
+    <string name="reminders_channel">Reminders</string>
+    <string name="reminders_channel_description">Event reminders, set on this phone.</string>
+    <string name="reminders">Reminders</string>
+    <string name="reminders_ok">Next reminder: %1$s</string>
+    <string name="reminders_none">No upcoming reminders on this phone.</string>
+    <string name="reminders_problem_note">Reminders may not fire: see Settings.</string>
+    <string name="reminders_fix_description">Fix reminders: open the system settings</string>
+    <string name="update_download_description">Download version %1$s</string>
+    <string name="reminders_notifications_off">Notifications are off, so reminders cannot show.</string>
+    <string name="reminders_exact_off">The phone does not let this app set exact alarms, so reminders may come late.</string>
+    <string name="reminders_battery">Battery use is restricted for this app, so reminders may not fire.</string>
+    <string name="reminders_fix">Fix</string>
+    <string name="cannot_open">This phone has nothing to open that with.</string>
+    <string name="reminders_hint">Reminders are set on the phone from the copy it keeps, so they work without a connection. An event added elsewhere a few minutes before it starts may remind late until the app syncs.</string>
+    <string name="update_available">Version %1$s is available</string>
+    <string name="update_download">Download</string>
+    <string name="update_check">Check for new versions once a day</string>
+    <string name="update_check_hint">Asks GitHub for the newest release of this app. Nothing else is sent. Installing is up to you.</string>
+</resources>

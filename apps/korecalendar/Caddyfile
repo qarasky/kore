@@ -1,0 +1,66 @@
+# KoreCalendar reverse proxy: the only published service (see docker-compose.yml).
+# /api/* goes to the Go api, everything else to the Next.js web app.
+# TLS is terminated in front of Caddy (Cloudflare Tunnel, Tailscale HTTPS) or not
+# at all (LAN), so Caddy itself speaks plain HTTP. Browser notifications need HTTPS.
+{
+	admin off
+	auto_https off
+	# On stop, let in-flight requests finish (docker-compose.yml allows 40 s).
+	grace_period 30s
+	servers {
+		# Trust X-Forwarded-* only from connections the Docker host makes
+		# itself: cloudflared (or anything else) on the host reaches the
+		# published port through docker-proxy and arrives from the gateway of
+		# Caddy's own network, KORECAL_SUBNET. LAN/Tailscale clients keep their
+		# real source address, so they are not trusted: their X-Forwarded-For/
+		# Proto/Host are overwritten with what Caddy sees, and an upstream
+		# "X-Forwarded-Proto: https" (which makes the session cookie Secure) is
+		# honoured only from the host.
+		trusted_proxies static 127.0.0.0/8 ::1 {$KORECAL_SUBNET:172.31.255.0/24}
+	}
+}
+
+:80 {
+	# The api uses CF-Connecting-IP (for login rate limiting) because its own
+	# peer, Caddy, is private. Keep the header only when it comes from the same
+	# trusted sources as above; anyone else could otherwise pick a fresh
+	# "client IP" for every request.
+	@untrustedCF {
+		header CF-Connecting-IP *
+		not remote_ip 127.0.0.0/8 ::1 {$KORECAL_SUBNET:172.31.255.0/24}
+	}
+	request_header @untrustedCF -CF-Connecting-IP
+
+	# Nothing here is meant for search engines.
+	header X-Robots-Tag "noindex, nofollow"
+
+	# The API and CalDAV (/dav/*, and the /.well-known/caldav discovery redirect).
+	# No response compression: .ics exports are small and clients vary. Every
+	# method passes through (PROPFIND, REPORT, ...); no web CSP headers.
+	@backend path /api/* /dav/* /.well-known/caldav
+	handle @backend {
+		header X-Content-Type-Options nosniff
+		reverse_proxy api:8080 {
+			flush_interval -1
+		}
+	}
+
+	# The web app (Next.js SSR).
+	handle {
+		encode zstd gzip
+		header {
+			X-Content-Type-Options nosniff
+			Referrer-Policy same-origin
+			X-Frame-Options DENY
+			# Next.js App Router streams its payload in inline <script> tags and
+			# React sets inline styles, so 'unsafe-inline' is needed without
+			# per-request nonces. Everything else is limited to this origin: no
+			# external hosts, no eval, no plugins, no framing. worker-src 'self'
+			# is for the notification service worker (/sw.js).
+			Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		}
+		reverse_proxy web:3000 {
+			flush_interval -1
+		}
+	}
+}

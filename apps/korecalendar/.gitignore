@@ -1,0 +1,14 @@
+.superpowers/
+
+# local installation (written by install.sh)
+/.env
+
+.worktrees/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.jks
+*.keystore

@@ -1,0 +1,11 @@
+@import "tailwindcss";
+/* The Kore design system: tokens (bg-surface, text-muted, h-control, …), Inter, base styles. */
+@import "@qarasky/kore-ui/theme.css";
+/* Tailwind must scan kore-ui's source for class names (path relative to this file). */
+@source "../node_modules/@qarasky/kore-ui/src";
+
+/* Calendar-specific: one hour row of the time grid, and the width of the hour labels. */
+:root {
+  --hour: 3.25rem;
+  --gutter: 3.75rem;
+}

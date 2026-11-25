@@ -1,0 +1,120 @@
+"use client";
+
+import { AnimatePresence, m } from "motion/react";
+import { useState, useSyncExternalStore, type FormEvent } from "react";
+import { useMutate } from "@/hooks/useMutate";
+import { t } from "@/lib/i18n";
+import { createToken, revokeToken } from "@/lib/mutations";
+import type { Token } from "@/lib/types";
+import { Button, ConfirmDialog, CopyField, DescriptionList, Field, Input, SettingsSection, koreDuration, koreEase } from "@qarasky/kore-ui";
+import { KeyRoundIcon } from "lucide-react";
+import { useShell } from "../ShellContext";
+
+const date = (unix: number) => new Date(unix * 1000).toLocaleDateString("en", { year: "numeric", month: "short", day: "numeric" });
+
+/** Personal access tokens for agents and scripts: the secret is shown once, on creation. */
+export function TokensManager({ initial }: { initial: Token[] }) {
+  const { me } = useShell();
+  // The address this page was opened from (empty on the server and until hydrated).
+  const origin = useSyncExternalStore(
+    () => () => {},
+    () => window.location.origin,
+    () => "",
+  );
+  const { run, pending } = useMutate();
+  const [name, setName] = useState("");
+  const [revealed, setRevealed] = useState<{ name: string; token: string } | null>(null);
+  // `revoking` outlives `confirmOpen` so the dialog keeps its text while it animates out.
+  const [revoking, setRevoking] = useState<Token | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  async function create(e: FormEvent) {
+    e.preventDefault();
+    if (name.trim() === "") return;
+    const made = await run(() => createToken(name.trim()));
+    if (made) {
+      setRevealed({ name: made.name, token: made.token });
+      setName("");
+    }
+  }
+
+  const copyLabels = { label: t("tokens.copy"), copiedLabel: t("tokens.copied"), failedLabel: t("tokens.copyFailed") };
+
+  return (
+    <>
+    <SettingsSection title={t("tokens.heading")} description={t("tokens.intro")}>
+      {revealed ? (
+        <div role="status" data-testid="token-reveal" className="rounded-ui border border-accent/50 bg-accent/10 p-4">
+          <h3 className="text-sub font-semibold">{t("tokens.revealTitle")}</h3>
+          <p className="mt-1 text-sub text-muted">{t("tokens.revealBody")}</p>
+          <CopyField value={revealed.token} mono copy={copyLabels} aria-label={t("tokens.revealTitle")} data-testid="token-secret" className="mt-3" />
+          <p className="mt-2 text-meta text-muted">{t("tokens.usage")}</p>
+          <Button size="sm" className="mt-3" onClick={() => setRevealed(null)}>
+            {t("tokens.done")}
+          </Button>
+        </div>
+      ) : null}
+
+      <form onSubmit={create} className="flex items-end gap-2">
+        <Field label={t("tokens.name")} id="token-name" className="flex-1">
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("tokens.namePlaceholder")} maxLength={100} />
+        </Field>
+        <Button type="submit" variant="primary" disabled={pending || name.trim() === ""}>
+          {t("tokens.create")}
+        </Button>
+      </form>
+
+      <ul className="flex flex-col divide-y divide-border rounded-overlay border border-border" data-testid="token-list">
+        {initial.length === 0 ? <li className="flex min-h-row items-center px-4 text-muted">{t("tokens.none")}</li> : null}
+        <AnimatePresence initial={false}>
+        {initial.map((tok) => (
+          <m.li key={tok.id} layout="position"
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0, transition: { duration: koreDuration.fade.in, ease: koreEase.standard } }}
+            exit={{ opacity: 0, transition: { duration: koreDuration.pop.out, ease: koreEase.exit } }}
+            data-testid="token-row" className="flex min-h-row items-center gap-3 px-4 py-2">
+            <KeyRoundIcon size={16} className="shrink-0 text-muted" />
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-medium">{tok.name}</div>
+              <div className="text-meta text-muted">
+                {t("tokens.created", { date: date(tok.created_at) })} · {tok.last_used_at ? t("tokens.lastUsed", { date: date(tok.last_used_at) }) : t("tokens.neverUsed")}
+              </div>
+            </div>
+            <Button size="sm" variant="danger-outline" aria-label={t("tokens.revokeLabel", { name: tok.name })} onClick={() => { setRevoking(tok); setConfirmOpen(true); }}>
+              {t("tokens.revoke")}
+            </Button>
+          </m.li>
+        ))}
+        </AnimatePresence>
+      </ul>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        danger
+        title={t("tokens.revokeTitle")}
+        description={revoking ? t("tokens.revokeBody", { name: revoking.name }) : undefined}
+        confirmLabel={t("tokens.revoke")}
+        cancelLabel={t("common.cancel")}
+        pendingLabel={t("common.working")}
+        onConfirm={async () => {
+          if (revoking) await run(() => revokeToken(revoking.id), { message: t("tokens.revoked") });
+        }}
+      />
+    </SettingsSection>
+
+    <SettingsSection title={t("caldav.title")} description={t("caldav.intro")}>
+      <div data-testid="caldav">
+        <DescriptionList
+          items={[
+            { id: "address", label: t("caldav.address"), value: <CopyField value={`${origin}/dav/`} mono size="sm" copy={copyLabels} aria-label={t("caldav.address")} /> },
+            { id: "user", label: t("caldav.user"), value: <CopyField value={me.email} mono size="sm" copy={copyLabels} aria-label={t("caldav.user")} /> },
+          ]}
+        />
+        <p className="mt-3 text-meta text-muted">{t("caldav.passwordNote")}</p>
+        <p className="mt-1 text-meta text-muted">{t("caldav.docs")}</p>
+      </div>
+    </SettingsSection>
+    </>
+  );
+}

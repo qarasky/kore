@@ -1,0 +1,565 @@
+openapi: 3.1.0
+info:
+  title: KoreCalendar API
+  version: "1.0"
+  description: |
+    The API is the product: everything the web and Android apps do goes through it.
+
+    **CalDAV.** The same calendars are also served over CalDAV (RFC 4791) at `/dav/` (discovery: `/.well-known/caldav`),
+    for apps and libraries that speak it. It is a separate protocol (HTTP Basic: your email and an access token,
+    XML or plain-text errors) and is **not** part of this contract; see `docs/caldav.md`.
+
+    **Times.** An event's `start` and `end` are local wall-clock strings in its `tz` (an IANA zone):
+    `2026-11-04T16:00:00`, or a date `2026-11-04` for all-day events, where `end` is exclusive.
+    Recurring events expand in that zone, so a 9:00 event stays at 9:00 across DST changes.
+    Occurrences also carry `start_utc` / `end_utc` (RFC 3339, `Z`); for an all-day event these are local midnight in its `tz`,
+    so asking for a local day's range returns only that day's all-day events.
+
+    **Occurrence key.** An occurrence is identified by its original start (its *key*), for example
+    `2026-11-06T16:00:00`. Use it as `?occurrence=` to change, move or delete one occurrence of a series.
+    The key stays the same even if that occurrence is moved to another time.
+
+    **Recurrence.** `rrule` is an RFC 5545 rule without the `RRULE:` prefix. Supported: `FREQ` daily, weekly,
+    monthly or yearly; `INTERVAL`; `COUNT` or `UNTIL` (not both); `BYDAY` including ordinals such as `2TU`;
+    `BYMONTHDAY`; `BYMONTH`; `BYSETPOS`; `WKST`. Hourly and finer rules are rejected (`unsupported_rrule`), as is anything that would
+    be silently reinterpreted: `COUNT` or `INTERVAL` below 1, or `BYDAY=2TU` on a daily or weekly repeat.
+    `rdates` add extra occurrences; `exdates` list excluded ones.
+
+    **Scopes.** `PATCH` and `DELETE` on a recurring event take `?scope=this|following|all` (default `all`):
+    `this` changes or excludes one occurrence (`?occurrence=` required); `following` ends the series before
+    that occurrence and (for PATCH) starts a new series from it; `all` changes the whole series.
+
+    **Safe retries.** `POST /api/events` accepts an `Idempotency-Key` header: the same key and body within 24 hours
+    returns the first response (with `Idempotent-Replayed: true`). Updates accept `If-Match: "<version>"`;
+    a stale version is `412 version_conflict`. Without `If-Match` the last write wins.
+
+    **Errors.** Always `{"error": {"code": "...", "message": "..."}}` with a stable `code` (see `x-error-codes`).
+    Another user's data is `404 not_found`, never 403.
+
+    **Authentication.** `Authorization: Bearer <token>`: a personal access token (`kcal_...`, created with
+    `POST /api/tokens`), or a Kore ID access token (a JWT with header `typ: at+jwt` whose audience is this app's client id;
+    treated like a session; id tokens are refused). Browsers use the `korecal_session` cookie set by the Kore ID callback.
+  license:
+    name: MIT
+servers:
+  - url: /
+security:
+  - bearerAuth: []
+  - cookieAuth: []
+x-error-codes:
+  validation_error: The request is well formed but a value is not acceptable (HTTP 422, or 400 for a malformed If-Match).
+  unsupported_rrule: The recurrence rule is outside the supported subset (HTTP 422).
+  invalid_json: The body is not valid JSON (HTTP 400).
+  unauthorized: Missing, expired or revoked credentials (HTTP 401).
+  forbidden: The credentials are valid but this action needs a signed-in session, not an access token (HTTP 403).
+  not_found: No such item, or it belongs to someone else (HTTP 404).
+  rate_limited: Too many attempts; wait `retryAfterSec` (HTTP 429).
+  version_conflict: The event changed since the `If-Match` version you sent (HTTP 412).
+  idempotency_conflict: The Idempotency-Key was used with a different body, or its first request is still running (HTTP 409).
+  range_too_large: More than 400 days or 5000 occurrences requested (HTTP 400).
+  calendar_not_empty: The calendar still has events; repeat with `?force=1` to delete it with them, restorable for 30 days (HTTP 409).
+  payload_too_large: The .ics file is over 5 MB (HTTP 413).
+  invalid_request: The back-channel logout token is missing, invalid or already used (HTTP 400).
+  internal: Something failed on the server (HTTP 500).
+paths:
+  /api/healthz:
+    get:
+      summary: Liveness check
+      x-access: public
+      security: []
+      responses:
+        "200": { description: The server is up., content: { application/json: { schema: { type: object, properties: { ok: { type: boolean } } } } } }
+  /api/openapi.json:
+    get:
+      summary: This document, as JSON
+      x-access: public
+      security: []
+      responses:
+        "200": { description: The OpenAPI 3.1 description of this API., content: { application/json: { schema: { type: object } } } }
+  /api/auth/config:
+    get:
+      summary: Which sign-in method this server offers
+      description: "Kore ID is the only way in. `first_user_sso` is true when Kore ID is configured with an owner email: the first sign-in with that verified email becomes the administrator. `oidc` is null when no provider is configured, and then nobody can sign in; the apps show that instead of a password form."
+      x-access: public
+      security: []
+      responses:
+        "200": { description: The sign-in method., content: { application/json: { schema: { type: object, properties: { first_user_sso: { type: boolean }, oidc: { type: [object, "null"] } } } } } }
+  /api/auth/oidc/login:
+    get:
+      summary: Start sign-in with Kore ID (browser redirect)
+      description: Redirects (302) to Kore ID with PKCE, state and nonce. `next` is a same-site path to return to. 404 unless Kore ID is configured.
+      x-access: public
+      security: []
+      parameters:
+        - { name: next, in: query, required: false, schema: { type: string, example: /calendar/week } }
+      responses:
+        "302": { description: Redirect to the Kore ID authorization endpoint. }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/auth/oidc/callback:
+    get:
+      summary: Kore ID redirect target (browser redirect)
+      description: Validates state, exchanges the code, verifies the id token, maps `sub` to a local user (creating or linking one as configured), sets the session cookie and redirects (302) to `next`. On failure it redirects to `/login?error=<reason>`.
+      x-access: public
+      security: []
+      parameters:
+        - { name: code, in: query, schema: { type: string } }
+        - { name: state, in: query, schema: { type: string } }
+      responses:
+        "302": { description: Redirect to the app, or to the sign-in page with an error. }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/auth/oidc/backchannel-logout:
+    post:
+      summary: Kore ID back-channel logout (called by Kore ID, not by browsers)
+      description: "OIDC Back-Channel Logout 1.0. Register `<public_url>/api/auth/oidc/backchannel-logout` as the client's `backchannelLogoutUri` in Kore ID. The form field `logout_token` must be a JWT signed by the issuer's JWKS with header `typ: logout+jwt`, `aud` = this server's client id, `iat`, `exp`, `jti`, the back-channel logout event in `events`, no `nonce`, and a `sid` or `sub`; each `jti` works once. Ends every session started from that Kore ID session (`sid`), or every session of that user (`sub` only). Access tokens (`kcal_…`) are not sessions and keep working. 404 unless Kore ID is configured."
+      x-access: public
+      security: []
+      requestBody: { required: true, content: { application/x-www-form-urlencoded: { schema: { type: object, required: [logout_token], properties: { logout_token: { type: string } } } } } }
+      responses:
+        "200": { description: The sessions (if any) ended. }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/logout:
+    post:
+      summary: Sign out (ends this session)
+      description: For a session that came from Kore ID the response is 200 with `end_session_url`; send the browser there to end the single sign-on session too (it returns to `/login`).
+      x-access: user
+      responses:
+        "200": { description: Signed out; also end the Kore ID session at this URL., content: { application/json: { schema: { type: object, properties: { end_session_url: { type: string } } } } } }
+        "204": { description: Signed out. }
+  /api/me:
+    get:
+      summary: The signed-in user
+      x-access: user
+      responses:
+        "200": { description: The user., content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
+        "401": { $ref: "#/components/responses/Error" }
+    patch:
+      summary: Change your default time zone
+      x-access: user
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { timezone: { type: string, example: Europe/Berlin } } } } } }
+      responses:
+        "200": { description: The updated user., content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
+        "422": { $ref: "#/components/responses/Error" }
+  /api/admin/users:
+    get:
+      summary: List accounts (admin only)
+      description: "Roles and whether a Kore ID identity is linked. No passwords are stored or shown. Non-admins get `404 not_found`, so the route is not revealed."
+      x-access: admin
+      responses:
+        "200": { description: Every account, by email., content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/AdminUser" } } } } }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/admin/users/{id}:
+    patch:
+      summary: Change a user's role (admin only)
+      description: "`role` is `user` or `admin`. People sign in with Kore ID; there is no password to set or reset."
+      x-access: admin
+      parameters: [{ $ref: "#/components/parameters/id" }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [role], properties: { role: { type: string, enum: [user, admin] } } } } } }
+      responses:
+        "200": { description: The updated user., content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /api/tokens:
+    get:
+      summary: List your access tokens (without secrets)
+      description: Needs a signed-in session. An access token gets `403 forbidden`, so a leaked agent token cannot mint or revoke tokens.
+      x-access: session
+      responses:
+        "200": { description: Tokens, newest first., content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Token" } } } } }
+        "403": { $ref: "#/components/responses/Error" }
+    post:
+      summary: Create an access token for an agent or script
+      description: The secret is shown once, in this response. Only its hash is stored.
+      x-access: session
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string, example: claude } } } } } }
+      responses:
+        "201": { description: Created., content: { application/json: { schema: { $ref: "#/components/schemas/TokenCreated" } } } }
+        "403": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /api/tokens/{id}:
+    delete:
+      summary: Revoke an access token
+      x-access: session
+      parameters: [{ $ref: "#/components/parameters/id" }]
+      responses:
+        "204": { description: Revoked. }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/calendars:
+    get:
+      summary: List your calendars
+      x-access: user
+      responses:
+        "200": { description: Calendars in creation order., content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Calendar" } } } } }
+    post:
+      summary: Create a calendar
+      x-access: user
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name, color], properties: { name: { type: string }, color: { type: string, example: "#7b6cf0" } } } } } }
+      responses:
+        "201": { description: Created., content: { application/json: { schema: { $ref: "#/components/schemas/Calendar" } } } }
+        "422": { $ref: "#/components/responses/Error" }
+  /api/calendars/{id}:
+    patch:
+      summary: Rename or recolour a calendar
+      x-access: user
+      parameters: [{ $ref: "#/components/parameters/id" }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { name: { type: string }, color: { type: string } } } } } }
+      responses:
+        "200": { description: Updated., content: { application/json: { schema: { $ref: "#/components/schemas/Calendar" } } } }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      summary: Delete a calendar
+      description: |
+        A calendar with events is `409 calendar_not_empty` unless `?force=1`, which deletes the calendar together with its events.
+        Nothing is destroyed for 30 days: `POST /api/calendars/{id}/restore` brings the calendar and those events back.
+      x-access: user
+      parameters:
+        - { $ref: "#/components/parameters/id" }
+        - { name: force, in: query, schema: { type: string, enum: ["1"] } }
+      responses:
+        "204": { description: Deleted. }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/calendars/{id}/restore:
+    post:
+      summary: Restore a deleted calendar (within 30 days)
+      description: |
+        Brings back the calendar and the events that were deleted with it, not events that were deleted before it.
+        Restoring a calendar that is not deleted changes nothing. An event of a deleted calendar cannot be restored on its own (`422`); restore the calendar first.
+      x-access: user
+      parameters: [{ $ref: "#/components/parameters/id" }]
+      responses:
+        "200": { description: The restored calendar., content: { application/json: { schema: { $ref: "#/components/schemas/Calendar" } } } }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/events:
+    post:
+      summary: Create an event or a recurring series
+      description: |
+        `calendar_id` defaults to your first calendar, `tz` to your time zone, `end` to one hour (one day if all-day) after `start`.
+        Send an `Idempotency-Key` header to make retries safe.
+      x-access: user
+      parameters:
+        - { name: Idempotency-Key, in: header, schema: { type: string, maxLength: 200 } }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/EventInput" } } } }
+      responses:
+        "201": { description: Created., headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: { $ref: "#/components/schemas/Event" } } } }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /api/events/{id}:
+    get:
+      summary: Read an event or series
+      x-access: user
+      parameters: [{ $ref: "#/components/parameters/id" }]
+      responses:
+        "200": { description: The event., headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: { $ref: "#/components/schemas/Event" } } } }
+        "404": { $ref: "#/components/responses/Error" }
+    patch:
+      summary: Change an event, one occurrence, or this and following occurrences
+      description: |
+        Send only the fields to change. Changing `start` without `end` keeps the duration.
+        `scope=this` stores a change for one occurrence (title, notes, location, start, end, all_day, reminders; not tz, rrule or calendar_id).
+        `scope=following` splits the series at `occurrence`: the old series ends before it and a new series (returned as `created`) starts from it
+        and takes the edit. On the first occurrence it is the same as `all`.
+        A schedule change (start, tz, rrule, all_day) drops overrides and exclusions that no longer match an occurrence; dropped overrides are listed in `dropped_overrides`.
+      x-access: user
+      parameters:
+        - { $ref: "#/components/parameters/id" }
+        - { $ref: "#/components/parameters/scope" }
+        - { $ref: "#/components/parameters/occurrence" }
+        - { $ref: "#/components/parameters/ifMatch" }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/EventPatch" } } } }
+      responses:
+        "200": { description: The series after the change., headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: { $ref: "#/components/schemas/EditResult" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "412": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      summary: Delete an event, one occurrence, or this and following occurrences
+      description: |
+        `all` (default) soft-deletes the event; it can be restored for 30 days. `this` excludes one occurrence.
+        `following` ends the series before the occurrence (from the first occurrence it deletes everything).
+        Returns the event as it is afterwards (`deleted_at` is set after a full delete).
+      x-access: user
+      parameters:
+        - { $ref: "#/components/parameters/id" }
+        - { $ref: "#/components/parameters/scope" }
+        - { $ref: "#/components/parameters/occurrence" }
+        - { $ref: "#/components/parameters/ifMatch" }
+      responses:
+        "200": { description: The event after the deletion., content: { application/json: { schema: { $ref: "#/components/schemas/Event" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "412": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /api/events/{id}/restore:
+    post:
+      summary: Restore a deleted event (within 30 days)
+      description: Restoring an event that is not deleted changes nothing.
+      x-access: user
+      parameters: [{ $ref: "#/components/parameters/id" }]
+      responses:
+        "200": { description: The restored event., content: { application/json: { schema: { $ref: "#/components/schemas/Event" } } } }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/occurrences:
+    get:
+      summary: List concrete occurrences in a time range
+      description: |
+        Recurring events are expanded here, with exclusions and single-occurrence changes applied, so clients never implement recurrence.
+        Returns occurrences that overlap `[from, to)`, sorted by start. At most 400 days and 5000 occurrences (`range_too_large`).
+      x-access: user
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date-time }, example: "2026-11-02T00:00:00Z" }
+        - { name: to, in: query, required: true, schema: { type: string, format: date-time }, example: "2026-11-09T00:00:00Z" }
+        - { name: calendar_id, in: query, description: Repeat to include several calendars., schema: { type: string } }
+        - { name: q, in: query, description: Case-insensitive text in the title, notes or location., schema: { type: string } }
+      responses:
+        "200": { description: Occurrences., content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Occurrence" } } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /api/changes:
+    get:
+      summary: Changes since a cursor (for sync)
+      description: |
+        Each event appears once in its latest state. Start with `since=0`, follow `cursor` while `more` is true, and keep the last cursor.
+        `deleted` lists ids to remove locally. Pair with `/api/occurrences` for the dates themselves.
+      x-access: user
+      parameters:
+        - { name: since, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 1000, default: 200 } }
+      responses:
+        "200": { description: One page of changes., content: { application/json: { schema: { $ref: "#/components/schemas/ChangeSet" } } } }
+        "422": { $ref: "#/components/responses/Error" }
+  /api/import:
+    post:
+      summary: Import an .ics file
+      description: |
+        Body is the raw `text/calendar` file (max 5 MB). Events with a UID that already exists (or equal to an existing event id) are updated in place.
+        An event that cannot be imported, for example an unsupported recurrence rule, is reported in `errors` while the others still import. Nothing is approximated.
+      x-access: user
+      parameters:
+        - { name: calendar_id, in: query, description: Where new events go; default your first calendar. Existing events stay in their calendar., schema: { type: string } }
+      requestBody: { required: true, content: { text/calendar: { schema: { type: string } } } }
+      responses:
+        "200": { description: Import summary., content: { application/json: { schema: { $ref: "#/components/schemas/ImportResult" } } } }
+        "404": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /api/export:
+    get:
+      summary: Export events as an .ics file
+      x-access: user
+      parameters:
+        - { name: calendar_id, in: query, description: Only this calendar., schema: { type: string } }
+      responses:
+        "200": { description: The calendar file., content: { text/calendar: { schema: { type: string } } } }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/push/key:
+    get:
+      summary: The VAPID public key for Web Push subscriptions
+      x-access: user
+      responses:
+        "200": { description: The key., content: { application/json: { schema: { type: object, properties: { publicKey: { type: string } } } } } }
+  /api/push/subscriptions:
+    post:
+      summary: Register a browser for push reminders
+      description: The endpoint must be https. Posting the same endpoint again refreshes its keys and returns 200 with the same id.
+      x-access: user
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/PushSubscription" } } } }
+      responses:
+        "200": { description: Already registered; keys refreshed., content: { application/json: { schema: { type: object, properties: { id: { type: string } } } } } }
+        "201": { description: Registered., content: { application/json: { schema: { type: object, properties: { id: { type: string } } } } } }
+        "422": { $ref: "#/components/responses/Error" }
+  /api/push/subscriptions/{id}:
+    delete:
+      summary: Remove a push registration
+      x-access: user
+      parameters: [{ $ref: "#/components/parameters/id" }]
+      responses:
+        "204": { description: Removed. }
+        "404": { $ref: "#/components/responses/Error" }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
+    cookieAuth: { type: apiKey, in: cookie, name: korecal_session }
+  parameters:
+    id: { name: id, in: path, required: true, schema: { type: string } }
+    scope:
+      name: scope
+      in: query
+      description: How much of a recurring series to touch.
+      schema: { type: string, enum: [this, following, all], default: all }
+    occurrence:
+      name: occurrence
+      in: query
+      description: The occurrence key (its original start), required for scope `this` and `following`.
+      schema: { type: string, example: "2026-11-06T16:00:00" }
+    ifMatch:
+      name: If-Match
+      in: header
+      description: The version you last read, such as `"3"`. A stale version is 412.
+      schema: { type: string }
+  responses:
+    Error:
+      description: An error. See `x-error-codes`.
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            retryAfterSec: { type: integer }
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [user, admin] }
+        timezone: { type: string, example: UTC }
+    AdminUser:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [user, admin] }
+        timezone: { type: string, example: UTC }
+        created_at: { type: integer }
+        kore_id_linked: { type: boolean, description: Whether a Kore ID identity is attached to this account yet. }
+    Token:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        created_at: { type: integer }
+        last_used_at: { type: integer }
+    TokenCreated:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        token: { type: string, description: Shown once., example: kcal_... }
+    Calendar:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        color: { type: string }
+        created_at: { type: integer }
+    Reminder:
+      type: object
+      properties:
+        minutes_before: { type: integer, minimum: 0, maximum: 40320, description: 0 = at the start. All-day events count back from midnight of the first day in the event's zone. }
+    EventInput:
+      type: object
+      required: [title, start]
+      properties:
+        calendar_id: { type: string }
+        title: { type: string, maxLength: 200 }
+        notes: { type: string }
+        location: { type: string }
+        start: { type: string, example: "2026-11-04T16:00:00" }
+        end: { type: string, example: "2026-11-04T17:00:00" }
+        tz: { type: string, example: Europe/Berlin }
+        all_day: { type: boolean }
+        rrule: { type: string, example: "FREQ=WEEKLY;BYDAY=WE,FR" }
+        rdates: { type: array, items: { type: string } }
+        reminders: { type: array, items: { $ref: "#/components/schemas/Reminder" }, maxItems: 20 }
+    EventPatch:
+      type: object
+      properties:
+        calendar_id: { type: string, description: Move the event to another of your calendars (whole series or `following` only; one occurrence stays in its calendar). }
+        title: { type: string }
+        notes: { type: string }
+        location: { type: string }
+        start: { type: string }
+        end: { type: string }
+        tz: { type: string }
+        all_day: { type: boolean }
+        rrule: { type: string, description: Empty string makes the event non-recurring. }
+        reminders: { type: array, items: { $ref: "#/components/schemas/Reminder" } }
+    Event:
+      type: object
+      properties:
+        id: { type: string }
+        calendar_id: { type: string }
+        title: { type: string }
+        notes: { type: string }
+        location: { type: string }
+        start: { type: string }
+        end: { type: string }
+        tz: { type: string }
+        all_day: { type: boolean }
+        rrule: { type: string }
+        rdates: { type: array, items: { type: string } }
+        exdates: { type: array, items: { type: string }, description: Occurrence keys that are excluded. }
+        reminders: { type: array, items: { $ref: "#/components/schemas/Reminder" } }
+        version: { type: integer, description: Also the ETag. Bumped by every change. }
+        ics_uid: { type: string, description: Present on events imported from an .ics file. }
+        created_by: { type: string, description: '"user" for a signed-in session, or the access token''s name.' }
+        updated_by: { type: string }
+        created_at: { type: integer }
+        updated_at: { type: integer }
+        deleted_at: { type: integer, description: Set when deleted. }
+    EditResult:
+      description: The series after the edit, plus what a split created and what a schedule change dropped.
+      allOf:
+        - { $ref: "#/components/schemas/Event" }
+        - type: object
+          properties:
+            created: { $ref: "#/components/schemas/Event" }
+            dropped_overrides: { type: array, items: { type: string } }
+    Occurrence:
+      type: object
+      properties:
+        event_id: { type: string }
+        calendar_id: { type: string }
+        key: { type: string, description: The occurrence's original start. }
+        title: { type: string }
+        notes: { type: string }
+        location: { type: string }
+        start: { type: string }
+        end: { type: string }
+        tz: { type: string }
+        all_day: { type: boolean }
+        is_recurring: { type: boolean }
+        is_override: { type: boolean, description: This occurrence was changed on its own. }
+        start_utc: { type: string, format: date-time }
+        end_utc: { type: string, format: date-time }
+        reminders: { type: array, items: { $ref: "#/components/schemas/Reminder" } }
+    ChangeSet:
+      type: object
+      properties:
+        cursor: { type: integer }
+        upserted: { type: array, items: { $ref: "#/components/schemas/Event" } }
+        deleted: { type: array, items: { type: string } }
+        more: { type: boolean }
+    ImportIssue:
+      type: object
+      properties:
+        index: { type: integer, description: Position of the event in the file; -1 for a changed occurrence without its series. }
+        uid: { type: string }
+        reason: { type: string }
+    ImportResult:
+      type: object
+      properties:
+        imported: { type: integer }
+        created: { type: integer }
+        updated: { type: integer }
+        errors: { type: array, items: { $ref: "#/components/schemas/ImportIssue" } }
+        warnings: { type: array, items: { $ref: "#/components/schemas/ImportIssue" } }
+    PushSubscription:
+      type: object
+      required: [endpoint, keys]
+      properties:
+        endpoint: { type: string, example: "https://push.example.com/abc" }
+        keys:
+          type: object
+          properties:
+            p256dh: { type: string }
+            auth: { type: string }
