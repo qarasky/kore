@@ -33,8 +33,8 @@ Run as a normal user with `sudo`. Replace the repository URL with yours.
 ```bash
 # 3.1 A dedicated user and directories
 sudo useradd --system --create-home --home-dir /home/koremind --shell /bin/bash koremind
-sudo mkdir -p /opt/koremind /var/lib/koremind /etc/koremind
-sudo chown koremind:koremind /opt/koremind /var/lib/koremind
+sudo mkdir -p /opt/kore /var/lib/koremind /etc/koremind
+sudo chown koremind:koremind /opt/kore /var/lib/koremind
 sudo chmod 700 /var/lib/koremind            # holds chats and OpenCode's sign-ins
 
 # 3.2 Bun, Claude Code and (optional) OpenCode for that user
@@ -133,7 +133,7 @@ Do not open `8787` to the whole internet over plain HTTP: session tokens and cha
 | --- | --- |
 | Status / logs | `systemctl status koremind` / `journalctl -u koremind -f` |
 | Restart | `sudo systemctl restart koremind` |
-| Update | `sudo -iu koremind bash -c 'cd /opt/koremind && git pull && bun install && bun run build'` then `sudo systemctl restart koremind` |
+| Update | `sudo -iu koremind bash -c 'cd /opt/kore && git pull && cd apps/koremind && bun install && bun run build:web'` then `sudo systemctl restart koremind` |
 | Check health | `curl http://localhost:8787/health` |
 | Stop | `sudo systemctl stop koremind` (this also stops the OpenCode engine and any running `claude`) |
 
@@ -174,12 +174,12 @@ For a live backup of the database alone: `sqlite3 /var/lib/koremind/koremind.sql
 | "No provider can answer" in chat | A usage limit is reached (Claude's plan, or OpenCode's free quota), or the provider isn't signed in on the server. Check `claude auth status` as the service user, and `OPENCODE_API_KEY` for OpenCode Go. |
 | Claude shows "Not signed in on the server" | Run `claude auth login` as the user the service runs as, or check `KOREMIND_CLAUDE_BIN` / `KOREMIND_CLAUDE_CONFIG_DIR`. |
 | Answers stop after a few seconds behind a proxy | The proxy is buffering the stream; see section 6. |
-| The page is blank after an update | Run `bun run build` again, then restart. The web UI is a production build. |
+| The page is blank after an update | Run `bun run build:web` in `/opt/kore/apps/koremind` again, then restart. The web UI is a production build. |
 
 ## 10. Uninstall
 
 ```bash
 sudo systemctl disable --now koremind && sudo rm /etc/systemd/system/koremind.service
-sudo rm -rf /opt/koremind /etc/koremind            # keep /var/lib/koremind if you want your data
+sudo rm -rf /opt/kore /etc/koremind                # keep /var/lib/koremind if you want your data (/opt/kore holds the whole Kore monorepo)
 sudo userdel koremind
 ```
