@@ -135,9 +135,17 @@ func NewSSOSession(ctx context.Context, db *sql.DB, userID string, ttl time.Dura
 		return "", err
 	}
 	tok := base64.RawURLEncoding.EncodeToString(b)
-	_, err := db.ExecContext(ctx,
+	idSealed, err := sealToken(tok, idToken)
+	if err != nil {
+		return "", err
+	}
+	rtSealed, err := sealToken(tok, refreshToken)
+	if err != nil {
+		return "", err
+	}
+	_, err = db.ExecContext(ctx,
 		`INSERT INTO sessions(token_hash,user_id,expires_at,id_token,refresh_token,checked_at,sid) VALUES(?,?,?,?,?,?,?)`,
-		hashToken(tok), userID, time.Now().Add(ttl).Unix(), idToken, refreshToken, time.Now().Unix(), sql.NullString{String: sid, Valid: sid != ""})
+		hashToken(tok), userID, time.Now().Add(ttl).Unix(), idSealed, rtSealed, time.Now().Unix(), sql.NullString{String: sid, Valid: sid != ""})
 	if err != nil {
 		return "", err
 	}
@@ -185,13 +193,29 @@ func SSOSessionFor(ctx context.Context, db *sql.DB, tok string) (SSOSession, err
 	if errors.Is(err, sql.ErrNoRows) {
 		return SSOSession{}, nil
 	}
+	if err != nil {
+		return SSOSession{}, err
+	}
 	s.CheckedAt = time.Unix(at, 0)
-	return s, err
+	if s.IDToken, err = openToken(tok, s.IDToken); err != nil {
+		return SSOSession{}, err
+	}
+	if s.RefreshToken, err = openToken(tok, s.RefreshToken); err != nil {
+		return SSOSession{}, err
+	}
+	return s, nil
 }
 
 // SetSSOTokens stores rotated provider tokens and the check time.
 func SetSSOTokens(ctx context.Context, db *sql.DB, tok, idToken, refreshToken string, checkedAt time.Time) error {
-	_, err := db.ExecContext(ctx,
+	idToken, err := sealToken(tok, idToken)
+	if err != nil {
+		return err
+	}
+	if refreshToken, err = sealToken(tok, refreshToken); err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx,
 		`UPDATE sessions SET id_token=CASE WHEN ?<>'' THEN ? ELSE id_token END, refresh_token=?, checked_at=? WHERE token_hash=?`,
 		idToken, idToken, refreshToken, checkedAt.Unix(), hashToken(tok))
 	return err

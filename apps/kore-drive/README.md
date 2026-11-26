@@ -309,7 +309,10 @@ the token's `sub` (the same UUID in every Kore app) to a local user in
 else (quotas, roles, share links, uploads) is unchanged. Sessions created this
 way redeem their refresh token every ten minutes: if the person signed out
 everywhere at Kore ID or the account is gone there, the KoreDrive session ends
-too (a Kore ID outage does not log anyone out). Signing out of KoreDrive also
+too (a Kore ID outage does not log anyone out). The refresh and id tokens are
+stored encrypted (AES-GCM) with a key derived from the session's own cookie
+value, which the database only holds as a hash, so a copy of the database alone
+gives no usable Kore ID tokens. Signing out of KoreDrive also
 ends the Kore ID session (RP-initiated logout). The other direction uses OIDC
 Back-Channel Logout: when a Kore ID session ends (sign-out, admin disable,
 "sign out everywhere", account disable), Kore ID POSTs a signed `logout_token`
