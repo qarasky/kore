@@ -444,6 +444,9 @@ async fn health(State(state): State<AppState>) -> Result<Json<Value>, ApiError> 
             "paused": paused,
             "downMonitors": down_monitors,
             "status": if down > 0 { "down" } else { "up" },
+            // Is the monitor's own uplink believed to be up? While it is
+            // not, failed checks are held back instead of reported DOWN.
+            "network": state.engine.canary().status().to_json(),
         }
     })))
 }
@@ -486,6 +489,9 @@ async fn healthz(State(state): State<AppState>) -> Response {
                 "loops": liveness.loops,
                 "stalled": liveness.stalled,
             },
+            // Informational: our own uplink being down is not a reason for
+            // the container to be restarted, so it never changes the status.
+            "network": state.engine.canary().status().to_json(),
         })
     };
 

@@ -32,6 +32,11 @@ pub struct Config {
     /// windows are at most 30 days, badges and status pages use 24h, and the
     /// heartbeat list is capped by its `limit`.
     pub heartbeat_retention_days: i64,
+    /// Outside HTTPS targets the connectivity canary probes when a check
+    /// fails (`KOREMONITOR_CANARY_URLS`). Empty disables the canary: every
+    /// failure then counts against its target. See
+    /// `monitors::canary` and docs/operations.md.
+    pub canary_urls: Vec<String>,
     /// Kore ID single sign-on; `None` when `KORE_ID_ISSUER` is unset. It is
     /// the only browser sign-in; without it the sign-in page says so.
     pub kore_id: Option<KoreIdConfig>,
@@ -100,6 +105,33 @@ fn list(lookup: &impl Fn(&str) -> Option<String>, name: &str) -> Vec<String> {
         .map(|v| v.trim().to_string())
         .filter(|v| !v.is_empty())
         .collect()
+}
+
+/// `KOREMONITOR_CANARY_URLS`: comma or space separated `http(s)` URLs; unset
+/// takes the built-in targets, `off` disables the canary.
+fn canary_urls(set: &impl Fn(&str) -> Option<String>) -> anyhow::Result<Vec<String>> {
+    let Some(raw) = set("KOREMONITOR_CANARY_URLS") else {
+        return Ok(crate::monitors::canary::DEFAULT_TARGETS
+            .iter()
+            .map(|url| url.to_string())
+            .collect());
+    };
+    if ["off", "none", "false", "0", "disabled"].contains(&raw.to_ascii_lowercase().as_str()) {
+        return Ok(Vec::new());
+    }
+    let mut urls = Vec::new();
+    for url in raw.split([',', ' ', '\n', ';']).map(str::trim) {
+        if url.is_empty() {
+            continue;
+        }
+        let parsed = reqwest::Url::parse(url)
+            .map_err(|e| anyhow::anyhow!("KOREMONITOR_CANARY_URLS: {url:?} is not a URL: {e}"))?;
+        if !matches!(parsed.scheme(), "http" | "https") {
+            anyhow::bail!("KOREMONITOR_CANARY_URLS: {url:?} must be an http(s) URL");
+        }
+        urls.push(url.to_string());
+    }
+    Ok(urls)
 }
 
 /// `KORE_APP_URLS`: `app=https://url` pairs for the Kore app switcher.
@@ -262,6 +294,8 @@ impl Config {
             None => crate::heartbeats::DEFAULT_RETENTION_DAYS,
         };
 
+        let canary_urls = canary_urls(&set)?;
+
         let kore_id = KoreIdConfig::from_lookup(&lookup, public_url.as_deref())?;
 
         Ok(Self {
@@ -273,6 +307,7 @@ impl Config {
             backup_agent_dir,
             backup_dir,
             heartbeat_retention_days,
+            canary_urls,
             kore_id,
         })
     }
@@ -308,6 +343,38 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(both.public_url.as_deref(), Some("https://new.example"));
+    }
+
+    #[test]
+    fn canary_targets_default_parse_and_can_be_switched_off() {
+        let default = config(&[]).unwrap();
+        assert_eq!(default.canary_urls.len(), 3, "three built-in targets");
+        assert!(
+            default
+                .canary_urls
+                .iter()
+                .all(|url| url.starts_with("https://"))
+        );
+
+        let custom = config(&[(
+            "KOREMONITOR_CANARY_URLS",
+            "https://a.example/ping, http://b.example/ https://c.example/",
+        )])
+        .unwrap();
+        assert_eq!(custom.canary_urls.len(), 3);
+
+        for off in ["off", "OFF", "none", "0"] {
+            let off = config(&[("KOREMONITOR_CANARY_URLS", off)]).unwrap();
+            assert!(off.canary_urls.is_empty(), "disabled");
+        }
+
+        let error = config(&[("KOREMONITOR_CANARY_URLS", "not a url")]).unwrap_err();
+        assert!(
+            error.to_string().contains("KOREMONITOR_CANARY_URLS"),
+            "{error}"
+        );
+        let error = config(&[("KOREMONITOR_CANARY_URLS", "ftp://x.example/")]).unwrap_err();
+        assert!(error.to_string().contains("http(s)"), "{error}");
     }
 
     #[test]

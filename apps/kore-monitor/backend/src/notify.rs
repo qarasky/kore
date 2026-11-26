@@ -420,6 +420,21 @@ pub async fn linked(
     .await
 }
 
+/// Active notification rows linked to any active monitor, each once:
+/// where a notice about the monitor itself should go.
+async fn broadcast_targets(pool: &SqlitePool) -> sqlx::Result<Vec<(String, String, String)>> {
+    sqlx::query_as(
+        "SELECT DISTINCT n.name, n.type, n.config
+         FROM notifications n
+         JOIN monitor_notifications mn ON mn.notification_id = n.id
+         JOIN monitors m ON m.id = mn.monitor_id
+         WHERE n.active = 1 AND m.active = 1
+         ORDER BY n.id",
+    )
+    .fetch_all(pool)
+    .await
+}
+
 /// Deliver one message to every active notification linked to a monitor.
 /// Failures are logged per provider, never thrown: a broken notification
 /// must never fail a heartbeat or an ingest.
@@ -628,6 +643,11 @@ enum Job {
         monitor_id: i64,
         text: String,
     },
+    /// Not about one monitor: every chat that receives alerts for at least
+    /// one active monitor, once each (monitor-wide notices).
+    Broadcast {
+        text: String,
+    },
 }
 
 /// Ordered, rate-limited alert delivery (E3).
@@ -702,6 +722,16 @@ impl Notifier {
         }
     }
 
+    /// Queue a notice for every chat that is linked to an active monitor,
+    /// once per chat, through the same ordered, rate-limited queues as
+    /// alerts. For events about the monitor itself rather than one target
+    /// (its own uplink going down and coming back).
+    pub fn enqueue_broadcast(self: &Arc<Self>, text: String) {
+        if self.submit(Job::Broadcast { text }).is_err() {
+            tracing::error!("notify: broadcast dropped: the notifier is closed or full");
+        }
+    }
+
     fn submit(self: &Arc<Self>, job: Job) -> Result<(), Job> {
         let sender = self.jobs.lock().unwrap().clone();
         let Some(sender) = sender else {
@@ -730,25 +760,27 @@ impl Notifier {
 
     /// Turn one job into per-chat queue entries, in order.
     async fn resolve(self: &Arc<Self>, job: Job) {
-        let (monitor_id, text) = match job {
+        let (rows, text) = match job {
             Job::Heartbeat {
                 monitor,
                 status,
                 msg,
             } => {
                 let text = build_heartbeat_message(&self.pool, &monitor, status, &msg).await;
-                (monitor.id, text)
+                (linked(&self.pool, monitor.id).await, text)
             }
-            Job::Message { monitor_id, text } => (monitor_id, text),
+            Job::Message { monitor_id, text } => (linked(&self.pool, monitor_id).await, text),
+            Job::Broadcast { text } => (broadcast_targets(&self.pool).await, text),
         };
 
-        let rows = match linked(&self.pool, monitor_id).await {
+        let rows = match rows {
             Ok(rows) => rows,
             Err(error) => {
-                tracing::error!("notify: load links for monitor {monitor_id}: {error}");
+                tracing::error!("notify: load notification links: {error}");
                 return;
             }
         };
+        let mut seen = std::collections::HashSet::new();
         for (name, kind, config) in rows {
             if kind != "telegram" {
                 continue;
@@ -757,6 +789,10 @@ impl Notifier {
                 tracing::warn!("notify: {name} has no usable telegram config");
                 continue;
             };
+            // Two rows may point at the same chat: one message is enough.
+            if !seen.insert(ChatKey::of(&telegram)) {
+                continue;
+            }
             self.enqueue_chat(&name, telegram, text.clone());
         }
     }
@@ -1383,6 +1419,77 @@ mod tests {
         }
         // A closed notifier refuses new work instead of losing it silently.
         assert!(notifier.enqueue_message(1, "late".into()).is_err());
+    }
+
+    #[tokio::test]
+    async fn broadcast_reaches_each_active_chat_once() {
+        let pool = scratch_pool().await;
+        let fake = FakeTransport::new(vec![]);
+        let notifier = Notifier::with_transport(pool.clone(), fake.clone(), RateLimit::default());
+
+        let notification = |name: &'static str, chat: &'static str, active: i64| {
+            let pool = pool.clone();
+            async move {
+                let config = format!(r#"{{"telegramBotToken": "t", "telegramChatID": "{chat}"}}"#);
+                sqlx::query_scalar::<_, i64>(
+                    "INSERT INTO notifications (name, type, config, active) VALUES (?, 'telegram', ?, ?) RETURNING id",
+                )
+                .bind(name)
+                .bind(config)
+                .bind(active)
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+            }
+        };
+        let monitor = |name: &'static str, active: i64| {
+            let pool = pool.clone();
+            async move {
+                sqlx::query_scalar::<_, i64>(
+                    "INSERT INTO monitors (name, type, active) VALUES (?, 'http', ?) RETURNING id",
+                )
+                .bind(name)
+                .bind(active)
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+            }
+        };
+        let link = |monitor: i64, notification: i64| {
+            let pool = pool.clone();
+            async move {
+                sqlx::query(
+                    "INSERT INTO monitor_notifications (monitor_id, notification_id) VALUES (?, ?)",
+                )
+                .bind(monitor)
+                .bind(notification)
+                .execute(&pool)
+                .await
+                .unwrap();
+            }
+        };
+
+        let ops = notification("ops", "1", 1).await;
+        let same_chat = notification("ops again", "1", 1).await;
+        let off = notification("disabled", "2", 0).await;
+        let orphan = notification("unlinked", "3", 1).await;
+        let paused_only = notification("paused only", "4", 1).await;
+        let (a, b, paused) = (
+            monitor("a", 1).await,
+            monitor("b", 1).await,
+            monitor("paused", 0).await,
+        );
+        link(a, ops).await;
+        link(b, ops).await; // linked twice: still one message
+        link(b, same_chat).await; // a second row for the same chat
+        link(a, off).await;
+        link(paused, paused_only).await;
+        let _ = orphan;
+
+        notifier.enqueue_broadcast("monitor offline".into());
+        wait_for_sends(&fake, 1).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert_eq!(fake.texts(), vec!["monitor offline".to_string()]);
     }
 
     #[tokio::test]

@@ -7,18 +7,51 @@ their offline restore procedure live in [backup-agent](backup-agent.md).
 
 ## Health checks
 
-| Check         | Command / endpoint                                        | Healthy means                                                                                                                         |
-| ------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Containers    | `sudo docker compose ps` (from the install directory)     | `caddy`, `backend` and `web` all `healthy`, low restart counts.                                                                       |
-| Backend alive | `GET /healthz` (no token; Caddy routes it to the backend) | 200 `{"status":"ok"}`: database answers within 2 s and the check engine's watchdog ticked within 30 s. 503 with a `reason` otherwise. |
-| Web app alive | `GET /build` (no token)                                   | 200 `{"build":"<id>"}`: the Next.js server answers; the id is the deployed build.                                                     |
-| Fleet summary | `GET /api/v1/health` (token)                              | `total` matches the expected count, `down` matches reality; 503 when the database fails.                                              |
-| Public origin | `curl -o /dev/null -w '%{http_code}' https://<origin>/`   | 200 from the public origin (through whatever tunnel or proxy fronts it).                                                              |
-| Agents        | newest telemetry per push monitor                         | seconds old, not minutes.                                                                                                             |
-| Local dev     | `./dev.sh status`                                         | backend 200, web 200.                                                                                                                 |
+| Check         | Command / endpoint                                        | Healthy means                                                                                                                                                                                                                             |
+| ------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Containers    | `sudo docker compose ps` (from the install directory)     | `caddy`, `backend` and `web` all `healthy`, low restart counts.                                                                                                                                                                           |
+| Backend alive | `GET /healthz` (no token; Caddy routes it to the backend) | 200 `{"status":"ok"}`: database answers within 2 s and the check engine's watchdog ticked within 30 s. 503 with a `reason` otherwise. `network.online` says whether the monitor's own uplink is believed up; it never changes the status. |
+| Web app alive | `GET /build` (no token)                                   | 200 `{"build":"<id>"}`: the Next.js server answers; the id is the deployed build.                                                                                                                                                         |
+| Fleet summary | `GET /api/v1/health` (token)                              | `total` matches the expected count, `down` matches reality; 503 when the database fails.                                                                                                                                                  |
+| Public origin | `curl -o /dev/null -w '%{http_code}' https://<origin>/`   | 200 from the public origin (through whatever tunnel or proxy fronts it).                                                                                                                                                                  |
+| Agents        | newest telemetry per push monitor                         | seconds old, not minutes.                                                                                                                                                                                                                 |
+| Local dev     | `./dev.sh status`                                         | backend 200, web 200.                                                                                                                                                                                                                     |
 
 The board itself is the best health signal: a fleet-wide problem shows as a
 wall of stale cards, and `Agent: …` lines surface the host-side cause.
+
+### The monitor's own connectivity
+
+When this server's internet drops, every site looks down at once. To avoid
+paging for every client, a failing HTTP or ping check first probes three
+independent outside targets (defaults: Cloudflare and Google `generate_204`
+endpoints and Quad9). **Only when all of them fail** is the failure treated as
+ours:
+
+- the check is recorded as PENDING with `Monitor offline, check not counted: …`
+  (a monitor that was already DOWN is left alone) and nothing is sent;
+- push monitors do not report "No heartbeat" while offline, nor for a grace
+  period after it (the monitor's interval plus `maxretries` × `retryInterval`,
+  at most 10 minutes), because agents reach the server through the same uplink;
+- one `🟠 MONITOR OFFLINE` message goes to every chat that receives alerts, and
+  one `🟢 MONITOR ONLINE` message when it is back, with the duration and how
+  many failed checks were held back. If the first could not be delivered, the
+  second still says when the outage began;
+- `network` in `GET /healthz` and `GET /api/v1/health` reports
+  `online`, `offlineSince`, `lastProbeAgeMs` and `suppressedChecks`, for the UI
+  and for automation. The state is refreshed when a check fails and by the
+  recovery watcher while offline, so `lastProbeAgeMs` can be old when nothing
+  has failed: that is the healthy case.
+
+A real outage still pages: one answering canary target is enough to blame the
+site. Set `KOREMONITOR_CANARY_URLS` (comma-separated `http(s)` URLs, any HTTP
+answer counts as reachable) to use other targets, or `off` to disable the
+canary. Pick targets on different networks, and ones that answer from your
+location.
+
+This does not replace an off-site check: a second vantage point that confirms
+failures from the outside is still the next step (see
+[roadmap](roadmap.md#alerts--notifications)).
 
 ### Watching the watcher
 
@@ -266,6 +299,7 @@ curl -fsSL '<origin>/agent/install.sh?token=<key>' | sudo bash -s -- --update
 | Container `unhealthy`                    | `curl -sS localhost:3001/healthz` says which part failed (database or engine); then the backend log. Docker will not restart it on its own: see [watching the watcher](#watching-the-watcher).                                                                                                     |
 | `/healthz` answers 503                   | The `reason` field: `database error` / `database probe timed out` (lock contention or a full disk), `engine watchdog stalled` (the runtime is wedged; the logs say which loop).                                                                                                                    |
 | Alerts arrive as one summary             | Expected under pressure: when four or more alerts wait for one chat, they are coalesced into a single message listing each in order. `notify:` log lines show rate limiting (`429`) and drops.                                                                                                     |
+| Every site went DOWN at once             | The monitor's own uplink: the log says `engine: lost internet connectivity` and Telegram got a `MONITOR OFFLINE` notice. With the canary working this no longer pages per site; if it still did, check `KOREMONITOR_CANARY_URLS` targets answer from this host (`curl -I <url>`).                  |
 | `engine: … panicked` in the logs         | A check loop crashed and was respawned with backoff; the monitor keeps being checked. Report the message: it is a bug.                                                                                                                                                                             |
 | Backend exits at boot: config error      | `PORT` or `KOREMONITOR_HEARTBEAT_RETENTION_DAYS` is set but not a valid number; the message names the variable and value. Fix or unset it.                                                                                                                                                         |
 | API answers `503 unavailable`            | The token store could not be read (database locked or failing); clients keep their token and retry. Check the logs for `auth: token store unavailable`.                                                                                                                                            |

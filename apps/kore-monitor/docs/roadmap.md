@@ -56,9 +56,10 @@ performance/stability review findings.
 
 ## Alerts & notifications
 
-| Item                               | Rationale                                                                                              |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **Group-level threshold defaults** | Per-monitor CPU/RAM/disk thresholds ship; group-level defaults were deliberately left out of that pass |
+| Item                               | Rationale                                                                                                                                                   |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Group-level threshold defaults** | Per-monitor CPU/RAM/disk thresholds ship; group-level defaults were deliberately left out of that pass                                                      |
+| **Second-vantage confirmation**    | Failures are cross-checked only against this host's own connectivity canary; a check from a second, off-site vantage point before paging is not implemented |
 
 ## Status pages
 

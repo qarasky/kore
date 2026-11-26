@@ -552,7 +552,9 @@ async fn recovery_is_sent_while_muted() {
 }
 
 #[tokio::test]
-async fn covered_group_is_silent() {
+async fn groups_never_alert_covered_or_not() {
+    // A group only re-reports its children, so it never pages (the engine's
+    // `silent_kind` rule), muted or not; muting a host still covers the group.
     let h = harness().await;
     let (url, captured) = alert_stub().await;
     let n = alert_notification(&h, &url).await;
@@ -569,15 +571,19 @@ async fn covered_group_is_silent() {
     beat(&h, s, UP).await;
     beat(&h, a, DOWN).await;
     beat(&h, g, DOWN).await;
-    assert_eq!(sent(&captured, "[grp]").await, 1);
+    assert_eq!(
+        sent(&captured, "[grp]").await,
+        0,
+        "a linked group's DOWN does not page"
+    );
 
     assert_eq!(mute(&h, s).await.0, StatusCode::OK);
     beat(&h, g, DOWN).await;
     beat(&h, g, DOWN).await;
     assert_eq!(
         sent(&captured, "[grp]").await,
-        1,
-        "a covered group's resends are silent"
+        0,
+        "nor do its resends, covered or not"
     );
 }
 

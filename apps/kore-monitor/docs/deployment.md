@@ -69,21 +69,22 @@ sign-in work ([sso](sso.md)); with them unset nobody can sign in.
 
 Copy `.env.example` to `.env` and fill it in before the first start:
 
-| Variable                      | What                                                                                               |
-| ----------------------------- | -------------------------------------------------------------------------------------------------- |
-| `KOREMONITOR_PUBLIC_URL`      | Absolute origin, e.g. `https://monitor.example.com`.                                               |
-| `KORE_ID_ISSUER`              | Kore ID issuer. Empty means no sign-in method is configured.                                       |
-| `KORE_ID_CLIENT_ID`           | Client id, `flatline` by default.                                                                  |
-| `KORE_ID_CLIENT_SECRET`       | Client secret. Never commit it.                                                                    |
-| `KORE_ID_REDIRECT_URI`        | Optional override; defaults to `${KOREMONITOR_PUBLIC_URL}/api/v1/auth/sso/callback`.               |
-| `KORE_ID_AUTO_PROVISION`      | `true` (default) creates a full operator account on the first admitted sign-in.                    |
-| `KORE_ID_ALLOWED_EMAILS`      | Optional comma-separated allow list on top of Kore ID's own app access.                            |
-| `KOREMONITOR_BIND`            | Host interface for Caddy, `0.0.0.0` by default. Use `127.0.0.1` behind a same-host proxy.          |
-| `KOREMONITOR_PORT`            | Host port for Caddy, `3001` by default.                                                            |
-| `KOREMONITOR_SUBNET`          | Network Caddy trusts `X-Forwarded-*` from, `172.31.254.0/24` by default. Change it if it collides. |
-| `KOREMONITOR_IMAGE_PREFIX`    | Image name before `-backend`, `-web` or `-caddy`.                                                  |
-| `KOREMONITOR_VERSION`         | Image tag, `edge` by default; pin a release tag in production.                                     |
-| `KOREMONITOR_BACKUP_HOST_DIR` | Host directory for backup bundles; only read when the backups override is used.                    |
+| Variable                      | What                                                                                                                                                                                                                                |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `KOREMONITOR_PUBLIC_URL`      | Absolute origin, e.g. `https://monitor.example.com`.                                                                                                                                                                                |
+| `KORE_ID_ISSUER`              | Kore ID issuer. Empty means no sign-in method is configured.                                                                                                                                                                        |
+| `KORE_ID_CLIENT_ID`           | Client id, `flatline` by default.                                                                                                                                                                                                   |
+| `KORE_ID_CLIENT_SECRET`       | Client secret. Never commit it.                                                                                                                                                                                                     |
+| `KORE_ID_REDIRECT_URI`        | Optional override; defaults to `${KOREMONITOR_PUBLIC_URL}/api/v1/auth/sso/callback`.                                                                                                                                                |
+| `KORE_ID_AUTO_PROVISION`      | `true` (default) creates a full operator account on the first admitted sign-in.                                                                                                                                                     |
+| `KORE_ID_ALLOWED_EMAILS`      | Optional comma-separated allow list on top of Kore ID's own app access.                                                                                                                                                             |
+| `KOREMONITOR_BIND`            | Host interface for Caddy, `0.0.0.0` by default. Use `127.0.0.1` behind a same-host proxy.                                                                                                                                           |
+| `KOREMONITOR_PORT`            | Host port for Caddy, `3001` by default.                                                                                                                                                                                             |
+| `KOREMONITOR_SUBNET`          | Network Caddy trusts `X-Forwarded-*` from, `172.31.254.0/24` by default. Change it if it collides.                                                                                                                                  |
+| `KOREMONITOR_IMAGE_PREFIX`    | Image name before `-backend`, `-web` or `-caddy`.                                                                                                                                                                                   |
+| `KOREMONITOR_VERSION`         | Image tag, `edge` by default; pin a release tag in production.                                                                                                                                                                      |
+| `KOREMONITOR_BACKUP_HOST_DIR` | Host directory for backup bundles; only read when the backups override is used.                                                                                                                                                     |
+| `KOREMONITOR_CANARY_URLS`     | Optional. Comma-separated `https://` targets probed to tell "the site is down" from "this monitor's uplink is down" ([operations](operations.md#the-monitors-own-connectivity)). Unset uses three built-in targets; `off` disables. |
 
 ## Installing
 
