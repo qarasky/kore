@@ -69,7 +69,8 @@ export function createApp(s: Services, opts: { trustProxy?: boolean; keepAliveMs
     if (path === "/auth/login" || path === "/auth/register") return fail(404, "not_found", "Password sign-in is gone. Use Kore ID.");
 
     // A tunnel (cloudflared, tailscale serve) on this machine arrives from loopback: believe its forwarded address, nobody else's.
-    const ip = (opts.trustProxy || isLoopback(socketIp) ? req.headers.get("x-forwarded-for")?.split(",")[0].trim() : undefined) ?? socketIp ?? "unknown";
+    // Only the rightmost entry: the proxy appends the peer it saw, anything to the left came from the client.
+    const ip = (opts.trustProxy || isLoopback(socketIp) ? req.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() || undefined : undefined) ?? socketIp ?? "unknown";
     const bearer = tokenOf(req);
     // KoreMind's own opaque session token, or (when Kore ID is on) a Kore ID access token for this app: a JWT has two dots, ours has none.
     const caller = s.auth.verify(bearer) ?? (s.sso && bearer.split(".").length === 3 ? await s.sso.verifyBearer(bearer) : null);

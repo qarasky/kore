@@ -188,6 +188,14 @@ test("a remote client cannot spoof x-forwarded-for to dodge the pairing lockout"
   expect(last).toBe(429);
 });
 
+test("a client behind the tunnel cannot prepend x-forwarded-for entries to dodge the pairing lockout", async () => {
+  const { call } = setup(undefined, 1024, { trustProxy: false });
+  let last = 0;
+  // The proxy appends the real peer, so only the rightmost entry is the proxy's word.
+  for (let i = 0; i < 11; i++) last = (await call("POST", "/auth/pair/redeem", { body: { code: `bad${i}` }, ip: `10.0.${i}.1, 7.7.7.7`, socketIp: "127.0.0.1" })).status;
+  expect(last).toBe(429);
+});
+
 test("slow replies keep the stream alive with comment pings", async () => {
   const slow = new FakeEngine({ reply: () => [{ type: "delta", text: "late" }], delayMs: 120 });
   const { call, signIn } = setup(slow, 1024, { trustProxy: true, keepAliveMs: 30 });
