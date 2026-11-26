@@ -1,4 +1,6 @@
 # Build context is the repo root for the JS images: send sources only.
+# (The Go API images and KoreMonitor's backend and Caddy images build from their app
+# directory and use that directory's own .dockerignore.)
 .git
 .superpowers
 **/node_modules
@@ -7,6 +9,26 @@
 **/.turbo
 **/target
 **/android
+
+# Runtime data and secrets of a deployed checkout: databases, signing keys,
+# client registrations, env files. None of it belongs in an image or its build.
+**/data
+**/*.sqlite
+**/*.sqlite-*
+**/*.db
+**/*.db-*
+**/clients.json
 **/.env
+**/.env.*
+!**/.env.example
 **/*.jks
 **/*.keystore
+**/*.pem
+
+# Test and editor output.
+**/coverage
+**/test-results
+**/playwright-report
+**/blob-report
+**/*.tsbuildinfo
+**/*.log
