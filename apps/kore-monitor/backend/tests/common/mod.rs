@@ -30,12 +30,12 @@ pub struct Harness {
 
 /// A fresh instance with a minted token, no monitors, storage disabled.
 pub async fn harness() -> Harness {
-    harness_inner(None, None).await
+    harness_inner(None, None, None).await
 }
 
 /// A harness with Kore ID configured (see `tests/sso.rs`).
 pub async fn harness_with_sso(kore_id: flatline_backend::config::KoreIdConfig) -> Harness {
-    harness_inner(None, Some(kore_id)).await
+    harness_inner(None, Some(kore_id), None).await
 }
 
 /// A harness whose backup storage root is provisioned. Tests pass deterministic
@@ -44,12 +44,22 @@ pub async fn harness_with_backups(
     free: Arc<dyn FreeSpace>,
     faults: Arc<dyn FaultInjector>,
 ) -> Harness {
-    harness_inner(Some((free, faults)), None).await
+    harness_inner(Some((free, faults)), None, None).await
+}
+
+/// A harness whose check engine consults `canary` (see
+/// `tests/network_canary.rs`); the default harness has the canary disabled
+/// so no test depends on the internet.
+pub async fn harness_with_canary(
+    canary: Arc<flatline_backend::monitors::canary::Canary>,
+) -> Harness {
+    harness_inner(None, None, Some(canary)).await
 }
 
 async fn harness_inner(
     storage: Option<(Arc<dyn FreeSpace>, Arc<dyn FaultInjector>)>,
     kore_id: Option<flatline_backend::config::KoreIdConfig>,
+    canary: Option<Arc<flatline_backend::monitors::canary::Canary>>,
 ) -> Harness {
     let dir = tempfile::tempdir().unwrap();
     let (backup_dir, backup_root, free, faults) = match storage {
@@ -80,6 +90,7 @@ async fn harness_inner(
         backup_agent_dir: dir.path().join("backup-agent"),
         backup_dir,
         heartbeat_retention_days: 0,
+        canary_urls: Vec::new(),
         kore_id: kore_id.clone(),
     };
     let pool = db::connect(&config.data_dir).await.unwrap();
@@ -88,9 +99,10 @@ async fn harness_inner(
     let events = Events::new();
     // The test seam skips the push watcher's boot delay; engine tests call
     // `start_all` explicitly, everything else stays inert.
-    let engine = flatline_backend::monitors::engine::Engine::for_tests(
+    let engine = flatline_backend::monitors::engine::Engine::for_tests_with_canary(
         pool.clone(),
         std::sync::Arc::clone(&events),
+        canary.unwrap_or_else(flatline_backend::monitors::canary::Canary::disabled),
     );
     let metrics =
         flatline_backend::metrics::Metrics::new(pool.clone(), std::sync::Arc::clone(&events));

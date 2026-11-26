@@ -5,6 +5,7 @@
 //! in `ignoredFields`, exactly like the Node backend, so the reused SPA can
 //! keep sending its whole form.
 
+pub mod canary;
 pub mod engine;
 
 use serde_json::{Map, Value, json};

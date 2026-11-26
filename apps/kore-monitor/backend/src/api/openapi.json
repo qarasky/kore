@@ -956,6 +956,16 @@
                                         "status": {
                                             "type": "string",
                                             "enum": ["ok"]
+                                        },
+                                        "network": {
+                                            "type": "object",
+                                            "description": "The monitor's own uplink, from the connectivity canary. While `online` is false, failed checks are held back instead of reported DOWN.",
+                                            "properties": {
+                                                "online": { "type": "boolean" },
+                                                "offlineSince": { "type": ["string", "null"], "format": "date-time" },
+                                                "lastProbeAgeMs": { "type": ["integer", "null"] },
+                                                "suppressedChecks": { "type": "integer" }
+                                            }
                                         }
                                     }
                                 }
@@ -1022,6 +1032,19 @@
                                                 "status": {
                                                     "type": "string",
                                                     "enum": ["up", "down"]
+                                                },
+                                                "network": {
+                                                    "type": "object",
+                                                    "description": "The monitor's own uplink, from the connectivity canary. While `online` is false, failed checks are held back instead of reported DOWN.",
+                                                    "properties": {
+                                                        "online": { "type": "boolean" },
+                                                        "offlineSince": {
+                                                            "type": ["string", "null"],
+                                                            "format": "date-time"
+                                                        },
+                                                        "lastProbeAgeMs": { "type": ["integer", "null"] },
+                                                        "suppressedChecks": { "type": "integer" }
+                                                    }
                                                 },
                                                 "downMonitors": {
                                                     "type": "array",

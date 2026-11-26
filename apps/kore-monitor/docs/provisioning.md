@@ -221,6 +221,8 @@ curl -fsS -H "Authorization: Bearer $KOREMONITOR_TOKEN" \
 - **None**: report that alerts cannot be configured and ask how to proceed.
 
 Notification assignments are per monitor and are not inherited from groups.
+Group monitors never send alerts (their children do), so do not link
+notifications to a group expecting it to page.
 Assign each monitor explicitly with `notificationIDList`; an array replaces
 the full set, the object form (`{"42":true}`) merges into an existing set.
 Read responses omit assignments, so record what you sent and report the

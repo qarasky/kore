@@ -14,6 +14,9 @@
 //! * Boot spreads first checks uniformly over each monitor's interval (E5).
 //! * Uptime windows are maintained incrementally from status runs (E4).
 //! * Alerts go through the ordered, rate-limited [`Notifier`] (E3).
+//! * Failures caused by this monitor's own uplink are held back, not paged
+//!   (see [`crate::monitors::canary`]); group monitors never page, their
+//!   children do.
 //! * Every sleep ends on the shared shutdown token (A5).
 //!
 //! Before [`Engine::start_all`] runs (integration tests), the engine is
@@ -32,12 +35,22 @@ use tokio::task::JoinHandle;
 use crate::events::Events;
 use crate::heartbeats::{self, Beat, DOWN, MonitorGuard, PENDING, UP, UptimeRuns};
 use crate::monitors::Monitor;
+use crate::monitors::canary::{Canary, Transition};
 use crate::notify::Notifier;
 use crate::shutdown::Shutdown;
 
 /// The push watcher's own timeout message; beats carrying it are the
 /// watcher's, not the agent's (E8).
 pub const PUSH_TIMEOUT_MSG: &str = "No heartbeat in the time window";
+
+/// Longest a push watcher sleeps while it holds a timeout back, so its
+/// progress stamp stays inside the watchdog's budget.
+const PUSH_HOLD_MAX: Duration = Duration::from_secs(30);
+/// Cap on the grace period after an outage, whatever the monitor's retry
+/// settings add up to.
+const PUSH_GRACE_MAX: Duration = Duration::from_secs(600);
+/// Failure messages are cut here (they end up in Telegram).
+const MAX_ERROR_CHARS: usize = 300;
 
 /// How often the watchdog checks the loops and stamps the liveness tick.
 const WATCHDOG_PERIOD: Duration = Duration::from_secs(5);
@@ -248,6 +261,10 @@ pub struct Engine {
     /// they are cached by those two knobs instead of rebuilt per check.
     clients: Mutex<HashMap<(bool, i64), reqwest::Client>>,
     notifier: Arc<Notifier>,
+    /// Is our own uplink up? Consulted when a check fails.
+    canary: Arc<Canary>,
+    /// A recovery watcher is running (one per outage).
+    recovery_watch: AtomicBool,
     tasks: Mutex<Tasks>,
     running: AtomicBool,
     /// Wait a full interval before the first push-timeout check. Node does
@@ -267,24 +284,41 @@ pub struct Engine {
 }
 
 impl Engine {
-    pub fn new(pool: SqlitePool, events: Arc<Events>) -> Arc<Self> {
-        Self::build(pool, events, true)
+    pub fn new(pool: SqlitePool, events: Arc<Events>, canary: Arc<Canary>) -> Arc<Self> {
+        Self::build(pool, events, true, canary)
     }
 
     /// Test seam: push watchers skip the initial interval-long wait and
     /// boot skips the first-check jitter, so loop behavior can be exercised
-    /// quickly. Production uses [`Self::new`].
+    /// quickly. The canary is disabled, so no test depends on the internet.
+    /// Production uses [`Self::new`].
     pub fn for_tests(pool: SqlitePool, events: Arc<Events>) -> Arc<Self> {
-        Self::build(pool, events, false)
+        Self::build(pool, events, false, Canary::disabled())
     }
 
-    fn build(pool: SqlitePool, events: Arc<Events>, production: bool) -> Arc<Self> {
+    /// [`Self::for_tests`] with a scripted canary.
+    pub fn for_tests_with_canary(
+        pool: SqlitePool,
+        events: Arc<Events>,
+        canary: Arc<Canary>,
+    ) -> Arc<Self> {
+        Self::build(pool, events, false, canary)
+    }
+
+    fn build(
+        pool: SqlitePool,
+        events: Arc<Events>,
+        production: bool,
+        canary: Arc<Canary>,
+    ) -> Arc<Self> {
         let notify_client = reqwest::Client::builder()
             .timeout(Duration::from_secs(10))
             .build()
             .unwrap_or_default();
         Arc::new(Self {
             notifier: Notifier::new(pool.clone(), notify_client),
+            canary,
+            recovery_watch: AtomicBool::new(false),
             pool,
             events,
             clients: Mutex::new(HashMap::new()),
@@ -309,6 +343,101 @@ impl Engine {
     /// The alert queue; the server drains it on shutdown.
     pub fn notifier(&self) -> &Arc<Notifier> {
         &self.notifier
+    }
+
+    /// The connectivity canary (health endpoints read it).
+    pub fn canary(&self) -> &Arc<Canary> {
+        &self.canary
+    }
+
+    /// Is this monitor's own uplink down right now? Probes when the cached
+    /// verdict is stale and announces a change (once). Always `false` with
+    /// the canary disabled.
+    async fn network_offline(self: &Arc<Self>) -> bool {
+        let verdict = self.canary.check().await;
+        if let Some(transition) = verdict.transition {
+            self.announce(transition);
+        }
+        verdict.offline
+    }
+
+    /// Tell the operator the monitor lost, or got back, its uplink: one
+    /// message each, to every chat that gets alerts. If the first cannot be
+    /// delivered (the uplink is what is down), the second says when it
+    /// started and how long it lasted.
+    fn announce(self: &Arc<Self>, transition: Transition) {
+        match transition {
+            Transition::WentOffline { at } => {
+                tracing::warn!("engine: lost internet connectivity; holding back site alerts");
+                self.notifier.enqueue_broadcast(format!(
+                    "[🟠 MONITOR OFFLINE] [KoreMonitor]\n[Lost internet at {} UTC]\n[Site and agent alerts are held back until it is back]",
+                    at.format("%H:%M:%S")
+                ));
+                self.watch_recovery();
+            }
+            Transition::Recovered {
+                since,
+                duration,
+                suppressed,
+            } => {
+                tracing::warn!(
+                    "engine: internet connectivity is back after {}s; {suppressed} failed checks were held back",
+                    duration.as_secs()
+                );
+                self.notifier.enqueue_broadcast(format!(
+                    "[🟢 MONITOR ONLINE] [KoreMonitor]\n[Back after {}, offline since {} UTC]\n[{suppressed} failed checks were held back; agents get a grace period to reconnect]",
+                    human_duration(duration),
+                    since.format("%H:%M:%S")
+                ));
+            }
+        }
+    }
+
+    /// While offline, keep probing so the recovery is noticed (and
+    /// announced) even if no check happens to fail meanwhile.
+    fn watch_recovery(self: &Arc<Self>) {
+        if self.recovery_watch.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let engine = Arc::clone(self);
+        let handle = tokio::spawn(async move {
+            loop {
+                if !engine.pause(engine.canary.recheck_interval()).await {
+                    break;
+                }
+                if !engine.network_offline().await {
+                    break;
+                }
+            }
+            engine.recovery_watch.store(false, Ordering::SeqCst);
+        });
+        let mut background = self.background.lock().unwrap();
+        background.retain(|task| !task.is_finished());
+        background.push(handle);
+    }
+
+    /// Did this failed check fail because of us? True while the uplink is
+    /// down, and when it was down at any point since the check began (a slow
+    /// check that started in the outage and failed after the recovery).
+    async fn failure_is_ours(self: &Arc<Self>, started: Instant) -> bool {
+        self.network_offline().await || self.canary.offline_since(started)
+    }
+
+    /// How long a push watcher should keep waiting instead of declaring
+    /// silence: while we are offline (agents cannot reach us), and for a
+    /// grace period afterwards so they can reconnect. `None`: judge now.
+    async fn push_hold(self: &Arc<Self>, monitor: &Monitor) -> Option<Duration> {
+        if self.network_offline().await {
+            return Some(self.canary.recheck_interval().min(PUSH_HOLD_MAX));
+        }
+        let grace = Duration::from_secs(
+            (monitor.interval.max(1) + monitor.maxretries.max(0) * monitor.retry_interval.max(1))
+                as u64,
+        )
+        .min(PUSH_GRACE_MAX);
+        self.canary
+            .grace_remaining(grace)
+            .map(|left| left.clamp(Duration::from_millis(250), PUSH_HOLD_MAX))
     }
 
     fn now_ms(&self) -> u64 {
@@ -811,6 +940,30 @@ impl Engine {
             };
             let (requested, ping, msg) = match outcome {
                 Ok((ping, msg)) => (UP, Some(ping), msg),
+                Err(message) if self.failure_is_ours(started).await => {
+                    self.canary.note_suppressed();
+                    let already_down = heartbeats::latest(&self.pool, monitor.id)
+                        .await
+                        .ok()
+                        .flatten()
+                        .is_some_and(|beat| beat.status == DOWN);
+                    if already_down {
+                        // Nothing new to say; look again soon.
+                        progress.store(self.now_ms(), Ordering::SeqCst);
+                        let retry = Self::next_delay(started, monitor.retry_interval.max(1));
+                        if !self.pause(retry).await {
+                            return;
+                        }
+                        continue;
+                    }
+                    // Not DOWN, so nothing pages: the retry walk restarts
+                    // from PENDING once the uplink is back.
+                    (
+                        PENDING,
+                        None,
+                        format!("Monitor offline, check not counted: {message}"),
+                    )
+                }
                 Err(message) => (DOWN, None, message),
             };
 
@@ -994,6 +1147,15 @@ impl Engine {
                 }
             }
 
+            // Agents push through the same uplink: while we are offline, and
+            // briefly after, silence says nothing about them.
+            if let Some(wait) = self.push_hold(&monitor).await {
+                if !self.pause(wait).await {
+                    return;
+                }
+                continue;
+            }
+
             let duration = latest
                 .as_ref()
                 .and_then(|beat| heartbeats::millis_since(&beat.time))
@@ -1083,7 +1245,12 @@ impl Engine {
             tracing::debug!("engine: {} is muted; alert not sent", monitor.name);
         }
 
-        if recorded.notify && !muted {
+        // A group re-reports its children's state. Its own page would just
+        // duplicate theirs (and a group of silent children is nothing to
+        // report), so groups record and publish but never alert.
+        let silent_kind = monitor.kind == "group";
+
+        if recorded.notify && !muted && !silent_kind {
             let message = recorded
                 .beat
                 .msg
@@ -1148,7 +1315,8 @@ impl Engine {
                 if error.is_timeout() {
                     format!("timeout of {}ms exceeded", timeout.max(1) * 1000)
                 } else {
-                    error.to_string()
+                    // The URL is already the alert's target line.
+                    error_chain(&error.without_url())
                 }
             })?;
         let ping = started.elapsed().as_secs_f64() * 1000.0;
@@ -1264,6 +1432,37 @@ impl Engine {
     }
 }
 
+/// An error and everything beneath it: `Display` of a `reqwest::Error` stops
+/// at "error sending request", hiding whether DNS, the connection, TLS or
+/// the peer was to blame. Walks `source()`, skips layers that repeat their
+/// cause, and bounds the length (the text goes into Telegram).
+fn error_chain(error: &dyn std::error::Error) -> String {
+    let mut parts = vec![error.to_string()];
+    let mut source = error.source();
+    while let Some(cause) = source {
+        let text = cause.to_string();
+        if !text.is_empty() && !parts.last().is_some_and(|last| last.contains(&text)) {
+            parts.push(text);
+        }
+        source = cause.source();
+    }
+    let message = parts.join(": ");
+    match message.char_indices().nth(MAX_ERROR_CHARS) {
+        Some((cut, _)) => format!("{}…", &message[..cut]),
+        None => message,
+    }
+}
+
+/// "4m 12s", "1h 03m", "9s".
+fn human_duration(duration: Duration) -> String {
+    let seconds = duration.as_secs();
+    match seconds {
+        0..=59 => format!("{seconds}s"),
+        60..=3599 => format!("{}m {:02}s", seconds / 60, seconds % 60),
+        _ => format!("{}h {:02}m", seconds / 3600, seconds % 3600 / 60),
+    }
+}
+
 /// Does the status match any accepted range (`["200-299", "301"]`)?
 /// A malformed list falls back to the Node default, 200-299.
 fn accepted_status(accepted: &str, status: u16) -> bool {
@@ -1323,6 +1522,58 @@ mod tests {
         // A malformed list falls back to the default range.
         assert!(accepted_status("not json", 204));
         assert!(!accepted_status("not json", 404));
+    }
+
+    #[test]
+    fn error_chain_names_every_layer_once_and_stays_short() {
+        #[derive(Debug)]
+        struct Layer(&'static str, Option<Box<Layer>>);
+        impl std::fmt::Display for Layer {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str(self.0)
+            }
+        }
+        impl std::error::Error for Layer {
+            fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+                self.1.as_deref().map(|layer| layer as _)
+            }
+        }
+        let chain = Layer(
+            "error sending request",
+            Some(Box::new(Layer(
+                "client error (Connect)",
+                Some(Box::new(Layer(
+                    "dns error: failed to lookup address information",
+                    Some(Box::new(Layer(
+                        "Name or service not known (os error -2)",
+                        None,
+                    ))),
+                ))),
+            ))),
+        );
+        assert_eq!(
+            error_chain(&chain),
+            "error sending request: client error (Connect): dns error: failed to lookup address information: Name or service not known (os error -2)"
+        );
+
+        // A layer that already quotes its cause is not repeated.
+        let echo = Layer(
+            "tls: bad certificate",
+            Some(Box::new(Layer("bad certificate", None))),
+        );
+        assert_eq!(error_chain(&echo), "tls: bad certificate");
+
+        let long = Layer(Box::leak("x".repeat(1000).into_boxed_str()), None);
+        let cut = error_chain(&long);
+        assert_eq!(cut.chars().count(), MAX_ERROR_CHARS + 1);
+        assert!(cut.ends_with('…'));
+    }
+
+    #[test]
+    fn durations_read_naturally() {
+        assert_eq!(human_duration(Duration::from_secs(9)), "9s");
+        assert_eq!(human_duration(Duration::from_secs(252)), "4m 12s");
+        assert_eq!(human_duration(Duration::from_secs(3780)), "1h 03m");
     }
 
     #[test]

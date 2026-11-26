@@ -158,6 +158,25 @@ HTTP/ICMP checks, group aggregation, or the push watcher.
   clamped at zero and also tracked on the monotonic clock, so a backwards
   wall-clock step cannot hide a silent agent; a fresh beat never schedules the
   next check more than `interval + 1 s` ahead.
+- **Own-connectivity canary.** When a check fails, the engine probes three
+  independent outside HTTPS targets (`KOREMONITOR_CANARY_URLS`). If all of them
+  fail, the monitor's own uplink is down, not the site: the failed check is
+  recorded as PENDING ("Monitor offline, check not counted: …"), never DOWN, and
+  nothing pages. One answering target is enough to call the uplink up, and a
+  check that _began_ during an outage still counts as the outage's after the
+  recovery. A probe is shared by simultaneous failures; an online verdict is
+  reused for 3 s, an offline one for 15 s, and while offline a watcher keeps
+  probing so the recovery is noticed. Push watchers (agents push through the
+  same uplink) hold back "No heartbeat" while offline and for a grace period
+  after it: the monitor's interval plus its retries (`maxretries` ×
+  `retryInterval`), at most 10 minutes. A monitor that was already DOWN stays
+  DOWN. The state is in `/healthz` and `/api/v1/health` as `network`.
+- **Groups never page.** A group records and publishes its status (the board
+  and status pages show it) but sends no alert; its children page for themselves.
+- **Failure messages carry the root cause.** HTTP errors walk the error's
+  `source()` chain, e.g. `error sending request: client error (Connect): tcp
+connect error: Connection refused (os error 111)` or a DNS or TLS reason,
+  instead of reqwest's bare "error sending request".
 - **Database errors** retry after 5 s (or the interval, if shorter) instead of
   waiting a full interval.
 - **Serialized recording.** Recording a heartbeat (read the previous beat,
@@ -186,7 +205,12 @@ provider's `retry_after` and retries the same message, so a DOWN can never
 arrive after the UP that followed it. When four or more alerts are waiting, the
 backlog goes out as one summary listing each alert's headline in order; a queue
 holds at most 200 alerts, and the summary says how many of the oldest were
-dropped. Metric threshold alerts share the same queues.
+dropped. Metric threshold alerts share the same queues, and so do the two
+notices about the monitor's own uplink ("MONITOR OFFLINE" when the canary
+trips, "MONITOR ONLINE" with the duration and the number of held-back checks
+when it recovers): each goes once to every chat linked to an active monitor. If
+the offline notice cannot be delivered (the uplink is what is down), the
+online notice still says when the outage began.
 
 Mutes (`mutes.rs`, table `monitor_mutes`) are checked where alerts are decided:
 the record path ends or shrinks mutes on a status change before it decides to
@@ -277,16 +301,17 @@ unlock cookie, and neither grants operator access. See
 
 The backend reads its configuration from the environment:
 
-| Variable                               | Default             | Meaning                                             |
-| -------------------------------------- | ------------------- | --------------------------------------------------- |
-| `PORT`                                 | `3001`              | Listen port.                                        |
-| `DATA_DIR`                             | `./data`            | SQLite database directory.                          |
-| `KOREMONITOR_HOST`                     | `0.0.0.0`           | Bind address.                                       |
-| `KOREMONITOR_AGENT_DIR`                | `/app/agent`        | Agent binaries served under `/agent/*`.             |
-| `KOREMONITOR_BACKUP_AGENT_DIR`         | `/app/backup-agent` | Backup-agent builds under `/api/backup/v1`.         |
-| `KOREMONITOR_BACKUP_DIR`               | unset               | Backup storage root; unset disables uploads.        |
-| `KOREMONITOR_PUBLIC_URL`               | request host        | Absolute origin used in the provisioning documents. |
-| `KOREMONITOR_HEARTBEAT_RETENTION_DAYS` | `90`                | Heartbeat retention; `0` keeps forever.             |
+| Variable                               | Default             | Meaning                                                                                                                    |
+| -------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                                 | `3001`              | Listen port.                                                                                                               |
+| `DATA_DIR`                             | `./data`            | SQLite database directory.                                                                                                 |
+| `KOREMONITOR_HOST`                     | `0.0.0.0`           | Bind address.                                                                                                              |
+| `KOREMONITOR_AGENT_DIR`                | `/app/agent`        | Agent binaries served under `/agent/*`.                                                                                    |
+| `KOREMONITOR_BACKUP_AGENT_DIR`         | `/app/backup-agent` | Backup-agent builds under `/api/backup/v1`.                                                                                |
+| `KOREMONITOR_BACKUP_DIR`               | unset               | Backup storage root; unset disables uploads.                                                                               |
+| `KOREMONITOR_PUBLIC_URL`               | request host        | Absolute origin used in the provisioning documents.                                                                        |
+| `KOREMONITOR_HEARTBEAT_RETENTION_DAYS` | `90`                | Heartbeat retention; `0` keeps forever.                                                                                    |
+| `KOREMONITOR_CANARY_URLS`              | three built-in      | Outside targets probed when a check fails (see [operations](operations.md#the-monitors-own-connectivity)); `off` disables. |
 
 Kore ID's `KORE_ID_*` keys, and the optional allowlists, are documented in
 [sso](sso.md).

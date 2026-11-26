@@ -62,7 +62,11 @@ pub async fn build_state(config: config::Config) -> anyhow::Result<AppState> {
     let pool = db::connect(&config.data_dir).await?;
 
     let events = events::Events::new();
-    let engine = monitors::engine::Engine::new(pool.clone(), Arc::clone(&events));
+    let engine = monitors::engine::Engine::new(
+        pool.clone(),
+        Arc::clone(&events),
+        monitors::canary::Canary::new(config.canary_urls.clone()),
+    );
     let metrics = metrics::Metrics::new(pool.clone(), Arc::clone(&events));
     let sso = config
         .kore_id
